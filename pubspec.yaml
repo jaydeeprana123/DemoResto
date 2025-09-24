@@ -1,0 +1,33 @@
+name: demo
+description: A new Flutter project.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:       # CRITICAL: Required for every Flutter project - DO NOT REMOVE
+    sdk: flutter # CRITICAL: Required for every Flutter project - DO NOT REMOVE
+
+  # CRITICAL: Core UI and responsive design - DO NOT REMOVE OR MODIFY
+  flutter_staggered_grid_view: ^0.7.0
+
+
+dev_dependencies:
+  flutter_test:    # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
+    sdk: flutter   # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
+  flutter_lints: ^5.0.0 # CRITICAL: Required for code quality - DO NOT REMOVE
+
+flutter:
+  uses-material-design: true # CRITICAL: Required for Material icon font - DO NOT REMOVE
+  assets:
+    - assets/
+    - assets/images/
+  # CRITICAL ASSET MANAGEMENT RULES:
+  # - DO NOT ADD NEW ASSET DIRECTORIES (assets/svg/, assets/icons/, etc.)
+  # - ONLY USE EXISTING AND ITEMS AVAILABLE IN THE DIRECTORIES LISTED ABOVE (assets/, assets/images/)
+
+  # CRITICAL FONTS RULE:
+  # - THIS PROJECT USES GOOGLE FONTS INSTEAD OF LOCAL FONTS
+  # - DO NOT ADD ANY LOCAL FONTS SECTION OR FONT FILES
