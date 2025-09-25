@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'CartPage.dart';
+import 'FinalCartPage.dart';
 import 'MenuPage.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
@@ -145,7 +146,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                               await Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => CartPage(
+                                  builder: (_) => FinalCartPage(
                                     menuData: List<Map<String, dynamic>>.from(
                                       items,
                                     ),

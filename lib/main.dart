@@ -1,9 +1,19 @@
 import "package:demo/DragDropTables.dart";
 import 'package:flutter/material.dart';
-
+import 'package:firebase_core/firebase_core.dart';
 import 'DragDropTables.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+
+  await Supabase.initialize(
+    url: 'https://ndjixaiuoeteaxznruju.supabase.co', // replace
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5kaml4YWl1b2V0ZWF4em5ydWp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4MDAyMTMsImV4cCI6MjA3NDM3NjIxM30.HNPjqa7I4F94p1MnbxX5Jb9LHtbvY5eVj5r1ifDiFL0', // replace
+  );
+
   runApp(const MyApp());
 }
 
