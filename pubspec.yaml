@@ -23,6 +23,7 @@ dependencies:
   cloud_firestore: ^6.0.2
   get: ^4.6.6
   dotted_line: ^3.0.0
+  intl: ^0.18.1
 
 
 dev_dependencies:

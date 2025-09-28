@@ -4,6 +4,7 @@ import 'package:demo/AddMenuItemPage.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
 import 'AddTablePage.dart';
+import 'AllOrdersPage.dart';
 import 'CartPage.dart';
 import 'FinalCartPage.dart';
 import 'MenuPage.dart';
@@ -219,40 +220,48 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
       final docId = tableQuery.docs.first.id;
       print("Document ID found: $docId");
 
-      // SOLUTION: Flatten the nested structure for Firestore
-      // Add a groupIndex to each item to reconstruct groups when reading
       List<Map<String, dynamic>> flattenedItems = [];
+
       for (int groupIndex = 0; groupIndex < groups.length; groupIndex++) {
         var group = groups[groupIndex];
+
+        // Get addedAt for the group (either from first item's addedAt or now)
+        Timestamp groupTimestamp;
+        if (group.isNotEmpty && group[0].containsKey('addedAt')) {
+          groupTimestamp = group[0]['addedAt'];
+        } else {
+          groupTimestamp = Timestamp.now(); // default
+        }
+
         for (var item in group) {
-          Map<String, dynamic> itemWithGroup = Map<String, dynamic>.from(item);
-          itemWithGroup['groupIndex'] = groupIndex; // Add group identifier
-          flattenedItems.add(itemWithGroup);
+          final itemWithMeta = Map<String, dynamic>.from(item);
+
+          // Add groupIndex and addedAt to item
+          itemWithMeta['groupIndex'] = groupIndex;
+          itemWithMeta['addedAt'] = groupTimestamp;
+
+          flattenedItems.add(itemWithMeta);
         }
       }
 
-      print("Flattened items: $flattenedItems");
-
       final updateData = {
-        'items': flattenedItems, // Save as flat array, not nested
+        'items': flattenedItems,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      print("Update data prepared: $updateData");
-
       await FirebaseFirestore.instance.collection('tables').doc(docId).update(updateData);
 
-      print("SUCCESS: Updated table $tableName with ${flattenedItems.length} items in ${groups.length} groups");
+      print("SUCCESS: Updated $tableName with ${flattenedItems.length} items and ${groups.length} groups");
       print("=== END UPDATE ===");
     } catch (e) {
-      print("ERROR: Failed to update table items in Firestore: $e");
-      print("Error type: ${e.runtimeType}");
+      print("ERROR: Failed to update Firestore: $e");
       if (e is FirebaseException) {
         print("Firebase error code: ${e.code}");
         print("Firebase error message: ${e.message}");
       }
     }
   }
+
 
   // Merge items by name and category to combine quantities
   List<Map<String, dynamic>> _mergeItemsByNameAndCategory(
@@ -535,11 +544,25 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
               ),
             ),
           ),
+
+
+
           if (isLoading)
             Center(
               child: CircularProgressIndicator(),
             )
         ],
+      ),
+      // 🔹 Floating action button is outside the Stack
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.list),
+        tooltip: 'View all orders',
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => OrdersGroupedListPage()),
+          );
+        },
       ),
     );
   }
