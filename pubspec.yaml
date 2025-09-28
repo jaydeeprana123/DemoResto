@@ -24,6 +24,7 @@ dependencies:
   get: ^4.6.6
   dotted_line: ^3.0.0
   intl: ^0.18.1
+  audioplayers:
 
 
 dev_dependencies:
@@ -36,6 +37,7 @@ flutter:
   assets:
     - assets/
     - assets/images/
+    - assets/sounds/
   # CRITICAL ASSET MANAGEMENT RULES:
   # - DO NOT ADD NEW ASSET DIRECTORIES (assets/svg/, assets/icons/, etc.)
   # - ONLY USE EXISTING AND ITEMS AVAILABLE IN THE DIRECTORIES LISTED ABOVE (assets/, assets/images/)
