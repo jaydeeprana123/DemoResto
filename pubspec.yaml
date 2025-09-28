@@ -20,7 +20,8 @@ dependencies:
 #  flutter_sms: ^2.3.3
   firebase_core:
   firebase_storage:
-  supabase_flutter: ^2.5.3
+  cloud_firestore: ^6.0.2
+  get: ^4.6.6
 
 
 dev_dependencies:

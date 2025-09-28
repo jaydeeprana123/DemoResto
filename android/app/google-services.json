@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "21833488799",
-    "project_id": "moresto-3c692",
-    "storage_bucket": "moresto-3c692.firebasestorage.app"
+    "project_number": "799838711875",
+    "project_id": "resto-a0d9a",
+    "storage_bucket": "resto-a0d9a.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:21833488799:android:4be1bb9e08e7e5c32e45aa",
+        "mobilesdk_app_id": "1:799838711875:android:f3fed8462194742cf624f6",
         "android_client_info": {
           "package_name": "com.innies.demo"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDScB2AfNRTQAgLkGnvrW3Vh74__NgYbik"
+          "current_key": "AIzaSyBMMra2aSYq5Iy_SJNaGN4Jzw2pNZZ0pyY"
         }
       ],
       "services": {

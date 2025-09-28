@@ -10,7 +10,6 @@ import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart' as pw;
 import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Cart Page
@@ -120,6 +119,10 @@ class FinalCartPage extends StatelessWidget {
                         name: "Cart Summary",
                         usePrinterSettings: false,
                       );
+
+                      // Clear cart
+                      onConfirm([]);
+
                       //
                       // // Step 3: After preview, open Name + Mobile dialog
                       // final _nameController = TextEditingController();
@@ -641,33 +644,7 @@ class FinalCartPage extends StatelessWidget {
     }
   }
 
-  Future<String> uploadPdfOnSupraBase(
-    Uint8List pdfBytes,
-    String fileName,
-  ) async {
-    final client = Supabase.instance.client;
 
-    // Upload to "pdfs" bucket
-    final response = await client.storage
-        .from('pdfs') // bucket name
-        .uploadBinary(
-          fileName,
-          pdfBytes,
-          fileOptions: const FileOptions(
-            cacheControl: '3600',
-            upsert: true,
-            contentType: 'application/pdf',
-          ),
-        );
-
-    if (response.isNotEmpty) {
-      // Get public URL
-      final publicUrl = client.storage.from('pdfs').getPublicUrl(fileName);
-      return publicUrl;
-    } else {
-      throw Exception("Failed to upload PDF");
-    }
-  }
 
   //
   // Future<void> sendPdfLink(String pdfUrl, String phoneNumber) async {

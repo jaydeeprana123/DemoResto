@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
@@ -126,5 +127,16 @@ class CartPage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+
+  Future<void> _saveToTable1() async {
+    final tableDoc = FirebaseFirestore.instance.collection('tables').doc('Table 1');
+
+    // Write the entire menuData list to Firestore under Table 1
+    await tableDoc.set({
+      'items': menuData,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 }
