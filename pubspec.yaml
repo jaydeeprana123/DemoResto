@@ -22,6 +22,7 @@ dependencies:
   firebase_storage:
   cloud_firestore: ^6.0.2
   get: ^4.6.6
+  dotted_line: ^3.0.0
 
 
 dev_dependencies:
