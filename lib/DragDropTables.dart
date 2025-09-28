@@ -360,186 +360,57 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                   final tableName = tables.keys.elementAt(index);
                   final groups = tables[tableName]!;
 
-                  return GestureDetector(
-                    onDoubleTap: () async {
-                      final allItems = groups.expand((g) => g).toList();
-                      final mergedItems = _mergeItemsByNameAndCategory(allItems);
+                  return  DragTarget<String>(
+                    onAccept: (sourceTable) async {
+                      if (sourceTable != tableName) {
+                        final sourceGroups = tables[sourceTable]!;
+                        final destGroups = tables[tableName]!;
 
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => FinalCartPage(
-                            menuData: mergedItems,
-                            onConfirm:
-                                (List<Map<String, dynamic>> confirmedItems) async {
-                              setState(() {
-                                tables[tableName] = [confirmedItems];
-                              });
-                              await _updateTableItemsInFirestore(
-                                  tableName, [confirmedItems]);
-                            },
+                        setState(() {
+                          // Append deep copy of source groups to destination
+                          final copiedGroups = sourceGroups.map((group) {
+                            return group.map((item) => Map<String, dynamic>.from(item)).toList();
+                          }).toList();
+
+                          destGroups.addAll(copiedGroups);
+                          sourceGroups.clear();
+                        });
+
+                        await _updateTableItemsInFirestore(tableName, tables[tableName]!);
+                        await _updateTableItemsInFirestore(sourceTable, []);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Moved all items from $sourceTable to $tableName')),
+                        );
+                      }
+                    },
+                    builder: (context, candidateData, rejectedData) {
+                      return LongPressDraggable<String>(
+                        data: tableName,
+                        feedback: Material(
+                          elevation: 4,
+                          color: Colors.transparent,
+                          child: Container(
+                            width: 160,
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.blueAccent,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              tableName,
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
                           ),
                         ),
+                        childWhenDragging: Opacity(
+                          opacity: 0.4,
+                          child: _buildTableCard(tableName, groups),
+                        ),
+                        child: _buildTableCard(tableName, groups),
                       );
                     },
-                    child: Card(
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                      elevation: 4,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            color: groups.isNotEmpty ? Colors.green : Colors.orange,
-                            padding:
-                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(tableName,
-                                    style: TextStyle(color: Colors.white)),
-                                Row(children: [
-                                  if (groups.isNotEmpty)
-                                    IconButton(
-                                      icon: Icon(Icons.edit, color: Colors.white),
-                                      onPressed: () async {
-                                        print("Edit button pressed for table: $tableName");
-                                        final lastGroup = groups.last;
-                                        print("Last group has ${lastGroup.length} items");
-
-                                        await Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => MenuPage(
-                                              menuList: menu,
-                                              initialItems:
-                                              List<Map<String, dynamic>>.from(
-                                                  lastGroup),
-                                              onConfirm:
-                                                  (List<Map<String, dynamic>>
-                                              selectedItems) async {
-                                                print("Edit onConfirm called with ${selectedItems.length} items");
-                                                print("Selected items: $selectedItems");
-
-                                                setState(() {
-                                                  groups[groups.length - 1] =
-                                                      selectedItems;
-                                                });
-
-                                                print("About to update Firebase for table: $tableName");
-                                                await _updateTableItemsInFirestore(
-                                                    tableName, groups);
-                                              },
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  IconButton(
-                                    icon: Icon(Icons.add_circle, color: Colors.white),
-                                    onPressed: () async {
-                                      print("Add button pressed for table: $tableName");
-                                      print("Current groups count: ${groups.length}");
-
-                                      await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => MenuPage(
-                                            menuList: menu,
-                                            initialItems: [],
-                                            onConfirm:
-                                                (List<Map<String, dynamic>>
-                                            selectedItems) async {
-                                              print("Add onConfirm called with ${selectedItems.length} items");
-                                              print("Selected items: $selectedItems");
-
-                                              // Always add and update, even if empty
-                                              setState(() {
-                                                groups.add(selectedItems);
-                                                print("Groups count after add: ${groups.length}");
-                                              });
-
-                                              print("About to update Firebase for table: $tableName");
-                                              await _updateTableItemsInFirestore(
-                                                  tableName, groups);
-                                            },
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ])
-                              ],
-                            ),
-                          ),
-                          if (groups.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.all(40.0),
-                              child: Center(
-                                child: Text(
-                                  "No items",
-                                  style: TextStyle(
-                                      fontSize: 13, color: Colors.black38),
-                                ),
-                              ),
-                            )
-                          else
-                            Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: List.generate(groups.length, (i) {
-                                  final group = groups[i];
-                                  return Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      ...group.map((item) {
-                                        final qty = item['qty'] ?? 1;
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 4),
-                                          child: Text.rich(
-                                            TextSpan(
-                                              children: [
-                                                TextSpan(
-                                                  text: item['name'],
-                                                  style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: Colors.black87),
-                                                ),
-                                                TextSpan(
-                                                  text: " \u00D7$qty",
-                                                  style: TextStyle(
-                                                    fontSize: 15,
-                                                    color: Colors.red,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      }).toList(),
-                                      if (i < groups.length - 1)
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 8),
-                                          child: DottedLine(
-                                            dashColor: Colors.grey,
-                                            lineThickness: 1,
-                                            dashLength: 4,
-                                            dashGapLength: 4,
-                                          ),
-                                        ),
-                                    ],
-                                  );
-                                }),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
                   );
+
                 },
               ),
             ),
@@ -566,6 +437,156 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
       ),
     );
   }
+
+
+  Widget _buildTableCard(String tableName, List<List<Map<String, dynamic>>> groups) {
+    return GestureDetector(
+      onDoubleTap: () async {
+        final allItems = groups.expand((g) => g).toList();
+        final mergedItems = _mergeItemsByNameAndCategory(allItems);
+
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FinalCartPage(
+              menuData: mergedItems,
+              onConfirm: (List<Map<String, dynamic>> confirmedItems) async {
+                setState(() {
+                  tables[tableName] = [confirmedItems];
+                });
+                await _updateTableItemsInFirestore(tableName, [confirmedItems]);
+              },
+            ),
+          ),
+        );
+      },
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        elevation: 4,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              color: groups.isNotEmpty ? Colors.green : Colors.orange,
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(tableName, style: TextStyle(color: Colors.white)),
+                  Row(
+                    children: [
+                      if (groups.isNotEmpty)
+                        IconButton(
+                          icon: Icon(Icons.edit, color: Colors.white),
+                          onPressed: () async {
+                            final lastGroup = groups.last;
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MenuPage(
+                                  menuList: menu,
+                                  initialItems: List<Map<String, dynamic>>.from(lastGroup),
+                                  onConfirm: (List<Map<String, dynamic>> selectedItems) async {
+                                    setState(() {
+                                      groups[groups.length - 1] = selectedItems;
+                                    });
+                                    await _updateTableItemsInFirestore(tableName, groups);
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      IconButton(
+                        icon: Icon(Icons.add_circle, color: Colors.white),
+                        onPressed: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => MenuPage(
+                                menuList: menu,
+                                initialItems: [],
+                                onConfirm: (List<Map<String, dynamic>> selectedItems) async {
+                                  setState(() {
+                                    groups.add(selectedItems);
+                                  });
+                                  await _updateTableItemsInFirestore(tableName, groups);
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  )
+                ],
+              ),
+            ),
+            if (groups.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(40.0),
+                child: Center(
+                  child: Text(
+                    "No items",
+                    style: TextStyle(fontSize: 13, color: Colors.black38),
+                  ),
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: List.generate(groups.length, (i) {
+                    final group = groups[i];
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ...group.map((item) {
+                          final qty = item['qty'] ?? 1;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: item['name'],
+                                    style: TextStyle(fontSize: 13, color: Colors.black87),
+                                  ),
+                                  TextSpan(
+                                    text: " \u00D7$qty",
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      color: Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        if (i < groups.length - 1)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: DottedLine(
+                              dashColor: Colors.grey,
+                              lineThickness: 1,
+                              dashLength: 4,
+                              dashGapLength: 4,
+                            ),
+                          ),
+                      ],
+                    );
+                  }),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
 }
 
 
