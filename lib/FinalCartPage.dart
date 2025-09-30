@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 // import 'package:flutter_sms/flutter_sms.dart';
 import 'package:flutter/material.dart';
@@ -11,13 +12,19 @@ import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart'; // <-- for formatting
 
 /// Cart Page
 class FinalCartPage extends StatelessWidget {
   final List<Map<String, dynamic>> menuData;
+  final String table;
   final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
 
-  FinalCartPage({required this.menuData, required this.onConfirm});
+  FinalCartPage({
+    required this.menuData,
+    required this.onConfirm,
+    required this.table,
+  });
 
   double get subtotal {
     double total = 0;
@@ -118,6 +125,16 @@ class FinalCartPage extends StatelessWidget {
                         onLayout: (format) async => pdfBytes,
                         name: "Cart Summary",
                         usePrinterSettings: false,
+                      );
+
+                      // ✅ Save transaction to Firestore
+                      await addTransactionToFirestore(
+                        items: menuData,
+                        tableName: table,
+                        subtotal: subtotal,
+                        tax: tax,
+                        tip: tip,
+                        total: total,
                       );
 
                       // Clear cart
@@ -644,8 +661,6 @@ class FinalCartPage extends StatelessWidget {
     }
   }
 
-
-
   //
   // Future<void> sendPdfLink(String pdfUrl, String phoneNumber) async {
   //   String message = "Here is your PDF: $pdfUrl";
@@ -654,4 +669,36 @@ class FinalCartPage extends StatelessWidget {
   //     recipients: [phoneNumber],
   //   ).catchError((e) => print("Error sending SMS: $e"));
   // }
+
+  Future<void> addTransactionToFirestore({
+    required List<Map<String, dynamic>> items,
+    required String tableName,
+    required double subtotal,
+    required double tax,
+    required double tip,
+    required double total,
+  }) async {
+    try {
+      await FirebaseFirestore.instance.collection("transactions").add({
+        "table": tableName,
+        "items": items
+            .map(
+              (e) => {
+                "name": e["name"],
+                "qty": e["qty"],
+                "price": e["price"],
+                "total": (e["qty"] as int) * (e["price"] as double),
+              },
+            )
+            .toList(),
+        "subtotal": subtotal,
+        "tax": tax,
+        "tip": tip,
+        "total": total,
+        "createdAt": FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print("❌ Error saving transaction: $e");
+    }
+  }
 }

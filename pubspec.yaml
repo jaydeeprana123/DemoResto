@@ -36,7 +36,6 @@ flutter:
   uses-material-design: true # CRITICAL: Required for Material icon font - DO NOT REMOVE
   assets:
     - assets/
-    - assets/images/
     - assets/sounds/
   # CRITICAL ASSET MANAGEMENT RULES:
   # - DO NOT ADD NEW ASSET DIRECTORIES (assets/svg/, assets/icons/, etc.)

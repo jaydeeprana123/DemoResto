@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/AddCategoryPage.dart' hide AddTablePage;
 import 'package:demo/AddMenuItemPage.dart';
+import 'package:demo/TransactionsPage.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
 import 'AddTablePage.dart';
@@ -71,85 +72,92 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         .orderBy('createdAt', descending: false)
         .snapshots()
         .listen((querySnapshot) {
-      Map<String, List<List<Map<String, dynamic>>>> updatedTables = {};
+          Map<String, List<List<Map<String, dynamic>>>> updatedTables = {};
 
-      for (var doc in querySnapshot.docs) {
-        final tableName = doc['name'] as String;
-        final List<dynamic>? itemsFromDb =
-        doc.data().containsKey('items') ? doc['items'] : null;
+          for (var doc in querySnapshot.docs) {
+            final tableName = doc['name'] as String;
+            final List<dynamic>? itemsFromDb = doc.data().containsKey('items')
+                ? doc['items']
+                : null;
 
-        List<List<Map<String, dynamic>>> groupedItems = [];
+            List<List<Map<String, dynamic>>> groupedItems = [];
 
-        if (itemsFromDb != null && itemsFromDb.isNotEmpty) {
-          // Check if items have groupIndex (new flattened format)
-          bool hasGroupIndex = itemsFromDb.isNotEmpty &&
-              itemsFromDb.first is Map &&
-              (itemsFromDb.first as Map).containsKey('groupIndex');
+            if (itemsFromDb != null && itemsFromDb.isNotEmpty) {
+              // Check if items have groupIndex (new flattened format)
+              bool hasGroupIndex =
+                  itemsFromDb.isNotEmpty &&
+                  itemsFromDb.first is Map &&
+                  (itemsFromDb.first as Map).containsKey('groupIndex');
 
-          if (hasGroupIndex) {
-            // NEW FORMAT: Reconstruct groups from flattened data using groupIndex
-            Map<int, List<Map<String, dynamic>>> groupMap = {};
+              if (hasGroupIndex) {
+                // NEW FORMAT: Reconstruct groups from flattened data using groupIndex
+                Map<int, List<Map<String, dynamic>>> groupMap = {};
 
-            for (var item in itemsFromDb) {
-              if (item is Map) {
-                Map<String, dynamic> itemMap = Map<String, dynamic>.from(item);
-                int groupIndex = itemMap['groupIndex'] ?? 0;
+                for (var item in itemsFromDb) {
+                  if (item is Map) {
+                    Map<String, dynamic> itemMap = Map<String, dynamic>.from(
+                      item,
+                    );
+                    int groupIndex = itemMap['groupIndex'] ?? 0;
 
-                // Remove groupIndex from the item (it's only for storage)
-                itemMap.remove('groupIndex');
+                    // Remove groupIndex from the item (it's only for storage)
+                    itemMap.remove('groupIndex');
 
-                if (!groupMap.containsKey(groupIndex)) {
-                  groupMap[groupIndex] = [];
+                    if (!groupMap.containsKey(groupIndex)) {
+                      groupMap[groupIndex] = [];
+                    }
+                    groupMap[groupIndex]!.add(itemMap);
+                  }
                 }
-                groupMap[groupIndex]!.add(itemMap);
+
+                // Convert to ordered list of groups
+                List<int> sortedGroupIndices = groupMap.keys.toList()..sort();
+                for (int groupIndex in sortedGroupIndices) {
+                  groupedItems.add(groupMap[groupIndex]!);
+                }
+
+                print(
+                  "Reconstructed ${groupedItems.length} groups from flattened data",
+                );
               }
-            }
-
-            // Convert to ordered list of groups
-            List<int> sortedGroupIndices = groupMap.keys.toList()..sort();
-            for (int groupIndex in sortedGroupIndices) {
-              groupedItems.add(groupMap[groupIndex]!);
-            }
-
-            print("Reconstructed ${groupedItems.length} groups from flattened data");
-          }
-          // Handle legacy formats
-          else if (itemsFromDb.first is List) {
-            // OLD NESTED FORMAT: Direct conversion (shouldn't happen with new saves)
-            for (var group in itemsFromDb) {
-              if (group is List) {
+              // Handle legacy formats
+              else if (itemsFromDb.first is List) {
+                // OLD NESTED FORMAT: Direct conversion (shouldn't happen with new saves)
+                for (var group in itemsFromDb) {
+                  if (group is List) {
+                    List<Map<String, dynamic>> itemList = [];
+                    for (var item in group) {
+                      if (item is Map) {
+                        itemList.add(Map<String, dynamic>.from(item));
+                      }
+                    }
+                    groupedItems.add(itemList);
+                  }
+                }
+              } else if (itemsFromDb.first is Map) {
+                // FLAT FORMAT: Convert to single group
                 List<Map<String, dynamic>> itemList = [];
-                for (var item in group) {
+                for (var item in itemsFromDb) {
                   if (item is Map) {
                     itemList.add(Map<String, dynamic>.from(item));
                   }
                 }
-                groupedItems.add(itemList);
+                if (itemList.isNotEmpty) {
+                  groupedItems.add(itemList);
+                }
               }
             }
-          }
-          else if (itemsFromDb.first is Map) {
-            // FLAT FORMAT: Convert to single group
-            List<Map<String, dynamic>> itemList = [];
-            for (var item in itemsFromDb) {
-              if (item is Map) {
-                itemList.add(Map<String, dynamic>.from(item));
-              }
-            }
-            if (itemList.isNotEmpty) {
-              groupedItems.add(itemList);
-            }
-          }
-        }
 
-        updatedTables[tableName] = groupedItems;
-        print("Table '$tableName' loaded with ${groupedItems.length} groups");
-      }
+            updatedTables[tableName] = groupedItems;
+            print(
+              "Table '$tableName' loaded with ${groupedItems.length} groups",
+            );
+          }
 
-      setState(() {
-        tables = updatedTables;
-      });
-    });
+          setState(() {
+            tables = updatedTables;
+          });
+        });
   }
 
   // Load menu data from Firestore
@@ -160,8 +168,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
 
     try {
       List<Map<String, dynamic>> loadedMenu = [];
-      final menuSnapshot =
-      await FirebaseFirestore.instance.collection('menus').get();
+      final menuSnapshot = await FirebaseFirestore.instance
+          .collection('menus')
+          .get();
 
       for (var categoryDoc in menuSnapshot.docs) {
         final categoryId = categoryDoc.id;
@@ -200,7 +209,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
 
   // Update table items in Firestore
   Future<void> _updateTableItemsInFirestore(
-      String tableName, List<List<Map<String, dynamic>>> groups) async {
+    String tableName,
+    List<List<Map<String, dynamic>>> groups,
+  ) async {
     try {
       print("=== UPDATING FIREBASE ===");
       print("Table name: $tableName");
@@ -249,9 +260,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      await FirebaseFirestore.instance.collection('tables').doc(docId).update(updateData);
+      await FirebaseFirestore.instance
+          .collection('tables')
+          .doc(docId)
+          .update(updateData);
 
-      print("SUCCESS: Updated $tableName with ${flattenedItems.length} items and ${groups.length} groups");
+      print(
+        "SUCCESS: Updated $tableName with ${flattenedItems.length} items and ${groups.length} groups",
+      );
       print("=== END UPDATE ===");
     } catch (e) {
       print("ERROR: Failed to update Firestore: $e");
@@ -262,10 +278,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
     }
   }
 
-
   // Merge items by name and category to combine quantities
   List<Map<String, dynamic>> _mergeItemsByNameAndCategory(
-      List<Map<String, dynamic>> items) {
+    List<Map<String, dynamic>> items,
+  ) {
     final Map<String, Map<String, dynamic>> itemMap = {};
 
     for (var item in items) {
@@ -310,35 +326,65 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(children: [
-          Expanded(child: Text("My Restaurant", style: TextStyle(fontSize: 16))),
-          InkWell(
-            onTap: () async {
-              final result = await Navigator.push(
-                  context, MaterialPageRoute(builder: (_) => AddTablePage()));
+        title: Row(
+          children: [
+            Expanded(
+              child: Text("My Restaurant", style: TextStyle(fontSize: 16)),
+            ),
+            InkWell(
+              onTap: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => AddTablePage()),
+                );
 
-              if (result is String && result.trim().isNotEmpty) {
-                await _addTable(result.trim());
-              }
-            },
-            child: Row(children: [
-              Icon(Icons.add_circle),
-              SizedBox(width: 3),
-              Text("Table", style: TextStyle(fontSize: 15))
-            ]),
-          ),
-          SizedBox(width: 16),
-          InkWell(
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => AddCategoryPage()));
-            },
-            child: Row(children: [
-              Icon(Icons.menu_book),
-              SizedBox(width: 3),
-              Text("Menu", style: TextStyle(fontSize: 15))
-            ]),
-          ),
-        ]),
+                if (result is String && result.trim().isNotEmpty) {
+                  await _addTable(result.trim());
+                }
+              },
+              child: Row(
+                children: [
+                  Icon(Icons.add_circle),
+                  SizedBox(width: 3),
+                  Text("Table", style: TextStyle(fontSize: 15)),
+                ],
+              ),
+            ),
+            SizedBox(width: 16),
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => AddCategoryPage()),
+                );
+              },
+              child: Row(
+                children: [
+                  Icon(Icons.menu_book),
+                  SizedBox(width: 3),
+                  Text("Menu", style: TextStyle(fontSize: 15)),
+                ],
+              ),
+            ),
+
+            SizedBox(width: 16),
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => TransactionsPage()),
+                );
+              },
+              child: Row(
+                children: [
+                  Icon(Icons.money),
+                  SizedBox(width: 3),
+                  Text("Transactions", style: TextStyle(fontSize: 15)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
       body: Stack(
         children: [
@@ -346,82 +392,96 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
             margin: EdgeInsets.symmetric(vertical: 4),
             padding: const EdgeInsets.all(0.0),
             child: tables.isEmpty
-                ? Center(child: Text("No tables available. Please add a table."))
+                ? Center(
+                    child: Text("No tables available. Please add a table."),
+                  )
                 : RefreshIndicator(
-              onRefresh: () async {
-                await _loadMenu();
-              },
-              child: MasonryGridView.count(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                itemCount: tables.keys.length,
-                itemBuilder: (context, index) {
-                  final tableName = tables.keys.elementAt(index);
-                  final groups = tables[tableName]!;
+                    onRefresh: () async {
+                      await _loadMenu();
+                    },
+                    child: MasonryGridView.count(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      itemCount: tables.keys.length,
+                      itemBuilder: (context, index) {
+                        final tableName = tables.keys.elementAt(index);
+                        final groups = tables[tableName]!;
 
-                  return  DragTarget<String>(
-                    onAccept: (sourceTable) async {
-                      if (sourceTable != tableName) {
-                        final sourceGroups = tables[sourceTable]!;
-                        final destGroups = tables[tableName]!;
+                        return DragTarget<String>(
+                          onAccept: (sourceTable) async {
+                            if (sourceTable != tableName) {
+                              final sourceGroups = tables[sourceTable]!;
+                              final destGroups = tables[tableName]!;
 
-                        setState(() {
-                          // Append deep copy of source groups to destination
-                          final copiedGroups = sourceGroups.map((group) {
-                            return group.map((item) => Map<String, dynamic>.from(item)).toList();
-                          }).toList();
+                              setState(() {
+                                // Append deep copy of source groups to destination
+                                final copiedGroups = sourceGroups.map((group) {
+                                  return group
+                                      .map(
+                                        (item) =>
+                                            Map<String, dynamic>.from(item),
+                                      )
+                                      .toList();
+                                }).toList();
 
-                          destGroups.addAll(copiedGroups);
-                          sourceGroups.clear();
-                        });
+                                destGroups.addAll(copiedGroups);
+                                sourceGroups.clear();
+                              });
 
-                        await _updateTableItemsInFirestore(tableName, tables[tableName]!);
-                        await _updateTableItemsInFirestore(sourceTable, []);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Moved all items from $sourceTable to $tableName')),
+                              await _updateTableItemsInFirestore(
+                                tableName,
+                                tables[tableName]!,
+                              );
+                              await _updateTableItemsInFirestore(
+                                sourceTable,
+                                [],
+                              );
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Moved all items from $sourceTable to $tableName',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          builder: (context, candidateData, rejectedData) {
+                            return LongPressDraggable<String>(
+                              data: tableName,
+                              feedback: Material(
+                                elevation: 4,
+                                color: Colors.transparent,
+                                child: Container(
+                                  width: 160,
+                                  padding: EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blueAccent,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    tableName,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              childWhenDragging: Opacity(
+                                opacity: 0.4,
+                                child: _buildTableCard(tableName, groups),
+                              ),
+                              child: _buildTableCard(tableName, groups),
+                            );
+                          },
                         );
-                      }
-                    },
-                    builder: (context, candidateData, rejectedData) {
-                      return LongPressDraggable<String>(
-                        data: tableName,
-                        feedback: Material(
-                          elevation: 4,
-                          color: Colors.transparent,
-                          child: Container(
-                            width: 160,
-                            padding: EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.blueAccent,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              tableName,
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ),
-                        childWhenDragging: Opacity(
-                          opacity: 0.4,
-                          child: _buildTableCard(tableName, groups),
-                        ),
-                        child: _buildTableCard(tableName, groups),
-                      );
-                    },
-                  );
-
-                },
-              ),
-            ),
+                      },
+                    ),
+                  ),
           ),
 
-
-
-          if (isLoading)
-            Center(
-              child: CircularProgressIndicator(),
-            )
+          if (isLoading) Center(child: CircularProgressIndicator()),
         ],
       ),
       // 🔹 Floating action button is outside the Stack
@@ -438,8 +498,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
     );
   }
 
-
-  Widget _buildTableCard(String tableName, List<List<Map<String, dynamic>>> groups) {
+  Widget _buildTableCard(
+    String tableName,
+    List<List<Map<String, dynamic>>> groups,
+  ) {
     return GestureDetector(
       onDoubleTap: () async {
         final allItems = groups.expand((g) => g).toList();
@@ -456,6 +518,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                 });
                 await _updateTableItemsInFirestore(tableName, [confirmedItems]);
               },
+              table: tableName,
             ),
           ),
         );
@@ -485,13 +548,23 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                               MaterialPageRoute(
                                 builder: (_) => MenuPage(
                                   menuList: menu,
-                                  initialItems: List<Map<String, dynamic>>.from(lastGroup),
-                                  onConfirm: (List<Map<String, dynamic>> selectedItems) async {
-                                    setState(() {
-                                      groups[groups.length - 1] = selectedItems;
-                                    });
-                                    await _updateTableItemsInFirestore(tableName, groups);
-                                  },
+                                  initialItems: List<Map<String, dynamic>>.from(
+                                    lastGroup,
+                                  ),
+                                  onConfirm:
+                                      (
+                                        List<Map<String, dynamic>>
+                                        selectedItems,
+                                      ) async {
+                                        setState(() {
+                                          groups[groups.length - 1] =
+                                              selectedItems;
+                                        });
+                                        await _updateTableItemsInFirestore(
+                                          tableName,
+                                          groups,
+                                        );
+                                      },
                                 ),
                               ),
                             );
@@ -506,19 +579,25 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                               builder: (_) => MenuPage(
                                 menuList: menu,
                                 initialItems: [],
-                                onConfirm: (List<Map<String, dynamic>> selectedItems) async {
-                                  setState(() {
-                                    groups.add(selectedItems);
-                                  });
-                                  await _updateTableItemsInFirestore(tableName, groups);
-                                },
+                                onConfirm:
+                                    (
+                                      List<Map<String, dynamic>> selectedItems,
+                                    ) async {
+                                      setState(() {
+                                        groups.add(selectedItems);
+                                      });
+                                      await _updateTableItemsInFirestore(
+                                        tableName,
+                                        groups,
+                                      );
+                                    },
                               ),
                             ),
                           );
                         },
                       ),
                     ],
-                  )
+                  ),
                 ],
               ),
             ),
@@ -551,7 +630,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                                 children: [
                                   TextSpan(
                                     text: item['name'],
-                                    style: TextStyle(fontSize: 13, color: Colors.black87),
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.black87,
+                                    ),
                                   ),
                                   TextSpan(
                                     text: " \u00D7$qty",
@@ -586,10 +668,4 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
       ),
     );
   }
-
 }
-
-
-
-
-
