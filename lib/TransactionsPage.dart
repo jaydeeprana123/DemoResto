@@ -172,58 +172,145 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
         final transactions = snapshot.data!.docs;
 
-        // 🔹 Calculate grand total
+        // 🔹 Group transactions by date
+        final Map<String, List<Map<String, dynamic>>> groupedData = {};
         double grandTotal = 0.0;
+
         for (var doc in transactions) {
           final data = doc.data() as Map<String, dynamic>;
           final total = (data["total"] as num?)?.toDouble() ?? 0.0;
           grandTotal += total;
+
+          final dateTime = (data["createdAt"] as Timestamp?)?.toDate();
+          final dateKey = dateTime != null
+              ? DateFormat("dd-MM-yyyy").format(dateTime)
+              : "Unknown Date";
+
+          groupedData.putIfAbsent(dateKey, () => []);
+          groupedData[dateKey]!.add(data);
         }
 
         return Column(
           children: [
             Expanded(
-              child: ListView.builder(
-                itemCount: transactions.length,
-                itemBuilder: (context, index) {
-                  final data =
-                      transactions[index].data() as Map<String, dynamic>;
-                  final tableName = data["table"] ?? "Unknown";
-                  final total = data["total"] ?? 0.0;
-                  final dateTime = (data["createdAt"] as Timestamp?)?.toDate();
+              child: ListView(
+                children: groupedData.entries.map((entry) {
+                  final date = entry.key;
+                  final dateTransactions = entry.value;
 
-                  return InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              TransactionDetailsPage(transaction: data),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 🔹 Date Heading
+                      Container(
+                        width: double.infinity,
+                        color: Colors.orange.shade100,
+                        margin: EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 8,
                         ),
-                      );
-                    },
-                    child: Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      child: ListTile(
-                        title: Text("$tableName"),
-                        subtitle: Text(
-                          "${dateTime != null ? DateFormat('dd-MM-yyyy hh:mm a').format(dateTime) : '-'}",
-                        ),
-                        trailing: Text(
-                          "\$${(total as num).toStringAsFixed(2)}",
+                        child: Text(
+                          date,
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.green,
                           ),
                         ),
                       ),
-                    ),
+
+                      // 🔹 Transactions under this date
+                      ...dateTransactions.map((data) {
+                        final tableName = data["table"] ?? "Unknown";
+                        final total = data["total"] ?? 0.0;
+                        final dateTime = (data["createdAt"] as Timestamp?)
+                            ?.toDate();
+
+                        return InkWell(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    TransactionDetailsPage(transaction: data),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            // decoration: BoxDecoration(
+                            //   color: Colors.white,
+                            //   borderRadius: BorderRadius.circular(8),
+                            //   boxShadow: [
+                            //     BoxShadow(
+                            //       color: Colors.grey.withOpacity(0.2),
+                            //       blurRadius: 4,
+                            //       offset: const Offset(0, 2),
+                            //     ),
+                            //   ],
+                            // ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // 🔹 Table Name
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            "$tableName",
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+
+                                          // 🔹 Time
+                                          Text(
+                                            dateTime != null
+                                                ? DateFormat(
+                                                    'hh:mm a',
+                                                  ).format(dateTime)
+                                                : "-",
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    // 🔹 Total
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Text(
+                                        "\$${(total as num).toStringAsFixed(2)}",
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                Divider(),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ],
                   );
-                },
+                }).toList(),
               ),
             ),
 
