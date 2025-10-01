@@ -37,6 +37,27 @@ flutter:
   assets:
     - assets/
     - assets/sounds/
+
+  fonts:
+    - family: Mulish Black
+      fonts:
+        - asset: assets/fonts/Mulish-Black.ttf
+    - family: Mulish Bold
+      fonts:
+        - asset: assets/fonts/Mulish-Bold.ttf
+    - family: Mulish Light
+      fonts:
+        - asset: assets/fonts/Mulish-Light.ttf
+    - family: Mulish Medium
+      fonts:
+        - asset: assets/fonts/Mulish-Medium.ttf
+    - family: Mulish Regular
+      fonts:
+        - asset: assets/fonts/Mulish-Regular.ttf
+    - family: Mulish SemiBold
+      fonts:
+        - asset: assets/fonts/Mulish-SemiBold.ttf
+
   # CRITICAL ASSET MANAGEMENT RULES:
   # - DO NOT ADD NEW ASSET DIRECTORIES (assets/svg/, assets/icons/, etc.)
   # - ONLY USE EXISTING AND ITEMS AVAILABLE IN THE DIRECTORIES LISTED ABOVE (assets/, assets/images/)

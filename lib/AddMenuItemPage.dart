@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'Styles/my_font.dart';
+
 class AddMenuItemPage extends StatefulWidget {
   @override
   _AddMenuItemPageState createState() => _AddMenuItemPageState();
@@ -24,10 +26,10 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
         .doc(_selectedCategoryId)
         .collection('items')
         .add({
-      'name': _nameController.text.trim(),
-      'price': double.tryParse(_priceController.text.trim()) ?? 0.0,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+          'name': _nameController.text.trim(),
+          'price': double.tryParse(_priceController.text.trim()) ?? 0.0,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
 
     _nameController.clear();
     _priceController.clear();
@@ -70,8 +72,9 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                   onChanged: (value) {
                     setState(() {
                       _selectedCategoryId = value;
-                      _selectedCategoryName = categories
-                          .firstWhere((doc) => doc.id == value)['name'];
+                      _selectedCategoryName = categories.firstWhere(
+                        (doc) => doc.id == value,
+                      )['name'];
                     });
                   },
                 );
@@ -128,7 +131,9 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                         title: Text(
                           category['name'],
                           style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
+                            fontSize: 16,
+                            fontFamily: fontMulishSemiBold,
+                          ),
                         ),
                         children: [
                           StreamBuilder<QuerySnapshot>(
@@ -141,7 +146,8 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                             builder: (context, itemSnapshot) {
                               if (!itemSnapshot.hasData) {
                                 return Center(
-                                    child: CircularProgressIndicator());
+                                  child: CircularProgressIndicator(),
+                                );
                               }
 
                               final items = itemSnapshot.data!.docs;
@@ -157,10 +163,13 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                                 children: items.map((item) {
                                   return ListTile(
                                     title: Text(
-                                        "${item['name']} - ₹${item['price']}"),
+                                      "${item['name']} - ₹${item['price']}",
+                                    ),
                                     trailing: IconButton(
-                                      icon: Icon(Icons.delete,
-                                          color: Colors.red),
+                                      icon: Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                      ),
                                       onPressed: () {
                                         FirebaseFirestore.instance
                                             .collection('menus')
@@ -174,20 +183,17 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                                 }).toList(),
                               );
                             },
-                          )
+                          ),
                         ],
                       );
                     },
                   );
                 },
               ),
-            )
+            ),
           ],
         ),
       ),
     );
   }
 }
-
-
-

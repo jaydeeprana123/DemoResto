@@ -40,6 +40,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
+import 'Styles/my_colors.dart';
+import 'Styles/my_font.dart';
+
 class DragListBetweenTables extends StatefulWidget {
   @override
   State<DragListBetweenTables> createState() => _DragListBetweenTablesState();
@@ -463,7 +466,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                                     tableName,
                                     style: TextStyle(
                                       color: Colors.white,
-                                      fontWeight: FontWeight.bold,
+                                      fontFamily: fontMulishSemiBold,
                                     ),
                                   ),
                                 ),
@@ -530,7 +533,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              color: groups.isNotEmpty ? Colors.green : Colors.orange,
+              color: groups.isNotEmpty ? Colors.green : primary_color,
               padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -607,7 +610,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                 child: Center(
                   child: Text(
                     "No items",
-                    style: TextStyle(fontSize: 13, color: Colors.black38),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.black38,
+                      fontFamily: fontMulishRegular,
+                    ),
                   ),
                 ),
               )
@@ -633,6 +640,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: Colors.black87,
+                                      fontFamily: fontMulishRegular,
                                     ),
                                   ),
                                   TextSpan(
@@ -640,7 +648,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                                     style: TextStyle(
                                       fontSize: 15,
                                       color: Colors.red,
-                                      fontWeight: FontWeight.bold,
+                                      fontFamily: fontMulishSemiBold,
                                     ),
                                   ),
                                 ],

@@ -11,6 +11,9 @@ import 'CartPage.dart';
 
 import 'package:flutter/material.dart';
 
+import 'Styles/my_colors.dart';
+import 'Styles/my_font.dart';
+
 class MenuPage extends StatefulWidget {
   final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
   final List<Map<String, dynamic>> menuList; // Passed from previous page
@@ -40,17 +43,14 @@ class _MenuPageState extends State<MenuPage> {
     for (var item in widget.menuList) {
       final category = item['category'] as String;
       menuData[category] ??= [];
-      menuData[category]!.add({
-        ...item,
-        'qty': 0,
-      });
+      menuData[category]!.add({...item, 'qty': 0});
     }
 
     // Pre-fill quantities from initialItems if any
     for (var category in menuData.keys) {
       for (var item in menuData[category]!) {
         final existingItem = widget.initialItems.firstWhere(
-              (e) => e['name'] == item['name'],
+          (e) => e['name'] == item['name'],
           orElse: () => {},
         );
         if (existingItem.isNotEmpty) {
@@ -124,61 +124,61 @@ class _MenuPageState extends State<MenuPage> {
                         subtitle: Text("₹${item['price'].toStringAsFixed(2)}"),
                         trailing: qty == 0
                             ? GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              item['qty'] = 1;
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Colors.black87,
-                                width: 0.5,
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              "Add",
-                              style: TextStyle(
-                                color: Colors.black87,
-                                fontWeight: FontWeight.normal,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        )
+                                onTap: () {
+                                  setState(() {
+                                    item['qty'] = 1;
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: Colors.black87,
+                                      width: 0.5,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Text(
+                                    "Add",
+                                    style: TextStyle(
+                                      color: Colors.black87,
+                                      fontWeight: FontWeight.normal,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              )
                             : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.remove_circle,
-                                color: Colors.red,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.remove_circle,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () =>
+                                        decrementQty(category, index),
+                                  ),
+                                  Text(
+                                    "$qty",
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontFamily: fontMulishSemiBold,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.add_circle,
+                                      color: Colors.green,
+                                    ),
+                                    onPressed: () =>
+                                        incrementQty(category, index),
+                                  ),
+                                ],
                               ),
-                              onPressed: () =>
-                                  decrementQty(category, index),
-                            ),
-                            Text(
-                              "$qty",
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.add_circle,
-                                color: Colors.green,
-                              ),
-                              onPressed: () =>
-                                  incrementQty(category, index),
-                            ),
-                          ],
-                        ),
                       );
                     },
                   );
@@ -188,7 +188,7 @@ class _MenuPageState extends State<MenuPage> {
             if (totalItems > 0)
               Container(
                 padding: const EdgeInsets.all(16),
-                color: Colors.orange,
+                color: primary_color,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -211,7 +211,6 @@ class _MenuPageState extends State<MenuPage> {
 
                         // Send selected items to cart or callback
 
-
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -221,7 +220,6 @@ class _MenuPageState extends State<MenuPage> {
                             ),
                           ),
                         );
-
                       },
                       child: const Text("View Cart"),
                     ),
@@ -234,4 +232,3 @@ class _MenuPageState extends State<MenuPage> {
     );
   }
 }
-

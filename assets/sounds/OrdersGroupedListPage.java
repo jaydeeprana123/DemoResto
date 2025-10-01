@@ -147,7 +147,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                         "${group.tableName} "
                         "(${DateFormat('dd MMM yyyy').format(time)}, "
                         "${DateFormat('hh:mm a').format(time)})",
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(fontFamily: fontMulishSemiBold, fontSize: 16),
                     ),
                     const SizedBox(height: 6),
                     ...group.items.map((item) {
@@ -164,7 +164,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                 TextSpan(
                         text: "  x$qty",
                         style: const TextStyle(
-                        fontSize: 16, color: Colors.red, fontWeight: FontWeight.bold),
+                        fontSize: 16, color: Colors.red, fontFamily: fontMulishSemiBold),
                               ),
                             ],
                           ),

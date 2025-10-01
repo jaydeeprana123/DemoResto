@@ -12,7 +12,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:intl/intl.dart'; // <-- for formatting
+import 'package:intl/intl.dart';
+
+import 'Styles/my_colors.dart';
+import 'Styles/my_font.dart'; // <-- for formatting
 
 /// Cart Page
 class FinalCartPage extends StatelessWidget {
@@ -51,7 +54,7 @@ class FinalCartPage extends StatelessWidget {
                     scrollDirection: Axis.vertical,
                     child: DataTable(
                       headingRowColor: MaterialStateColor.resolveWith(
-                        (states) => Colors.orange.shade100,
+                        (states) => primary_color.withOpacity(0.1),
                       ),
                       columns: const [
                         DataColumn(label: Text("Item")),
@@ -73,7 +76,7 @@ class FinalCartPage extends StatelessWidget {
                                     style: TextStyle(
                                       fontSize: 15,
                                       color: Colors.red,
-                                      fontWeight: FontWeight.bold,
+                                      fontFamily: fontMulishSemiBold,
                                     ),
                                   ),
                                 ],
@@ -81,7 +84,14 @@ class FinalCartPage extends StatelessWidget {
                             ),
                             // DataCell(Text("\$${price.toStringAsFixed(2)}")),
                             DataCell(
-                              Text("\$${(qty * price).toStringAsFixed(2)}"),
+                              Text(
+                                "\$${(qty * price).toStringAsFixed(2)}",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.black87,
+                                  fontFamily: fontMulishSemiBold,
+                                ),
+                              ),
                             ),
                           ],
                         );
@@ -217,13 +227,13 @@ class FinalCartPage extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontFamily: isTotal ? fontMulishSemiBold : fontMulishRegular,
             ),
           ),
           Text(
             "\$${value.toStringAsFixed(2)}",
             style: TextStyle(
-              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontFamily: isTotal ? fontMulishSemiBold : fontMulishRegular,
             ),
           ),
         ],
@@ -679,7 +689,14 @@ class FinalCartPage extends StatelessWidget {
     required double total,
   }) async {
     try {
-      await FirebaseFirestore.instance.collection("transactions").add({
+      final now = DateTime.now();
+      final dateKey = DateFormat("yyyy-MM-dd").format(now); // e.g. "2025-10-01"
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      // 🔹 1. Add transaction
+      final txRef = FirebaseFirestore.instance.collection("transactions").doc();
+      batch.set(txRef, {
         "table": tableName,
         "items": items
             .map(
@@ -697,6 +714,36 @@ class FinalCartPage extends StatelessWidget {
         "total": total,
         "createdAt": FieldValue.serverTimestamp(),
       });
+
+      // 🔹 2. Update daily_stats
+      final dailyRef = FirebaseFirestore.instance
+          .collection("daily_stats")
+          .doc(dateKey);
+
+      batch.set(
+        dailyRef,
+        {
+          "revenue": FieldValue.increment(total),
+          "transactions": FieldValue.increment(1),
+          "lastUpdated": FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true), // Merge ensures existing doc is updated
+      );
+
+      // 🔹 3. Update global summary
+      final summaryRef = FirebaseFirestore.instance
+          .collection("stats")
+          .doc("summary");
+
+      batch.set(summaryRef, {
+        "totalRevenue": FieldValue.increment(total),
+        "totalTransactions": FieldValue.increment(1),
+        "lastUpdated": FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // 🔹 Commit both together
+      await batch.commit();
+      print("✅ Transaction + Daily Stats updated!");
     } catch (e) {
       print("❌ Error saving transaction: $e");
     }

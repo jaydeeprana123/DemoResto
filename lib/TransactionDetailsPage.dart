@@ -48,6 +48,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
+import 'Styles/my_colors.dart';
+import 'Styles/my_font.dart';
+
 class TransactionDetailsPage extends StatelessWidget {
   final Map<String, dynamic> transaction;
 
@@ -74,7 +77,7 @@ class TransactionDetailsPage extends StatelessWidget {
                     scrollDirection: Axis.vertical,
                     child: DataTable(
                       headingRowColor: MaterialStateColor.resolveWith(
-                        (states) => Colors.orange.shade100,
+                        (states) => primary_color.withOpacity(0.1),
                       ),
                       columns: const [
                         DataColumn(label: Text("Item")),
@@ -96,7 +99,7 @@ class TransactionDetailsPage extends StatelessWidget {
                                 style: const TextStyle(
                                   fontSize: 15,
                                   color: Colors.red,
-                                  fontWeight: FontWeight.bold,
+                                  fontFamily: fontMulishSemiBold,
                                 ),
                               ),
                             ),
@@ -120,7 +123,7 @@ class TransactionDetailsPage extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 16,
                         color: Colors.black87,
-                        fontWeight: FontWeight.bold,
+                        fontFamily: fontMulishSemiBold,
                       ),
                     ),
                     Text(
@@ -131,7 +134,7 @@ class TransactionDetailsPage extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 16,
                         color: Colors.black87,
-                        fontWeight: FontWeight.bold,
+                        fontFamily: fontMulishSemiBold,
                       ),
                     ),
                   ],

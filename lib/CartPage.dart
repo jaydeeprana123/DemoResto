@@ -4,6 +4,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 
+import 'Styles/my_colors.dart';
+import 'Styles/my_font.dart';
+
 /// Cart Page
 class CartPage extends StatelessWidget {
   final List<Map<String, dynamic>> menuData;
@@ -36,7 +39,7 @@ class CartPage extends StatelessWidget {
                     scrollDirection: Axis.vertical,
                     child: DataTable(
                       headingRowColor: MaterialStateColor.resolveWith(
-                        (states) => Colors.orange.shade100,
+                        (states) => primary_color.withOpacity(0.1),
                       ),
                       columns: const [
                         DataColumn(label: Text("Item")),
@@ -58,7 +61,7 @@ class CartPage extends StatelessWidget {
                                     style: TextStyle(
                                       fontSize: 15,
                                       color: Colors.red,
-                                      fontWeight: FontWeight.bold,
+                                      fontFamily: fontMulishSemiBold,
                                     ),
                                   ),
                                 ],
@@ -129,9 +132,10 @@ class CartPage extends StatelessWidget {
     );
   }
 
-
   Future<void> _saveToTable1() async {
-    final tableDoc = FirebaseFirestore.instance.collection('tables').doc('Table 1');
+    final tableDoc = FirebaseFirestore.instance
+        .collection('tables')
+        .doc('Table 1');
 
     // Write the entire menuData list to Firestore under Table 1
     await tableDoc.set({

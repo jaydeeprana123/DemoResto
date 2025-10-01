@@ -12,6 +12,9 @@ import 'CartPage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'Styles/my_colors.dart';
+import 'Styles/my_font.dart';
+
 class MenuPage extends StatefulWidget {
   final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
   final List<Map<String, dynamic>> initialItems;
@@ -141,7 +144,7 @@ class _MenuPageState extends State<MenuPage> {
                                       style: TextStyle(
                                         fontSize: 15,
                                         color: Colors.black87,
-                                        fontWeight: FontWeight.bold,
+                                        fontFamily: fontMulishSemiBold,
                                       ),
                                     ),
                                     IconButton(
@@ -163,7 +166,7 @@ class _MenuPageState extends State<MenuPage> {
                 if (totalItems > 0)
                   Container(
                     padding: EdgeInsets.all(16),
-                    color: Colors.orange,
+                    color: primary_color,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [

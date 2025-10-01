@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'MenuPage.dart';
+import 'Styles/my_font.dart';
 import 'models/GroupOrder.dart';
 
 import 'package:flutter/material.dart';
@@ -21,14 +22,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dotted_line/dotted_line.dart';
 
-
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:dotted_line/dotted_line.dart';
-
-
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -77,7 +74,10 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
     }
   }
 
-  List<TableGroup> _reconstructGroups(String tableName, List<dynamic>? itemsFromDb) {
+  List<TableGroup> _reconstructGroups(
+    String tableName,
+    List<dynamic>? itemsFromDb,
+  ) {
     List<TableGroup> groups = [];
     if (itemsFromDb == null) return groups;
 
@@ -87,8 +87,12 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
     for (var item in itemsFromDb) {
       if (item is Map) {
         final itemMap = Map<String, dynamic>.from(item);
-        final int groupIndex = (itemMap['groupIndex'] is int) ? itemMap['groupIndex'] as int : 0;
-        final Timestamp addedAt = (itemMap['addedAt'] is Timestamp) ? itemMap['addedAt'] as Timestamp : Timestamp.now();
+        final int groupIndex = (itemMap['groupIndex'] is int)
+            ? itemMap['groupIndex'] as int
+            : 0;
+        final Timestamp addedAt = (itemMap['addedAt'] is Timestamp)
+            ? itemMap['addedAt'] as Timestamp
+            : Timestamp.now();
 
         // remove internal metadata so UI shows only item fields
         itemMap.remove('groupIndex');
@@ -104,12 +108,14 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
     groupMap.forEach((index, items) {
       if (items.isEmpty) return; // skip empty groups
       final timestamp = groupTimeMap[index] ?? Timestamp.now();
-      groups.add(TableGroup(
-        tableName,
-        items,
-        timestamp.toDate().millisecondsSinceEpoch,
-        key: '${tableName}_$index',
-      ));
+      groups.add(
+        TableGroup(
+          tableName,
+          items,
+          timestamp.toDate().millisecondsSinceEpoch,
+          key: '${tableName}_$index',
+        ),
+      );
     });
 
     return groups;
@@ -120,7 +126,10 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
     return Scaffold(
       appBar: AppBar(title: const Text("All Orders (Time-wise)")),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance.collection('tables').orderBy('createdAt', descending: false).snapshots(),
+        stream: FirebaseFirestore.instance
+            .collection('tables')
+            .orderBy('createdAt', descending: false)
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -141,7 +150,9 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
           for (var doc in snapshot.data!.docs) {
             final data = doc.data();
             final tableName = (data['name'] ?? 'Unknown Table') as String;
-            final itemsFromDb = (data.containsKey('items')) ? (data['items'] as List<dynamic>?) : null;
+            final itemsFromDb = (data.containsKey('items'))
+                ? (data['items'] as List<dynamic>?)
+                : null;
             updatedGroups.addAll(_reconstructGroups(tableName, itemsFromDb));
           }
 
@@ -157,7 +168,8 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
 
-              final String firstKey = currentKeys.last; // or .first depending on order
+              final String firstKey =
+                  currentKeys.last; // or .first depending on order
               setState(() {
                 previousKeys = currentKeys;
                 blinkingGroupKey = firstKey.hashCode;
@@ -172,8 +184,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                 }
               });
             });
-          }
-          else {
+          } else {
             // detect newly added keys
             final addedKeys = currentKeys.difference(previousKeys);
             final removedKeys = previousKeys.difference(currentKeys);
@@ -182,7 +193,8 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
               // schedule setState after build to avoid calling setState during build
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
-                final String newKey = addedKeys.last; // pick last added (or change logic)
+                final String newKey =
+                    addedKeys.last; // pick last added (or change logic)
                 setState(() {
                   previousKeys = currentKeys;
                   blinkingGroupKey = newKey.hashCode;
@@ -229,14 +241,19 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
               return AnimatedContainer(
                 duration: const Duration(milliseconds: 400),
                 curve: Curves.easeInOut,
-                color: isBlinking ? Colors.lightGreenAccent : Colors.transparent,
+                color: isBlinking
+                    ? Colors.lightGreenAccent
+                    : Colors.transparent,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       "${group.tableName} (${DateFormat('dd MMM yyyy').format(time)}, ${DateFormat('hh:mm a').format(time)})",
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 16,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     ...group.items.map((item) {
@@ -248,12 +265,19 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                             children: [
                               TextSpan(
                                 text: item['name']?.toString() ?? '',
-                                style: const TextStyle(fontSize: 15, color: Colors.black),
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.black,
+                                  fontFamily: fontMulishRegular,
+                                ),
                               ),
                               TextSpan(
                                 text: "  x$qty",
                                 style: const TextStyle(
-                                    fontSize: 16, color: Colors.red, fontWeight: FontWeight.bold),
+                                  fontSize: 16,
+                                  color: Colors.red,
+                                  fontFamily: fontMulishSemiBold,
+                                ),
                               ),
                             ],
                           ),
@@ -280,19 +304,3 @@ class TableGroup {
 
   TableGroup(this.tableName, this.items, this.groupTime, {required this.key});
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

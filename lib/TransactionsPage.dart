@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/AddCategoryPage.dart' hide AddTablePage;
 import 'package:demo/AddMenuItemPage.dart';
+import 'package:demo/Styles/my_font.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -44,6 +45,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
+import 'Styles/my_colors.dart';
 import 'TransactionDetailsPage.dart';
 
 class TransactionsPage extends StatefulWidget {
@@ -146,6 +148,33 @@ class _TransactionsPageState extends State<TransactionsPage> {
     );
   }
 
+  Future<Map<String, dynamic>> getRevenueBetweenDates(
+    DateTime from,
+    DateTime to,
+  ) async {
+    final fromKey = DateFormat("yyyy-MM-dd").format(from);
+    final toKey = DateFormat("yyyy-MM-dd").format(to);
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection("daily_stats")
+        .where(FieldPath.documentId, isGreaterThanOrEqualTo: fromKey)
+        .where(FieldPath.documentId, isLessThanOrEqualTo: toKey)
+        .get();
+
+    double totalRevenue = 0;
+    int totalTransactions = 0;
+
+    for (var doc in snapshot.docs) {
+      totalRevenue += (doc["revenue"] as num?)?.toDouble() ?? 0.0;
+      totalTransactions += (doc["transactions"] as int?) ?? 0;
+    }
+
+    return {
+      "totalRevenue": totalRevenue,
+      "totalTransactions": totalTransactions,
+    };
+  }
+
   Widget buildTransactionList() {
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection(
       "transactions",
@@ -204,7 +233,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       // 🔹 Date Heading
                       Container(
                         width: double.infinity,
-                        color: Colors.orange.shade100,
+                        color: primary_color.withOpacity(0.1),
                         margin: EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 22,
@@ -214,7 +243,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                           date,
                           style: const TextStyle(
                             fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                            fontFamily: fontMulishSemiBold,
                           ),
                         ),
                       ),
@@ -265,7 +294,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                             "$tableName",
                                             style: const TextStyle(
                                               fontSize: 16,
-                                              fontWeight: FontWeight.bold,
+                                              fontFamily: fontMulishSemiBold,
                                               color: Colors.black87,
                                             ),
                                           ),
@@ -294,7 +323,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                         "\$${(total as num).toStringAsFixed(2)}",
                                         style: const TextStyle(
                                           fontSize: 16,
-                                          fontWeight: FontWeight.bold,
+                                          fontFamily: fontMulishSemiBold,
                                           color: Colors.green,
                                         ),
                                       ),
@@ -323,13 +352,13 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 children: [
                   const Text(
                     "Grand Total:",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 16, fontFamily: fontMulishSemiBold),
                   ),
                   Text(
                     "\$${grandTotal.toStringAsFixed(2)}",
                     style: const TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontFamily: fontMulishSemiBold,
                       color: Colors.deepPurple,
                     ),
                   ),
