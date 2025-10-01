@@ -55,6 +55,7 @@ class TransactionsPage extends StatefulWidget {
   State<TransactionsPage> createState() => _TransactionsPageState();
 }
 
+
 class _TransactionsPageState extends State<TransactionsPage> {
   DateTime? fromDate;
   DateTime? toDate;
@@ -66,65 +67,121 @@ class _TransactionsPageState extends State<TransactionsPage> {
   double grandTotal = 0.0;
   int totalTransactionsData = 0;
 
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> transactions = [];
+  bool isLoading = false;
+  bool hasMore = true;
+  QueryDocumentSnapshot<Map<String, dynamic>>? lastDoc;
+
+  final ScrollController _scrollController = ScrollController();
+  static const int pageSize = 10;
+
   @override
   void initState() {
     super.initState();
-    getTotalRevenue(); // Load total for all records initially
+    getTotalRevenue(); // total revenue initially
+    fetchTransactions(); // load first page
+    _scrollController.addListener(_scrollListener);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 50 &&
+        !isLoading &&
+        hasMore) {
+      fetchTransactions();
+    }
   }
 
   Future<void> _pickDate({
     required BuildContext context,
     required bool isFrom,
   }) async {
+    final now = DateTime.now();
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2023),
-      lastDate: DateTime.now(),
+      initialDate: isFrom
+          ? (fromDate ?? now)
+          : (toDate ?? fromDate ?? now),
+      firstDate: isFrom ? DateTime(2023) : (fromDate ?? DateTime(2023)),
+      lastDate: now,
     );
 
     if (picked != null) {
       setState(() {
         if (isFrom) {
+          // normalize to start of day
           fromDate = DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
           fromController.text = DateFormat("dd-MM-yyyy").format(picked);
 
-          // 🔹 If user selects only From Date, set To Date as today
+          // If toDate not selected, default to today's end-of-day
           if (toDate == null) {
-            toDate = DateTime.now();
-            toController.text = DateFormat("dd-MM-yyyy").format(toDate!);
+            final today = DateTime.now();
+            toDate =
+                DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
+            toController.text = DateFormat("dd-MM-yyyy").format(today);
           }
         } else {
-          toDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+          // If user picks To date and From is null, treat as same-day filter
+          if (fromDate == null) {
+            fromDate =
+                DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
+            fromController.text = DateFormat("dd-MM-yyyy").format(picked);
+          }
+          // normalize to end of day
+          toDate =
+              DateTime(picked.year, picked.month, picked.day, 23, 59, 59, 999);
           toController.text = DateFormat("dd-MM-yyyy").format(picked);
         }
       });
 
-      // 🔹 Apply filter automatically
+      // apply filter automatically after selection
       _applyFilter();
     }
   }
 
   void _applyFilter() async {
     if (fromDate != null) {
-      // If toDate is not selected, take today's date
-      final effectiveToDate =
-          toDate ?? DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59);
+      final now = DateTime.now();
+      final effectiveFrom = DateTime(
+        fromDate!.year,
+        fromDate!.month,
+        fromDate!.day,
+        0,
+        0,
+        0,
+      );
+      final effectiveTo = (toDate != null)
+          ? DateTime(toDate!.year, toDate!.month, toDate!.day, 23, 59, 59, 999)
+          : DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
 
-      final result = await getRevenueBetweenDates(fromDate!, effectiveToDate);
+      // fetch grand total from daily_stats
+      final result = await getRevenueBetweenDates(effectiveFrom, effectiveTo);
 
       setState(() {
         isFilterApplied = true;
         grandTotal = result["totalRevenue"];
         totalTransactionsData = result["totalTransactions"];
+        // reset pagination
+        transactions.clear();
+        lastDoc = null;
+        hasMore = true;
       });
+
+      // fetch first page for this filter
+      fetchTransactions();
     }
   }
 
   Future<Map<String, dynamic>> getRevenueBetweenDates(
-      DateTime from,
-      DateTime to,
-      ) async {
+      DateTime from, DateTime to) async {
     final fromKey = DateFormat("yyyy-MM-dd").format(from);
     final toKey = DateFormat("yyyy-MM-dd").format(to);
 
@@ -149,9 +206,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
   }
 
   Future<void> getTotalRevenue() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection("daily_stats")
-        .get();
+    final snapshot =
+    await FirebaseFirestore.instance.collection("daily_stats").get();
 
     double totalRevenue = 0;
     int totalTransactions = 0;
@@ -162,22 +218,76 @@ class _TransactionsPageState extends State<TransactionsPage> {
     }
 
     setState(() {
-      isFilterApplied = false; // showing all initially
+      isFilterApplied = false;
       grandTotal = totalRevenue;
       totalTransactionsData = totalTransactions;
     });
   }
 
+  Future<void> fetchTransactions() async {
+    if (isLoading || !hasMore) return;
+
+    setState(() => isLoading = true);
+
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+        .collection("transactions")
+        .orderBy("createdAt", descending: true);
+
+    if (isFilterApplied && fromDate != null) {
+      final now = DateTime.now();
+      final effectiveFrom = DateTime(
+          fromDate!.year, fromDate!.month, fromDate!.day, 0, 0, 0, 0);
+      final effectiveTo = (toDate != null)
+          ? DateTime(toDate!.year, toDate!.month, toDate!.day, 23, 59, 59, 999)
+          : DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+
+      query = FirebaseFirestore.instance
+          .collection("transactions")
+          .where("createdAt", isGreaterThanOrEqualTo: Timestamp.fromDate(effectiveFrom))
+          .where("createdAt", isLessThanOrEqualTo: Timestamp.fromDate(effectiveTo))
+          .orderBy("createdAt", descending: true)
+      as Query<Map<String, dynamic>>;
+    }
+
+    if (lastDoc != null) {
+      query = query.startAfterDocument(lastDoc!) as Query<Map<String, dynamic>>;
+    }
+
+    query = query.limit(pageSize) as Query<Map<String, dynamic>>;
+
+    final snapshot = await query.get();
+
+    if (snapshot.docs.isNotEmpty) {
+      setState(() {
+        transactions.addAll(snapshot.docs);
+        lastDoc = snapshot.docs.last;
+        if (snapshot.docs.length < pageSize) {
+          hasMore = false;
+        }
+      });
+    } else {
+      setState(() => hasMore = false);
+    }
+
+    setState(() => isLoading = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title:  Text(totalTransactionsData != 0?"Transactions ($totalTransactionsData)":"Transactions" ,style: const TextStyle(
-        fontSize: 16,
-        fontFamily: fontMulishSemiBold,
-      ))),
+      appBar: AppBar(
+          title: Text(
+            totalTransactionsData != 0
+                ? "Transactions ($totalTransactionsData)"
+                : "Transactions",
+            style: const TextStyle(
+              fontSize: 16,
+              fontFamily: 'Mulish-SemiBold',
+            ),
+          )),
       body: Column(
         children: [
-          // 🔹 Filter UI
+          // Filter UI
           Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
@@ -191,10 +301,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       border: OutlineInputBorder(),
                     ),
                     onTap: () => _pickDate(context: context, isFrom: true),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontFamily: fontMulishSemiBold,
-                    ),
+                    style: const TextStyle(fontSize: 14),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -207,10 +314,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       border: OutlineInputBorder(),
                     ),
                     onTap: () => _pickDate(context: context, isFrom: false),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontFamily: fontMulishSemiBold,
-                    ),
+                    style: const TextStyle(fontSize: 14),
                   ),
                 ),
               ],
@@ -219,194 +323,175 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
           const Divider(),
 
-          // 🔹 Transaction List
-          Expanded(child: buildTransactionList()),
-        ],
-      ),
-    );
-  }
+          // Grouped list (unchanged layout, paginated)
+          Expanded(
+            child: transactions.isEmpty && isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : transactions.isEmpty
+                ? const Center(child: Text("No transactions found"))
+                : ListView.builder(
+              controller: _scrollController,
+              itemCount: transactions.length + 1,
+              itemBuilder: (context, index) {
+                if (index < transactions.length) {
+                  final data = transactions[index].data();
+                  final tableName = data["table"] ?? "Unknown";
+                  final total =
+                      (data["total"] as num?)?.toDouble() ?? 0.0;
+                  final dateTime =
+                  (data["createdAt"] as Timestamp?)?.toDate();
+                  final dateKey = dateTime != null
+                      ? DateFormat("dd-MM-yyyy").format(dateTime)
+                      : "Unknown Date";
 
-  Widget buildTransactionList() {
-    Query<Map<String, dynamic>> query =
-    FirebaseFirestore.instance.collection("transactions");
-
-    if (isFilterApplied && fromDate != null) {
-      final effectiveToDate =
-          toDate ?? DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59);
-
-      query = query
-          .where("createdAt", isGreaterThanOrEqualTo: fromDate)
-          .where("createdAt", isLessThanOrEqualTo: effectiveToDate);
-    }
-
-    query = query.orderBy("createdAt", descending: true);
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: query.snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text("No transactions found"));
-        }
-
-        final transactions = snapshot.data!.docs;
-
-        // 🔹 Group transactions by date
-        final Map<String, List<Map<String, dynamic>>> groupedData = {};
-
-        for (var doc in transactions) {
-          final data = doc.data() as Map<String, dynamic>;
-
-          final dateTime = (data["createdAt"] as Timestamp?)?.toDate();
-          final dateKey = dateTime != null
-              ? DateFormat("dd-MM-yyyy").format(dateTime)
-              : "Unknown Date";
-
-          groupedData.putIfAbsent(dateKey, () => []);
-          groupedData[dateKey]!.add(data);
-        }
-
-        return Column(
-          children: [
-            Expanded(
-              child: ListView(
-                children: groupedData.entries.map((entry) {
-                  final date = entry.key;
-                  final dateTransactions = entry.value;
+                  // show date header for first item or when date changes
+                  bool showDateHeader = true;
+                  if (index > 0) {
+                    final prevData = transactions[index - 1].data();
+                    final prevDateTime =
+                    (prevData["createdAt"] as Timestamp?)?.toDate();
+                    final prevDateKey = prevDateTime != null
+                        ? DateFormat("dd-MM-yyyy")
+                        .format(prevDateTime)
+                        : "Unknown Date";
+                    if (prevDateKey == dateKey) {
+                      showDateHeader = false;
+                    }
+                  }
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 🔹 Date Heading
-                      Container(
-                        width: double.infinity,
-                        color: primary_color.withOpacity(0.1),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 22,
-                          vertical: 8,
+                      if (showDateHeader)
+                        Container(
+                          width: double.infinity,
+                          color: primary_color.withOpacity(0.1),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 22,
+                            vertical: 8,
+                          ),
+                          child: Text(
+                            dateKey,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontFamily: 'Mulish-Bold',
+                            ),
+                          ),
                         ),
-                        child: Text(
-                          date,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontFamily: fontMulishBold,
+                      InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => TransactionDetailsPage(
+                                transaction: data,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(
+                              horizontal: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12),
+                          child: Column(
+                            children: [
+                              Row(
+                                crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "$tableName",
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontFamily:
+                                            'Mulish-SemiBold',
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          dateTime != null
+                                              ? DateFormat('hh:mm a')
+                                              .format(dateTime)
+                                              : "-",
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color:
+                                            Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Text(
+                                      "\$${total.toStringAsFixed(2)}",
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontFamily: 'Mulish-Bold',
+                                        color: Colors.green,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Divider(),
+                            ],
                           ),
                         ),
                       ),
-
-                      // 🔹 Transactions under this date
-                      ...dateTransactions.map((data) {
-                        final tableName = data["table"] ?? "Unknown";
-                        final total = data["total"] ?? 0.0;
-                        final dateTime =
-                        (data["createdAt"] as Timestamp?)?.toDate();
-
-                        return InkWell(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    TransactionDetailsPage(transaction: data),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 12),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Column(
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // 🔹 Table Name
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            "$tableName",
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontFamily: fontMulishSemiBold,
-                                              color: Colors.black87,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-
-                                          // 🔹 Time
-                                          Text(
-                                            dateTime != null
-                                                ? DateFormat('hh:mm a')
-                                                .format(dateTime)
-                                                : "-",
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: Colors.grey.shade600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-
-                                    // 🔹 Total
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: Text(
-                                        "\$${(total as num).toStringAsFixed(2)}",
-                                        style: const TextStyle(
-                                          fontSize: 15,
-                                          fontFamily: fontMulishBold,
-                                          color: Colors.green,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const Divider(),
-                              ],
-                            ),
-                          ),
-                        );
-                      }).toList(),
                     ],
                   );
-                }).toList(),
-              ),
-            ),
-
-            // 🔹 Grand Total Section
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: Colors.orangeAccent.shade200,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    "Grand Total:",
-                    style:
-                    TextStyle(fontSize: 16, fontFamily: fontMulishSemiBold, color: Colors.white),
-                  ),
-                  Text(
-                    "\$${grandTotal.toStringAsFixed(2)}",
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontFamily: fontMulishBold,
-                      color: Colors.white,
+                } else {
+                  // loader / no more
+                  return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Center(
+                      child: hasMore
+                          ? const CircularProgressIndicator()
+                          : const Text("No more transactions"),
                     ),
-                  ),
-                ],
-              ),
+                  );
+                }
+              },
             ),
-          ],
-        );
-      },
+          ),
+
+          // Grand Total (from daily_stats)
+          Container(
+            padding: const EdgeInsets.all(16),
+            color: Colors.orangeAccent.shade200,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Grand Total:",
+                  style: TextStyle(
+                      fontSize: 16, fontFamily: 'Mulish-SemiBold', color: Colors.white),
+                ),
+                Text(
+                  "\$${grandTotal.toStringAsFixed(2)}",
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontFamily: 'Mulish-Bold',
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
+
 
