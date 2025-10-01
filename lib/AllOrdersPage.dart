@@ -1,4 +1,5 @@
 import 'package:demo/AddMenuItemPage.dart';
+import 'package:demo/Styles/my_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -64,7 +65,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   final AudioPlayer audioPlayer = AudioPlayer();
   Set<String> previousKeys = {}; // track existing group keys
   int? blinkingGroupKey;
-
+  Timer? _timer;
   void _playNotificationSound() async {
     try {
       await audioPlayer.play(AssetSource('sounds/phone_bell.mp3'));
@@ -122,9 +123,22 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+
+    // Start a timer to update every minute
+    _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("All Orders (Time-wise)")),
+      appBar: AppBar(title: const Text("All Orders (Time-wise)",style: const TextStyle(
+        fontFamily: fontMulishSemiBold,
+        fontSize: 16,
+      ))),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('tables')
@@ -238,22 +252,44 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
               final time = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
               final isBlinking = blinkingGroupKey == group.key.hashCode;
 
+              // Continuous blink if older than 20 minutes
+              final isOld = DateTime.now().difference(time).inMinutes > 20;
+
               return AnimatedContainer(
                 duration: const Duration(milliseconds: 400),
                 curve: Curves.easeInOut,
                 color: isBlinking
-                    ? Colors.lightGreenAccent
+                    ? Colors.lightGreenAccent:
+                isOld?old_order
                     : Colors.transparent,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      "${group.tableName} (${DateFormat('dd MMM yyyy').format(time)}, ${DateFormat('hh:mm a').format(time)})",
-                      style: const TextStyle(
-                        fontFamily: fontMulishSemiBold,
-                        fontSize: 16,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            "${group.tableName} ",
+                            style: const TextStyle(
+                              fontFamily: fontMulishSemiBold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+
+                        SizedBox(width: 6,),
+
+                        Text(
+                          formatRelativeTime(time),
+                          style: const TextStyle(
+                            fontFamily: fontMulishSemiBold,
+                            fontSize: 14,
+                          ),
+                        ),
+
+
+                      ],
                     ),
                     const SizedBox(height: 6),
                     ...group.items.map((item) {
@@ -293,6 +329,33 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
       ),
     );
   }
+
+  String formatRelativeTime(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+
+    if (difference.inSeconds < 60) {
+      return "just now";
+    } else if (difference.inMinutes < 60) {
+      return "${difference.inMinutes} min${difference.inMinutes > 1 ? "s" : ""} ago";
+    } else if (difference.inHours < 24) {
+      return "${difference.inHours} hr${difference.inHours > 1 ? "s" : ""} ago";
+    } else if (difference.inDays == 1) {
+      return "yesterday";
+    } else if (difference.inDays < 7) {
+      return "${difference.inDays} day${difference.inDays > 1 ? "s" : ""} ago";
+    } else {
+      return DateFormat('dd MMM yyyy, hh:mm a').format(time); // fallback absolute
+    }
+  }
+
+
+  @override
+  void dispose() {
+    _timer?.cancel(); // Cancel timer when widget is disposed
+    super.dispose();
+  }
+
 }
 
 // TableGroup class
@@ -304,3 +367,6 @@ class TableGroup {
 
   TableGroup(this.tableName, this.items, this.groupTime, {required this.key});
 }
+
+
+
