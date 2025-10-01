@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/AddCategoryPage.dart' hide AddTablePage;
 import 'package:demo/AddMenuItemPage.dart';
+import 'package:demo/Styles/my_icons.dart';
 import 'package:demo/TransactionsPage.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'CartPage.dart';
 import 'FinalCartPage.dart';
 import 'MenuPage.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:flutter/material.dart';
 import 'MenuPage.dart';
@@ -332,7 +334,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         title: Row(
           children: [
             Expanded(
-              child: Text("My Restaurant", style: TextStyle(fontSize: 16)),
+              child: Text("My Restaurant", style: const TextStyle(
+                fontSize: 16,
+                fontFamily: fontMulishSemiBold,
+              )),
             ),
             InkWell(
               onTap: () async {
@@ -345,13 +350,16 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                   await _addTable(result.trim());
                 }
               },
-              child: Row(
-                children: [
-                  Icon(Icons.add_circle),
-                  SizedBox(width: 3),
-                  Text("Table", style: TextStyle(fontSize: 15)),
-                ],
-              ),
+              child: SvgPicture.asset(icon_table, height: 28, color: Colors.black87,)
+
+
+              // Row(
+              //   children: [
+              //     Icon(Icons.add_circle),
+              //     SizedBox(width: 3),
+              //     Text("Table", style: TextStyle(fontSize: 15)),
+              //   ],
+              // ),
             ),
             SizedBox(width: 16),
             InkWell(
@@ -361,13 +369,15 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                   MaterialPageRoute(builder: (_) => AddCategoryPage()),
                 );
               },
-              child: Row(
-                children: [
-                  Icon(Icons.menu_book),
-                  SizedBox(width: 3),
-                  Text("Menu", style: TextStyle(fontSize: 15)),
-                ],
-              ),
+              child:SvgPicture.asset(icon_menu, width: 24, color: Colors.black87,)
+
+              // Row(
+              //   children: [
+              //     Icon(Icons.menu_book),
+              //     SizedBox(width: 3),
+              //     Text("Menu", style: TextStyle(fontSize: 15)),
+              //   ],
+              // ),
             ),
 
             SizedBox(width: 16),
@@ -378,13 +388,15 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                   MaterialPageRoute(builder: (_) => TransactionsPage()),
                 );
               },
-              child: Row(
-                children: [
-                  Icon(Icons.money),
-                  SizedBox(width: 3),
-                  Text("Transactions", style: TextStyle(fontSize: 15)),
-                ],
-              ),
+              child: SvgPicture.asset(icon_transaction, width: 24, color: Colors.black87,)
+
+              // Row(
+              //   children: [
+              //     Icon(Icons.money),
+              //     SizedBox(width: 3),
+              //     Text("Transactions", style: TextStyle(fontSize: 15)),
+              //   ],
+              // ),
             ),
           ],
         ),
@@ -527,8 +539,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         );
       },
       child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        elevation: 8,
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

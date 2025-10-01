@@ -44,7 +44,11 @@ class FinalCartPage extends StatelessWidget {
     final total = subtotal + tax + tip;
 
     return Scaffold(
-      appBar: AppBar(title: Text("Cart")),
+      appBar: AppBar(title: Text("Cart", style: TextStyle(
+        fontSize: 16,
+
+        fontFamily: fontMulishSemiBold,
+      ))),
       body: Column(
         children: [
           Expanded(

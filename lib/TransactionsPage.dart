@@ -62,7 +62,15 @@ class _TransactionsPageState extends State<TransactionsPage> {
   final TextEditingController fromController = TextEditingController();
   final TextEditingController toController = TextEditingController();
 
-  bool isFilterApplied = false; // apply filter only after submit
+  bool isFilterApplied = false;
+  double grandTotal = 0.0;
+  int totalTransactionsData = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    getTotalRevenue(); // Load total for all records initially
+  }
 
   Future<void> _pickDate({
     required BuildContext context,
@@ -80,78 +88,43 @@ class _TransactionsPageState extends State<TransactionsPage> {
         if (isFrom) {
           fromDate = DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
           fromController.text = DateFormat("dd-MM-yyyy").format(picked);
+
+          // 🔹 If user selects only From Date, set To Date as today
+          if (toDate == null) {
+            toDate = DateTime.now();
+            toController.text = DateFormat("dd-MM-yyyy").format(toDate!);
+          }
         } else {
           toDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
           toController.text = DateFormat("dd-MM-yyyy").format(picked);
         }
       });
+
+      // 🔹 Apply filter automatically
+      _applyFilter();
     }
   }
 
-  void _applyFilter() {
-    if (fromDate != null && toDate != null) {
+  void _applyFilter() async {
+    if (fromDate != null) {
+      // If toDate is not selected, take today's date
+      final effectiveToDate =
+          toDate ?? DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59);
+
+      final result = await getRevenueBetweenDates(fromDate!, effectiveToDate);
+
       setState(() {
         isFilterApplied = true;
+        grandTotal = result["totalRevenue"];
+        totalTransactionsData = result["totalTransactions"];
       });
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Transactions")),
-      body: Column(
-        children: [
-          // 🔹 Filter UI
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: fromController,
-                    readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: "From Date",
-                      border: OutlineInputBorder(),
-                    ),
-                    onTap: () => _pickDate(context: context, isFrom: true),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: toController,
-                    readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: "To Date",
-                      border: OutlineInputBorder(),
-                    ),
-                    onTap: () => _pickDate(context: context, isFrom: false),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: _applyFilter,
-                  child: const Text("Submit"),
-                ),
-              ],
-            ),
-          ),
-
-          const Divider(),
-
-          // 🔹 Transaction List
-          Expanded(child: buildTransactionList()),
-        ],
-      ),
-    );
-  }
-
   Future<Map<String, dynamic>> getRevenueBetweenDates(
-    DateTime from,
-    DateTime to,
-  ) async {
+      DateTime from,
+      DateTime to,
+      ) async {
     final fromKey = DateFormat("yyyy-MM-dd").format(from);
     final toKey = DateFormat("yyyy-MM-dd").format(to);
 
@@ -175,15 +148,95 @@ class _TransactionsPageState extends State<TransactionsPage> {
     };
   }
 
-  Widget buildTransactionList() {
-    Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection(
-      "transactions",
-    );
+  Future<void> getTotalRevenue() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection("daily_stats")
+        .get();
 
-    if (isFilterApplied && fromDate != null && toDate != null) {
+    double totalRevenue = 0;
+    int totalTransactions = 0;
+
+    for (var doc in snapshot.docs) {
+      totalRevenue += (doc["revenue"] as num?)?.toDouble() ?? 0.0;
+      totalTransactions += (doc["transactions"] as int?) ?? 0;
+    }
+
+    setState(() {
+      isFilterApplied = false; // showing all initially
+      grandTotal = totalRevenue;
+      totalTransactionsData = totalTransactions;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title:  Text(totalTransactionsData != 0?"Transactions ($totalTransactionsData)":"Transactions" ,style: const TextStyle(
+        fontSize: 16,
+        fontFamily: fontMulishSemiBold,
+      ))),
+      body: Column(
+        children: [
+          // 🔹 Filter UI
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: fromController,
+                    readOnly: true,
+                    decoration: const InputDecoration(
+                      labelText: "From Date",
+                      border: OutlineInputBorder(),
+                    ),
+                    onTap: () => _pickDate(context: context, isFrom: true),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontFamily: fontMulishSemiBold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: toController,
+                    readOnly: true,
+                    decoration: const InputDecoration(
+                      labelText: "To Date",
+                      border: OutlineInputBorder(),
+                    ),
+                    onTap: () => _pickDate(context: context, isFrom: false),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontFamily: fontMulishSemiBold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(),
+
+          // 🔹 Transaction List
+          Expanded(child: buildTransactionList()),
+        ],
+      ),
+    );
+  }
+
+  Widget buildTransactionList() {
+    Query<Map<String, dynamic>> query =
+    FirebaseFirestore.instance.collection("transactions");
+
+    if (isFilterApplied && fromDate != null) {
+      final effectiveToDate =
+          toDate ?? DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59);
+
       query = query
           .where("createdAt", isGreaterThanOrEqualTo: fromDate)
-          .where("createdAt", isLessThanOrEqualTo: toDate);
+          .where("createdAt", isLessThanOrEqualTo: effectiveToDate);
     }
 
     query = query.orderBy("createdAt", descending: true);
@@ -203,12 +256,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
         // 🔹 Group transactions by date
         final Map<String, List<Map<String, dynamic>>> groupedData = {};
-        double grandTotal = 0.0;
 
         for (var doc in transactions) {
           final data = doc.data() as Map<String, dynamic>;
-          final total = (data["total"] as num?)?.toDouble() ?? 0.0;
-          grandTotal += total;
 
           final dateTime = (data["createdAt"] as Timestamp?)?.toDate();
           final dateKey = dateTime != null
@@ -234,7 +284,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       Container(
                         width: double.infinity,
                         color: primary_color.withOpacity(0.1),
-                        margin: EdgeInsets.only(bottom: 8),
+                        margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 22,
                           vertical: 8,
@@ -242,8 +292,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
                         child: Text(
                           date,
                           style: const TextStyle(
-                            fontSize: 16,
-                            fontFamily: fontMulishSemiBold,
+                            fontSize: 15,
+                            fontFamily: fontMulishBold,
                           ),
                         ),
                       ),
@@ -252,8 +302,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       ...dateTransactions.map((data) {
                         final tableName = data["table"] ?? "Unknown";
                         final total = data["total"] ?? 0.0;
-                        final dateTime = (data["createdAt"] as Timestamp?)
-                            ?.toDate();
+                        final dateTime =
+                        (data["createdAt"] as Timestamp?)?.toDate();
 
                         return InkWell(
                           onTap: () {
@@ -268,17 +318,6 @@ class _TransactionsPageState extends State<TransactionsPage> {
                           child: Container(
                             margin: const EdgeInsets.symmetric(horizontal: 12),
                             padding: const EdgeInsets.symmetric(horizontal: 12),
-                            // decoration: BoxDecoration(
-                            //   color: Colors.white,
-                            //   borderRadius: BorderRadius.circular(8),
-                            //   boxShadow: [
-                            //     BoxShadow(
-                            //       color: Colors.grey.withOpacity(0.2),
-                            //       blurRadius: 4,
-                            //       offset: const Offset(0, 2),
-                            //     ),
-                            //   ],
-                            // ),
                             child: Column(
                               children: [
                                 Row(
@@ -288,7 +327,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             "$tableName",
@@ -303,12 +342,11 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                           // 🔹 Time
                                           Text(
                                             dateTime != null
-                                                ? DateFormat(
-                                                    'hh:mm a',
-                                                  ).format(dateTime)
+                                                ? DateFormat('hh:mm a')
+                                                .format(dateTime)
                                                 : "-",
                                             style: TextStyle(
-                                              fontSize: 14,
+                                              fontSize: 13,
                                               color: Colors.grey.shade600,
                                             ),
                                           ),
@@ -322,16 +360,15 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                       child: Text(
                                         "\$${(total as num).toStringAsFixed(2)}",
                                         style: const TextStyle(
-                                          fontSize: 16,
-                                          fontFamily: fontMulishSemiBold,
+                                          fontSize: 15,
+                                          fontFamily: fontMulishBold,
                                           color: Colors.green,
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
-
-                                Divider(),
+                                const Divider(),
                               ],
                             ),
                           ),
@@ -346,20 +383,21 @@ class _TransactionsPageState extends State<TransactionsPage> {
             // 🔹 Grand Total Section
             Container(
               padding: const EdgeInsets.all(16),
-              color: Colors.grey.shade200,
+              color: Colors.orangeAccent.shade200,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
                     "Grand Total:",
-                    style: TextStyle(fontSize: 16, fontFamily: fontMulishSemiBold),
+                    style:
+                    TextStyle(fontSize: 16, fontFamily: fontMulishSemiBold, color: Colors.white),
                   ),
                   Text(
                     "\$${grandTotal.toStringAsFixed(2)}",
                     style: const TextStyle(
                       fontSize: 18,
-                      fontFamily: fontMulishSemiBold,
-                      color: Colors.deepPurple,
+                      fontFamily: fontMulishBold,
+                      color: Colors.white,
                     ),
                   ),
                 ],
@@ -371,3 +409,4 @@ class _TransactionsPageState extends State<TransactionsPage> {
     );
   }
 }
+

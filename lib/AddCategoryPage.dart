@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 
+import 'Styles/my_font.dart';
+
 class AddCategoryPage extends StatefulWidget {
   @override
   _AddCategoryPageState createState() => _AddCategoryPageState();
@@ -35,7 +37,10 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
       appBar: AppBar(
         title: Row(
           children: [
-            Expanded(child: Text("Add Category")),
+            Expanded(child: Text("Add Category",style: TextStyle(
+          fontSize: 16,
+          fontFamily: fontMulishSemiBold,
+        ))),
             InkWell(
               onTap: () {
                 Get.to(AddMenuItemPage());
@@ -44,7 +49,10 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
                 children: [
                   Icon(Icons.add_circle, size: 20),
                   SizedBox(width: 4),
-                  Text("Menu"),
+                  Text("Menu", style: TextStyle(
+                  fontSize: 16,
+                  fontFamily: fontMulishSemiBold,
+                  )),
                 ],
               ),
             )
@@ -67,7 +75,10 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
             SizedBox(height: 12),
             ElevatedButton(
               onPressed: _addCategory,
-              child: Text("Add Category"),
+              child: Text("Add Category",style: TextStyle(
+                fontSize: 14,
+                fontFamily: fontMulishSemiBold,
+              )),
             ),
             SizedBox(height: 20),
 
@@ -95,9 +106,12 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
                       return Card(
                         margin: EdgeInsets.symmetric(vertical: 6),
                         child: ListTile(
-                          title: Text(category['name']),
+                          title: Text(category['name'], style: TextStyle(
+                            fontSize: 15,
+                            fontFamily: fontMulishSemiBold,
+                          )),
                           trailing: IconButton(
-                            icon: Icon(Icons.delete, color: Colors.red),
+                            icon: Icon(Icons.delete, color: Colors.red, size: 20,),
                             onPressed: () {
                               FirebaseFirestore.instance
                                   .collection('menus')

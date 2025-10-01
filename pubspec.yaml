@@ -25,6 +25,7 @@ dependencies:
   dotted_line: ^3.0.0
   intl: ^0.18.1
   audioplayers:
+  flutter_svg: ^2.0.14
 
 
 dev_dependencies:
@@ -37,6 +38,7 @@ flutter:
   assets:
     - assets/
     - assets/sounds/
+    - assets/images/
 
   fonts:
     - family: Mulish Black

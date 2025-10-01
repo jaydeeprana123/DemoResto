@@ -41,7 +41,10 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Add Menu Item")),
+      appBar: AppBar(title: Text("Add Menu Item", style: TextStyle(
+      fontSize: 16,
+      fontFamily: fontMulishSemiBold,
+      ))),
       body: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
@@ -131,7 +134,7 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                         title: Text(
                           category['name'],
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 15,
                             fontFamily: fontMulishSemiBold,
                           ),
                         ),
@@ -159,28 +162,36 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                                 );
                               }
 
-                              return Column(
-                                children: items.map((item) {
-                                  return ListTile(
-                                    title: Text(
-                                      "${item['name']} - ₹${item['price']}",
-                                    ),
-                                    trailing: IconButton(
-                                      icon: Icon(
-                                        Icons.delete,
-                                        color: Colors.red,
+                              return Container(
+                                padding: EdgeInsets.only(left: 8),
+                                child: Column(
+                                  children: items.map((item) {
+                                    return ListTile(
+                                      title: Text(
+                                        "${item['name']} - ₹${item['price']}",
+                                        style: TextStyle(
+                                      fontSize: 14,
+                                      fontFamily: fontMulishSemiBold,
+                                      )
                                       ),
-                                      onPressed: () {
-                                        FirebaseFirestore.instance
-                                            .collection('menus')
-                                            .doc(category.id)
-                                            .collection('items')
-                                            .doc(item.id)
-                                            .delete();
-                                      },
-                                    ),
-                                  );
-                                }).toList(),
+                                      trailing: IconButton(
+                                        icon: Icon(
+                                          Icons.delete,
+                                          color: Colors.red,
+                                          size: 20,
+                                        ),
+                                        onPressed: () {
+                                          FirebaseFirestore.instance
+                                              .collection('menus')
+                                              .doc(category.id)
+                                              .collection('items')
+                                              .doc(item.id)
+                                              .delete();
+                                        },
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
                               );
                             },
                           ),

@@ -45,5 +45,5 @@ const green_199a8e = Color(0xff199a8e);
 const orange_df6129 = Color(0xFFdf6129);
 const web_bg_color = Color(0xffA5DAE9);
 
-const primary_color = Color(0xFFB7410E);
+const primary_color = Color(0xABFF6D00);
 const primary_color_transparent = Color(0x19B7410E);
