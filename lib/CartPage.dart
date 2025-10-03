@@ -22,6 +22,14 @@ class CartPage extends StatefulWidget {
 class _CartPageState extends State<CartPage> {
   late List<Map<String, dynamic>> cartItems;
 
+  final TextEditingController discountPercentController =
+      TextEditingController();
+  final TextEditingController discountAmountController =
+      TextEditingController();
+
+  double discountPercent = 0.0;
+  double discountAmount = 0.0;
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +48,7 @@ class _CartPageState extends State<CartPage> {
   void incrementQty(int index) {
     setState(() {
       cartItems[index]['qty']++;
+      _updateDiscountFromPercent();
     });
   }
 
@@ -51,14 +60,28 @@ class _CartPageState extends State<CartPage> {
         cartItems[index]['qty'] = 0;
         cartItems.removeAt(index);
       }
+      _updateDiscountFromPercent();
     });
+  }
+
+  void _updateDiscountFromPercent() {
+    if (discountPercent > 0) {
+      discountAmount = (subtotal * discountPercent) / 100;
+      discountAmountController.text = discountAmount.toStringAsFixed(2);
+    }
+  }
+
+  void _updateDiscountFromAmount() {
+    if (discountAmount > 0 && subtotal > 0) {
+      discountPercent = (discountAmount / subtotal) * 100;
+      discountPercentController.text = discountPercent.toStringAsFixed(2);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final tax = subtotal * 0.085;
-    final tip = subtotal * 0.15;
-    final total = subtotal + tax + tip;
+    final total = subtotal + tax - discountAmount;
 
     return Scaffold(
       appBar: AppBar(
@@ -81,6 +104,7 @@ class _CartPageState extends State<CartPage> {
                       return Column(
                         children: [
                           ListTile(
+                            contentPadding: EdgeInsets.zero,
                             title: Text(item['name']),
                             subtitle: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,6 +127,7 @@ class _CartPageState extends State<CartPage> {
                                     onTap: () {
                                       setState(() {
                                         item['qty'] = 1;
+                                        _updateDiscountFromPercent();
                                       });
                                     },
                                     child: Container(
@@ -154,11 +179,11 @@ class _CartPageState extends State<CartPage> {
                                     ],
                                   ),
                           ),
-                          // ✅ Divider under each item except last
                           if (index < cartItems.length - 1)
                             const Divider(
                               thickness: 0.8,
-                              color: primary_color_transparent,
+                              color: Colors.black26,
+                              height: 0,
                             ),
                         ],
                       );
@@ -172,7 +197,61 @@ class _CartPageState extends State<CartPage> {
               children: [
                 _buildRow("Subtotal", subtotal),
                 _buildRow("Tax (8.5%)", tax),
-                _buildRow("Tip", tip),
+                const SizedBox(height: 10),
+
+                // ✅ Discount fields
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: discountPercentController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: "Discount %",
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            discountPercent = double.tryParse(value) ?? 0;
+                            _updateDiscountFromPercent();
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: discountAmountController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: "Discount ₹",
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            discountAmount = double.tryParse(value) ?? 0;
+                            _updateDiscountFromAmount();
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+                _buildRow("Discount", discountAmount),
                 Divider(),
                 _buildRow("Total", total, isTotal: true),
                 const SizedBox(height: 10),
