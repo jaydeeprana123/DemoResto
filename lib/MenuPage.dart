@@ -1,3 +1,4 @@
+import 'package:demo/CartPageForTakeAway.dart';
 import 'package:flutter/material.dart';
 import 'dart:math'; // ⬅️ add this at the top
 
@@ -18,10 +19,12 @@ class MenuPage extends StatefulWidget {
   final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
   final List<Map<String, dynamic>> menuList; // Passed from previous page
   final List<Map<String, dynamic>> initialItems;
+  final String tableName;
 
   const MenuPage({
     required this.onConfirm,
     required this.menuList,
+    required this.tableName,
     this.initialItems = const [],
     Key? key,
   }) : super(key: key);
@@ -100,7 +103,21 @@ class _MenuPageState extends State<MenuPage> {
       length: categories.length,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("Menu"),
+          title: Row(
+            children: [
+              Text("Menu - ",style: TextStyle(
+                fontSize: 16,
+                fontFamily: fontMulishBold,
+              ),),
+
+
+              Text(widget.tableName,style: TextStyle(
+                fontSize: 16,
+                fontFamily: fontMulishBold,
+              ),),
+
+            ],
+          ),
           bottom: TabBar(
             isScrollable: true,
             tabs: categories.map((c) => Tab(text: c)).toList(),
@@ -124,10 +141,18 @@ class _MenuPageState extends State<MenuPage> {
                           incrementQty(category, index);
                         },
                         child: ListTile(
-                          title: Text(item['name']),
+                          title: Text(item['name'], style: TextStyle(
+                            fontSize: 15,
+                            color: text_color,
+                            fontFamily: fontMulishSemiBold,
+                          )),
                           subtitle: Row(
                             children: [
-                              Text("₹${item['price'].toStringAsFixed(2)}"),
+                              Text("₹${item['price'].toStringAsFixed(2)}", style: TextStyle(
+                                fontSize: 14,
+                                color: secondary_text_color,
+                                fontFamily: fontMulishRegular,
+                              ), ),
 
                               SizedBox(width: 16),
 
@@ -186,6 +211,7 @@ class _MenuPageState extends State<MenuPage> {
                                       "$qty",
                                       style: const TextStyle(
                                         fontSize: 15,
+                                        color: text_color,
                                         fontFamily: fontMulishSemiBold,
                                       ),
                                     ),
@@ -216,9 +242,9 @@ class _MenuPageState extends State<MenuPage> {
                     Text(
                       "$totalItems items | ₹${totalPrice.toStringAsFixed(2)}",
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         color: Colors.white,
-                        fontWeight: FontWeight.normal,
+                        fontFamily: fontMulishSemiBold,
                       ),
                     ),
                     ElevatedButton(
@@ -232,15 +258,32 @@ class _MenuPageState extends State<MenuPage> {
 
                         // Send selected items to cart or callback
 
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CartPage(
-                              menuData: selectedItems,
-                              onConfirm: widget.onConfirm,
+
+                        if(widget.tableName == "Take Away"){
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CartPageForTakeAway(
+                                tableName: widget.tableName,
+                                menuData: selectedItems,
+                                onConfirm: widget.onConfirm,
+                              ),
                             ),
-                          ),
-                        );
+                          );
+                        }else{
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CartPage(
+                                tableName: widget.tableName,
+                                menuData: selectedItems,
+                                onConfirm: widget.onConfirm,
+                              ),
+                            ),
+                          );
+                        }
+
+
                       },
                       child: const Text("View Cart"),
                     ),

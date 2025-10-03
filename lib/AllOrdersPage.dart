@@ -253,14 +253,14 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
               final isBlinking = blinkingGroupKey == group.key.hashCode;
 
               // Continuous blink if older than 20 minutes
-              final isOld = DateTime.now().difference(time).inMinutes > 20;
+              final isOld = DateTime.now().difference(time).inMinutes > 5;
 
               return AnimatedContainer(
                 duration: const Duration(milliseconds: 400),
                 curve: Curves.easeInOut,
                 color: isBlinking
                     ? Colors.lightGreenAccent:
-                isOld?old_order
+                isOld?Colors.blue.shade100
                     : Colors.transparent,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
                 child: Column(

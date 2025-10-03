@@ -59,10 +59,13 @@ class TransactionDetailsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = (transaction["items"] as List<dynamic>? ?? []);
-    final subtotal = (transaction["subtotal"] as num?)?.toDouble() ?? 0.0;
-    final tax = (transaction["tax"] as num?)?.toDouble() ?? 0.0;
-    final tip = (transaction["tip"] as num?)?.toDouble() ?? 0.0;
-    final total = (transaction["total"] as num?)?.toDouble() ?? 0.0;
+    final subtotal = (transaction["subtotal"] as int?) ?? 0;
+    final tax = (transaction["tax"] as int?) ?? 0;
+    final discount = (transaction["discount"] as int?) ?? 0;
+    final total = (transaction["total"] as int?) ?? 0;
+    final cashAmount = (transaction["cashAmount"] as int?) ?? 0;
+    final onlineAmount = (transaction["onlineAmount"] as int?) ?? 0;
+
     final tableName = transaction["table"] ?? "Unknown";
     final dateTime = (transaction["createdAt"] as Timestamp?)?.toDate();
 
@@ -74,41 +77,40 @@ class TransactionDetailsPage extends StatelessWidget {
             child: items.isEmpty
                 ? const Center(child: Text("No items in this transaction"))
                 : SingleChildScrollView(
-                    scrollDirection: Axis.vertical,
-                    child: DataTable(
-                      headingRowColor: MaterialStateColor.resolveWith(
-                        (states) => primary_color.withOpacity(0.1),
-                      ),
-                      columns: const [
-                        DataColumn(label: Text("Item")),
-                        DataColumn(label: Text("Qty")),
-                        DataColumn(label: Text("Total")),
-                      ],
-                      rows: items.map((item) {
-                        final qty = item['qty'] as int? ?? 0;
-                        final price =
-                            (item['price'] as num?)?.toDouble() ?? 0.0;
-                        final total = (qty * price);
+              scrollDirection: Axis.vertical,
+              child: DataTable(
+                headingRowColor: MaterialStateColor.resolveWith(
+                      (states) => primary_color.withOpacity(0.1),
+                ),
+                columns: const [
+                  DataColumn(label: Text("Item")),
+                  DataColumn(label: Text("Qty")),
+                  DataColumn(label: Text("Total")),
+                ],
+                rows: items.map((item) {
+                  final qty = item['qty'] as int? ?? 0;
+                  final price = item['price'] as int? ?? 0;
+                  final total = qty * price;
 
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(item['name'] ?? "-")),
-                            DataCell(
-                              Text(
-                                "×$qty",
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.red,
-                                  fontFamily: fontMulishSemiBold,
-                                ),
-                              ),
-                            ),
-                            DataCell(Text("\$${total.toStringAsFixed(2)}")),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ),
+                  return DataRow(
+                    cells: [
+                      DataCell(Text(item['name'] ?? "-")),
+                      DataCell(
+                        Text(
+                          "×$qty",
+                          style: const TextStyle(
+                            fontSize: 15,
+                            color: Colors.red,
+                            fontFamily: fontMulishSemiBold,
+                          ),
+                        ),
+                      ),
+                      DataCell(Text("₹$total")),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
@@ -119,7 +121,7 @@ class TransactionDetailsPage extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      "$tableName",
+                      tableName,
                       style: const TextStyle(
                         fontSize: 16,
                         color: Colors.black87,
@@ -130,7 +132,6 @@ class TransactionDetailsPage extends StatelessWidget {
                       dateTime != null
                           ? DateFormat("dd-MM-yyyy | hh:mm a").format(dateTime)
                           : "-",
-
                       style: const TextStyle(
                         fontSize: 16,
                         color: Colors.black87,
@@ -142,7 +143,10 @@ class TransactionDetailsPage extends StatelessWidget {
                 const Divider(),
                 _buildRow("Subtotal", subtotal),
                 _buildRow("Tax (8.5%)", tax),
-                _buildRow("Tip", tip),
+                if (discount > 0) _buildRow("Discount", discount),
+                const Divider(),
+                _buildRow("Cash", cashAmount),
+                _buildRow("Online", onlineAmount),
                 const Divider(),
                 _buildRow("Total", total, isTotal: true),
               ],
@@ -153,7 +157,7 @@ class TransactionDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildRow(String label, double value, {bool isTotal = false}) {
+  Widget _buildRow(String label, int value, {bool isTotal = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -167,7 +171,7 @@ class TransactionDetailsPage extends StatelessWidget {
             ),
           ),
           Text(
-            "\$${value.toStringAsFixed(2)}",
+            "₹$value",
             style: TextStyle(
               fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
               fontSize: isTotal ? 16 : 14,
@@ -179,3 +183,4 @@ class TransactionDetailsPage extends StatelessWidget {
     );
   }
 }
+

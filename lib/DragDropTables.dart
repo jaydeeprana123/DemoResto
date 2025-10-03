@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'AddTablePage.dart';
 import 'AllOrdersPage.dart';
 import 'CartPage.dart';
+import 'CartPageForTableBilling.dart';
 import 'FinalCartPage.dart';
 import 'MenuPage.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -514,15 +515,37 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         ],
       ),
       // 🔹 Floating action button is outside the Stack
-      floatingActionButton: FloatingActionButton(
-        child: SvgPicture.asset(icon_take_away, width: 28, height: 28),
-        tooltip: 'View all orders',
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => OrdersGroupedListPage()),
-          );
-        },
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            backgroundColor: Colors.white,
+            child: SvgPicture.asset(icon_take_away, width: 36, height: 28, color: Colors.black87,),
+            tooltip: 'View all orders',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => MenuPage(onConfirm:  (List<Map<String, dynamic>> confirmedItems) async {
+                }, menuList: menu, tableName: "Take Away")),
+              );
+            },
+          ),
+
+          SizedBox(height: 16,),
+
+          FloatingActionButton(
+            backgroundColor: Colors.white,
+            child: Icon(Icons.list, color: Colors.black87,),
+            tooltip: 'View all orders',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => OrdersGroupedListPage()),
+              );
+            },
+          ),
+
+        ],
       ),
     );
   }
@@ -539,7 +562,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => FinalCartPage(
+            builder: (_) => CartPageForTakeAway(
               menuData: mergedItems,
               onConfirm: (List<Map<String, dynamic>> confirmedItems) async {
                 setState(() {
@@ -547,7 +570,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                 });
                 await _updateTableItemsInFirestore(tableName, [confirmedItems]);
               },
-              table: tableName,
+              tableName: tableName,
             ),
           ),
         );
@@ -565,7 +588,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(tableName, style: TextStyle(color: Colors.white)),
+                  Expanded(child: Text(tableName, style: TextStyle(color: Colors.white))),
                   Row(
                     children: [
                       if (groups.isNotEmpty)
@@ -578,6 +601,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                               MaterialPageRoute(
                                 builder: (_) => MenuPage(
                                   menuList: menu,
+                                  tableName: tableName,
                                   initialItems: List<Map<String, dynamic>>.from(
                                     lastGroup,
                                   ),
@@ -608,6 +632,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                             MaterialPageRoute(
                               builder: (_) => MenuPage(
                                 menuList: menu,
+                                tableName: tableName,
                                 initialItems: [],
                                 onConfirm:
                                     (
