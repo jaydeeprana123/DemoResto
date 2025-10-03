@@ -334,10 +334,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         title: Row(
           children: [
             Expanded(
-              child: Text("My Restaurant", style: const TextStyle(
-                fontSize: 16,
-                fontFamily: fontMulishSemiBold,
-              )),
+              child: Text(
+                "My Restaurant",
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontFamily: fontMulishSemiBold,
+                ),
+              ),
             ),
             InkWell(
               onTap: () async {
@@ -350,8 +353,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                   await _addTable(result.trim());
                 }
               },
-              child: SvgPicture.asset(icon_table, height: 28, color: Colors.black87,)
-
+              child: SvgPicture.asset(
+                icon_table,
+                height: 28,
+                color: Colors.black87,
+              ),
 
               // Row(
               //   children: [
@@ -369,7 +375,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                   MaterialPageRoute(builder: (_) => AddCategoryPage()),
                 );
               },
-              child:SvgPicture.asset(icon_menu, width: 24, color: Colors.black87,)
+              child: SvgPicture.asset(
+                icon_menu,
+                width: 24,
+                color: Colors.black87,
+              ),
 
               // Row(
               //   children: [
@@ -388,7 +398,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                   MaterialPageRoute(builder: (_) => TransactionsPage()),
                 );
               },
-              child: SvgPicture.asset(icon_transaction, width: 24, color: Colors.black87,)
+              child: SvgPicture.asset(
+                icon_transaction,
+                width: 24,
+                color: Colors.black87,
+              ),
 
               // Row(
               //   children: [
@@ -501,7 +515,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
       ),
       // 🔹 Floating action button is outside the Stack
       floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.list),
+        child: SvgPicture.asset(icon_take_away, width: 28, height: 28),
         tooltip: 'View all orders',
         onPressed: () {
           Navigator.push(

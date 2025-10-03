@@ -47,4 +47,4 @@ const web_bg_color = Color(0xffA5DAE9);
 
 const primary_color = Color(0xABFF6D00);
 const primary_color_transparent = Color(0x19B7410E);
-const old_order = Color(0xFFE1BEE7);
+const old_order = Color(0xFFB7410E);
