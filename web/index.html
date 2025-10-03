@@ -1,38 +1,399 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
+    <base href="$FLUTTER_BASE_HREF">
 
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
+    <meta charset="UTF-8">
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+    <meta name="description" content="THS User Web App">
 
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+    <!-- iOS meta tags & icons -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="THS DOCTOR">
+    <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
-  <base href="$FLUTTER_BASE_HREF">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+    <title>THS DOCTOR</title>
+    <link rel="manifest" href="manifest.json">
 
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="demo">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+    <!-- Razorpay Checkout.js -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+        function openRazorpay(options) {
+          console.log("✅ Options received:", options);
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+          options.handler = function (response) {
+            console.log("✅ Payment Success Response:", response);
+            if (window.onRazorpaySuccess) {
+              window.onRazorpaySuccess(response);
+            }
+          };
 
-  <title>demo</title>
-  <link rel="manifest" href="manifest.json">
+          options.modal = {
+            ondismiss: function () {
+              console.log("❌ Payment dismissed");
+              if (window.onRazorpayFailure) {
+                window.onRazorpayFailure({ error: "Payment cancelled" });
+              }
+            }
+          };
+
+          var rzp = new Razorpay(options);
+          rzp.open();
+        }
+    </script>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+<script>
+    // Use new template token to avoid Flutter Web warning
+    var serviceWorkerVersion = "{{flutter_service_worker_version}}";
+    var scriptLoaded = false;
+
+    function loadMainDartJs() {
+      if (scriptLoaded) return;
+      scriptLoaded = true;
+      var scriptTag = document.createElement('script');
+      scriptTag.src = 'main.dart.js';
+      scriptTag.type = 'application/javascript';
+      document.body.append(scriptTag);
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        var serviceWorkerUrl = 'flutter_service_worker.js?v=' + serviceWorkerVersion;
+        navigator.serviceWorker.register(serviceWorkerUrl)
+          .then((reg) => {
+            function waitForActivation(serviceWorker) {
+              serviceWorker.addEventListener('statechange', () => {
+                if (serviceWorker.state === 'activated') {
+                  console.log('Installed new service worker.');
+                  loadMainDartJs();
+                }
+              });
+            }
+
+            if (!reg.active && (reg.installing || reg.waiting)) {
+              waitForActivation(reg.installing || reg.waiting);
+            } else if (!reg.active.scriptURL.endsWith(serviceWorkerVersion)) {
+              console.log('New service worker available.');
+              reg.update();
+              waitForActivation(reg.installing);
+            } else {
+              console.log('Loading app from service worker.');
+              loadMainDartJs();
+            }
+          });
+
+        setTimeout(() => {
+          if (!scriptLoaded) {
+            console.warn('Failed to load app from service worker. Falling back to plain <script> tag.');
+            loadMainDartJs();
+          }
+        }, 4000);
+      });
+    } else {
+      loadMainDartJs();
+    }
+
+    // ✅ Firebase Messaging Setup - Complete Inline Solution
+    window.fcmDataQueue = [];
+    window.notificationDataReady = false;
+    window.firebaseMessagingInitialized = false;
+
+    // Initialize Firebase Messaging directly in the main page
+    function initializeFirebaseMessaging() {
+      if (window.firebaseMessagingInitialized) return;
+
+      console.log("🔥 Initializing Firebase Messaging...");
+
+      // Import Firebase scripts
+      const firebaseApp = document.createElement('script');
+      firebaseApp.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+      firebaseApp.type = 'module';
+
+      const firebaseMessaging = document.createElement('script');
+      firebaseMessaging.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging.js';
+      firebaseMessaging.type = 'module';
+
+      // Firebase initialization script
+      const initScript = document.createElement('script');
+      initScript.type = 'module';
+      initScript.textContent = `
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+        import { getMessaging, onMessage, getToken } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging.js';
+
+        const firebaseConfig = {
+    apiKey: "AIzaSyCVEzgrDcjZOiv7R4QK3IH3kZBfq_Dh1Vo",
+  authDomain: "resto-a0d9a.firebaseapp.com",
+  projectId: "resto-a0d9a",
+  storageBucket: "resto-a0d9a.firebasestorage.app",
+  messagingSenderId: "799838711875",
+  appId: "1:799838711875:web:0fae0ecb393db8cef624f6",
+  measurementId: "G-ZPDSQ8MNJD"
+        };
+
+        try {
+          const app = initializeApp(firebaseConfig);
+          const messaging = getMessaging(app);
+
+          console.log("✅ Firebase initialized successfully");
+          window.firebaseApp = app;
+          window.firebaseMessaging = messaging;
+          window.firebaseMessagingInitialized = true;
+
+          // Handle foreground messages
+          onMessage(messaging, (payload) => {
+            console.log('📩 Foreground message received:', payload);
+            handleForegroundMessage(payload);
+          });
+
+          // Get FCM token
+          getToken(messaging, {
+            vapidKey: 'your-vapid-key-if-you-have-one' // Replace with your VAPID key if you have one
+          }).then((currentToken) => {
+            if (currentToken) {
+              console.log('📱 FCM Token:', currentToken);
+              window.fcmToken = currentToken;
+              // Store token for Flutter to access
+              localStorage.setItem('fcmToken', currentToken);
+            } else {
+              console.log('❌ No registration token available.');
+            }
+          }).catch((err) => {
+            console.log('❌ An error occurred while retrieving token:', err);
+          });
+
+        } catch (error) {
+          console.error('❌ Firebase initialization error:', error);
+          // Fallback to service worker approach
+          initializeServiceWorkerMessaging();
+        }
+
+        function handleForegroundMessage(payload) {
+          const data = payload.data || {};
+          const notification = payload.notification || {};
+
+          console.log('📩 Processing foreground message:', { data, notification });
+
+          // Store notification data
+          const notificationData = {
+            ...data,
+            title: notification.title,
+            body: notification.body,
+            timestamp: Date.now(),
+            source: 'foreground'
+          };
+
+          // Add to queue
+          window.fcmDataQueue.push(notificationData);
+
+          // Store in localStorage
+          const existingData = localStorage.getItem('fcmDataQueue') || '[]';
+          const queue = JSON.parse(existingData);
+          queue.push(notificationData);
+          localStorage.setItem('fcmDataQueue', JSON.stringify(queue));
+
+          // Dispatch event for Flutter
+          window.dispatchEvent(new CustomEvent('fcmDataReceived', {
+            detail: notificationData
+          }));
+
+          // Show browser notification if permission granted
+          if (Notification.permission === 'granted') {
+            const options = {
+              body: notification.body || '',
+              icon: '/icons/Icon-192.png',
+              badge: '/icons/Icon-192.png',
+              data: data,
+              tag: 'fcm-notification'
+            };
+
+            new Notification(notification.title || 'New Message', options);
+          }
+        }
+      `;
+
+      document.head.appendChild(initScript);
+    }
+
+    // Fallback service worker approach
+    function initializeServiceWorkerMessaging() {
+      console.log("🔄 Initializing fallback service worker messaging...");
+
+      if ('serviceWorker' in navigator) {
+        // Create service worker inline
+        const swCode = `
+          // Fallback service worker for Firebase messaging
+          console.log("🔧 Fallback service worker activated");
+
+          // Listen for messages from main thread
+          self.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'NOTIFICATION_DATA') {
+              const data = event.data.payload;
+              console.log('📩 Service worker received notification data:', data);
+
+              // Store in IndexedDB
+              storeNotificationData(data);
+            }
+          });
+
+          async function storeNotificationData(data) {
+            try {
+              const request = indexedDB.open('fcm-storage', 1);
+
+              request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains('notifications')) {
+                  const store = db.createObjectStore('notifications', { keyPath: 'id' });
+                  store.createIndex('timestamp', 'timestamp', { unique: false });
+                  store.createIndex('read', 'read', { unique: false });
+                }
+              };
+
+              request.onsuccess = () => {
+                const db = request.result;
+                const transaction = db.transaction(['notifications'], 'readwrite');
+                const store = transaction.objectStore('notifications');
+
+                const notificationRecord = {
+                  id: Date.now().toString(),
+                  data: data,
+                  timestamp: Date.now(),
+                  read: false
+                };
+
+                store.put(notificationRecord);
+              };
+            } catch (error) {
+              console.error('❌ Error storing notification data:', error);
+            }
+          }
+        `;
+
+        const blob = new Blob([swCode], { type: 'application/javascript' });
+        const swUrl = URL.createObjectURL(blob);
+
+        navigator.serviceWorker.register(swUrl, { scope: '/' })
+          .then(registration => {
+            console.log('✅ Fallback service worker registered:', registration);
+          })
+          .catch(error => {
+            console.error('❌ Fallback service worker registration failed:', error);
+          });
+      }
+    }
+
+    // Request notification permission
+    function requestNotificationPermission() {
+      if ('Notification' in window) {
+        if (Notification.permission === 'default') {
+          Notification.requestPermission().then((permission) => {
+            console.log('🔔 Notification permission:', permission);
+          });
+        }
+      }
+    }
+
+    // Handle URL parameters (when opened via notification click)
+    (function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('fcmData')) {
+        try {
+          const data = JSON.parse(decodeURIComponent(urlParams.get('fcmData')));
+          const timestamp = urlParams.get('timestamp') || Date.now();
+
+          console.log("📩 Notification click data from URL:", data);
+
+          // Store in queue
+          window.fcmDataQueue.push({
+            ...data,
+            timestamp: parseInt(timestamp),
+            source: 'url'
+          });
+
+          // Store in localStorage
+          const existingData = localStorage.getItem('fcmDataQueue') || '[]';
+          const queue = JSON.parse(existingData);
+          queue.push({
+            ...data,
+            timestamp: parseInt(timestamp),
+            source: 'url'
+          });
+          localStorage.setItem('fcmDataQueue', JSON.stringify(queue));
+
+          // Clean URL parameters
+          const url = new URL(window.location);
+          url.searchParams.delete('fcmData');
+          url.searchParams.delete('timestamp');
+          window.history.replaceState({}, document.title, url.toString());
+
+          // Dispatch event for Flutter
+          window.dispatchEvent(new CustomEvent('fcmDataReceived', {
+            detail: data
+          }));
+
+        } catch (e) {
+          console.error("❌ Failed to parse fcmData from URL", e);
+        }
+      }
+    })();
+
+    // Function for Flutter to get all pending notification data
+    window.getPendingFcmData = function() {
+      const queue = [...window.fcmDataQueue];
+      window.fcmDataQueue = []; // Clear the queue
+
+      // Also get from localStorage and clear it
+      const storedData = localStorage.getItem('fcmDataQueue');
+      if (storedData) {
+        try {
+          const storedQueue = JSON.parse(storedData);
+          queue.push(...storedQueue);
+          localStorage.removeItem('fcmDataQueue');
+        } catch (e) {
+          console.error("❌ Failed to parse stored fcmData", e);
+        }
+      }
+
+      // Remove duplicates based on timestamp
+      const uniqueQueue = queue.filter((item, index, self) =>
+        index === self.findIndex(t => t.timestamp === item.timestamp)
+      );
+
+      return uniqueQueue;
+    };
+
+    // Function to get FCM token
+    window.getFcmToken = function() {
+      return window.fcmToken || localStorage.getItem('fcmToken') || null;
+    };
+
+    // Function to clear specific notification data
+    window.clearFcmData = function(timestamp) {
+      window.fcmDataQueue = window.fcmDataQueue.filter(item => item.timestamp !== timestamp);
+    };
+
+    // Initialize everything when page loads
+    window.addEventListener('load', () => {
+      requestNotificationPermission();
+      initializeFirebaseMessaging();
+      window.notificationDataReady = true;
+      console.log("🚀 Firebase messaging setup complete");
+    });
+
+    // Initialize immediately if document is already loaded
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      requestNotificationPermission();
+      initializeFirebaseMessaging();
+      window.notificationDataReady = true;
+      console.log("🚀 Firebase messaging setup complete (immediate)");
+    }
+</script>
+
+<!-- Agora SDK -->
+<script src="https://download.agora.io/sdk/release/iris-web-rtc_n450_w4220_0.8.6.js"></script>
 </body>
 </html>

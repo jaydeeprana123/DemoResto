@@ -119,66 +119,87 @@ class _MenuPageState extends State<MenuPage> {
                       final item = items[index];
                       final qty = item['qty'] as int;
 
-                      return ListTile(
-                        title: Text(item['name']),
-                        subtitle: Text("₹${item['price'].toStringAsFixed(2)}"),
-                        trailing: qty == 0
-                            ? GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    item['qty'] = 1;
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Colors.black87,
-                                      width: 0.5,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Text(
-                                    "Add",
-                                    style: TextStyle(
-                                      color: Colors.black87,
-                                      fontWeight: FontWeight.normal,
-                                      fontSize: 13,
-                                    ),
+                      return InkWell(
+                        onTap: () {
+                          incrementQty(category, index);
+                        },
+                        child: ListTile(
+                          title: Text(item['name']),
+                          subtitle: Row(
+                            children: [
+                              Text("₹${item['price'].toStringAsFixed(2)}"),
+
+                              SizedBox(width: 16),
+
+                              if (item['qty'] > 0)
+                                Text(
+                                  "\u00D7${item['qty']}",
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.red,
+                                    fontFamily: fontMulishBold,
                                   ),
                                 ),
-                              )
-                            : Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.remove_circle,
-                                      color: Colors.red,
+                            ],
+                          ),
+                          trailing: qty == 0
+                              ? GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      item['qty'] = 1;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 5,
                                     ),
-                                    onPressed: () =>
-                                        decrementQty(category, index),
-                                  ),
-                                  Text(
-                                    "$qty",
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontFamily: fontMulishSemiBold,
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: Colors.black87,
+                                        width: 0.5,
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Text(
+                                      "Add",
+                                      style: TextStyle(
+                                        color: Colors.black87,
+                                        fontWeight: FontWeight.normal,
+                                        fontSize: 13,
+                                      ),
                                     ),
                                   ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.add_circle,
-                                      color: Colors.green,
+                                )
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.remove_circle,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () =>
+                                          decrementQty(category, index),
                                     ),
-                                    onPressed: () =>
-                                        incrementQty(category, index),
-                                  ),
-                                ],
-                              ),
+                                    Text(
+                                      "$qty",
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontFamily: fontMulishSemiBold,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.add_circle,
+                                        color: Colors.green,
+                                      ),
+                                      onPressed: () =>
+                                          incrementQty(category, index),
+                                    ),
+                                  ],
+                                ),
+                        ),
                       );
                     },
                   );

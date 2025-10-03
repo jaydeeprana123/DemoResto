@@ -1,10 +1,29 @@
 import "package:demo/DragDropTables.dart";
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'DragDropTables.dart';
 import 'package:get/get.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    // For Web
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: "AIzaSyCVEzgrDcjZOiv7R4QK3IH3kZBfq_Dh1Vo",
+        authDomain: "resto-a0d9a.firebaseapp.com",
+        projectId: "resto-a0d9a",
+        storageBucket: "resto-a0d9a.firebasestorage.app",
+        messagingSenderId: "799838711875",
+        appId: "1:799838711875:web:0fae0ecb393db8cef624f6",
+        measurementId: "G-ZPDSQ8MNJD",
+      ),
+    );
+  } else {
+    await Firebase.initializeApp();
+  }
+
   await Firebase.initializeApp();
 
   runApp(const MyApp());
