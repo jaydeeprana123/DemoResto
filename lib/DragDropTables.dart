@@ -57,7 +57,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   bool isLoading = false;
 
   int tableNo = 0;
-
+  String selectedTab = 'All'; // 👈 Add this variable at class level
   StreamSubscription<QuerySnapshot>? tablesSubscription;
 
   @override
@@ -219,7 +219,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   Future<void> _updateTableItemsInFirestore(
     String tableName,
     List<List<Map<String, dynamic>>> groups,
-      bool isBillPaid
+    bool isBillPaid,
   ) async {
     try {
       print("=== UPDATING FIREBASE ===");
@@ -333,7 +333,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   }
 
   // Add a new table with empty items list
-  Future<void> _addTableAndUpdateItems(String tableName, List<Map<String, dynamic>> selectedItems) async {
+  Future<void> _addTableAndUpdateItems(
+    String tableName,
+    List<Map<String, dynamic>> selectedItems,
+  ) async {
     try {
       final existing = await FirebaseFirestore.instance
           .collection('tables')
@@ -449,98 +452,49 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
       body: Stack(
         children: [
           Container(
-            margin: EdgeInsets.symmetric(vertical: 4),
+            margin: EdgeInsets.symmetric(vertical: 8),
             padding: const EdgeInsets.all(0.0),
-            child: tables.isEmpty
-                ? Center(
-                    child: Text("No tables available. Please add a table."),
-                  )
-                : RefreshIndicator(
-                    onRefresh: () async {
-                      await _loadMenu();
-                    },
-                    child: MasonryGridView.count(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      itemCount: tables.keys.length,
-                      itemBuilder: (context, index) {
-                        final tableName = tables.keys.elementAt(index);
-                        final groups = tables[tableName]!;
-
-                        return DragTarget<String>(
-                          onAccept: (sourceTable) async {
-                            if (sourceTable != tableName) {
-                              final sourceGroups = tables[sourceTable]!;
-                              final destGroups = tables[tableName]!;
-
-                              setState(() {
-                                // Append deep copy of source groups to destination
-                                final copiedGroups = sourceGroups.map((group) {
-                                  return group
-                                      .map(
-                                        (item) =>
-                                            Map<String, dynamic>.from(item),
-                                      )
-                                      .toList();
-                                }).toList();
-
-                                destGroups.addAll(copiedGroups);
-                                sourceGroups.clear();
-                              });
-
-                              await _updateTableItemsInFirestore(
-                                tableName,
-                                tables[tableName]!,
-                                false
-                              );
-                              await _updateTableItemsInFirestore(
-                                sourceTable,
-                                [],
-                                false
-                              );
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Moved all items from $sourceTable to $tableName',
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          builder: (context, candidateData, rejectedData) {
-                            return LongPressDraggable<String>(
-                              data: tableName,
-                              feedback: Material(
-                                elevation: 4,
-                                color: Colors.transparent,
-                                child: Container(
-                                  width: 160,
-                                  padding: EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blueAccent,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    tableName,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontFamily: fontMulishSemiBold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              childWhenDragging: Opacity(
-                                opacity: 0.4,
-                                child: _buildTableCard(tableName, groups),
-                              ),
-                              child: _buildTableCard(tableName, groups),
-                            );
-                          },
-                        );
-                      },
-                    ),
+            child: Column(
+              children: [
+                Container(
+                  margin: EdgeInsets.only(bottom: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildTabButton("Tables"),
+                      _buildTabButton("Take Away"),
+                      _buildTabButton("All"),
+                    ],
                   ),
+                ),
+
+                Expanded(
+                  child: tables.isEmpty
+                      ? Center(
+                          child: Text(
+                            "No tables available. Please add a table.",
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: () async => await _loadMenu(),
+                          child: MasonryGridView.count(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            padding: EdgeInsets.only(bottom: 152),
+                            itemCount: _filteredTableKeys().length,
+                            itemBuilder: (context, index) {
+                              final tableName = _filteredTableKeys().elementAt(
+                                index,
+                              );
+                              final groups = tables[tableName]!;
+                              return _buildTableCard(tableName, groups);
+                            },
+                          ),
+                        ),
+                ),
+              ],
+            ),
           ),
 
           if (isLoading) Center(child: CircularProgressIndicator()),
@@ -552,10 +506,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         children: [
           FloatingActionButton(
             backgroundColor: Colors.white,
-            child: SvgPicture.asset(icon_take_away, width: 36, height: 28, color: Colors.black87,),
+            child: SvgPicture.asset(
+              icon_take_away,
+              width: 36,
+              height: 28,
+              color: Colors.black87,
+            ),
             tooltip: 'View all orders',
-            onPressed: () async{
-
+            onPressed: () async {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -565,33 +523,33 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                     initialItems: [],
                     onConfirm:
                         (
-                        List<Map<String, dynamic>> selectedItems,
-                        bool isBillPaid
+                          List<Map<String, dynamic>> selectedItems,
+                          bool isBillPaid,
                         ) async {
+                          tableNo = tableNo + 1;
 
-                        tableNo = tableNo + 1;
-
-                        await _addTableAndUpdateItems("Take Away $tableNo", selectedItems);
+                          await _addTableAndUpdateItems(
+                            "Take Away $tableNo",
+                            selectedItems,
+                          );
 
                           setState(() {
                             // tables["Take Away $tableNo"] = [selectedItems];
                           });
                           // await _updateTableItemsInFirestore(
                           //     "Take Away $tableNo", [selectedItems]);
-
-                    },
+                        },
                   ),
                 ),
               );
-
             },
           ),
 
-          SizedBox(height: 16,),
+          SizedBox(height: 16),
 
           FloatingActionButton(
             backgroundColor: Colors.white,
-            child: Icon(Icons.list, color: Colors.black87,),
+            child: Icon(Icons.list, color: Colors.black87),
             tooltip: 'View all orders',
             onPressed: () {
               Navigator.push(
@@ -600,16 +558,15 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
               );
             },
           ),
-
         ],
       ),
     );
   }
 
   Widget _buildTableCard(
-      String tableName,
-      List<List<Map<String, dynamic>>> groups,
-      ) {
+    String tableName,
+    List<List<Map<String, dynamic>>> groups,
+  ) {
     // 🔸 Get isPaid value from Firestore if present
     bool isPaid = false;
     try {
@@ -628,11 +585,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
           .snapshots(),
       builder: (context, snapshot) {
         bool isPaid = false;
+        String docId = "";
 
         if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
           final doc = snapshot.data!.docs.first;
           final data = doc.data();
           isPaid = (data['isPaid'] == true);
+          docId = doc.id;
         }
 
         return GestureDetector(
@@ -648,11 +607,32 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                 builder: (_) => CartPageForTakeAway(
                   menuData: mergedItems,
                   onConfirm: (List<Map<String, dynamic>> confirmedItems) async {
+
+
                     setState(() {
                       tables[tableName] = [confirmedItems];
                     });
-                    await _updateTableItemsInFirestore(
-                        tableName, [confirmedItems], false);
+                    await _updateTableItemsInFirestore(tableName, [
+                      confirmedItems,
+                    ], false);
+
+
+                    if(tableName.contains("Take Away") && confirmedItems.isEmpty){
+                      await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
+                    }
+
+                    // if(tableName.contains("Take Away") && confirmedItems.isEmpty){
+                    //   // _deleteTable(docId, tableName);
+                    // }else{
+                    //   setState(() {
+                    //     tables[tableName] = [confirmedItems];
+                    //   });
+                    //   await _updateTableItemsInFirestore(tableName, [
+                    //     confirmedItems,
+                    //   ], false);
+                    // }
+
+
                   },
                   tableName: tableName,
                 ),
@@ -663,11 +643,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         );
       },
     );
-
   }
 
-
-  Widget _buildTableCardBody(String tableName, List<List<Map<String, dynamic>>> groups, bool isPaid) {
+  Widget _buildTableCardBody(
+    String tableName,
+    List<List<Map<String, dynamic>>> groups,
+    bool isPaid,
+  ) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       elevation: 8,
@@ -682,8 +664,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                    child: Text(tableName,
-                        style: TextStyle(color: Colors.white))),
+                  child: Text(tableName, style: TextStyle(color: Colors.white)),
+                ),
                 Row(
                   children: [
                     if (groups.isNotEmpty && !isPaid)
@@ -697,13 +679,24 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                               builder: (_) => MenuPage(
                                 menuList: menu,
                                 tableName: tableName,
-                                initialItems: List<Map<String, dynamic>>.from(lastGroup),
-                                onConfirm: (List<Map<String, dynamic>> selectedItems, bool isBillPaid) async {
-                                  setState(() {
-                                    groups[groups.length - 1] = selectedItems;
-                                  });
-                                  await _updateTableItemsInFirestore(tableName, groups, isBillPaid);
-                                },
+                                initialItems: List<Map<String, dynamic>>.from(
+                                  lastGroup,
+                                ),
+                                onConfirm:
+                                    (
+                                      List<Map<String, dynamic>> selectedItems,
+                                      bool isBillPaid,
+                                    ) async {
+                                      setState(() {
+                                        groups[groups.length - 1] =
+                                            selectedItems;
+                                      });
+                                      await _updateTableItemsInFirestore(
+                                        tableName,
+                                        groups,
+                                        isBillPaid,
+                                      );
+                                    },
                               ),
                             ),
                           );
@@ -720,25 +713,44 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                                 menuList: menu,
                                 tableName: tableName,
                                 initialItems: [],
-                                onConfirm: (List<Map<String, dynamic>> selectedItems, bool isBillPaid) async {
-                                  setState(() {
-                                    groups.add(selectedItems);
-                                  });
-                                  await _updateTableItemsInFirestore(tableName, groups, isBillPaid);
-                                },
+                                onConfirm:
+                                    (
+                                      List<Map<String, dynamic>> selectedItems,
+                                      bool isBillPaid,
+                                    ) async {
+                                      setState(() {
+                                        groups.add(selectedItems);
+                                      });
+                                      await _updateTableItemsInFirestore(
+                                        tableName,
+                                        groups,
+                                        isBillPaid,
+                                      );
+                                    },
                               ),
                             ),
                           );
                         },
                       ),
 
-                    if(isPaid)
-                      Container(color: Colors.white,
+                    if (isPaid)
+                      Container(
+                        color: Colors.white,
 
-    margin: EdgeInsets.symmetric(vertical: 3),
-    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-                      child: Text("PAID", style: TextStyle(color: Colors.red, fontSize: 12, fontFamily: fontMulishBold),),)
-
+                        margin: EdgeInsets.symmetric(vertical: 3),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 3,
+                        ),
+                        child: Text(
+                          "PAID",
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: 12,
+                            fontFamily: fontMulishBold,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ],
@@ -751,7 +763,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
               child: Center(
                 child: Text(
                   "No items",
-                  style: TextStyle(fontSize: 13, color: Colors.black38, fontFamily: fontMulishRegular),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.black38,
+                    fontFamily: fontMulishRegular,
+                  ),
                 ),
               ),
             )
@@ -774,11 +790,19 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                               children: [
                                 TextSpan(
                                   text: item['name'],
-                                  style: TextStyle(fontSize: 13, color: Colors.black87, fontFamily: fontMulishRegular),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.black87,
+                                    fontFamily: fontMulishRegular,
+                                  ),
                                 ),
                                 TextSpan(
                                   text: " ×$qty",
-                                  style: TextStyle(fontSize: 15, color: Colors.red, fontFamily: fontMulishSemiBold),
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.red,
+                                    fontFamily: fontMulishSemiBold,
+                                  ),
                                 ),
                               ],
                             ),
@@ -788,7 +812,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                       if (i < groups.length - 1)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: DottedLine(dashColor: Colors.grey, lineThickness: 1, dashLength: 4, dashGapLength: 4),
+                          child: DottedLine(
+                            dashColor: Colors.grey,
+                            lineThickness: 1,
+                            dashLength: 4,
+                            dashGapLength: 4,
+                          ),
                         ),
                     ],
                   );
@@ -800,5 +829,79 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
     );
   }
 
+  // Build each tab button
+  Widget _buildTabButton(String label) {
+    bool isSelected = selectedTab == label;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            selectedTab = label;
+          });
+        },
+        child: Container(
+          padding: EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? secondary_text_color : Colors.white,
+            border: Border.all(color: secondary_text_color, width: 0.5),
+
+            borderRadius: label == "Tables"?BorderRadius.only(topLeft: Radius.circular(6), bottomLeft: Radius.circular(6)):
+            label == "All"?BorderRadius.only(topRight: Radius.circular(6), bottomRight: Radius.circular(6))
+          :BorderRadius.circular(0)),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : secondary_text_color,
+                fontFamily: fontMulishSemiBold,
+                fontSize: 14
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Filter the tables based on current selectedTab
+  List<String> _filteredTableKeys() {
+    if (selectedTab == 'Take Away') {
+      return tables.keys.where((key) => key.contains('Take Away')).toList();
+    } else if (selectedTab == 'Tables') {
+      return tables.keys.where((key) => !key.contains('Take Away')).toList();
+    } else {
+      return tables.keys.toList();
+    }
+  }
+
+
+  Future<void> _deleteTable(String docId, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("Delete Table"),
+        content: Text("Are you sure you want to delete '$name'?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text("Delete"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Table deleted")),
+      );
+    }
+  }
 
 }

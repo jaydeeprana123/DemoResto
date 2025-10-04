@@ -135,16 +135,24 @@ class _CartPageForTakeAwayState extends State<CartPageForTakeAway> {
                         return Column(
                           children: [
                             ListTile(
-                              title: Text(item['name']),
+                              title: Text(item['name'], style: TextStyle(
+                                fontSize: 14,
+                                color: text_color,
+                                fontFamily: fontMulishSemiBold,
+                              )),
                               subtitle: Row(
                                 children: [
-                                  Text("₹${item['price']}"),
+                                  Text("₹${item['price']}", style: TextStyle(
+                                    fontSize: 13,
+                                    color: text_color,
+                                    fontFamily: fontMulishSemiBold,
+                                  )),
                                   SizedBox(width: 16),
 
                                   Text(
                                     "\u00D7${item['qty']}",
                                     style: TextStyle(
-                                      fontSize: 15,
+                                      fontSize: 14,
                                       color: Colors.red,
                                       fontFamily: fontMulishBold,
                                     ),

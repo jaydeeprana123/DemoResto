@@ -132,6 +132,7 @@ class _MenuPageState extends State<MenuPage> {
 
                   return ListView.builder(
                     itemCount: items.length,
+                    padding: EdgeInsets.only(top: 8),
                     itemBuilder: (context, index) {
                       final item = items[index];
                       final qty = item['qty'] as int;
@@ -140,91 +141,102 @@ class _MenuPageState extends State<MenuPage> {
                         onTap: () {
                           incrementQty(category, index);
                         },
-                        child: ListTile(
-                          title: Text(item['name'], style: TextStyle(
-                            fontSize: 15,
-                            color: text_color,
-                            fontFamily: fontMulishSemiBold,
-                          )),
-                          subtitle: Row(
-                            children: [
-                              Text("₹${item['price'].toStringAsFixed(2)}", style: TextStyle(
+                        child: Column(
+                          children: [
+                            ListTile(
+                              contentPadding: EdgeInsets.symmetric(vertical: 2, horizontal: 16),
+                              title: Text(item['name'], style: TextStyle(
                                 fontSize: 14,
-                                color: secondary_text_color,
-                                fontFamily: fontMulishRegular,
-                              ), ),
-
-                              SizedBox(width: 16),
-
-                              if (item['qty'] > 0)
-                                Text(
-                                  "\u00D7${item['qty']}",
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color: Colors.red,
-                                    fontFamily: fontMulishBold,
-                                  ),
-                                ),
-                            ],
-                          ),
-                          trailing: qty == 0
-                              ? GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      item['qty'] = 1;
-                                    });
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Colors.black87,
-                                        width: 0.5,
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Text(
-                                      "Add",
-                                      style: TextStyle(
-                                        color: Colors.black87,
-                                        fontWeight: FontWeight.normal,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              : Row(
-                                  mainAxisSize: MainAxisSize.min,
+                                color: text_color,
+                                fontFamily: fontMulishSemiBold,
+                              )),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 2.0),
+                                child: Row(
                                   children: [
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.remove_circle,
-                                        color: Colors.red,
+                                    SizedBox(height: 6,),
+                                    Text("₹${item['price'].toStringAsFixed(2)}", style: TextStyle(
+                                      fontSize: 13,
+                                      color: secondary_text_color,
+                                      fontFamily: fontMulishRegular,
+                                    ), ),
+
+                                    SizedBox(width: 16),
+
+                                    if (item['qty'] > 0)
+                                      Text(
+                                        "\u00D7${item['qty']}",
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.red,
+                                          fontFamily: fontMulishBold,
+                                        ),
                                       ),
-                                      onPressed: () =>
-                                          decrementQty(category, index),
-                                    ),
-                                    Text(
-                                      "$qty",
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        color: text_color,
-                                        fontFamily: fontMulishSemiBold,
-                                      ),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.add_circle,
-                                        color: Colors.green,
-                                      ),
-                                      onPressed: () =>
-                                          incrementQty(category, index),
-                                    ),
                                   ],
                                 ),
+                              ),
+                              trailing: qty == 0
+                                  ? GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          item['qty'] = 1;
+                                        });
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: Colors.black87,
+                                            width: 0.5,
+                                          ),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: const Text(
+                                          "Add",
+                                          style: TextStyle(
+                                            color: Colors.black87,
+                                            fontWeight: FontWeight.normal,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.remove_circle,
+                                            color: Colors.red,
+                                          ),
+                                          onPressed: () =>
+                                              decrementQty(category, index),
+                                        ),
+                                        Text(
+                                          "$qty",
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: text_color,
+                                            fontFamily: fontMulishSemiBold,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.add_circle,
+                                            color: Colors.green,
+                                          ),
+                                          onPressed: () =>
+                                              incrementQty(category, index),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+
+                            Container(margin: EdgeInsets.symmetric(horizontal: 12),height: 0.5,color: Colors.grey.shade300,)
+                          ],
                         ),
                       );
                     },
@@ -233,61 +245,102 @@ class _MenuPageState extends State<MenuPage> {
               ),
             ),
             if (totalItems > 0)
-              Container(
-                padding: const EdgeInsets.all(16),
-                color: primary_color,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "$totalItems items | ₹${totalPrice.toStringAsFixed(2)}",
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: Colors.white,
-                        fontFamily: fontMulishSemiBold,
+              InkWell(
+                onTap: (){
+                  final selectedItems = <Map<String, dynamic>>[];
+                  menuData.forEach((category, items) {
+                    selectedItems.addAll(
+                      items.where((item) => item['qty'] > 0),
+                    );
+                  });
+
+                  // Send selected items to cart or callback
+
+
+                  if(widget.tableName == "Take Away"){
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CartPageForTakeAway(
+                          tableName: widget.tableName,
+                          menuData: selectedItems,
+                          onConfirm: widget.onConfirm,
+                        ),
                       ),
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        final selectedItems = <Map<String, dynamic>>[];
-                        menuData.forEach((category, items) {
-                          selectedItems.addAll(
-                            items.where((item) => item['qty'] > 0),
-                          );
-                        });
+                    );
+                  }else{
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CartPage(
+                          tableName: widget.tableName,
+                          menuData: selectedItems,
+                          onConfirm: widget.onConfirm,
+                        ),
+                      ),
+                    );
+                  }
 
-                        // Send selected items to cart or callback
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  color: primary_color,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "$totalItems items | ₹${totalPrice.toStringAsFixed(2)}",
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.white,
+                          fontFamily: fontMulishSemiBold,
+                        ),
+                      ),
 
+                      Icon(Icons.arrow_forward_ios, color: Colors.white,)
 
-                        if(widget.tableName == "Take Away"){
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => CartPageForTakeAway(
-                                tableName: widget.tableName,
-                                menuData: selectedItems,
-                                onConfirm: widget.onConfirm,
-                              ),
-                            ),
-                          );
-                        }else{
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => CartPage(
-                                tableName: widget.tableName,
-                                menuData: selectedItems,
-                                onConfirm: widget.onConfirm,
-                              ),
-                            ),
-                          );
-                        }
-
-
-                      },
-                      child: const Text("View Cart"),
-                    ),
-                  ],
+                      // ElevatedButton(
+                      //   onPressed: () {
+                      //     final selectedItems = <Map<String, dynamic>>[];
+                      //     menuData.forEach((category, items) {
+                      //       selectedItems.addAll(
+                      //         items.where((item) => item['qty'] > 0),
+                      //       );
+                      //     });
+                      //
+                      //     // Send selected items to cart or callback
+                      //
+                      //
+                      //     if(widget.tableName == "Take Away"){
+                      //       Navigator.push(
+                      //         context,
+                      //         MaterialPageRoute(
+                      //           builder: (_) => CartPageForTakeAway(
+                      //             tableName: widget.tableName,
+                      //             menuData: selectedItems,
+                      //             onConfirm: widget.onConfirm,
+                      //           ),
+                      //         ),
+                      //       );
+                      //     }else{
+                      //       Navigator.push(
+                      //         context,
+                      //         MaterialPageRoute(
+                      //           builder: (_) => CartPage(
+                      //             tableName: widget.tableName,
+                      //             menuData: selectedItems,
+                      //             onConfirm: widget.onConfirm,
+                      //           ),
+                      //         ),
+                      //       );
+                      //     }
+                      //
+                      //
+                      //   },
+                      //   child: const Text("View Cart"),
+                      // ),
+                    ],
+                  ),
                 ),
               ),
           ],

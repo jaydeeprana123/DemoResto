@@ -113,7 +113,10 @@ class _CartPageState extends State<CartPage> {
       appBar: AppBar(
         title: Row(
           children: [
-            Expanded(child: Text("Cart - ${widget.tableName}")),
+            Expanded(child: Text("Cart - ${widget.tableName}",style: TextStyle(
+        fontSize: 16,
+        fontFamily: fontMulishBold,
+        ))),
             
             InkWell(onTap: ()async{
 
@@ -140,7 +143,7 @@ class _CartPageState extends State<CartPage> {
 
               Navigator.pop(context);
               Navigator.pop(context);
-            },child: SvgPicture.asset(icon_bill, width: 28, height: 28, color: Colors.black54,))
+            },child: SvgPicture.asset(icon_bill, width: 34, height: 34, color: Colors.black87,))
           ],
         ),
       ),
@@ -157,15 +160,24 @@ class _CartPageState extends State<CartPage> {
                 return Column(
                   children: [
                     ListTile(
-                      title: Text(item['name']),
+                      contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                      title: Text(item['name'], style: TextStyle(
+                        fontSize: 14,
+                        color: text_color,
+                        fontFamily: fontMulishSemiBold,
+                      )),
                       subtitle: Row(
                         children: [
-                          Text("₹${item['price']}"),
+                          Text("₹${item['price']}", style: TextStyle(
+                            fontSize: 13,
+                            color: text_color,
+                            fontFamily: fontMulishSemiBold,
+                          )),
                           const SizedBox(width: 16),
                           Text(
                             "\u00D7$qty",
                             style: TextStyle(
-                              fontSize: 15,
+                              fontSize: 14,
                               color: Colors.red,
                               fontFamily: fontMulishBold,
                             ),
@@ -182,7 +194,11 @@ class _CartPageState extends State<CartPage> {
                             ),
                             onPressed: () => decrementQty(index),
                           ),
-                          Text("$qty"),
+                          Text("$qty", style: TextStyle(
+                            fontSize: 14,
+                            color: text_color,
+                            fontFamily: fontMulishSemiBold,
+                          )),
                           IconButton(
                             icon: const Icon(
                               Icons.add_circle,
@@ -194,7 +210,7 @@ class _CartPageState extends State<CartPage> {
                       ),
                     ),
                     if (index < cartItems.length - 1)
-                      Divider(height: 0, color: Colors.grey.shade300),
+                      Container(margin: EdgeInsets.symmetric(horizontal: 12),height: 0.5, color: Colors.grey.shade300),
                   ],
                 );
               },
@@ -362,48 +378,83 @@ class _CartPageState extends State<CartPage> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          widget.onConfirm(cartItems, false);
-                          Navigator.pop(context);
-                          Navigator.pop(context);
-                        },
-                        child: const Text("Add to Table"),
-                      ),
-                    ),
-                    // const SizedBox(width: 10),
-                    // Expanded(
-                    //   child: ElevatedButton(
-                    //     onPressed: () async {
-                    //       final cash = int.tryParse(cashController.text) ?? 0;
-                    //       final online = int.tryParse(onlineController.text) ?? 0;
-                    //
-                    //       await addTransactionToFirestore(
-                    //         items: cartItems,
-                    //         tableName: widget.tableName,
-                    //         subtotal: subtotal.round(),
-                    //         tax: (subtotal * 0.085).round(),
-                    //         discount: discountAmount.round(),
-                    //         total: total,
-                    //         cashAmount: cash,
-                    //         onlineAmount: online,
-                    //       );
-                    //
-                    //       widget.onConfirm([]);
-                    //       Navigator.pop(context);
-                    //       Navigator.pop(context);
-                    //     },
-                    //     child: Text("Billing (₹$total)"),
-                    //   ),
-                    // ),
-                  ],
-                ),
               ],
             ),
           ),
+
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: InkWell(
+              onTap: (){
+                widget.onConfirm(cartItems, false);
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                color: primary_color,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        "Add to Table",
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.white,
+                          fontFamily: fontMulishSemiBold,
+                        ),
+                      ),
+                    ),
+
+                    Icon(Icons.arrow_forward_ios, color: Colors.white,)
+
+                    // ElevatedButton(
+                    //   onPressed: () {
+                    //     final selectedItems = <Map<String, dynamic>>[];
+                    //     menuData.forEach((category, items) {
+                    //       selectedItems.addAll(
+                    //         items.where((item) => item['qty'] > 0),
+                    //       );
+                    //     });
+                    //
+                    //     // Send selected items to cart or callback
+                    //
+                    //
+                    //     if(widget.tableName == "Take Away"){
+                    //       Navigator.push(
+                    //         context,
+                    //         MaterialPageRoute(
+                    //           builder: (_) => CartPageForTakeAway(
+                    //             tableName: widget.tableName,
+                    //             menuData: selectedItems,
+                    //             onConfirm: widget.onConfirm,
+                    //           ),
+                    //         ),
+                    //       );
+                    //     }else{
+                    //       Navigator.push(
+                    //         context,
+                    //         MaterialPageRoute(
+                    //           builder: (_) => CartPage(
+                    //             tableName: widget.tableName,
+                    //             menuData: selectedItems,
+                    //             onConfirm: widget.onConfirm,
+                    //           ),
+                    //         ),
+                    //       );
+                    //     }
+                    //
+                    //
+                    //   },
+                    //   child: const Text("View Cart"),
+                    // ),
+                  ],
+                ),
+              ),
+            ),
+          )
+
         ],
       ),
     );
