@@ -336,6 +336,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   Future<void> _addTableAndUpdateItems(
     String tableName,
     List<Map<String, dynamic>> selectedItems,
+      bool  isBillPaid,
   ) async {
     try {
       final existing = await FirebaseFirestore.instance
@@ -352,6 +353,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
       await FirebaseFirestore.instance.collection('tables').add({
         'name': tableName,
         'items': selectedItems,
+        "isPaid": isBillPaid,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -531,6 +533,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                           await _addTableAndUpdateItems(
                             "Take Away $tableNo",
                             selectedItems,
+                            isBillPaid
                           );
 
                           setState(() {
@@ -604,7 +607,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
             await Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => CartPageForTakeAway(
+                builder: (_) => FinalBillingView(
                   menuData: mergedItems,
                   onConfirm: (List<Map<String, dynamic>> confirmedItems) async {
 

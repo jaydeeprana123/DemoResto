@@ -10,12 +10,12 @@ import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
 
 /// Cart Page
-class CartPageForTakeAway extends StatefulWidget {
+class FinalBillingView extends StatefulWidget {
   final String tableName;
   final List<Map<String, dynamic>> menuData;
   final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
 
-   CartPageForTakeAway({
+   FinalBillingView({
     required this.menuData,
     required this.onConfirm,
     required this.tableName,
@@ -23,10 +23,10 @@ class CartPageForTakeAway extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _CartPageForTakeAwayState createState() => _CartPageForTakeAwayState();
+  _FinalBillingViewState createState() => _FinalBillingViewState();
 }
 
-class _CartPageForTakeAwayState extends State<CartPageForTakeAway> {
+class _FinalBillingViewState extends State<FinalBillingView> {
   late List<Map<String, dynamic>> cartItems;
 
   final TextEditingController discountPercentController =

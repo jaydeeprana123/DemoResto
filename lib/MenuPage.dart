@@ -105,10 +105,10 @@ class _MenuPageState extends State<MenuPage> {
         appBar: AppBar(
           title: Row(
             children: [
-              Text("Menu - ",style: TextStyle(
-                fontSize: 16,
-                fontFamily: fontMulishBold,
-              ),),
+              // Text("Menu - ",style: TextStyle(
+              //   fontSize: 16,
+              //   fontFamily: fontMulishBold,
+              // ),),
 
 
               Text(widget.tableName,style: TextStyle(
@@ -257,29 +257,18 @@ class _MenuPageState extends State<MenuPage> {
                   // Send selected items to cart or callback
 
 
-                  if(widget.tableName == "Take Away"){
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => CartPageForTakeAway(
-                          tableName: widget.tableName,
-                          menuData: selectedItems,
-                          onConfirm: widget.onConfirm,
-                        ),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CartPage(
+                        tableName: widget.tableName,
+                        menuData: selectedItems,
+                        onConfirm: widget.onConfirm,
                       ),
-                    );
-                  }else{
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => CartPage(
-                          tableName: widget.tableName,
-                          menuData: selectedItems,
-                          onConfirm: widget.onConfirm,
-                        ),
-                      ),
-                    );
-                  }
+                    ),
+                  );
+
+
 
                 },
                 child: Container(
