@@ -16,7 +16,7 @@ import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
 
 class MenuPage extends StatefulWidget {
-  final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
+  final void Function(List<Map<String, dynamic>> selectedItems, bool isBillPaid) onConfirm;
   final List<Map<String, dynamic>> menuList; // Passed from previous page
   final List<Map<String, dynamic>> initialItems;
   final String tableName;

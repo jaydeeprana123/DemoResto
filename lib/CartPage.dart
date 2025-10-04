@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/Styles/my_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
@@ -11,7 +13,7 @@ import 'Styles/my_font.dart';
 class CartPage extends StatefulWidget {
   final String tableName;
   final List<Map<String, dynamic>> menuData;
-  final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
+  final void Function(List<Map<String, dynamic>> selectedItems, bool isBillPaid) onConfirm;
 
   const CartPage({required this.menuData, required this.onConfirm,required this.tableName, Key? key})
     : super(key: key);
@@ -109,7 +111,38 @@ class _CartPageState extends State<CartPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Cart - ${widget.tableName}"),
+        title: Row(
+          children: [
+            Expanded(child: Text("Cart - ${widget.tableName}")),
+            
+            InkWell(onTap: ()async{
+
+              final cash = int.tryParse(cashController.text) ?? 0;
+              final online = int.tryParse(onlineController.text) ?? 0;
+
+              await addTransactionToFirestore(
+              items: cartItems,
+              tableName: widget.tableName,
+              subtotal: subtotal.round(),
+              tax: (subtotal * 0.085).round(),
+              discount: discountAmount.round(),
+              total: total,
+              cashAmount: cash,
+              onlineAmount: online,
+              );
+
+              if(widget.tableName.contains("Take Away")){
+                widget.onConfirm(cartItems, true);
+              }else{
+                widget.onConfirm([], true);
+              }
+
+
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },child: SvgPicture.asset(icon_bill, width: 28, height: 28, color: Colors.black54,))
+          ],
+        ),
       ),
       body: Column(
         children: [
@@ -334,38 +367,38 @@ class _CartPageState extends State<CartPage> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
-                          widget.onConfirm(cartItems);
+                          widget.onConfirm(cartItems, false);
                           Navigator.pop(context);
                           Navigator.pop(context);
                         },
                         child: const Text("Add to Table"),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          final cash = int.tryParse(cashController.text) ?? 0;
-                          final online = int.tryParse(onlineController.text) ?? 0;
-
-                          await addTransactionToFirestore(
-                            items: cartItems,
-                            tableName: widget.tableName,
-                            subtotal: subtotal.round(),
-                            tax: (subtotal * 0.085).round(),
-                            discount: discountAmount.round(),
-                            total: total,
-                            cashAmount: cash,
-                            onlineAmount: online,
-                          );
-
-                          widget.onConfirm([]);
-                          Navigator.pop(context);
-                          Navigator.pop(context);
-                        },
-                        child: Text("Billing (₹$total)"),
-                      ),
-                    ),
+                    // const SizedBox(width: 10),
+                    // Expanded(
+                    //   child: ElevatedButton(
+                    //     onPressed: () async {
+                    //       final cash = int.tryParse(cashController.text) ?? 0;
+                    //       final online = int.tryParse(onlineController.text) ?? 0;
+                    //
+                    //       await addTransactionToFirestore(
+                    //         items: cartItems,
+                    //         tableName: widget.tableName,
+                    //         subtotal: subtotal.round(),
+                    //         tax: (subtotal * 0.085).round(),
+                    //         discount: discountAmount.round(),
+                    //         total: total,
+                    //         cashAmount: cash,
+                    //         onlineAmount: online,
+                    //       );
+                    //
+                    //       widget.onConfirm([]);
+                    //       Navigator.pop(context);
+                    //       Navigator.pop(context);
+                    //     },
+                    //     child: Text("Billing (₹$total)"),
+                    //   ),
+                    // ),
                   ],
                 ),
               ],

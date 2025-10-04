@@ -13,7 +13,7 @@ import 'Styles/my_font.dart';
 class CartPageForTakeAway extends StatefulWidget {
   final String tableName;
   final List<Map<String, dynamic>> menuData;
-  final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
+  final void Function(List<Map<String, dynamic>> selectedItems, bool isBillPaid) onConfirm;
 
   const CartPageForTakeAway({
     required this.menuData,

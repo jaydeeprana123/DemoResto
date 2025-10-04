@@ -271,9 +271,10 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                         Expanded(
                           child: Text(
                             "${group.tableName} ",
-                            style: const TextStyle(
-                              fontFamily: fontMulishSemiBold,
+                            style:  TextStyle(
+                              fontFamily: (group.tableName).contains("Take Away")?fontMulishBold:fontMulishSemiBold,
                               fontSize: 16,
+                              color: (group.tableName).contains("Take Away")?Colors.red:Colors.black
                             ),
                           ),
                         ),

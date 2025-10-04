@@ -56,6 +56,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   final List<Map<String, dynamic>> menu = [];
   bool isLoading = false;
 
+  int tableNo = 0;
+
   StreamSubscription<QuerySnapshot>? tablesSubscription;
 
   @override
@@ -217,6 +219,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   Future<void> _updateTableItemsInFirestore(
     String tableName,
     List<List<Map<String, dynamic>>> groups,
+      bool isBillPaid
   ) async {
     try {
       print("=== UPDATING FIREBASE ===");
@@ -263,6 +266,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
 
       final updateData = {
         'items': flattenedItems,
+        "isPaid": isBillPaid,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -319,6 +323,32 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
       await FirebaseFirestore.instance.collection('tables').add({
         'name': tableName,
         'items': [],
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      print("Table $tableName added.");
+    } catch (e) {
+      print("Error adding table: $e");
+    }
+  }
+
+  // Add a new table with empty items list
+  Future<void> _addTableAndUpdateItems(String tableName, List<Map<String, dynamic>> selectedItems) async {
+    try {
+      final existing = await FirebaseFirestore.instance
+          .collection('tables')
+          .where('name', isEqualTo: tableName)
+          .limit(1)
+          .get();
+
+      if (existing.docs.isNotEmpty) {
+        print("Table already exists");
+        return;
+      }
+
+      await FirebaseFirestore.instance.collection('tables').add({
+        'name': tableName,
+        'items': selectedItems,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -462,10 +492,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                               await _updateTableItemsInFirestore(
                                 tableName,
                                 tables[tableName]!,
+                                false
                               );
                               await _updateTableItemsInFirestore(
                                 sourceTable,
                                 [],
+                                false
                               );
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -522,12 +554,36 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
             backgroundColor: Colors.white,
             child: SvgPicture.asset(icon_take_away, width: 36, height: 28, color: Colors.black87,),
             tooltip: 'View all orders',
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async{
+
+              await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => MenuPage(onConfirm:  (List<Map<String, dynamic>> confirmedItems) async {
-                }, menuList: menu, tableName: "Take Away")),
+                MaterialPageRoute(
+                  builder: (_) => MenuPage(
+                    menuList: menu,
+                    tableName: "Take Away ${tableNo + 1}",
+                    initialItems: [],
+                    onConfirm:
+                        (
+                        List<Map<String, dynamic>> selectedItems,
+                        bool isBillPaid
+                        ) async {
+
+                        tableNo = tableNo + 1;
+
+                        await _addTableAndUpdateItems("Take Away $tableNo", selectedItems);
+
+                          setState(() {
+                            // tables["Take Away $tableNo"] = [selectedItems];
+                          });
+                          // await _updateTableItemsInFirestore(
+                          //     "Take Away $tableNo", [selectedItems]);
+
+                    },
+                  ),
+                ),
               );
+
             },
           ),
 
@@ -551,79 +607,109 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   }
 
   Widget _buildTableCard(
-    String tableName,
-    List<List<Map<String, dynamic>>> groups,
-  ) {
-    return GestureDetector(
-      onDoubleTap: () async {
-        final allItems = groups.expand((g) => g).toList();
-        final mergedItems = _mergeItemsByNameAndCategory(allItems);
+      String tableName,
+      List<List<Map<String, dynamic>>> groups,
+      ) {
+    // 🔸 Get isPaid value from Firestore if present
+    bool isPaid = false;
+    try {
+      // If the table has a paid flag saved in Firestore data (optional safety check)
+      final paidTable = tables[tableName];
+      if (paidTable != null) {
+        // You could also check Firestore doc directly if you store isPaid in it
+      }
+    } catch (_) {}
 
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => CartPageForTakeAway(
-              menuData: mergedItems,
-              onConfirm: (List<Map<String, dynamic>> confirmedItems) async {
-                setState(() {
-                  tables[tableName] = [confirmedItems];
-                });
-                await _updateTableItemsInFirestore(tableName, [confirmedItems]);
-              },
-              tableName: tableName,
-            ),
-          ),
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('tables')
+          .where('name', isEqualTo: tableName)
+          .limit(1)
+          .snapshots(),
+      builder: (context, snapshot) {
+        bool isPaid = false;
+
+        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+          final doc = snapshot.data!.docs.first;
+          final data = doc.data();
+          isPaid = (data['isPaid'] == true);
+        }
+
+        return GestureDetector(
+          onDoubleTap: () async {
+            if (isPaid) return; // 🔹 Prevent opening if bill is paid
+
+            final allItems = groups.expand((g) => g).toList();
+            final mergedItems = _mergeItemsByNameAndCategory(allItems);
+
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CartPageForTakeAway(
+                  menuData: mergedItems,
+                  onConfirm: (List<Map<String, dynamic>> confirmedItems) async {
+                    setState(() {
+                      tables[tableName] = [confirmedItems];
+                    });
+                    await _updateTableItemsInFirestore(
+                        tableName, [confirmedItems], false);
+                  },
+                  tableName: tableName,
+                ),
+              ),
+            );
+          },
+          child: _buildTableCardBody(tableName, groups, isPaid),
         );
       },
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        elevation: 8,
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              color: groups.isNotEmpty ? Colors.green : primary_color,
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(child: Text(tableName, style: TextStyle(color: Colors.white))),
-                  Row(
-                    children: [
-                      if (groups.isNotEmpty)
-                        IconButton(
-                          icon: Icon(Icons.edit, color: Colors.white),
-                          onPressed: () async {
-                            final lastGroup = groups.last;
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => MenuPage(
-                                  menuList: menu,
-                                  tableName: tableName,
-                                  initialItems: List<Map<String, dynamic>>.from(
-                                    lastGroup,
-                                  ),
-                                  onConfirm:
-                                      (
-                                        List<Map<String, dynamic>>
-                                        selectedItems,
-                                      ) async {
-                                        setState(() {
-                                          groups[groups.length - 1] =
-                                              selectedItems;
-                                        });
-                                        await _updateTableItemsInFirestore(
-                                          tableName,
-                                          groups,
-                                        );
-                                      },
-                                ),
+    );
+
+  }
+
+
+  Widget _buildTableCardBody(String tableName, List<List<Map<String, dynamic>>> groups, bool isPaid) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      elevation: 8,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            color: groups.isNotEmpty ? Colors.green : primary_color,
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                    child: Text(tableName,
+                        style: TextStyle(color: Colors.white))),
+                Row(
+                  children: [
+                    if (groups.isNotEmpty && !isPaid)
+                      IconButton(
+                        icon: Icon(Icons.edit, color: Colors.white),
+                        onPressed: () async {
+                          final lastGroup = groups.last;
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => MenuPage(
+                                menuList: menu,
+                                tableName: tableName,
+                                initialItems: List<Map<String, dynamic>>.from(lastGroup),
+                                onConfirm: (List<Map<String, dynamic>> selectedItems, bool isBillPaid) async {
+                                  setState(() {
+                                    groups[groups.length - 1] = selectedItems;
+                                  });
+                                  await _updateTableItemsInFirestore(tableName, groups, isBillPaid);
+                                },
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          );
+                        },
+                      ),
+                    if (!isPaid)
                       IconButton(
                         icon: Icon(Icons.add_circle, color: Colors.white),
                         onPressed: () async {
@@ -634,98 +720,85 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                                 menuList: menu,
                                 tableName: tableName,
                                 initialItems: [],
-                                onConfirm:
-                                    (
-                                      List<Map<String, dynamic>> selectedItems,
-                                    ) async {
-                                      setState(() {
-                                        groups.add(selectedItems);
-                                      });
-                                      await _updateTableItemsInFirestore(
-                                        tableName,
-                                        groups,
-                                      );
-                                    },
+                                onConfirm: (List<Map<String, dynamic>> selectedItems, bool isBillPaid) async {
+                                  setState(() {
+                                    groups.add(selectedItems);
+                                  });
+                                  await _updateTableItemsInFirestore(tableName, groups, isBillPaid);
+                                },
                               ),
                             ),
                           );
                         },
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            if (groups.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(40.0),
-                child: Center(
-                  child: Text(
-                    "No items",
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.black38,
-                      fontFamily: fontMulishRegular,
-                    ),
-                  ),
+
+                    if(isPaid)
+                      Container(color: Colors.white,
+
+    margin: EdgeInsets.symmetric(vertical: 3),
+    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+                      child: Text("PAID", style: TextStyle(color: Colors.red, fontSize: 12, fontFamily: fontMulishBold),),)
+
+                  ],
                 ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: List.generate(groups.length, (i) {
-                    final group = groups[i];
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ...group.map((item) {
-                          final qty = item['qty'] ?? 1;
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Text.rich(
-                              TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: item['name'],
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.black87,
-                                      fontFamily: fontMulishRegular,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: " \u00D7$qty",
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      color: Colors.red,
-                                      fontFamily: fontMulishSemiBold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                        if (i < groups.length - 1)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: DottedLine(
-                              dashColor: Colors.grey,
-                              lineThickness: 1,
-                              dashLength: 4,
-                              dashGapLength: 4,
+              ],
+            ),
+          ),
+          // 👇 rest of your table body
+          if (groups.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(40.0),
+              child: Center(
+                child: Text(
+                  "No items",
+                  style: TextStyle(fontSize: 13, color: Colors.black38, fontFamily: fontMulishRegular),
+                ),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: List.generate(groups.length, (i) {
+                  final group = groups[i];
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ...group.map((item) {
+                        final qty = item['qty'] ?? 1;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: item['name'],
+                                  style: TextStyle(fontSize: 13, color: Colors.black87, fontFamily: fontMulishRegular),
+                                ),
+                                TextSpan(
+                                  text: " ×$qty",
+                                  style: TextStyle(fontSize: 15, color: Colors.red, fontFamily: fontMulishSemiBold),
+                                ),
+                              ],
                             ),
                           ),
-                      ],
-                    );
-                  }),
-                ),
+                        );
+                      }).toList(),
+                      if (i < groups.length - 1)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: DottedLine(dashColor: Colors.grey, lineThickness: 1, dashLength: 4, dashGapLength: 4),
+                        ),
+                    ],
+                  );
+                }),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
+
+
 }
