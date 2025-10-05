@@ -132,49 +132,88 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                       itemBuilder: (context, index) {
                         final item = cartItems[index];
                         final qty = item['qty'] as int;
-                        return Column(
-                          children: [
-                            ListTile(
-                              title: Text(item['name']),
-                              subtitle: Row(
-                                children: [
-                                  Text("₹${item['price']}"),
-                                  SizedBox(width: 16),
+                        return InkWell(
+                          onTap: (){
+                            incrementQty(index);
+                          },
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  children: [
 
-                                  Text(
-                                    "\u00D7${item['qty']}",
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      color: Colors.red,
-                                      fontFamily: fontMulishBold,
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start
+                                        ,children: [
+                                        Text(item['name'], style: TextStyle(
+                                          fontSize: 14,
+                                          color: text_color,
+                                          fontFamily: fontMulishSemiBold,
+                                        )),
+
+                                        SizedBox(height: 2,),
+
+                                        Row(
+                                          children: [
+                                            Text("₹${item['price']}", style: TextStyle(
+                                              fontSize: 13,
+                                              color: text_color,
+                                              fontFamily: fontMulishSemiBold,
+                                            )),
+                                            const SizedBox(width: 16),
+                                            Text(
+                                              "\u00D7$qty",
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.red,
+                                                fontFamily: fontMulishBold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+
+
+                                      ],
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.remove_circle,
-                                      color: Colors.red,
+
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.remove_circle,
+                                            color: Colors.red,
+                                          ),
+                                          onPressed: () => decrementQty(index),
+                                        ),
+                                        Text("$qty", style: TextStyle(
+                                          fontSize: 14,
+                                          color: text_color,
+                                          fontFamily: fontMulishSemiBold,
+                                        )),
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.add_circle,
+                                            color: Colors.green,
+                                          ),
+                                          onPressed: () => incrementQty(index),
+                                        ),
+                                      ],
                                     ),
-                                    onPressed: () => decrementQty(index),
-                                  ),
-                                  Text("$qty"),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.add_circle,
-                                      color: Colors.green,
-                                    ),
-                                    onPressed: () => incrementQty(index),
-                                  ),
-                                ],
-                              ),
+
+                                  ],
+                                ),
+
+                                Container(margin: EdgeInsets.only(top: 8),height: 0.5, color: Colors.grey.shade300),
+
+                              ],
                             ),
-                            if (index < cartItems.length - 1)
-                              Divider(height: 0, color: Colors.grey.shade300),
-                          ],
+                          ),
                         );
                       },
                     ),

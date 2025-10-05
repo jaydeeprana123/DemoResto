@@ -5,3 +5,4 @@ const icon_take_away = "assets/images/take_away.svg";
 const icon_paid = "assets/images/paid.svg";
 const icon_bill = "assets/images/bill.svg";
 const icon_cooking = "assets/images/cooking.svg";
+const icon_packing = "assets/images/packing.svg";

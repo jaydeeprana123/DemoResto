@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'AddTablePage.dart';
 import 'AllOrdersPage.dart';
 import 'CartPage.dart';
-import 'CartPageForTableBilling.dart';
+import 'FinalBillingView.dart';
 import 'FinalCartPage.dart';
 import 'MenuPage.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -332,13 +332,17 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
     }
   }
 
-  // Add a new table with empty items list
+  // Add a new table with items list
   Future<void> _addTableAndUpdateItems(
     String tableName,
     List<Map<String, dynamic>> selectedItems,
-      bool  isBillPaid,
+    bool isBillPaid,
   ) async {
     try {
+      print("=== ADDING NEW TABLE ===");
+      print("Table name: $tableName");
+      print("Selected items count: ${selectedItems.length}");
+
       final existing = await FirebaseFirestore.instance
           .collection('tables')
           .where('name', isEqualTo: tableName)
@@ -346,20 +350,46 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
           .get();
 
       if (existing.docs.isNotEmpty) {
-        print("Table already exists");
+        print("Table already exists: $tableName");
         return;
       }
 
-      await FirebaseFirestore.instance.collection('tables').add({
+      // Step 1: Build grouped structure similar to update method
+      // For a new table, you can assume all items belong to one group (index = 0)
+      List<Map<String, dynamic>> flattenedItems = [];
+
+      final Timestamp groupTimestamp = Timestamp.now(); // one timestamp for all
+
+      for (int i = 0; i < selectedItems.length; i++) {
+        final item = Map<String, dynamic>.from(selectedItems[i]);
+
+        // Add same meta fields as update method
+        item['groupIndex'] = 0; // single group for new table
+        item['addedAt'] = groupTimestamp;
+
+        flattenedItems.add(item);
+      }
+
+      // Step 2: Add the document to Firestore
+      final docRef = await FirebaseFirestore.instance.collection('tables').add({
         'name': tableName,
-        'items': selectedItems,
+        'items': flattenedItems,
         "isPaid": isBillPaid,
         'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      print("Table $tableName added.");
+      print(
+        "SUCCESS: Table $tableName added with ${flattenedItems.length} items",
+      );
+      print("Document ID: ${docRef.id}");
+      print("=== END ADD ===");
     } catch (e) {
-      print("Error adding table: $e");
+      print("ERROR: Failed to add table: $e");
+      if (e is FirebaseException) {
+        print("Firebase error code: ${e.code}");
+        print("Firebase error message: ${e.message}");
+      }
     }
   }
 
@@ -533,7 +563,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                           await _addTableAndUpdateItems(
                             "Take Away $tableNo",
                             selectedItems,
-                            isBillPaid
+                            isBillPaid,
                           );
 
                           setState(() {
@@ -599,6 +629,22 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
 
         return GestureDetector(
           onDoubleTap: () async {
+            if (isPaid) {
+              showServedDialog(context, tableName, () async {
+                if (tableName.contains("Take Away")) {
+                  await FirebaseFirestore.instance
+                      .collection('tables')
+                      .doc(docId)
+                      .delete();
+                  setState(() {});
+                } else {
+                  await _updateTableItemsInFirestore(tableName, [], false);
+                }
+
+                print("${tableName} marked as served");
+              });
+            }
+
             if (isPaid) return; // 🔹 Prevent opening if bill is paid
 
             final allItems = groups.expand((g) => g).toList();
@@ -610,8 +656,6 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                 builder: (_) => FinalBillingView(
                   menuData: mergedItems,
                   onConfirm: (List<Map<String, dynamic>> confirmedItems) async {
-
-
                     setState(() {
                       tables[tableName] = [confirmedItems];
                     });
@@ -619,9 +663,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                       confirmedItems,
                     ], false);
 
-
-                    if(tableName.contains("Take Away") && confirmedItems.isEmpty){
-                      await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
+                    if (tableName.contains("Take Away") &&
+                        confirmedItems.isEmpty) {
+                      await FirebaseFirestore.instance
+                          .collection('tables')
+                          .doc(docId)
+                          .delete();
                     }
 
                     // if(tableName.contains("Take Away") && confirmedItems.isEmpty){
@@ -634,8 +681,6 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                     //     confirmedItems,
                     //   ], false);
                     // }
-
-
                   },
                   tableName: tableName,
                 ),
@@ -849,16 +894,25 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
             color: isSelected ? secondary_text_color : Colors.white,
             border: Border.all(color: secondary_text_color, width: 0.5),
 
-            borderRadius: label == "Tables"?BorderRadius.only(topLeft: Radius.circular(6), bottomLeft: Radius.circular(6)):
-            label == "All"?BorderRadius.only(topRight: Radius.circular(6), bottomRight: Radius.circular(6))
-          :BorderRadius.circular(0)),
+            borderRadius: label == "Tables"
+                ? BorderRadius.only(
+                    topLeft: Radius.circular(6),
+                    bottomLeft: Radius.circular(6),
+                  )
+                : label == "All"
+                ? BorderRadius.only(
+                    topRight: Radius.circular(6),
+                    bottomRight: Radius.circular(6),
+                  )
+                : BorderRadius.circular(0),
+          ),
           child: Center(
             child: Text(
               label,
               style: TextStyle(
                 color: isSelected ? Colors.white : secondary_text_color,
                 fontFamily: fontMulishSemiBold,
-                fontSize: 14
+                fontSize: 14,
               ),
             ),
           ),
@@ -877,7 +931,6 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
       return tables.keys.toList();
     }
   }
-
 
   Future<void> _deleteTable(String docId, String name) async {
     final confirmed = await showDialog<bool>(
@@ -901,10 +954,66 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
     if (confirmed == true) {
       await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Table deleted")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Table deleted")));
     }
   }
 
+  void showServedDialog(
+    BuildContext context,
+    String tableName,
+    VoidCallback onServed,
+  ) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // prevent closing by tapping outside
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            "Mark as Served?",
+            style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
+          ),
+          content: Text(
+            "Are you sure you want to mark table '$tableName' as served?",
+            style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 15),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context), // close dialog
+              child: const Text(
+                "Cancel",
+                style: TextStyle(
+                  fontFamily: fontMulishSemiBold,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                Navigator.pop(context); // close dialog
+                onServed(); // perform the action
+              },
+              child: const Text(
+                "Served",
+                style: TextStyle(
+                  fontFamily: fontMulishSemiBold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }

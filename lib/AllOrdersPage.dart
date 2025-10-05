@@ -1,8 +1,10 @@
 import 'package:demo/AddMenuItemPage.dart';
 import 'package:demo/Styles/my_colors.dart';
+import 'package:demo/Styles/my_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'MenuPage.dart';
@@ -161,9 +163,13 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
 
           // Build fresh groups from snapshot (always reflect the DB)
           List<TableGroup> updatedGroups = [];
+          String docId = "";
+          bool isPaid = false;
           for (var doc in snapshot.data!.docs) {
             final data = doc.data();
+            docId = doc.id;
             final tableName = (data['name'] ?? 'Unknown Table') as String;
+            isPaid = (data.containsKey('isPaid'))?(data['isPaid'] as bool):false;
             final itemsFromDb = (data.containsKey('items'))
                 ? (data['items'] as List<dynamic>?)
                 : null;
@@ -243,7 +249,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
               child: DottedLine(
                 dashLength: 6,
                 dashGapLength: 4,
-                lineThickness: 2,
+                lineThickness: 1,
                 dashColor: Colors.grey,
               ),
             ),
@@ -253,7 +259,12 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
               final isBlinking = blinkingGroupKey == group.key.hashCode;
 
               // Continuous blink if older than 20 minutes
-              final isOld = DateTime.now().difference(time).inMinutes > 5;
+              final isOld = DateTime.now().difference(time).inMinutes > 2;
+
+              if(group.tableName.contains("Take Away") && isOld && isPaid){
+                deleteTable(docId);
+              }
+
 
               return AnimatedContainer(
                 duration: const Duration(milliseconds: 400),
@@ -263,64 +274,82 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                 isOld?Colors.blue.shade100
                     : Colors.transparent,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-                child: Column(
+                child: Row(
+
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            "${group.tableName} ",
-                            style:  TextStyle(
-                              fontFamily: (group.tableName).contains("Take Away")?fontMulishBold:fontMulishSemiBold,
-                              fontSize: 16,
-                              color: (group.tableName).contains("Take Away")?Colors.red:Colors.black
-                            ),
-                          ),
-                        ),
 
-                        SizedBox(width: 6,),
-
-                        Text(
-                          formatRelativeTime(time),
-                          style: const TextStyle(
-                            fontFamily: fontMulishSemiBold,
-                            fontSize: 14,
-                          ),
-                        ),
-
-
-                      ],
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: SvgPicture.asset((group.tableName).contains("Take Away")?icon_packing:icon_table, color: (group.tableName).contains("Take Away")?Colors.black87:Colors.black87,width: (group.tableName).contains("Take Away")?18:24,),
                     ),
-                    const SizedBox(height: 6),
-                    ...group.items.map((item) {
-                      final qty = item['qty'] ?? 1;
-                      return Padding(
-                        padding: const EdgeInsets.only(left: 8, bottom: 4),
-                        child: Text.rich(
-                          TextSpan(
-                            children: [
-                              TextSpan(
-                                text: item['name']?.toString() ?? '',
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.black,
-                                  fontFamily: fontMulishRegular,
+
+                    SizedBox(width: 10,),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.start
+                            ,children: [
+                              Expanded(
+                                child: Text(
+                                  "${group.tableName} ",
+                                  style:  TextStyle(
+                                      fontFamily: (group.tableName).contains("Take Away")?fontMulishBold:fontMulishSemiBold,
+                                      fontSize: 15,
+                                      color: (group.tableName).contains("Take Away")?Colors.black:Colors.black
+                                  ),
                                 ),
                               ),
-                              TextSpan(
-                                text: "  x$qty",
+
+                              SizedBox(width: 6,),
+
+                              Text(
+                                formatRelativeTime(time),
                                 style: const TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.red,
                                   fontFamily: fontMulishSemiBold,
+                                  fontSize: 14,
                                 ),
                               ),
+
+
                             ],
                           ),
-                        ),
-                      );
-                    }),
+                          const SizedBox(height: 2),
+                          ...group.items.map((item) {
+                            final qty = item['qty'] ?? 1;
+                            return Padding(
+                              padding: const EdgeInsets.only( bottom: 4),
+                              child: Text.rich(
+                                TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: item['name']?.toString() ?? '',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.black,
+                                        fontFamily: fontMulishRegular,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: "  x$qty",
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        color: Colors.red,
+                                        fontFamily: fontMulishSemiBold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+
+                        ],
+                      ),
+                    )
                   ],
                 ),
               );
@@ -355,6 +384,13 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   void dispose() {
     _timer?.cancel(); // Cancel timer when widget is disposed
     super.dispose();
+  }
+
+  void deleteTable(String docId) async{
+    await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
+    setState(() {
+
+    });
   }
 
 }
