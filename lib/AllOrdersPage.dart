@@ -65,9 +65,14 @@ class OrdersGroupedListPage extends StatefulWidget {
 
 class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   final AudioPlayer audioPlayer = AudioPlayer();
-  Set<String> previousKeys = {}; // track existing group keys
+  Set<String> previousKeys = {};
   int? blinkingGroupKey;
   Timer? _timer;
+
+  // Multiple category selection
+  Set<String> selectedCategories = {};
+  bool showAllCategories = true; // Track if "All" is selected
+
   void _playNotificationSound() async {
     try {
       await audioPlayer.play(AssetSource('sounds/phone_bell.mp3'));
@@ -78,13 +83,11 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   }
 
   List<TableGroup> _reconstructGroups(
-    String tableName,
-    List<dynamic>? itemsFromDb,
-      {
+      String tableName,
+      List<dynamic>? itemsFromDb, {
         required bool isPaid,
-        required String docId,// ✅ add this
-      }// ✅ add this
-  ) {
+        required String docId,
+      }) {
     List<TableGroup> groups = [];
     if (itemsFromDb == null) return groups;
 
@@ -107,13 +110,12 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
 
         groupMap.putIfAbsent(groupIndex, () => []);
         groupMap[groupIndex]!.add(itemMap);
-        // store latest timestamp for this group (will be overwritten but that's okay)
         groupTimeMap[groupIndex] = addedAt;
       }
     }
 
     groupMap.forEach((index, items) {
-      if (items.isEmpty) return; // skip empty groups
+      if (items.isEmpty) return;
       final timestamp = groupTimeMap[index] ?? Timestamp.now();
       groups.add(
         TableGroup(
@@ -121,8 +123,8 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
           items,
           timestamp.toDate().millisecondsSinceEpoch,
           key: '${tableName}_$index',
-          docId: docId, // 👈 add this
-          isPaid: isPaid, // ✅ add isPaid here
+          docId: docId,
+          isPaid: isPaid,
         ),
       );
     });
@@ -133,20 +135,279 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   @override
   void initState() {
     super.initState();
-
-    // Start a timer to update every minute
     _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
       if (mounted) setState(() {});
     });
   }
 
+  // Filter groups by selected categories
+  List<TableGroup> _filterByCategories(List<TableGroup> groups) {
+    // If "All" is selected or no categories selected, show everything
+    if (showAllCategories || selectedCategories.isEmpty) {
+      return groups;
+    }
+
+    return groups.map((group) {
+      // Filter items in this group by selected categories
+      final filteredItems = group.items.where((item) {
+        final itemCategory = item['category']?.toString() ?? '';
+        return selectedCategories.contains(itemCategory);
+      }).toList();
+
+      // If no items match, return null (will be filtered out)
+      if (filteredItems.isEmpty) return null;
+
+      // Return new group with filtered items
+      return TableGroup(
+        group.tableName,
+        filteredItems,
+        group.groupTime,
+        key: group.key,
+        docId: group.docId,
+        isPaid: group.isPaid,
+      );
+    }).whereType<TableGroup>().toList(); // Remove nulls
+  }
+
+  // Check if the group contains items from selected categories
+  bool _shouldPlaySoundForGroup(TableGroup group) {
+    // If "All" is selected, always play sound
+    if (showAllCategories || selectedCategories.isEmpty) {
+      return true;
+    }
+
+    // Check if any item in the group matches selected categories
+    for (var item in group.items) {
+      final itemCategory = item['category']?.toString() ?? '';
+      if (selectedCategories.contains(itemCategory)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  void _showCategoryFilterDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('menus')
+              .orderBy('createdAt', descending: false)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const AlertDialog(
+                content: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                title: const Text(
+                  "Filter by Category",
+                  style: TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 18,
+                  ),
+                ),
+                content: const Text("No categories found"),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Close"),
+                  ),
+                ],
+              );
+            }
+
+            final categories = snapshot.data!.docs;
+
+            return StatefulBuilder(
+              builder: (context, setDialogState) {
+                return AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: const Text(
+                    "Filter by Category",
+                    style: TextStyle(
+                      fontFamily: fontMulishSemiBold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  content: SizedBox(
+                    width: double.maxFinite,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // "All" checkbox
+                        CheckboxListTile(
+                          title: const Text(
+                            "All Categories",
+                            style: TextStyle(
+                              fontFamily: fontMulishSemiBold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          value: showAllCategories,
+                          activeColor: Colors.green,
+                          onChanged: (bool? value) {
+                            setDialogState(() {
+                              showAllCategories = value ?? true;
+                              if (showAllCategories) {
+                                selectedCategories.clear();
+                              }
+                            });
+                          },
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                        const Divider(),
+                        // Individual category checkboxes
+                        Flexible(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: categories.length,
+                            itemBuilder: (context, index) {
+                              final category = categories[index];
+                              final categoryName = category['name'] as String;
+                              final isSelected = selectedCategories.contains(categoryName);
+
+                              return CheckboxListTile(
+                                title: Text(
+                                  categoryName,
+                                  style: const TextStyle(
+                                    fontFamily: fontMulishRegular,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                value: isSelected,
+                                activeColor: Colors.green,
+                                enabled: !showAllCategories,
+                                onChanged: showAllCategories
+                                    ? null
+                                    : (bool? value) {
+                                  setDialogState(() {
+                                    if (value == true) {
+                                      selectedCategories.add(categoryName);
+                                    } else {
+                                      selectedCategories.remove(categoryName);
+                                    }
+                                  });
+                                },
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        setDialogState(() {
+                          selectedCategories.clear();
+                          showAllCategories = true;
+                        });
+                      },
+                      child: const Text(
+                        "Clear",
+                        style: TextStyle(
+                          fontFamily: fontMulishSemiBold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          // Update the main state
+                        });
+                        Navigator.pop(context);
+                      },
+                      child: const Text(
+                        "Apply",
+                        style: TextStyle(
+                          fontFamily: fontMulishSemiBold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("All Orders ",style: const TextStyle(
-        fontFamily: fontMulishSemiBold,
-        fontSize: 16,
-      ))),
+      appBar: AppBar(
+        title: const Text(
+          "All Orders",
+          style: TextStyle(
+            fontFamily: fontMulishSemiBold,
+            fontSize: 16,
+          ),
+        ),
+        actions: [
+          // Filter button with badge showing count
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.filter_list),
+                onPressed: () => _showCategoryFilterDialog(context),
+                tooltip: "Filter by Category",
+              ),
+              if (!showAllCategories && selectedCategories.isNotEmpty)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${selectedCategories.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontFamily: fontMulishBold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('tables')
@@ -158,7 +419,6 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            // clear previousKeys so next real data causes correct detection
             if (previousKeys.isNotEmpty) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (mounted) setState(() => previousKeys = {});
@@ -167,9 +427,8 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
             return const Center(child: Text("No orders found"));
           }
 
-          // Build fresh groups from snapshot (always reflect the DB)
+          // Build fresh groups from snapshot
           List<TableGroup> updatedGroups = [];
-
 
           for (var doc in snapshot.data!.docs) {
             final data = doc.data();
@@ -178,29 +437,45 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
             final itemsFromDb = (data.containsKey('items'))
                 ? (data['items'] as List<dynamic>?)
                 : null;
-            updatedGroups.addAll(_reconstructGroups(tableName, itemsFromDb, isPaid: isPaid, docId: doc.id)); // ✅ pass it here));
+            updatedGroups.addAll(_reconstructGroups(
+              tableName,
+              itemsFromDb,
+              isPaid: isPaid,
+              docId: doc.id,
+            ));
           }
 
-          // sort by time
+          // Sort by time
           updatedGroups.sort((a, b) => a.groupTime.compareTo(b.groupTime));
 
-          // compute keys
+          // Filter by selected categories
+          final filteredGroups = _filterByCategories(updatedGroups);
+
+          // Compute keys
           final currentKeys = updatedGroups.map((g) => g.key).toSet();
 
-          // If this is the very first real load (previousKeys empty), DON'T blink/play sound.
-          // Just initialize previousKeys to currentKeys.
+          // Handle blinking for new orders
           if (previousKeys.isEmpty && currentKeys.isNotEmpty) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
 
-              final String firstKey =
-                  currentKeys.last; // or .first depending on order
+              final String firstKey = currentKeys.last;
+
+              // Check if the new order contains items from selected categories
+              final newGroup = updatedGroups.firstWhere(
+                    (g) => g.key == firstKey,
+                orElse: () => updatedGroups.last,
+              );
+              final shouldPlaySound = _shouldPlaySoundForGroup(newGroup);
+
               setState(() {
                 previousKeys = currentKeys;
                 blinkingGroupKey = firstKey.hashCode;
               });
 
-              _playNotificationSound();
+              if (shouldPlaySound) {
+                _playNotificationSound();
+              }
 
               Timer(const Duration(seconds: 3), () {
                 if (!mounted) return;
@@ -210,26 +485,32 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
               });
             });
           } else {
-            // detect newly added keys
             final addedKeys = currentKeys.difference(previousKeys);
             final removedKeys = previousKeys.difference(currentKeys);
 
             if (addedKeys.isNotEmpty) {
-              // schedule setState after build to avoid calling setState during build
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
-                final String newKey =
-                    addedKeys.last; // pick last added (or change logic)
+                final String newKey = addedKeys.last;
+
+                // Check if the new order contains items from selected categories
+                final newGroup = updatedGroups.firstWhere(
+                      (g) => g.key == newKey,
+                  orElse: () => updatedGroups.last,
+                );
+                final shouldPlaySound = _shouldPlaySoundForGroup(newGroup);
+
                 setState(() {
                   previousKeys = currentKeys;
                   blinkingGroupKey = newKey.hashCode;
                 });
-                _playNotificationSound();
 
-                // clear blinking after 3 seconds
+                if (shouldPlaySound) {
+                  _playNotificationSound();
+                }
+
                 Timer(const Duration(seconds: 3), () {
                   if (!mounted) return;
-                  // only clear if still blinking for this key
                   if (mounted && blinkingGroupKey == newKey.hashCode) {
                     setState(() {
                       blinkingGroupKey = null;
@@ -238,17 +519,50 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                 });
               });
             } else if (removedKeys.isNotEmpty) {
-              // if something removed, just update previousKeys (UI will reflect removal because updatedGroups is used)
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (mounted) setState(() => previousKeys = currentKeys);
               });
             }
           }
 
-          // Use updatedGroups directly so UI always matches Firestore (items removed/updated disappear instantly)
+          // Show message if no items match filter
+          if (filteredGroups.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.filter_list_off, size: 64, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  Text(
+                    showAllCategories
+                        ? "No orders found"
+                        : "No orders in selected categories",
+                    style: const TextStyle(
+                      fontFamily: fontMulishSemiBold,
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  if (!showAllCategories && selectedCategories.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      "Selected: ${selectedCategories.join(', ')}",
+                      style: const TextStyle(
+                        fontFamily: fontMulishRegular,
+                        fontSize: 14,
+                        color: Colors.grey,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }
+
           return ListView.separated(
             padding: const EdgeInsets.all(12),
-            itemCount: updatedGroups.length,
+            itemCount: filteredGroups.length,
             separatorBuilder: (_, __) => const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: DottedLine(
@@ -259,21 +573,18 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
               ),
             ),
             itemBuilder: (context, index) {
-              final group = updatedGroups[index];
+              final group = filteredGroups[index];
               final time = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
               final isBlinking = blinkingGroupKey == group.key.hashCode;
-
-              // Continuous blink if older than 20 minutes
               final isOld = DateTime.now().difference(time).inMinutes > 5;
 
-              if(group.tableName.contains("Take Away") && isOld && group.isPaid){
+              if (group.tableName.contains("Take Away") && isOld && group.isPaid) {
                 deleteTable(group.docId);
               }
 
-
               return GestureDetector(
-                onDoubleTap: (){
-                  if (group.isPaid) {
+                onDoubleTap: () {
+                  if (group.isPaid && selectedCategories.isEmpty) {
                     showServedDialog(context, group.tableName, () async {
                       if (group.tableName.contains("Take Away")) {
                         await FirebaseFirestore.instance
@@ -282,9 +593,9 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                             .delete();
                         setState(() {});
                       } else {
-                        await _updateTableItemsInFirestore(group.tableName, [], false);
+                        await _updateTableItemsInFirestore(
+                            group.tableName, [], false);
                       }
-
                     });
                   }
                 },
@@ -292,69 +603,68 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeInOut,
                   color: isBlinking
-                      ? Colors.lightGreenAccent:
-                  isOld?Colors.red.shade100
+                      ? Colors.lightGreenAccent
+                      : isOld
+                      ? Colors.red.shade100
                       : Colors.transparent,
                   padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
                   child: Row(
-
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-
                       Padding(
                         padding: const EdgeInsets.only(top: 4.0),
-                        child: SvgPicture.asset((group.tableName).contains("Take Away")?icon_packing:icon_table, color: (group.tableName).contains("Take Away")?Colors.black87:Colors.black87,width: (group.tableName).contains("Take Away")?18:24,),
+                        child: SvgPicture.asset(
+                          (group.tableName).contains("Take Away")
+                              ? icon_packing
+                              : icon_table,
+                          color: Colors.black87,
+                          width: (group.tableName).contains("Take Away") ? 18 : 24,
+                        ),
                       ),
-
-                      SizedBox(width: 10,),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.start
-                              ,children: [
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
                                 Expanded(
                                   child: Row(
                                     children: [
                                       Text(
                                         "${group.tableName} ",
-                                        style:  TextStyle(
-                                            fontFamily: (group.tableName).contains("Take Away")?fontMulishBold:fontMulishSemiBold,
-                                            fontSize: 15,
-                                            color: (group.tableName).contains("Take Away")?Colors.black:Colors.black
+                                        style: TextStyle(
+                                          fontFamily: (group.tableName)
+                                              .contains("Take Away")
+                                              ? fontMulishBold
+                                              : fontMulishSemiBold,
+                                          fontSize: 15,
+                                          color: Colors.black,
                                         ),
                                       ),
-
-                                     if(group.isPaid) Container(
-
-                                        color: Colors.red,
-
-                                        margin: EdgeInsets.symmetric(vertical: 3, horizontal: 8),
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 3,
-                                        ),
-
-
-
-                                        child: Text(
-                                          "PAID",
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 10,
-                                            fontFamily: fontMulishBold,
+                                      if (group.isPaid)
+                                        Container(
+                                          color: Colors.red,
+                                          margin: const EdgeInsets.symmetric(
+                                              vertical: 3, horizontal: 8),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 3,
                                           ),
-                                        ),
-                                      )
-
+                                          child: const Text(
+                                            "PAID",
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontFamily: fontMulishBold,
+                                            ),
+                                          ),
+                                        )
                                     ],
                                   ),
                                 ),
-
-                                SizedBox(width: 6,),
-
+                                const SizedBox(width: 6),
                                 Text(
                                   formatRelativeTime(time),
                                   style: const TextStyle(
@@ -362,15 +672,13 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                                     fontSize: 14,
                                   ),
                                 ),
-
-
                               ],
                             ),
                             const SizedBox(height: 2),
                             ...group.items.map((item) {
                               final qty = item['qty'] ?? 1;
                               return Padding(
-                                padding: const EdgeInsets.only( bottom: 4),
+                                padding: const EdgeInsets.only(bottom: 4),
                                 child: Text.rich(
                                   TextSpan(
                                     children: [
@@ -395,7 +703,6 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                                 ),
                               );
                             }),
-
                           ],
                         ),
                       )
@@ -425,24 +732,20 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
     } else if (difference.inDays < 7) {
       return "${difference.inDays} day${difference.inDays > 1 ? "s" : ""} ago";
     } else {
-      return DateFormat('dd MMM yyyy, hh:mm a').format(time); // fallback absolute
+      return DateFormat('dd MMM yyyy, hh:mm a').format(time);
     }
   }
 
-
   @override
   void dispose() {
-    _timer?.cancel(); // Cancel timer when widget is disposed
+    _timer?.cancel();
     super.dispose();
   }
 
-  void deleteTable(String docId) async{
+  void deleteTable(String docId) async {
     await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
-    setState(() {
-
-    });
+    setState(() {});
   }
-
 
   void showServedDialog(
       BuildContext context,
@@ -451,13 +754,13 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
       ) {
     showDialog(
       context: context,
-      barrierDismissible: false, // prevent closing by tapping outside
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          title: Text(
+          title: const Text(
             "Mark as Served?",
             style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
           ),
@@ -467,7 +770,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context), // close dialog
+              onPressed: () => Navigator.pop(context),
               child: const Text(
                 "Cancel",
                 style: TextStyle(
@@ -484,8 +787,8 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                 ),
               ),
               onPressed: () {
-                Navigator.pop(context); // close dialog
-                onServed(); // perform the action
+                Navigator.pop(context);
+                onServed();
               },
               child: const Text(
                 "Served",
@@ -501,9 +804,6 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
     );
   }
 
-
-
-  // Update table items in Firestore
   Future<void> _updateTableItemsInFirestore(
       String tableName,
       List<List<Map<String, dynamic>>> groups,
@@ -533,21 +833,17 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
       for (int groupIndex = 0; groupIndex < groups.length; groupIndex++) {
         var group = groups[groupIndex];
 
-        // Get addedAt for the group (either from first item's addedAt or now)
         Timestamp groupTimestamp;
         if (group.isNotEmpty && group[0].containsKey('addedAt')) {
           groupTimestamp = group[0]['addedAt'];
         } else {
-          groupTimestamp = Timestamp.now(); // default
+          groupTimestamp = Timestamp.now();
         }
 
         for (var item in group) {
           final itemWithMeta = Map<String, dynamic>.from(item);
-
-          // Add groupIndex and addedAt to item
           itemWithMeta['groupIndex'] = groupIndex;
           itemWithMeta['addedAt'] = groupTimestamp;
-
           flattenedItems.add(itemWithMeta);
         }
       }
@@ -575,10 +871,8 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
       }
     }
   }
-
 }
 
-// TableGroup class
 class TableGroup {
   final String tableName;
   final List<Map<String, dynamic>> items;
