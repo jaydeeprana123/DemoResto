@@ -622,6 +622,22 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         return DragTarget<String>(
           onAccept: (sourceTable) async {
             if (sourceTable != tableName) {
+              // Get the isPaid status of source table
+              bool sourcePaidStatus = false;
+              try {
+                final sourceQuery = await FirebaseFirestore.instance
+                    .collection('tables')
+                    .where('name', isEqualTo: sourceTable)
+                    .limit(1)
+                    .get();
+
+                if (sourceQuery.docs.isNotEmpty) {
+                  sourcePaidStatus = sourceQuery.docs.first.data()['isPaid'] == true;
+                }
+              } catch (e) {
+                print("Error getting source paid status: $e");
+              }
+
               final sourceGroups = tables[sourceTable]!;
               final destGroups = tables[tableName]!;
 
@@ -635,7 +651,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                 sourceGroups.clear();
               });
 
-              await _updateTableItemsInFirestore(tableName, tables[tableName]!, false);
+              // Update destination with source's paid status
+              await _updateTableItemsInFirestore(tableName, tables[tableName]!, sourcePaidStatus);
               await _updateTableItemsInFirestore(sourceTable, [], false);
 
               ScaffoldMessenger.of(context).showSnackBar(
@@ -644,7 +661,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
             }
           },
           builder: (context, candidateData, rejectedData) {
-            // Wrap with LongPressDraggable to make table draggable
+            // Wrap with LongPressDraggable to make table draggable (even if paid)
             return LongPressDraggable<String>(
               data: tableName,
               feedback: Material(
@@ -654,7 +671,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                   width: 160,
                   padding: EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.blueAccent,
+                    color: isPaid ? Colors.red : Colors.blueAccent,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
