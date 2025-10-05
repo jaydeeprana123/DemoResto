@@ -3,6 +3,8 @@ import 'package:demo/Styles/my_icons.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
@@ -826,7 +828,63 @@ class _CartPageState extends State<CartPage> {
     required int cashAmount,
     required int onlineAmount,
   }) async {
-    // Implement your Firestore batch logic similar to _CartPageForTakeAwayState
+    try {
+      final now = DateTime.now();
+      final dateKey = DateFormat("yyyy-MM-dd").format(now);
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      // 1️⃣ Add transaction
+      final txRef = FirebaseFirestore.instance.collection("transactions").doc();
+      batch.set(txRef, {
+        "table": tableName,
+        "items": items
+            .map((e) => {
+          "name": e["name"],
+          "qty": e["qty"],
+          "price": (e["price"] as double).round(), // convert to int
+          "total": ((e["qty"] as int) * (e["price"] as double)).round(),
+        })
+            .toList(),
+        "subtotal": subtotal,
+        "tax": tax,
+        "discount": discount,
+        "total": total,
+        "cashAmount": cashAmount,
+        "onlineAmount": onlineAmount,
+        "createdAt": FieldValue.serverTimestamp(),
+      });
+
+      // 2️⃣ Update daily_stats
+      final dailyRef = FirebaseFirestore.instance.collection("daily_stats").doc(dateKey);
+      batch.set(
+        dailyRef,
+        {
+          "revenue": FieldValue.increment(total),
+          "transactions": FieldValue.increment(1),
+          "lastUpdated": FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      // 3️⃣ Update global summary
+      final summaryRef = FirebaseFirestore.instance.collection("stats").doc("summary");
+      batch.set(
+        summaryRef,
+        {
+          "totalRevenue": FieldValue.increment(total),
+          "totalTransactions": FieldValue.increment(1),
+          "lastUpdated": FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      // 4️⃣ Commit batch
+      await batch.commit();
+      Get.snackbar("Successfull", "Transaction saved successfully!");
+    } catch (e) {
+      Get.snackbar("Error", "Transaction not saved");
+    }
   }
 }
 
