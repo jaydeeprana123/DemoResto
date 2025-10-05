@@ -91,7 +91,7 @@ class _MenuPageState extends State<MenuPage> {
     double total = 0.0;
     menuData.forEach((category, items) {
       for (var item in items) {
-        total += (item['qty'] as int) * (item['price'] as double);
+        total += (item['qty'] as int) * (item['price']);
       }
     });
     return total;

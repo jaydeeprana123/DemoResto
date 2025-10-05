@@ -32,7 +32,7 @@ class FinalCartPage extends StatelessWidget {
   double get subtotal {
     double total = 0;
     for (var item in menuData) {
-      total += (item['qty'] as int) * (item['price'] as double);
+      total += (item['qty'] as int) * (item['price']);
     }
     return total;
   }
@@ -250,7 +250,7 @@ class FinalCartPage extends StatelessWidget {
 
     double subtotal = 0;
     for (var item in menuData) {
-      subtotal += (item['qty'] as int) * (item['price'] as double);
+      subtotal += (item['qty'] as int) * (item['price']);
     }
     final tax = subtotal * 0.085;
     final tip = subtotal * 0.15;
@@ -319,7 +319,7 @@ class FinalCartPage extends StatelessWidget {
 
     double subtotal = 0;
     for (var item in menuData) {
-      subtotal += (item['qty'] as int) * (item['price'] as double);
+      subtotal += (item['qty'] as int) * (item['price']);
     }
     final tax = subtotal * 0.085;
     final tip = subtotal * 0.15;
@@ -490,7 +490,7 @@ class FinalCartPage extends StatelessWidget {
 
     double subtotal = 0;
     for (var item in menuData) {
-      subtotal += (item['qty'] as int) * (item['price'] as double);
+      subtotal += (item['qty'] as int) * (item['price']);
     }
     final tax = subtotal * 0.085;
     final tip = subtotal * 0.15;
