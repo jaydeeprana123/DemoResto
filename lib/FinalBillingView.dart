@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -8,6 +10,7 @@ import 'package:printing/printing.dart';
 
 import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
+import 'Styles/my_icons.dart';
 
 /// Cart Page
 class FinalBillingView extends StatefulWidget {
@@ -117,7 +120,10 @@ class _FinalBillingViewState extends State<FinalBillingView> {
       appBar: AppBar(
         title: Text(
           "Cart - ${widget.tableName}",
-          style: TextStyle(fontSize: 16),
+          style: TextStyle(
+        fontSize: 16,
+        fontFamily: fontMulishBold,
+        )
         ),
       ),
       body: Column(
@@ -219,250 +225,466 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                     ),
                   ),
           ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            color: Colors.grey.shade100,
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                child: Column(
                   children: [
-                    Text("Subtotal"),
-                    Text("₹${subtotal.toStringAsFixed(0)}"),
-                  ],
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [Text("Tax (8.5%)"), Text("₹$tax")],
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: discountPercentController,
-                        decoration: InputDecoration(
-                          labelText: "Discount %",
-                          isDense: true,
-                        ),
-                        keyboardType: TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        onChanged: (value) {
-                          setState(() {
-                            discountPercent = double.tryParse(value) ?? 0;
-                            _updateDiscountFromPercent();
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: discountAmountController,
-                        decoration: InputDecoration(
-                          labelText: "Discount ₹",
-                          isDense: true,
-                        ),
-                        keyboardType: TextInputType.number,
-                        onChanged: (value) {
-                          setState(() {
-                            discountAmount = double.tryParse(value) ?? 0;
-                            _updateDiscountFromAmount();
-                          });
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Payment Mode Radio
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Radio<String>(
-                          value: 'Cash',
-                          groupValue: paymentMode,
-                          onChanged: (value) {
-                            setState(() {
-                              paymentMode = value!;
-                              _updatePaymentAmounts();
-                              cashController.selection = TextSelection(
-                                baseOffset: 0,
-                                extentOffset: cashController.text.length,
-                              );
-                            });
-                          },
-                        ),
-                        Text(
-                          'Cash',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontFamily: fontMulishBold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Radio<String>(
-                          value: 'Online',
-                          groupValue: paymentMode,
-                          onChanged: (value) {
-                            setState(() {
-                              paymentMode = value!;
-                              _updatePaymentAmounts();
-                              onlineController.selection = TextSelection(
-                                baseOffset: 0,
-                                extentOffset: onlineController.text.length,
-                              );
-                            });
-                          },
-                        ),
-                        Text(
-                          'Online',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontFamily: fontMulishBold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Radio<String>(
-                          value: 'Both',
-                          groupValue: paymentMode,
-                          onChanged: (value) {
-                            setState(() {
-                              paymentMode = value!;
-                              _updatePaymentAmounts();
-                            });
-                          },
-                        ),
-                        Text(
-                          'Both',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontFamily: fontMulishBold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                if (paymentMode == 'Both')
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: cashController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: "Cash Amount",
-                            isDense: true,
-                          ),
-                          onTap: () {
-                            cashController.selection = TextSelection(
-                              baseOffset: 0,
-                              extentOffset: cashController.text.length,
-                            );
-                          },
-                          onChanged: (value) {
-                            setState(() {
-                              int cashVal = int.tryParse(value) ?? 0;
-                              if (cashVal > total) cashVal = total;
-                              cashController.text = cashVal.toString();
-                              onlineController.text = (total - cashVal)
-                                  .toString();
-                              cashController.selection =
-                                  TextSelection.fromPosition(
-                                    TextPosition(
-                                      offset: cashController.text.length,
-                                    ),
-                                  );
-                            });
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: onlineController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: "Online Amount",
-                            isDense: true,
-                          ),
-                          onTap: () {
-                            onlineController.selection = TextSelection(
-                              baseOffset: 0,
-                              extentOffset: onlineController.text.length,
-                            );
-                          },
-                          onChanged: (value) {
-                            setState(() {
-                              int onlineVal = int.tryParse(value) ?? 0;
-                              if (onlineVal > total) onlineVal = total;
-                              onlineController.text = onlineVal.toString();
-                              cashController.text = (total - onlineVal)
-                                  .toString();
-                              onlineController.selection =
-                                  TextSelection.fromPosition(
-                                    TextPosition(
-                                      offset: onlineController.text.length,
-                                    ),
-                                  );
-                            });
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                Divider(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "Total",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      "₹$total",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async{
-                      final cash = int.tryParse(cashController.text) ?? 0;
-                      final online = int.tryParse(onlineController.text) ?? 0;
+                        // Payment Mode Selection
+                        Row(
+                          children: [
 
-                      await addTransactionToFirestore(
+                            Expanded(
+                              child: Text("Payment By", style: const TextStyle(
+                                fontSize: 14,
+                                color: secondary_text_color,
+                                fontFamily: fontMulishSemiBold,
+                              )),
+                            ),
+
+
+                            Row(
+                              children: [
+                                Radio<String>(
+                                  value: 'Cash',
+                                  groupValue: paymentMode,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      paymentMode = value!;
+                                      _updatePaymentAmounts();
+                                    });
+                                  },
+                                ),
+                                const Text(
+                                  'Cash',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: text_color,
+                                    fontFamily: fontMulishSemiBold,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            SizedBox(width: 12,),
+                            Row(
+                              children: [
+                                Radio<String>(
+                                  value: 'Online',
+                                  groupValue: paymentMode,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      paymentMode = value!;
+                                      _updatePaymentAmounts();
+                                    });
+                                  },
+                                ),
+                                const Text(
+                                  'Online',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: text_color,
+                                    fontFamily: fontMulishSemiBold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(width: 12,),
+                            Row(
+                              children: [
+                                Radio<String>(
+                                  value: 'Both',
+                                  groupValue: paymentMode,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      paymentMode = value!;
+                                      _updatePaymentAmounts();
+                                    });
+                                  },
+                                ),
+                                const Text(
+                                  'Both',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: text_color,
+                                    fontFamily: fontMulishSemiBold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        // Cash + Online Inputs (only if Both selected)
+                        if (paymentMode == 'Both')
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12.0, top: 8),
+                            child: Row(
+                              children: [
+                                // Cash Amount Field
+
+                                Expanded(child: SizedBox()),
+
+                                Expanded(
+                                  child: TextField(
+                                    controller: cashController,
+                                    keyboardType: TextInputType.number,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: secondary_text_color,
+                                      fontFamily: fontMulishSemiBold,
+                                    ),
+                                    decoration: InputDecoration(
+                                      labelText: "Cash Amount",
+                                      labelStyle: const TextStyle(
+                                        fontSize: 13,
+                                        color: secondary_text_color,
+                                        fontFamily: fontMulishMedium,
+                                      ),
+                                      isDense: true,
+                                      contentPadding: const EdgeInsets.symmetric(
+                                          vertical: 10, horizontal: 12),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: const BorderSide(color: Colors.grey),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: const BorderSide(color: Colors.blue),
+                                      ),
+                                    ),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        int cashVal = int.tryParse(value) ?? 0;
+                                        if (cashVal > total) cashVal = total;
+                                        cashController.text = cashVal.toString();
+                                        onlineController.text = (total - cashVal).toString();
+                                        cashController.selection = TextSelection.fromPosition(
+                                          TextPosition(offset: cashController.text.length),
+                                        );
+                                      });
+                                    },
+                                  ),
+                                ),
+
+                                const SizedBox(width: 8),
+
+                                // Online Amount Field
+                                Expanded(
+                                  child: TextField(
+                                    controller: onlineController,
+                                    keyboardType: TextInputType.number,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: secondary_text_color,
+                                      fontFamily: fontMulishSemiBold,
+                                    ),
+                                    decoration: InputDecoration(
+                                      labelText: "Online Amount",
+                                      labelStyle: const TextStyle(
+                                        fontSize: 13,
+                                        color: secondary_text_color,
+                                        fontFamily: fontMulishMedium,
+                                      ),
+                                      isDense: true,
+                                      contentPadding: const EdgeInsets.symmetric(
+                                          vertical: 10, horizontal: 12),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: const BorderSide(color: Colors.grey),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: const BorderSide(color: Colors.blue),
+                                      ),
+                                    ),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        int onlineVal = int.tryParse(value) ?? 0;
+                                        if (onlineVal > total) onlineVal = total;
+                                        onlineController.text = onlineVal.toString();
+                                        cashController.text = (total - onlineVal).toString();
+                                        onlineController.selection = TextSelection.fromPosition(
+                                          TextPosition(offset: onlineController.text.length),
+                                        );
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+
+
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Subtotal", style: const TextStyle(
+                          fontSize: 14,
+                          color: secondary_text_color,
+                          fontFamily: fontMulishSemiBold,
+                        )),
+                        Text("₹${subtotal.toStringAsFixed(0)}", style: const TextStyle(
+                          fontSize: 14,
+                          color: text_color,
+                          fontFamily: fontMulishSemiBold,
+                        )),
+                      ],
+                    ),
+
+                    SizedBox(height: 8,),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [Text("Tax (8.5%)",  style: const TextStyle(
+                        fontSize: 14,
+                        color: secondary_text_color,
+                        fontFamily: fontMulishSemiBold,
+                      )), Text("₹$tax", style: const TextStyle(
+                        fontSize: 14,
+                        color: text_color,
+                        fontFamily: fontMulishSemiBold,
+                      ))],
+                    ),
+
+                    SizedBox(height: 6,),
+
+                    Row(
+                      children: [
+                        // Discount Percentage
+
+                        Expanded(
+                          flex: 2
+                          ,child: Text("Discount", style: const TextStyle(
+                          fontSize: 14,
+                          color: secondary_text_color,
+                          fontFamily: fontMulishSemiBold,
+                        )),
+                        ),
+
+
+
+
+                        Expanded(
+                          child: TextField(
+                            controller: discountPercentController,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: secondary_text_color,
+                              fontFamily: fontMulishSemiBold,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: "Discount %",
+                              labelStyle: const TextStyle(
+                                fontSize: 10,
+                                color: secondary_text_color,
+                                fontFamily: fontMulishMedium,
+                              ),
+                              hintText: "Enter %",
+                              hintStyle: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                                fontFamily: fontMulishRegular,
+                              ),
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: Colors.grey.shade100,width: 0.25 ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: primary_color,width: 0.5),
+                              ),
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            onChanged: (value) {
+                              setState(() {
+                                discountPercent = double.tryParse(value) ?? 0;
+                                _updateDiscountFromPercent();
+                              });
+                            },
+                          ),
+                        ),
+                        SizedBox(width: 8,),
+                        // Discount Amount
+                        Expanded(
+                          child: TextField(
+                            controller: discountAmountController,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: secondary_text_color,
+                              fontFamily: fontMulishSemiBold,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: "Discount ₹",
+                              labelStyle: const TextStyle(
+                                fontSize: 10,
+                                color: secondary_text_color,
+                                fontFamily: fontMulishMedium,
+                              ),
+                              hintText: "Enter ₹",
+                              hintStyle: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                                fontFamily: fontMulishRegular,
+                              ),
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Colors.grey),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: primary_color),
+                              ),
+                            ),
+                            keyboardType: TextInputType.number,
+                            onChanged: (value) {
+                              setState(() {
+                                discountAmount = double.tryParse(value) ?? 0;
+                                _updateDiscountFromAmount();
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+                    // Payment Mode Radio
+
+                    DottedLine(
+                      dashLength: 2,
+                      dashGapLength: 6,
+                      lineThickness: 1,
+                      dashColor: Colors.black87,
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Total",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          "₹$total",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    // const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: InkWell(
+                  onTap: () async{
+                    final cash = int.tryParse(cashController.text) ?? 0;
+                    final online = int.tryParse(onlineController.text) ?? 0;
+
+                    await addTransactionToFirestore(
                       items: cartItems,
                       tableName: widget.tableName,
                       subtotal: subtotal.round(),
                       tax: (subtotal * 0.085).round(),
-                      discount: discountAmount.round(), // if no tip
+                      discount: discountAmount.round(),
                       total: total,
                       cashAmount: cash,
                       onlineAmount: online,
-                      );
+                    );
 
+                    widget.onConfirm([]); Navigator.pop(context);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    color: primary_color,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
 
-                      widget.onConfirm([]);
-                      Navigator.pop(context);
+                              SvgPicture.asset(icon_bill, width: 24,color: Colors.white,),
 
-                    },
-                    child: Text("Confirm & Billing (₹$total)"),
+                              SizedBox(width: 6,),
+
+                              Text(
+                                "Confirm & Billing",
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.white,
+                                  fontFamily: fontMulishSemiBold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        Icon(Icons.arrow_forward_ios, color: Colors.white,)
+
+                        // ElevatedButton(
+                        //   onPressed: () {
+                        //     final selectedItems = <Map<String, dynamic>>[];
+                        //     menuData.forEach((category, items) {
+                        //       selectedItems.addAll(
+                        //         items.where((item) => item['qty'] > 0),
+                        //       );
+                        //     });
+                        //
+                        //     // Send selected items to cart or callback
+                        //
+                        //
+                        //     if(widget.tableName == "Take Away"){
+                        //       Navigator.push(
+                        //         context,
+                        //         MaterialPageRoute(
+                        //           builder: (_) => CartPageForTakeAway(
+                        //             tableName: widget.tableName,
+                        //             menuData: selectedItems,
+                        //             onConfirm: widget.onConfirm,
+                        //           ),
+                        //         ),
+                        //       );
+                        //     }else{
+                        //       Navigator.push(
+                        //         context,
+                        //         MaterialPageRoute(
+                        //           builder: (_) => CartPage(
+                        //             tableName: widget.tableName,
+                        //             menuData: selectedItems,
+                        //             onConfirm: widget.onConfirm,
+                        //           ),
+                        //         ),
+                        //       );
+                        //     }
+                        //
+                        //
+                        //   },
+                        //   child: const Text("View Cart"),
+                        // ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),

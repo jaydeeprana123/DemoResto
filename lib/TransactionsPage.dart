@@ -433,7 +433,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                   Align(
                                     alignment: Alignment.centerRight,
                                     child: Text(
-                                      "\$${total.toStringAsFixed(2)}",
+                                      "\₹${total.toStringAsFixed(2)}",
                                       style: const TextStyle(
                                         fontSize: 15,
                                         fontFamily: 'Mulish-Bold',
@@ -478,7 +478,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       fontSize: 16, fontFamily: 'Mulish-SemiBold', color: Colors.white),
                 ),
                 Text(
-                  "\$${grandTotal.toStringAsFixed(2)}",
+                  "\₹${grandTotal.toStringAsFixed(2)}",
                   style: const TextStyle(
                     fontSize: 18,
                     fontFamily: 'Mulish-Bold',

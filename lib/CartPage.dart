@@ -14,9 +14,11 @@ import 'Styles/my_font.dart';
 class CartPage extends StatefulWidget {
   final String tableName;
   final List<Map<String, dynamic>> menuData;
+  final bool showBilling;
+
   final void Function(List<Map<String, dynamic>> selectedItems, bool isBillPaid) onConfirm;
 
-  const CartPage({required this.menuData, required this.onConfirm,required this.tableName, Key? key})
+  const CartPage({required this.menuData, required this.onConfirm,required this.tableName,required this.showBilling, Key? key})
     : super(key: key);
 
   @override
@@ -116,12 +118,18 @@ class _CartPageState extends State<CartPage> {
       appBar: AppBar(
         title: Row(
           children: [
+
+            // IconButton(
+            //   icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
+            //   onPressed: () => Navigator.pop(context, cartItems),
+            // ),
+
             Expanded(child: Text("Cart - ${widget.tableName}",style: TextStyle(
         fontSize: 16,
         fontFamily: fontMulishBold,
         ))),
             
-            InkWell(onTap: ()async{
+            if(widget.showBilling)InkWell(onTap: ()async{
               setState(() {
                 isBilling = !isBilling;
               });
@@ -635,11 +643,14 @@ class _CartPageState extends State<CartPage> {
                     onlineAmount: online,
                     );
 
-                    if(widget.tableName.contains("Take Away")){
-                      widget.onConfirm(cartItems, true);
-                    }else{
-                      widget.onConfirm([], true);
-                    }
+
+                    widget.onConfirm(cartItems, true);
+
+                    // if(widget.tableName.contains("Take Away")){
+                    //   widget.onConfirm(cartItems, true);
+                    // }else{
+                    //   widget.onConfirm([], true);
+                    // }
 
                     Navigator.pop(context);
                     Navigator.pop(context);

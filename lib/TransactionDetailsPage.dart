@@ -60,6 +60,7 @@ class TransactionDetailsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = (transaction["items"] as List<dynamic>? ?? []);
     final subtotal = (transaction["subtotal"] as int?) ?? 0;
+
     final tax = (transaction["tax"] as int?) ?? 0;
     final discount = (transaction["discount"] as int?) ?? 0;
     final total = (transaction["total"] as int?) ?? 0;
@@ -70,7 +71,11 @@ class TransactionDetailsPage extends StatelessWidget {
     final dateTime = (transaction["createdAt"] as Timestamp?)?.toDate();
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Transaction Details")),
+      appBar: AppBar(title: const Text("Transaction Details",  style: const TextStyle(
+        fontSize: 16,
+
+        fontFamily: fontMulishSemiBold,
+      ))),
       body: Column(
         children: [
           Expanded(
@@ -123,7 +128,7 @@ class TransactionDetailsPage extends StatelessWidget {
                     Text(
                       tableName,
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         color: Colors.black87,
                         fontFamily: fontMulishSemiBold,
                       ),
@@ -133,7 +138,7 @@ class TransactionDetailsPage extends StatelessWidget {
                           ? DateFormat("dd-MM-yyyy | hh:mm a").format(dateTime)
                           : "-",
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         color: Colors.black87,
                         fontFamily: fontMulishSemiBold,
                       ),
@@ -143,11 +148,18 @@ class TransactionDetailsPage extends StatelessWidget {
                 const Divider(),
                 _buildRow("Subtotal", subtotal),
                 _buildRow("Tax (8.5%)", tax),
-                if (discount > 0) _buildRow("Discount", discount),
-                const Divider(),
+                 _buildRow("Discount", discount),
                 _buildRow("Cash", cashAmount),
                 _buildRow("Online", onlineAmount),
-                const Divider(),
+                SizedBox(height: 8,),
+                DottedLine(
+                  dashLength: 1,
+                  dashGapLength: 2,
+                  lineThickness: 2,
+                  dashColor: Colors.grey,
+                ),
+
+                SizedBox(height: 8,),
                 _buildRow("Total", total, isTotal: true),
               ],
             ),

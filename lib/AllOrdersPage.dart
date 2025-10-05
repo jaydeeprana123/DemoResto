@@ -80,6 +80,10 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   List<TableGroup> _reconstructGroups(
     String tableName,
     List<dynamic>? itemsFromDb,
+      {
+        required bool isPaid,
+        required String docId,// ✅ add this
+      }// ✅ add this
   ) {
     List<TableGroup> groups = [];
     if (itemsFromDb == null) return groups;
@@ -117,6 +121,8 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
           items,
           timestamp.toDate().millisecondsSinceEpoch,
           key: '${tableName}_$index',
+          docId: docId, // 👈 add this
+          isPaid: isPaid, // ✅ add isPaid here
         ),
       );
     });
@@ -163,17 +169,16 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
 
           // Build fresh groups from snapshot (always reflect the DB)
           List<TableGroup> updatedGroups = [];
-          String docId = "";
-          bool isPaid = false;
+
+
           for (var doc in snapshot.data!.docs) {
             final data = doc.data();
-            docId = doc.id;
             final tableName = (data['name'] ?? 'Unknown Table') as String;
-            isPaid = (data.containsKey('isPaid'))?(data['isPaid'] as bool):false;
+            final isPaid = (data.containsKey('isPaid')) ? (data['isPaid'] as bool) : false;
             final itemsFromDb = (data.containsKey('items'))
                 ? (data['items'] as List<dynamic>?)
                 : null;
-            updatedGroups.addAll(_reconstructGroups(tableName, itemsFromDb));
+            updatedGroups.addAll(_reconstructGroups(tableName, itemsFromDb, isPaid: isPaid, docId: doc.id)); // ✅ pass it here));
           }
 
           // sort by time
@@ -259,98 +264,143 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
               final isBlinking = blinkingGroupKey == group.key.hashCode;
 
               // Continuous blink if older than 20 minutes
-              final isOld = DateTime.now().difference(time).inMinutes > 2;
+              final isOld = DateTime.now().difference(time).inMinutes > 1;
 
-              if(group.tableName.contains("Take Away") && isOld && isPaid){
-                deleteTable(docId);
+              if(group.tableName.contains("Take Away") && isOld && group.isPaid){
+                deleteTable(group.docId);
               }
 
 
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeInOut,
-                color: isBlinking
-                    ? Colors.lightGreenAccent:
-                isOld?Colors.blue.shade100
-                    : Colors.transparent,
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-                child: Row(
+              return GestureDetector(
+                onDoubleTap: (){
+                  if (group.isPaid) {
+                    showServedDialog(context, group.tableName, () async {
+                      if (group.tableName.contains("Take Away")) {
+                        await FirebaseFirestore.instance
+                            .collection('tables')
+                            .doc(group.docId)
+                            .delete();
+                        setState(() {});
+                      } else {
+                        await _updateTableItemsInFirestore(group.tableName, [], false);
+                      }
 
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                    });
+                  }
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeInOut,
+                  color: isBlinking
+                      ? Colors.lightGreenAccent:
+                  isOld?Colors.blue.shade100
+                      : Colors.transparent,
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+                  child: Row(
 
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: SvgPicture.asset((group.tableName).contains("Take Away")?icon_packing:icon_table, color: (group.tableName).contains("Take Away")?Colors.black87:Colors.black87,width: (group.tableName).contains("Take Away")?18:24,),
-                    ),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
 
-                    SizedBox(width: 10,),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: SvgPicture.asset((group.tableName).contains("Take Away")?icon_packing:icon_table, color: (group.tableName).contains("Take Away")?Colors.black87:Colors.black87,width: (group.tableName).contains("Take Away")?18:24,),
+                      ),
 
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.start
-                            ,children: [
-                              Expanded(
-                                child: Text(
-                                  "${group.tableName} ",
-                                  style:  TextStyle(
-                                      fontFamily: (group.tableName).contains("Take Away")?fontMulishBold:fontMulishSemiBold,
-                                      fontSize: 15,
-                                      color: (group.tableName).contains("Take Away")?Colors.black:Colors.black
+                      SizedBox(width: 10,),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.start
+                              ,children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        "${group.tableName} ",
+                                        style:  TextStyle(
+                                            fontFamily: (group.tableName).contains("Take Away")?fontMulishBold:fontMulishSemiBold,
+                                            fontSize: 15,
+                                            color: (group.tableName).contains("Take Away")?Colors.black:Colors.black
+                                        ),
+                                      ),
+
+                                     if(group.isPaid) Container(
+
+                                        color: Colors.red,
+
+                                        margin: EdgeInsets.symmetric(vertical: 3, horizontal: 8),
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 3,
+                                        ),
+
+
+
+                                        child: Text(
+                                          "PAID",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontFamily: fontMulishBold,
+                                          ),
+                                        ),
+                                      )
+
+                                    ],
                                   ),
                                 ),
-                              ),
 
-                              SizedBox(width: 6,),
+                                SizedBox(width: 6,),
 
-                              Text(
-                                formatRelativeTime(time),
-                                style: const TextStyle(
-                                  fontFamily: fontMulishSemiBold,
-                                  fontSize: 14,
+                                Text(
+                                  formatRelativeTime(time),
+                                  style: const TextStyle(
+                                    fontFamily: fontMulishSemiBold,
+                                    fontSize: 14,
+                                  ),
                                 ),
-                              ),
 
 
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          ...group.items.map((item) {
-                            final qty = item['qty'] ?? 1;
-                            return Padding(
-                              padding: const EdgeInsets.only( bottom: 4),
-                              child: Text.rich(
-                                TextSpan(
-                                  children: [
-                                    TextSpan(
-                                      text: item['name']?.toString() ?? '',
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.black,
-                                        fontFamily: fontMulishRegular,
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            ...group.items.map((item) {
+                              final qty = item['qty'] ?? 1;
+                              return Padding(
+                                padding: const EdgeInsets.only( bottom: 4),
+                                child: Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: item['name']?.toString() ?? '',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.black,
+                                          fontFamily: fontMulishRegular,
+                                        ),
                                       ),
-                                    ),
-                                    TextSpan(
-                                      text: "  x$qty",
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        color: Colors.red,
-                                        fontFamily: fontMulishSemiBold,
+                                      TextSpan(
+                                        text: "  x$qty",
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          color: Colors.red,
+                                          fontFamily: fontMulishSemiBold,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
-                          }),
+                              );
+                            }),
 
-                        ],
-                      ),
-                    )
-                  ],
+                          ],
+                        ),
+                      )
+                    ],
+                  ),
                 ),
               );
             },
@@ -393,6 +443,139 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
     });
   }
 
+
+  void showServedDialog(
+      BuildContext context,
+      String tableName,
+      VoidCallback onServed,
+      ) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // prevent closing by tapping outside
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            "Mark as Served?",
+            style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
+          ),
+          content: Text(
+            "Are you sure you want to mark table '$tableName' as served?",
+            style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 15),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context), // close dialog
+              child: const Text(
+                "Cancel",
+                style: TextStyle(
+                  fontFamily: fontMulishSemiBold,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                Navigator.pop(context); // close dialog
+                onServed(); // perform the action
+              },
+              child: const Text(
+                "Served",
+                style: TextStyle(
+                  fontFamily: fontMulishSemiBold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
+
+  // Update table items in Firestore
+  Future<void> _updateTableItemsInFirestore(
+      String tableName,
+      List<List<Map<String, dynamic>>> groups,
+      bool isBillPaid,
+      ) async {
+    try {
+      print("=== UPDATING FIREBASE ===");
+      print("Table name: $tableName");
+      print("Groups to save: ${groups.length}");
+
+      final tableQuery = await FirebaseFirestore.instance
+          .collection('tables')
+          .where('name', isEqualTo: tableName)
+          .limit(1)
+          .get();
+
+      if (tableQuery.docs.isEmpty) {
+        print("ERROR: Table $tableName not found in Firebase!");
+        return;
+      }
+
+      final docId = tableQuery.docs.first.id;
+      print("Document ID found: $docId");
+
+      List<Map<String, dynamic>> flattenedItems = [];
+
+      for (int groupIndex = 0; groupIndex < groups.length; groupIndex++) {
+        var group = groups[groupIndex];
+
+        // Get addedAt for the group (either from first item's addedAt or now)
+        Timestamp groupTimestamp;
+        if (group.isNotEmpty && group[0].containsKey('addedAt')) {
+          groupTimestamp = group[0]['addedAt'];
+        } else {
+          groupTimestamp = Timestamp.now(); // default
+        }
+
+        for (var item in group) {
+          final itemWithMeta = Map<String, dynamic>.from(item);
+
+          // Add groupIndex and addedAt to item
+          itemWithMeta['groupIndex'] = groupIndex;
+          itemWithMeta['addedAt'] = groupTimestamp;
+
+          flattenedItems.add(itemWithMeta);
+        }
+      }
+
+      final updateData = {
+        'items': flattenedItems,
+        "isPaid": isBillPaid,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      await FirebaseFirestore.instance
+          .collection('tables')
+          .doc(docId)
+          .update(updateData);
+
+      print(
+        "SUCCESS: Updated $tableName with ${flattenedItems.length} items and ${groups.length} groups",
+      );
+      print("=== END UPDATE ===");
+    } catch (e) {
+      print("ERROR: Failed to update Firestore: $e");
+      if (e is FirebaseException) {
+        print("Firebase error code: ${e.code}");
+        print("Firebase error message: ${e.message}");
+      }
+    }
+  }
+
 }
 
 // TableGroup class
@@ -401,8 +584,17 @@ class TableGroup {
   final List<Map<String, dynamic>> items;
   final int groupTime;
   final String key;
+  final String docId;
+  final bool isPaid;
 
-  TableGroup(this.tableName, this.items, this.groupTime, {required this.key});
+  TableGroup(
+      this.tableName,
+      this.items,
+      this.groupTime, {
+        required this.key,
+        required this.docId,
+        required this.isPaid,
+      });
 }
 
 

@@ -553,6 +553,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                     menuList: menu,
                     tableName: "Take Away ${tableNo + 1}",
                     initialItems: [],
+                    showBilling: true,
                     onConfirm:
                         (
                           List<Map<String, dynamic>> selectedItems,
@@ -647,6 +648,36 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
 
             if (isPaid) return; // 🔹 Prevent opening if bill is paid
 
+            if(groups.isEmpty){
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MenuPage(
+                    menuList: menu,
+                    tableName: tableName,
+                    initialItems: [],
+                    showBilling: groups.isEmpty,
+                    onConfirm:
+                        (
+                        List<Map<String, dynamic>> selectedItems,
+                        bool isBillPaid,
+                        ) async {
+                      setState(() {
+                        groups.add(selectedItems);
+                      });
+                      await _updateTableItemsInFirestore(
+                        tableName,
+                        groups,
+                        isBillPaid,
+                      );
+                    },
+                  ),
+                ),
+              );
+              return;
+            }
+
+
             final allItems = groups.expand((g) => g).toList();
             final mergedItems = _mergeItemsByNameAndCategory(allItems);
 
@@ -730,6 +761,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                                 initialItems: List<Map<String, dynamic>>.from(
                                   lastGroup,
                                 ),
+                                showBilling: groups.length == 1,
                                 onConfirm:
                                     (
                                       List<Map<String, dynamic>> selectedItems,
@@ -761,6 +793,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                                 menuList: menu,
                                 tableName: tableName,
                                 initialItems: [],
+                                showBilling: groups.isEmpty,
                                 onConfirm:
                                     (
                                       List<Map<String, dynamic>> selectedItems,

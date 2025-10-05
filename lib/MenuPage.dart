@@ -20,11 +20,13 @@ class MenuPage extends StatefulWidget {
   final List<Map<String, dynamic>> menuList; // Passed from previous page
   final List<Map<String, dynamic>> initialItems;
   final String tableName;
+  final bool showBilling;
 
   const MenuPage({
     required this.onConfirm,
     required this.menuList,
     required this.tableName,
+    required this.showBilling,
     this.initialItems = const [],
     Key? key,
   }) : super(key: key);
@@ -248,6 +250,7 @@ class _MenuPageState extends State<MenuPage> {
               InkWell(
                 onTap: (){
                   final selectedItems = <Map<String, dynamic>>[];
+
                   menuData.forEach((category, items) {
                     selectedItems.addAll(
                       items.where((item) => item['qty'] > 0),
@@ -257,16 +260,18 @@ class _MenuPageState extends State<MenuPage> {
                   // Send selected items to cart or callback
 
 
-                  Navigator.push(
+                 Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => CartPage(
                         tableName: widget.tableName,
                         menuData: selectedItems,
                         onConfirm: widget.onConfirm,
+                        showBilling: widget.showBilling,
                       ),
                     ),
                   );
+
 
 
 
