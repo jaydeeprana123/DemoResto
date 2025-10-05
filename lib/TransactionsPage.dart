@@ -2,8 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/AddCategoryPage.dart' hide AddTablePage;
 import 'package:demo/AddMenuItemPage.dart';
 import 'package:demo/Styles/my_font.dart';
+import 'package:demo/Styles/my_icons.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'AddTablePage.dart';
 import 'AllOrdersPage.dart';
@@ -336,6 +338,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 if (index < transactions.length) {
                   final data = transactions[index].data();
                   final tableName = data["table"] ?? "Unknown";
+                  final cashAmount = (data["cashAmount"] as int?) ?? 0;
+                  final onlineAmount = (data["onlineAmount"] as int?) ?? 0;
                   final total =
                       (data["total"] as num?)?.toDouble() ?? 0.0;
                   final dateTime =
@@ -430,16 +434,53 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                       ],
                                     ),
                                   ),
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: Text(
-                                      "\₹${total.toStringAsFixed(2)}",
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontFamily: 'Mulish-Bold',
-                                        color: Colors.green,
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        "\₹${total.toStringAsFixed(2)}",
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          fontFamily: 'Mulish-Bold',
+                                          color: Colors.green,
+                                        ),
                                       ),
-                                    ),
+
+                                      SizedBox(height: 6,),
+
+                                      Row(children: [
+
+                                        SvgPicture.asset(icon_online, height: 26,),
+
+                                        SizedBox(width: 6,),
+
+                                        Text(
+                                          "\₹$onlineAmount",
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontFamily: 'Mulish-Bold',
+                                            color: text_color,
+                                          ),
+                                        ),
+
+                                        SizedBox(width: 16,),
+
+                                        SvgPicture.asset(icon_cash, height: 20,color: Colors.black54,),
+
+                                        SizedBox(width: 6,),
+
+
+                                        Text(
+                                          "\₹$cashAmount",
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontFamily: 'Mulish-Bold',
+                                            color: text_color,
+                                          ),
+                                        ),
+
+                                      ],)
+                                    ],
                                   ),
                                 ],
                               ),
