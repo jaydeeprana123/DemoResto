@@ -598,19 +598,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   }
 
   Widget _buildTableCard(
-    String tableName,
-    List<List<Map<String, dynamic>>> groups,
-  ) {
-    // 🔸 Get isPaid value from Firestore if present
-    bool isPaid = false;
-    try {
-      // If the table has a paid flag saved in Firestore data (optional safety check)
-      final paidTable = tables[tableName];
-      if (paidTable != null) {
-        // You could also check Firestore doc directly if you store isPaid in it
-      }
-    } catch (_) {}
-
+      String tableName,
+      List<List<Map<String, dynamic>>> groups,
+      ) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('tables')
@@ -628,99 +618,323 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
           docId = doc.id;
         }
 
-        return GestureDetector(
-          onDoubleTap: () async {
-            if (isPaid) {
-              showServedDialog(context, tableName, () async {
-                if (tableName.contains("Take Away")) {
+        // Wrap with DragTarget to accept drops from other tables
+        return DragTarget<String>(
+          onAccept: (sourceTable) async {
+            if (sourceTable != tableName) {
+              final sourceGroups = tables[sourceTable]!;
+              final destGroups = tables[tableName]!;
+
+              setState(() {
+                // Append deep copy of source groups to destination
+                final copiedGroups = sourceGroups.map((group) {
+                  return group.map((item) => Map<String, dynamic>.from(item)).toList();
+                }).toList();
+
+                destGroups.addAll(copiedGroups);
+                sourceGroups.clear();
+              });
+
+              await _updateTableItemsInFirestore(tableName, tables[tableName]!, false);
+              await _updateTableItemsInFirestore(sourceTable, [], false);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Moved all items from $sourceTable to $tableName')),
+              );
+            }
+          },
+          builder: (context, candidateData, rejectedData) {
+            // Wrap with LongPressDraggable to make table draggable
+            return LongPressDraggable<String>(
+              data: tableName,
+              feedback: Material(
+                elevation: 4,
+                color: Colors.transparent,
+                child: Container(
+                  width: 160,
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blueAccent,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    tableName,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              childWhenDragging: Opacity(
+                opacity: 0.4,
+                child: _buildTableCardWithContent(tableName, groups, isPaid, docId),
+              ),
+              child: _buildTableCardWithContent(tableName, groups, isPaid, docId),
+            );
+          },
+        );
+      },
+    );
+  }
+
+
+  // Renamed from _buildTableCardBody and updated to handle gestures
+  Widget _buildTableCardWithContent(
+      String tableName,
+      List<List<Map<String, dynamic>>> groups,
+      bool isPaid,
+      String docId,
+      ) {
+    return GestureDetector(
+      onDoubleTap: () async {
+        if (isPaid) {
+          showServedDialog(context, tableName, () async {
+            if (tableName.contains("Take Away")) {
+              await FirebaseFirestore.instance
+                  .collection('tables')
+                  .doc(docId)
+                  .delete();
+              setState(() {});
+            } else {
+              await _updateTableItemsInFirestore(tableName, [], false);
+            }
+
+            print("${tableName} marked as served");
+          });
+          return;
+        }
+
+        if (groups.isEmpty) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MenuPage(
+                menuList: menu,
+                tableName: tableName,
+                initialItems: [],
+                showBilling: groups.isEmpty,
+                onConfirm: (
+                    List<Map<String, dynamic>> selectedItems,
+                    bool isBillPaid,
+                    ) async {
+                  setState(() {
+                    groups.add(selectedItems);
+                  });
+                  await _updateTableItemsInFirestore(
+                    tableName,
+                    groups,
+                    isBillPaid,
+                  );
+                },
+              ),
+            ),
+          );
+          return;
+        }
+
+        final allItems = groups.expand((g) => g).toList();
+        final mergedItems = _mergeItemsByNameAndCategory(allItems);
+
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FinalBillingView(
+              menuData: mergedItems,
+              onConfirm: (List<Map<String, dynamic>> confirmedItems) async {
+                setState(() {
+                  tables[tableName] = [confirmedItems];
+                });
+                await _updateTableItemsInFirestore(tableName, [
+                  confirmedItems,
+                ], false);
+
+                if (tableName.contains("Take Away") &&
+                    confirmedItems.isEmpty) {
                   await FirebaseFirestore.instance
                       .collection('tables')
                       .doc(docId)
                       .delete();
-                  setState(() {});
-                } else {
-                  await _updateTableItemsInFirestore(tableName, [], false);
                 }
-
-                print("${tableName} marked as served");
-              });
-            }
-
-            if (isPaid) return; // 🔹 Prevent opening if bill is paid
-
-            if(groups.isEmpty){
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MenuPage(
-                    menuList: menu,
-                    tableName: tableName,
-                    initialItems: [],
-                    showBilling: groups.isEmpty,
-                    onConfirm:
-                        (
-                        List<Map<String, dynamic>> selectedItems,
-                        bool isBillPaid,
-                        ) async {
-                      setState(() {
-                        groups.add(selectedItems);
-                      });
-                      await _updateTableItemsInFirestore(
-                        tableName,
-                        groups,
-                        isBillPaid,
-                      );
-                    },
-                  ),
-                ),
-              );
-              return;
-            }
-
-
-            final allItems = groups.expand((g) => g).toList();
-            final mergedItems = _mergeItemsByNameAndCategory(allItems);
-
-            await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => FinalBillingView(
-                  menuData: mergedItems,
-                  onConfirm: (List<Map<String, dynamic>> confirmedItems) async {
-                    setState(() {
-                      tables[tableName] = [confirmedItems];
-                    });
-                    await _updateTableItemsInFirestore(tableName, [
-                      confirmedItems,
-                    ], false);
-
-                    if (tableName.contains("Take Away") &&
-                        confirmedItems.isEmpty) {
-                      await FirebaseFirestore.instance
-                          .collection('tables')
-                          .doc(docId)
-                          .delete();
-                    }
-
-                    // if(tableName.contains("Take Away") && confirmedItems.isEmpty){
-                    //   // _deleteTable(docId, tableName);
-                    // }else{
-                    //   setState(() {
-                    //     tables[tableName] = [confirmedItems];
-                    //   });
-                    //   await _updateTableItemsInFirestore(tableName, [
-                    //     confirmedItems,
-                    //   ], false);
-                    // }
-                  },
-                  tableName: tableName,
-                ),
-              ),
-            );
-          },
-          child: _buildTableCardBody(tableName, groups, isPaid),
+              },
+              tableName: tableName,
+            ),
+          ),
         );
       },
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        elevation: 8,
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              color: groups.isNotEmpty ? Colors.green : primary_color,
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(tableName, style: TextStyle(color: Colors.white)),
+                  ),
+                  Row(
+                    children: [
+                      if (groups.isNotEmpty && !isPaid)
+                        IconButton(
+                          icon: Icon(Icons.edit, color: Colors.white),
+                          onPressed: () async {
+                            final lastGroup = groups.last;
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MenuPage(
+                                  menuList: menu,
+                                  tableName: tableName,
+                                  initialItems: List<Map<String, dynamic>>.from(
+                                    lastGroup,
+                                  ),
+                                  showBilling: groups.length == 1,
+                                  onConfirm: (
+                                      List<Map<String, dynamic>> selectedItems,
+                                      bool isBillPaid,
+                                      ) async {
+                                    setState(() {
+                                      groups[groups.length - 1] = selectedItems;
+                                    });
+                                    await _updateTableItemsInFirestore(
+                                      tableName,
+                                      groups,
+                                      isBillPaid,
+                                    );
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      if (!isPaid)
+                        IconButton(
+                          icon: Icon(Icons.add_circle, color: Colors.white),
+                          onPressed: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MenuPage(
+                                  menuList: menu,
+                                  tableName: tableName,
+                                  initialItems: [],
+                                  showBilling: groups.isEmpty,
+                                  onConfirm: (
+                                      List<Map<String, dynamic>> selectedItems,
+                                      bool isBillPaid,
+                                      ) async {
+                                    setState(() {
+                                      groups.add(selectedItems);
+                                    });
+                                    await _updateTableItemsInFirestore(
+                                      tableName,
+                                      groups,
+                                      isBillPaid,
+                                    );
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      if (isPaid)
+                        Container(
+                          color: Colors.white,
+                          margin: EdgeInsets.symmetric(vertical: 3),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 3,
+                          ),
+                          child: Text(
+                            "PAID",
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
+                              fontFamily: fontMulishBold,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (groups.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(40.0),
+                child: Center(
+                  child: Text(
+                    "No items",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.black38,
+                      fontFamily: fontMulishRegular,
+                    ),
+                  ),
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: List.generate(groups.length, (i) {
+                    final group = groups[i];
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ...group.map((item) {
+                          final qty = item['qty'] ?? 1;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: item['name'],
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.black87,
+                                      fontFamily: fontMulishRegular,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: " ×$qty",
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      color: Colors.red,
+                                      fontFamily: fontMulishSemiBold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        if (i < groups.length - 1)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: DottedLine(
+                              dashColor: Colors.grey,
+                              lineThickness: 1,
+                              dashLength: 4,
+                              dashGapLength: 4,
+                            ),
+                          ),
+                      ],
+                    );
+                  }),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
