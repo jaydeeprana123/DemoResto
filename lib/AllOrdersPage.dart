@@ -760,12 +760,12 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          title: const Text(
-            "Mark as Served?",
+          title: Text(
+           tableName.contains("Take Away")?"Mark as Delivered?": "Mark as Served?",
             style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
           ),
           content: Text(
-            "Are you sure you want to mark table '$tableName' as served?",
+            tableName.contains("Take Away")? "Are you sure you want to mark table '$tableName' as delivered?":"Are you sure you want to mark table '$tableName' as served?",
             style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 15),
           ),
           actions: [
@@ -790,8 +790,8 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                 Navigator.pop(context);
                 onServed();
               },
-              child: const Text(
-                "Served",
+              child:  Text(
+                tableName.contains("Take Away")? "Delivered":"Served",
                 style: TextStyle(
                   fontFamily: fontMulishSemiBold,
                   color: Colors.white,
