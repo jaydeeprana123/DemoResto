@@ -54,7 +54,7 @@ class _CartPageState extends State<CartPage> {
 
   double get subtotal => cartItems.fold(
     0,
-        (sum, item) => sum + (item['qty'] as int) * (item['price'] as double),
+        (sum, item) => sum + (item['qty'] as int) * (item['price']),
   );
 
   int get total => ((subtotal + (subtotal * 0.085) - discountAmount).round());

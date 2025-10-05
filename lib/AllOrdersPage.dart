@@ -143,7 +143,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("All Orders (Time-wise)",style: const TextStyle(
+      appBar: AppBar(title: const Text("All Orders ",style: const TextStyle(
         fontFamily: fontMulishSemiBold,
         fontSize: 16,
       ))),
@@ -264,7 +264,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
               final isBlinking = blinkingGroupKey == group.key.hashCode;
 
               // Continuous blink if older than 20 minutes
-              final isOld = DateTime.now().difference(time).inMinutes > 1;
+              final isOld = DateTime.now().difference(time).inMinutes > 5;
 
               if(group.tableName.contains("Take Away") && isOld && group.isPaid){
                 deleteTable(group.docId);
@@ -293,7 +293,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                   curve: Curves.easeInOut,
                   color: isBlinking
                       ? Colors.lightGreenAccent:
-                  isOld?Colors.blue.shade100
+                  isOld?Colors.red.shade100
                       : Colors.transparent,
                   padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
                   child: Row(
