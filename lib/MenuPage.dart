@@ -16,7 +16,8 @@ import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
 
 class MenuPage extends StatefulWidget {
-  final void Function(List<Map<String, dynamic>> selectedItems, bool isBillPaid) onConfirm;
+  final void Function(List<Map<String, dynamic>> selectedItems, bool isBillPaid)
+  onConfirm;
   final List<Map<String, dynamic>> menuList; // Passed from previous page
   final List<Map<String, dynamic>> initialItems;
   final String tableName;
@@ -111,13 +112,10 @@ class _MenuPageState extends State<MenuPage> {
               //   fontSize: 16,
               //   fontFamily: fontMulishBold,
               // ),),
-
-
-              Text(widget.tableName,style: TextStyle(
-                fontSize: 16,
-                fontFamily: fontMulishBold,
-              ),),
-
+              Text(
+                widget.tableName,
+                style: TextStyle(fontSize: 16, fontFamily: fontMulishBold),
+              ),
             ],
           ),
           bottom: TabBar(
@@ -146,22 +144,31 @@ class _MenuPageState extends State<MenuPage> {
                         child: Column(
                           children: [
                             ListTile(
-                              contentPadding: EdgeInsets.symmetric(vertical: 2, horizontal: 16),
-                              title: Text(item['name'], style: TextStyle(
-                                fontSize: 14,
-                                color: text_color,
-                                fontFamily: fontMulishSemiBold,
-                              )),
+                              contentPadding: EdgeInsets.symmetric(
+                                vertical: 2,
+                                horizontal: 16,
+                              ),
+                              title: Text(
+                                item['name'],
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: text_color,
+                                  fontFamily: fontMulishSemiBold,
+                                ),
+                              ),
                               subtitle: Padding(
                                 padding: const EdgeInsets.only(top: 2.0),
                                 child: Row(
                                   children: [
-                                    SizedBox(height: 6,),
-                                    Text("₹${item['price'].toStringAsFixed(2)}", style: TextStyle(
-                                      fontSize: 13,
-                                      color: secondary_text_color,
-                                      fontFamily: fontMulishRegular,
-                                    ), ),
+                                    SizedBox(height: 6),
+                                    Text(
+                                      "₹${item['price'].toStringAsFixed(2)}",
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: secondary_text_color,
+                                        fontFamily: fontMulishRegular,
+                                      ),
+                                    ),
 
                                     SizedBox(width: 16),
 
@@ -194,7 +201,9 @@ class _MenuPageState extends State<MenuPage> {
                                             color: Colors.black87,
                                             width: 0.5,
                                           ),
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                         ),
                                         child: const Text(
                                           "Add",
@@ -237,7 +246,11 @@ class _MenuPageState extends State<MenuPage> {
                                     ),
                             ),
 
-                            Container(margin: EdgeInsets.symmetric(horizontal: 12),height: 0.5,color: Colors.grey.shade300,)
+                            Container(
+                              margin: EdgeInsets.symmetric(horizontal: 12),
+                              height: 0.5,
+                              color: Colors.grey.shade300,
+                            ),
                           ],
                         ),
                       );
@@ -248,7 +261,7 @@ class _MenuPageState extends State<MenuPage> {
             ),
             if (totalItems > 0)
               InkWell(
-                onTap: (){
+                onTap: () {
                   final selectedItems = <Map<String, dynamic>>[];
 
                   menuData.forEach((category, items) {
@@ -259,8 +272,7 @@ class _MenuPageState extends State<MenuPage> {
 
                   // Send selected items to cart or callback
 
-
-                 Navigator.push(
+                  Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => CartPage(
@@ -270,11 +282,26 @@ class _MenuPageState extends State<MenuPage> {
                         showBilling: widget.showBilling,
                       ),
                     ),
-                  );
+                  ).then((onValue) {
+                    if (onValue != null) {
+                      List<Map<String, dynamic>> changedItems = onValue;
 
+                      // Pre-fill quantities from initialItems if any
+                      for (var category in menuData.keys) {
+                        for (var item in menuData[category]!) {
+                          final existingItem = changedItems.firstWhere(
+                            (e) => e['name'] == item['name'],
+                            orElse: () => {},
+                          );
+                          if (existingItem.isNotEmpty) {
+                            item['qty'] = existingItem['qty'];
+                          }
+                        }
+                      }
 
-
-
+                      setState(() {});
+                    }
+                  });
                 },
                 child: Container(
                   padding: const EdgeInsets.all(16),
@@ -291,7 +318,7 @@ class _MenuPageState extends State<MenuPage> {
                         ),
                       ),
 
-                      Icon(Icons.arrow_forward_ios, color: Colors.white,)
+                      Icon(Icons.arrow_forward_ios, color: Colors.white),
 
                       // ElevatedButton(
                       //   onPressed: () {
