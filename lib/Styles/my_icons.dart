@@ -8,3 +8,4 @@ const icon_cooking = "assets/images/cooking.svg";
 const icon_packing = "assets/images/packing.svg";
 const icon_online = "assets/images/online.svg";
 const icon_cash = "assets/images/cash.svg";
+const img_top_hompage_bg = "assets/images/img_top_hompage_bg.svg";
