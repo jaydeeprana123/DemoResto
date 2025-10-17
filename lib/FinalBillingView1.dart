@@ -32,11 +32,13 @@ class FinalBillingView extends StatefulWidget {
 class _FinalBillingViewState extends State<FinalBillingView> {
   late List<Map<String, dynamic>> cartItems;
 
+  // track lastQty per item so we can animate direction correctly for each row
+  late List<int> lastQtys;
   final TextEditingController discountPercentController =
       TextEditingController();
   final TextEditingController discountAmountController =
       TextEditingController();
-  late List<int> lastQtys;
+
   final TextEditingController cashController = TextEditingController();
   final TextEditingController onlineController = TextEditingController();
 
@@ -198,109 +200,130 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                       ),
                                     ),
 
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.remove_circle,
-                                            color: Colors.red,
-                                          ),
-                                          onPressed: () => decrementQty(index),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: Colors.black87,
+                                          width: 0.5,
                                         ),
-                                        SizedBox(
-                                          // Fixed width to contain the number
-                                          height: 30, // Fixed height
-                                          child: ClipRect(
-                                            // Extra ClipRect to ensure no overflow
-                                            child: AnimatedSwitcher(
-                                              duration: const Duration(
-                                                milliseconds: 300,
-                                              ),
-                                              transitionBuilder:
-                                                  (
-                                                    Widget child,
-                                                    Animation<double> animation,
-                                                  ) {
-                                                    final isIncrement =
-                                                        (item['qty'] as int) >
-                                                        lastQty;
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
 
-                                                    return ClipRect(
-                                                      child: SlideTransition(
-                                                        position:
-                                                            Tween<Offset>(
-                                                              begin: isIncrement
-                                                                  ? const Offset(
-                                                                      0,
-                                                                      0.5,
-                                                                    ) // New from bottom
-                                                                  : const Offset(
-                                                                      0,
-                                                                      -0.5,
-                                                                    ), // New from top
-                                                              end: Offset.zero,
-                                                            ).animate(
-                                                              CurvedAnimation(
-                                                                parent:
-                                                                    animation,
-                                                                curve: Curves
-                                                                    .easeOutCubic,
-                                                              ),
-                                                            ),
-                                                        child: child,
-                                                      ),
-                                                    );
-                                                  },
-                                              layoutBuilder: (currentChild, previousChildren) {
-                                                return Stack(
-                                                  alignment: Alignment.center,
-                                                  clipBehavior: Clip
-                                                      .hardEdge, // ⭐ IMPORTANT: Clip overflow
-                                                  children: [
-                                                    if (previousChildren
-                                                        .isNotEmpty)
-                                                      SlideTransition(
-                                                        position: AlwaysStoppedAnimation(
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          InkWell(
+                                            onTap: () {
+                                              decrementQty(index);
+                                            },
+                                            child: Icon(Icons.remove),
+                                          ),
+                                          // 🔥 Rickshaw-style rolling animation
+                                          // RICKSHAW style (roll up when increment, roll down when decrement)
+                                          SizedBox(
+                                            width:
+                                                30, // Fixed width to contain the number
+                                            height: 20, // Fixed height
+                                            child: ClipRect(
+                                              // Extra ClipRect to ensure no overflow
+                                              child: AnimatedSwitcher(
+                                                duration: const Duration(
+                                                  milliseconds: 300,
+                                                ),
+                                                transitionBuilder:
+                                                    (
+                                                      Widget child,
+                                                      Animation<double>
+                                                      animation,
+                                                    ) {
+                                                      final isIncrement =
                                                           (item['qty'] as int) >
-                                                                  lastQty
-                                                              ? const Offset(
-                                                                  0,
-                                                                  -0.5,
-                                                                ) // Exit to top
-                                                              : const Offset(
-                                                                  0,
-                                                                  0.5,
-                                                                ), // Exit to bottom
+                                                          lastQty;
+
+                                                      return ClipRect(
+                                                        child: SlideTransition(
+                                                          position:
+                                                              Tween<Offset>(
+                                                                begin:
+                                                                    isIncrement
+                                                                    ? const Offset(
+                                                                        0,
+                                                                        0.5,
+                                                                      ) // New from bottom
+                                                                    : const Offset(
+                                                                        0,
+                                                                        -0.5,
+                                                                      ), // New from top
+                                                                end:
+                                                                    Offset.zero,
+                                                              ).animate(
+                                                                CurvedAnimation(
+                                                                  parent:
+                                                                      animation,
+                                                                  curve: Curves
+                                                                      .easeOutCubic,
+                                                                ),
+                                                              ),
+                                                          child: child,
                                                         ),
-                                                        child: previousChildren
-                                                            .first,
-                                                      ),
-                                                    if (currentChild != null)
-                                                      currentChild,
-                                                  ],
-                                                );
-                                              },
-                                              child: Text(
-                                                "$qty",
-                                                key: ValueKey<int>(qty),
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  color: Colors.green,
-                                                  fontFamily: fontMulishBold,
+                                                      );
+                                                    },
+                                                layoutBuilder: (currentChild, previousChildren) {
+                                                  return Stack(
+                                                    alignment: Alignment.center,
+                                                    clipBehavior: Clip
+                                                        .hardEdge, // ⭐ IMPORTANT: Clip overflow
+                                                    children: [
+                                                      if (previousChildren
+                                                          .isNotEmpty)
+                                                        SlideTransition(
+                                                          position: AlwaysStoppedAnimation(
+                                                            (item['qty']
+                                                                        as int) >
+                                                                    lastQty
+                                                                ? const Offset(
+                                                                    0,
+                                                                    -0.5,
+                                                                  ) // Exit to top
+                                                                : const Offset(
+                                                                    0,
+                                                                    0.5,
+                                                                  ), // Exit to bottom
+                                                          ),
+                                                          child:
+                                                              previousChildren
+                                                                  .first,
+                                                        ),
+                                                      if (currentChild != null)
+                                                        currentChild,
+                                                    ],
+                                                  );
+                                                },
+                                                child: Text(
+                                                  "$qty",
+                                                  key: ValueKey<int>(qty),
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: Colors.green,
+                                                    fontFamily: fontMulishBold,
+                                                  ),
                                                 ),
                                               ),
                                             ),
                                           ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.add_circle,
-                                            color: Colors.green,
+
+                                          InkWell(
+                                            onTap: () {
+                                              incrementQty(index);
+                                            },
+                                            child: Icon(Icons.add),
                                           ),
-                                          onPressed: () => incrementQty(index),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),

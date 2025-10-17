@@ -1,4 +1,5 @@
 import "package:demo/DragDropTables.dart";
+import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -39,18 +40,16 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return GetMaterialApp(
       title: 'Flutter Demo',
-        builder: (context, child) {
-          return MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              // textScaleFactor: const TextScaler.linear(1.0),
-            ),
-            child: MobileViewWrapper(child: child!),
-          );
-        },
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-        ),
-      home: DragListBetweenTables(),
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            // textScaleFactor: const TextScaler.linear(1.0),
+          ),
+          child: MobileViewWrapper(child: child!),
+        );
+      },
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: BottomNavigationView(),
     );
   }
 }
