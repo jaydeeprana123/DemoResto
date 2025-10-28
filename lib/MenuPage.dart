@@ -44,9 +44,15 @@ class MenuPage extends StatefulWidget {
   _MenuPageState createState() => _MenuPageState();
 }
 
-class _MenuPageState extends State<MenuPage> {
+class _MenuPageState extends State<MenuPage>
+    with SingleTickerProviderStateMixin {
   late Map<String, List<Map<String, dynamic>>> menuData;
   late TextEditingController tableNameController;
+
+  ///Serach
+  TextEditingController searchController = TextEditingController();
+  bool _showSearch = false;
+  String searchQuery = '';
 
   // Multiple category selection
   Set<String> selectedCategories = {};
@@ -121,25 +127,58 @@ class _MenuPageState extends State<MenuPage> {
       length: showAllCategories ? categories.length : selectedCategories.length,
       child: Scaffold(
         appBar: AppBar(
-          title: Row(
-            children: [
-              // Text("Menu - ",style: TextStyle(
-              //   fontSize: 16,
-              //   fontFamily: fontMulishBold,
-              // ),),
-              (widget.tableName.contains("Table") || !widget.tableNameEditable)
-                  ? Text(
-                      widget.tableName,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontFamily: fontMulishBold,
-                      ),
-                    )
-                  : EditableTextField(controller: tableNameController),
-            ],
-          ),
+          title: _showSearch
+              ? TextField(
+                  controller: searchController,
+                  autofocus: true,
+                  onChanged: (value) {
+                    setState(() {
+                      searchQuery = value.toLowerCase();
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    hintText: 'Search menu...',
+                    border: InputBorder.none,
+                    hintStyle: TextStyle(color: Colors.black54),
+                  ),
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontFamily: fontMulishRegular,
+                  ),
+                )
+              : Row(
+                  children: [
+                    // Text("Menu - ",style: TextStyle(
+                    //   fontSize: 16,
+                    //   fontFamily: fontMulishBold,
+                    // ),),
+                    (widget.tableName.contains("Table") ||
+                            !widget.tableNameEditable)
+                        ? Text(
+                            widget.tableName,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontFamily: fontMulishBold,
+                            ),
+                          )
+                        : EditableTextField(controller: tableNameController),
+                  ],
+                ),
 
           actions: [
+            IconButton(
+              icon: Icon(_showSearch ? Icons.close : Icons.search),
+              onPressed: () {
+                if (_showSearch) {
+                  searchQuery = '';
+                  searchController.clear();
+                } else {}
+                _showSearch = !_showSearch;
+
+                setState(() {});
+              },
+            ),
+
             // Filter button with badge showing count
             Stack(
               children: [
@@ -178,17 +217,21 @@ class _MenuPageState extends State<MenuPage> {
             ),
           ],
 
-          bottom: TabBar(
-            isScrollable: true,
-            tabs: showAllCategories
-                ? categories.map((c) => Tab(text: c)).toList()
-                : selectedCategories.map((c) => Tab(text: c)).toList(),
-          ),
+          bottom: !_showSearch
+              ? TabBar(
+                  isScrollable: true,
+                  tabs: showAllCategories
+                      ? categories.map((c) => Tab(text: c)).toList()
+                      : selectedCategories.map((c) => Tab(text: c)).toList(),
+                )
+              : null,
         ),
         body: Column(
           children: [
             Expanded(
-              child: showAllCategories
+              child: _showSearch
+                  ? _buildGlobalSearchList()
+                  : showAllCategories
                   ? TabBarView(
                       children: categories.map((category) {
                         final items = menuData[category]!;
@@ -738,5 +781,163 @@ class _MenuPageState extends State<MenuPage> {
     }
 
     setState(() {});
+  }
+
+  Widget _buildGlobalSearchList() {
+    final allItems = <Map<String, dynamic>>[];
+
+    final sourceCategories = showAllCategories
+        ? menuData.keys
+        : selectedCategories;
+
+    for (var category in sourceCategories) {
+      allItems.addAll(menuData[category]!);
+    }
+
+    final filtered = allItems.where((item) {
+      final name = item['name'].toString().toLowerCase();
+      return name.contains(searchQuery);
+    }).toList();
+
+    if (filtered.isEmpty) {
+      return const Center(
+        child: Text(
+          'No matching items found.',
+          style: TextStyle(fontSize: 15, color: Colors.grey),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: filtered.length,
+      padding: const EdgeInsets.only(top: 8),
+      itemBuilder: (context, index) {
+        final item = filtered[index];
+        final category = item['category'];
+        final qty = item['qty'] as int;
+        return _buildMenuTile(category, index, item, qty);
+      },
+    );
+  }
+
+  Widget _buildMenuTile(
+    String category,
+    int index,
+    Map<String, dynamic> item,
+    int qty,
+  ) {
+    return InkWell(
+      onTap: () {
+        setState(() {
+          item['qty']++;
+        });
+      },
+      child: Column(
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 2,
+              horizontal: 16,
+            ),
+            title: Text(
+              item['name'],
+              style: const TextStyle(
+                fontSize: 14,
+                color: text_color,
+                fontFamily: fontMulishSemiBold,
+              ),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 2.0),
+              child: Row(
+                children: [
+                  Text(
+                    "₹${item['price'].toStringAsFixed(2)}",
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: secondary_text_color,
+                      fontFamily: fontMulishRegular,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  if (qty > 0)
+                    Text(
+                      "\u00D7$qty",
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.red,
+                        fontFamily: fontMulishBold,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            trailing: qty == 0
+                ? GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        item['qty'] = 1;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.black87, width: 0.5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        "Add",
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontWeight: FontWeight.normal,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.remove_circle,
+                          color: Colors.red,
+                        ),
+                        onPressed: () {
+                          if (item['qty'] > 0) {
+                            item['qty']--;
+                            setState(() {});
+                          }
+                        },
+                      ),
+                      Text(
+                        "$qty",
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: text_color,
+                          fontFamily: fontMulishSemiBold,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle, color: Colors.green),
+                        onPressed: () {
+                          item['qty']++;
+                          setState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+          ),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            height: 0.5,
+            color: Colors.grey.shade300,
+          ),
+        ],
+      ),
+    );
   }
 }
