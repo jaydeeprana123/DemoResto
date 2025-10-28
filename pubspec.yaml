@@ -27,6 +27,7 @@ dependencies:
   audioplayers:
   flutter_svg: ^2.0.14
   shared_preferences: ^2.5.3
+  firebase_auth:
 
 
 dev_dependencies:

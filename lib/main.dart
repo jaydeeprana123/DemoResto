@@ -1,5 +1,7 @@
 import "package:demo/DragDropTables.dart";
+import 'package:demo/Screens/Authentication/LoginScreenView.dart';
 import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -27,8 +29,6 @@ void main() async {
     await Firebase.initializeApp();
   }
 
-  await Firebase.initializeApp();
-
   runApp(const MyApp());
 }
 
@@ -49,7 +49,18 @@ class MyApp extends StatelessWidget {
         );
       },
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: BottomNavigationView(),
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasData) {
+            return const BottomNavigationView();
+          }
+          return const LoginPage();
+        },
+      ),
     );
   }
 }

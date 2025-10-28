@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/AddCategoryPage.dart' hide AddTablePage;
 import 'package:demo/AddMenuItemPage.dart';
+import 'package:demo/Screens/Authentication/LoginScreenView.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:demo/TransactionsPage.dart';
 import 'package:dotted_line/dotted_line.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'AddTablePage.dart';
 import 'KitchenOrdersListView.dart';
@@ -55,7 +57,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   Map<String, List<List<Map<String, dynamic>>>> tables = {};
   final List<Map<String, dynamic>> menu = [];
   bool isLoading = false;
-
+  final user = FirebaseAuth.instance.currentUser;
   int tableNo = 0;
   String selectedTab = 'All'; // 👈 Add this variable at class level
   StreamSubscription<QuerySnapshot>? tablesSubscription;
@@ -63,8 +65,19 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   @override
   void initState() {
     super.initState();
-    _listenToTables();
-    _loadMenu();
+
+    if (user != null) {
+      _listenToTables();
+      _loadMenu();
+    } else {
+      signOut();
+    }
+  }
+
+  signOut() async {
+    await FirebaseAuth.instance.signOut();
+
+    Navigator.push(context, MaterialPageRoute(builder: (_) => LoginPage()));
   }
 
   @override
@@ -408,67 +421,17 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                 ),
               ),
             ),
+
             InkWell(
               onTap: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => AddTablePage()),
-                );
+                await FirebaseAuth.instance.signOut();
 
-                if (result is String && result.trim().isNotEmpty) {
-                  await _addTable(result.trim());
-                }
-              },
-              child: SvgPicture.asset(
-                icon_table,
-                height: 28,
-                color: Colors.black87,
-              ),
-
-              // Row(
-              //   children: [
-              //     Icon(Icons.add_circle),
-              //     SizedBox(width: 3),
-              //     Text("Table", style: TextStyle(fontSize: 15)),
-              //   ],
-              // ),
-            ),
-            SizedBox(width: 16),
-            InkWell(
-              onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => AddCategoryPage()),
+                  MaterialPageRoute(builder: (_) => LoginPage()),
                 );
               },
-              child: SvgPicture.asset(
-                icon_menu,
-                width: 24,
-                color: Colors.black87,
-              ),
-
-              // Row(
-              //   children: [
-              //     Icon(Icons.menu_book),
-              //     SizedBox(width: 3),
-              //     Text("Menu", style: TextStyle(fontSize: 15)),
-              //   ],
-              // ),
-            ),
-
-            SizedBox(width: 16),
-            InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => TransactionsPage()),
-                );
-              },
-              child: SvgPicture.asset(
-                icon_transaction,
-                width: 24,
-                color: Colors.black87,
-              ),
+              child: Icon(Icons.logout),
 
               // Row(
               //   children: [
