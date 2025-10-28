@@ -5,7 +5,7 @@ import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'AddTablePage.dart';
-import 'AllOrdersPage.dart';
+import 'KitchenOrdersListView.dart';
 import 'CartPage.dart';
 import 'FinalCartPage.dart';
 import 'MenuPage.dart';
@@ -71,51 +71,52 @@ class TransactionDetailsPage extends StatelessWidget {
     final dateTime = (transaction["createdAt"] as Timestamp?)?.toDate();
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Transaction Details",  style: const TextStyle(
-        fontSize: 16,
-
-        fontFamily: fontMulishSemiBold,
-      ))),
+      appBar: AppBar(
+        title: const Text(
+          "Transaction Details",
+          style: const TextStyle(fontSize: 16, fontFamily: fontMulishSemiBold),
+        ),
+      ),
       body: Column(
         children: [
           Expanded(
             child: items.isEmpty
                 ? const Center(child: Text("No items in this transaction"))
                 : SingleChildScrollView(
-              scrollDirection: Axis.vertical,
-              child: DataTable(
-                headingRowColor: MaterialStateColor.resolveWith(
-                      (states) => primary_color.withOpacity(0.1),
-                ),
-                columns: const [
-                  DataColumn(label: Text("Item")),
-                  DataColumn(label: Text("Qty")),
-                  DataColumn(label: Text("Total")),
-                ],
-                rows: items.map((item) {
-                  final qty = item['qty'] as int? ?? 0;
-                  final price = item['price'] as int? ?? 0;
-                  final total = qty * price;
-
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(item['name'] ?? "-")),
-                      DataCell(
-                        Text(
-                          "×$qty",
-                          style: const TextStyle(
-                            fontSize: 15,
-                            color: Colors.red,
-                            fontFamily: fontMulishSemiBold,
-                          ),
-                        ),
+                    scrollDirection: Axis.vertical,
+                    child: DataTable(
+                      headingRowColor: MaterialStateColor.resolveWith(
+                        (states) => primary_color.withOpacity(0.1),
                       ),
-                      DataCell(Text("₹$total")),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ),
+                      columns: const [
+                        DataColumn(label: Text("Item")),
+                        DataColumn(label: Text("Qty")),
+                        DataColumn(label: Text("Total")),
+                      ],
+                      rows: items.map((item) {
+                        final qty = item['qty'] as int? ?? 0;
+                        final price = item['price'] as int? ?? 0;
+                        final total = qty * price;
+
+                        return DataRow(
+                          cells: [
+                            DataCell(Text(item['name'] ?? "-")),
+                            DataCell(
+                              Text(
+                                "×$qty",
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.red,
+                                  fontFamily: fontMulishSemiBold,
+                                ),
+                              ),
+                            ),
+                            DataCell(Text("₹$total")),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
@@ -148,10 +149,10 @@ class TransactionDetailsPage extends StatelessWidget {
                 const Divider(),
                 _buildRow("Subtotal", subtotal),
                 _buildRow("Tax (8.5%)", tax),
-                 _buildRow("Discount", discount),
+                _buildRow("Discount", discount),
                 _buildRow("Cash", cashAmount),
                 _buildRow("Online", onlineAmount),
-                SizedBox(height: 8,),
+                SizedBox(height: 8),
                 DottedLine(
                   dashLength: 1,
                   dashGapLength: 2,
@@ -159,7 +160,7 @@ class TransactionDetailsPage extends StatelessWidget {
                   dashColor: Colors.grey,
                 ),
 
-                SizedBox(height: 8,),
+                SizedBox(height: 8),
                 _buildRow("Total", total, isTotal: true),
               ],
             ),
@@ -195,4 +196,3 @@ class TransactionDetailsPage extends StatelessWidget {
     );
   }
 }
-

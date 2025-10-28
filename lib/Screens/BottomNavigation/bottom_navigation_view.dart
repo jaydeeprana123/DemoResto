@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 
-import '../../AllOrdersPage.dart';
+import '../../KitchenOrdersListView.dart';
 import '../../DragDropTables.dart';
 import '../../Styles/my_icons.dart';
 
@@ -22,7 +22,7 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
   final tabs = [
     DragListBetweenTables(),
     AddCategoryPage(),
-    OrdersGroupedListPage(),
+    KitchenOrdersListView(),
     TransactionsPage(),
   ];
 

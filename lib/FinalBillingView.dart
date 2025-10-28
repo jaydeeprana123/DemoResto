@@ -875,8 +875,8 @@ class _FinalBillingViewState extends State<FinalBillingView> {
               (e) => {
                 "name": e["name"],
                 "qty": e["qty"],
-                "price": (e["price"] as double).round(), // convert to int
-                "total": ((e["qty"] as int) * (e["price"] as double)).round(),
+                "price": (e["price"]).round(), // convert to int
+                "total": ((e["qty"]) * (e["price"])).round(),
               },
             )
             .toList(),

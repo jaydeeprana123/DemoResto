@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'AddTablePage.dart';
-import 'AllOrdersPage.dart';
+import 'KitchenOrdersListView.dart';
 import 'CartPage.dart';
 import 'FinalCartPage.dart';
 import 'MenuPage.dart';
