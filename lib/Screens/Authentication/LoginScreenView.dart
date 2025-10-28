@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
+import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -11,6 +12,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:flutter/material.dart';
+
+import '../../Styles/my_font.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -88,6 +91,10 @@ class _LoginPageState extends State<LoginPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Image.asset(icon_logo, width: 150),
+
+            SizedBox(height: 40),
+
             TextField(
               controller: emailController,
               decoration: const InputDecoration(labelText: "Email"),
@@ -128,12 +135,27 @@ class _LoginPageState extends State<LoginPage> {
 
             const SizedBox(height: 20),
             loading
-                ? const CircularProgressIndicator()
+                ? CircularProgressIndicator()
                 : Column(
                     children: [
-                      ElevatedButton(
-                        onPressed: login,
-                        child: const Text("Login"),
+                      Container(
+                        width: double.infinity,
+                        margin: EdgeInsets.symmetric(horizontal: 32),
+                        child: ElevatedButton(
+                          onPressed: login,
+                          child: Text(
+                            "Login",
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                              fontFamily: fontMulishSemiBold,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                Colors.black54, // 🔹 Your custom color here
+                          ),
+                        ),
                       ),
                       TextButton(
                         onPressed: register,
