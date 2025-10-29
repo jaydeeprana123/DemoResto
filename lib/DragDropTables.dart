@@ -1169,9 +1169,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   // Filter the tables based on current selectedTab
   List<String> _filteredTableKeys() {
     if (selectedTab == 'Take Away') {
-      return tables.keys.where((key) => key.contains('Take Away')).toList();
+      return tables.keys.where((key) => !key.contains('Table')).toList();
     } else if (selectedTab == 'Tables') {
-      return tables.keys.where((key) => !key.contains('Take Away')).toList();
+      return tables.keys.where((key) => key.contains('Table')).toList();
     } else {
       return tables.keys.toList();
     }
