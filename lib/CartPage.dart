@@ -159,7 +159,9 @@ class _CartPageState extends State<CartPage> {
                         fontFamily: fontMulishBold,
                       ),
                     )
-                  : EditableTextField(controller: tableNameController),
+                  : Expanded(
+                      child: EditableTextField(controller: tableNameController),
+                    ),
 
               // if (widget.showBilling)
               //   InkWell(
@@ -1483,7 +1485,7 @@ class _CartPageState extends State<CartPage> {
                                               fontFamily: fontMulishSemiBold,
                                             ),
                                             decoration: InputDecoration(
-                                              labelText: "Discount %",
+                                              labelText: "Disc %",
                                               labelStyle: const TextStyle(
                                                 fontSize: 10,
                                                 color: secondary_text_color,

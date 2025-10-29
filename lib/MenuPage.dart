@@ -53,7 +53,7 @@ class _MenuPageState extends State<MenuPage>
   TextEditingController searchController = TextEditingController();
   bool _showSearch = false;
   String searchQuery = '';
-
+  bool isNameEdit = false;
   // Multiple category selection
   Set<String> selectedCategories = {};
   bool showAllCategories = true; // Track if "All" is selected
@@ -161,60 +161,69 @@ class _MenuPageState extends State<MenuPage>
                               fontFamily: fontMulishBold,
                             ),
                           )
-                        : EditableTextField(controller: tableNameController),
+                        : EditableTextField(
+                            controller: tableNameController,
+                            onEditingChanged: (value) {
+                              setState(() {
+                                isNameEdit = value;
+                              });
+                            },
+                          ),
                   ],
                 ),
 
           actions: [
-            IconButton(
-              icon: Icon(_showSearch ? Icons.close : Icons.search),
-              onPressed: () {
-                if (_showSearch) {
-                  searchQuery = '';
-                  searchController.clear();
-                } else {}
-                _showSearch = !_showSearch;
+            if (!isNameEdit)
+              IconButton(
+                icon: Icon(_showSearch ? Icons.close : Icons.search),
+                onPressed: () {
+                  if (_showSearch) {
+                    searchQuery = '';
+                    searchController.clear();
+                  } else {}
+                  _showSearch = !_showSearch;
 
-                setState(() {});
-              },
-            ),
+                  setState(() {});
+                },
+              ),
 
             // Filter button with badge showing count
-            Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.filter_list),
-                  onPressed: () => _showCategoryFilterDialog(context),
-                  tooltip: "Filter by Category",
-                ),
-                if (!showAllCategories && selectedCategories.isNotEmpty)
-                  Positioned(
-                    right: 8,
-                    top: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${selectedCategories.length}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontFamily: fontMulishBold,
+            if (!isNameEdit)
+              Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.filter_list),
+                    onPressed: () => _showCategoryFilterDialog(context),
+                    tooltip: "Filter by Category",
+                  ),
+                  if (!showAllCategories && selectedCategories.isNotEmpty)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${selectedCategories.length}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontFamily: fontMulishBold,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
+                ],
+              ),
           ],
 
           bottom: !_showSearch
@@ -373,14 +382,14 @@ class _MenuPageState extends State<MenuPage>
                     )
                   : TabBarView(
                       children: selectedCategories.map((category) {
-                        final items = menuData[category]!;
+                        final items = menuData[category];
 
                         return ListView.builder(
-                          itemCount: items.length,
+                          itemCount: items?.length,
                           padding: EdgeInsets.only(top: 8),
                           itemBuilder: (context, index) {
-                            final item = items[index];
-                            final qty = item['qty'] as int;
+                            final item = items?[index];
+                            final qty = item?['qty'];
 
                             return InkWell(
                               onTap: () {
@@ -394,7 +403,7 @@ class _MenuPageState extends State<MenuPage>
                                       horizontal: 16,
                                     ),
                                     title: Text(
-                                      item['name'],
+                                      item?['name'] ?? "",
                                       style: TextStyle(
                                         fontSize: 14,
                                         color: text_color,
@@ -407,7 +416,7 @@ class _MenuPageState extends State<MenuPage>
                                         children: [
                                           SizedBox(height: 6),
                                           Text(
-                                            "₹${item['price'].toStringAsFixed(2)}",
+                                            "₹${item?['price'].toStringAsFixed(2)}",
                                             style: TextStyle(
                                               fontSize: 13,
                                               color: secondary_text_color,
@@ -417,9 +426,9 @@ class _MenuPageState extends State<MenuPage>
 
                                           SizedBox(width: 16),
 
-                                          if (item['qty'] > 0)
+                                          if ((item?['qty'] ?? 0) > 0)
                                             Text(
-                                              "\u00D7${item['qty']}",
+                                              "\u00D7${item?['qty']}",
                                               style: TextStyle(
                                                 fontSize: 14,
                                                 color: Colors.red,
@@ -433,7 +442,7 @@ class _MenuPageState extends State<MenuPage>
                                         ? GestureDetector(
                                             onTap: () {
                                               setState(() {
-                                                item['qty'] = 1;
+                                                item?['qty'] = 1;
                                               });
                                             },
                                             child: Container(

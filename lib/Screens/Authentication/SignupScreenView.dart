@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/Screens/Authentication/SignupScreenView.dart';
+import 'package:demo/Screens/Authentication/LoginScreenView.dart';
 import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_icons.dart';
@@ -16,14 +16,14 @@ import 'package:flutter/material.dart';
 
 import '../../Styles/my_font.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class SignupScreenView extends StatefulWidget {
+  const SignupScreenView({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<SignupScreenView> createState() => _SignupScreenViewState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _SignupScreenViewState extends State<SignupScreenView> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   bool loading = false;
@@ -86,13 +86,13 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Sign In")),
+      appBar: AppBar(title: const Text("Sign Up")),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(icon_logo, width: 250, height: 220),
+            Image.asset(icon_logo, width: 250, height: 200),
 
             SizedBox(height: 20),
 
@@ -108,33 +108,31 @@ class _LoginPageState extends State<LoginPage> {
             ),
 
             const SizedBox(height: 40),
-            Visibility(
-              visible: false,
-              child: Column(
-                children: [
-                  DropdownButtonFormField<String>(
-                    value: selectedRole,
-                    items: roles
-                        .map(
-                          (role) =>
-                              DropdownMenuItem(value: role, child: Text(role)),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          selectedRole = value;
-                        });
-                      }
-                    },
-                    decoration: const InputDecoration(
-                      labelText: "Select Role",
-                      border: OutlineInputBorder(),
-                    ),
+
+            Column(
+              children: [
+                DropdownButtonFormField<String>(
+                  value: selectedRole,
+                  items: roles
+                      .map(
+                        (role) =>
+                            DropdownMenuItem(value: role, child: Text(role)),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        selectedRole = value;
+                      });
+                    }
+                  },
+                  decoration: const InputDecoration(
+                    labelText: "Select Role",
+                    border: OutlineInputBorder(),
                   ),
-                  const SizedBox(height: 20),
-                ],
-              ),
+                ),
+                const SizedBox(height: 20),
+              ],
             ),
 
             // const SizedBox(height: 20),
@@ -147,11 +145,11 @@ class _LoginPageState extends State<LoginPage> {
                         margin: EdgeInsets.symmetric(horizontal: 0),
                         padding: EdgeInsets.symmetric(vertical: 4),
                         child: ElevatedButton(
-                          onPressed: login,
+                          onPressed: register,
                           child: Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: Text(
-                              "Sign In",
+                              "Sign Up",
                               style: TextStyle(
                                 fontSize: 16,
                                 color: Colors.white,
@@ -169,14 +167,12 @@ class _LoginPageState extends State<LoginPage> {
                         onPressed: () {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) => SignupScreenView(),
-                            ),
+                            MaterialPageRoute(builder: (_) => LoginPage()),
                           );
                         },
                         child: RichText(
                           text: TextSpan(
-                            text: "New User ?  ",
+                            text: "Already have an account ?  ",
                             style: TextStyle(
                               color: Colors.black87, // normal text color
                               fontSize: 14,
@@ -184,7 +180,7 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             children: [
                               TextSpan(
-                                text: "Sign Up",
+                                text: "Sign In",
                                 style: TextStyle(
                                   color: primary_color, // different color
                                   fontWeight: FontWeight.bold,

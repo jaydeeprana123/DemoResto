@@ -48,6 +48,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
+import 'Screens/Transactions/EditTransactionDetailsPage.dart';
 import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
 
@@ -76,6 +77,29 @@ class TransactionDetailsPage extends StatelessWidget {
           "Transaction Details",
           style: const TextStyle(fontSize: 16, fontFamily: fontMulishSemiBold),
         ),
+
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () async {
+              final updatedTransaction = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EditTransactionPage(
+                    transaction: transaction,
+                    onSave: (updated) {
+                      // You can handle Firestore update here if needed
+                    },
+                  ),
+                ),
+              );
+
+              if (updatedTransaction != null) {
+                print("✅ Updated transaction: $updatedTransaction");
+              }
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

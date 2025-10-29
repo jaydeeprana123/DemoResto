@@ -57,7 +57,6 @@ class TransactionsPage extends StatefulWidget {
   State<TransactionsPage> createState() => _TransactionsPageState();
 }
 
-
 class _TransactionsPageState extends State<TransactionsPage> {
   DateTime? fromDate;
   DateTime? toDate;
@@ -94,7 +93,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
   void _scrollListener() {
     if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 50 &&
+            _scrollController.position.maxScrollExtent - 50 &&
         !isLoading &&
         hasMore) {
       fetchTransactions();
@@ -109,9 +108,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
     final picked = await showDatePicker(
       context: context,
-      initialDate: isFrom
-          ? (fromDate ?? now)
-          : (toDate ?? fromDate ?? now),
+      initialDate: isFrom ? (fromDate ?? now) : (toDate ?? fromDate ?? now),
       firstDate: isFrom ? DateTime(2023) : (fromDate ?? DateTime(2023)),
       lastDate: now,
     );
@@ -126,20 +123,33 @@ class _TransactionsPageState extends State<TransactionsPage> {
           // If toDate not selected, default to today's end-of-day
           if (toDate == null) {
             final today = DateTime.now();
-            toDate =
-                DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
+            toDate = DateTime(
+              today.year,
+              today.month,
+              today.day,
+              23,
+              59,
+              59,
+              999,
+            );
             toController.text = DateFormat("dd-MM-yyyy").format(today);
           }
         } else {
           // If user picks To date and From is null, treat as same-day filter
           if (fromDate == null) {
-            fromDate =
-                DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
+            fromDate = DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
             fromController.text = DateFormat("dd-MM-yyyy").format(picked);
           }
           // normalize to end of day
-          toDate =
-              DateTime(picked.year, picked.month, picked.day, 23, 59, 59, 999);
+          toDate = DateTime(
+            picked.year,
+            picked.month,
+            picked.day,
+            23,
+            59,
+            59,
+            999,
+          );
           toController.text = DateFormat("dd-MM-yyyy").format(picked);
         }
       });
@@ -183,7 +193,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
   }
 
   Future<Map<String, dynamic>> getRevenueBetweenDates(
-      DateTime from, DateTime to) async {
+    DateTime from,
+    DateTime to,
+  ) async {
     final fromKey = DateFormat("yyyy-MM-dd").format(from);
     final toKey = DateFormat("yyyy-MM-dd").format(to);
 
@@ -208,8 +220,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
   }
 
   Future<void> getTotalRevenue() async {
-    final snapshot =
-    await FirebaseFirestore.instance.collection("daily_stats").get();
+    final snapshot = await FirebaseFirestore.instance
+        .collection("daily_stats")
+        .get();
 
     double totalRevenue = 0;
     int totalTransactions = 0;
@@ -238,17 +251,31 @@ class _TransactionsPageState extends State<TransactionsPage> {
     if (isFilterApplied && fromDate != null) {
       final now = DateTime.now();
       final effectiveFrom = DateTime(
-          fromDate!.year, fromDate!.month, fromDate!.day, 0, 0, 0, 0);
+        fromDate!.year,
+        fromDate!.month,
+        fromDate!.day,
+        0,
+        0,
+        0,
+        0,
+      );
       final effectiveTo = (toDate != null)
           ? DateTime(toDate!.year, toDate!.month, toDate!.day, 23, 59, 59, 999)
           : DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
 
-      query = FirebaseFirestore.instance
-          .collection("transactions")
-          .where("createdAt", isGreaterThanOrEqualTo: Timestamp.fromDate(effectiveFrom))
-          .where("createdAt", isLessThanOrEqualTo: Timestamp.fromDate(effectiveTo))
-          .orderBy("createdAt", descending: true)
-      as Query<Map<String, dynamic>>;
+      query =
+          FirebaseFirestore.instance
+                  .collection("transactions")
+                  .where(
+                    "createdAt",
+                    isGreaterThanOrEqualTo: Timestamp.fromDate(effectiveFrom),
+                  )
+                  .where(
+                    "createdAt",
+                    isLessThanOrEqualTo: Timestamp.fromDate(effectiveTo),
+                  )
+                  .orderBy("createdAt", descending: true)
+              as Query<Map<String, dynamic>>;
     }
 
     if (lastDoc != null) {
@@ -278,15 +305,13 @@ class _TransactionsPageState extends State<TransactionsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-          title: Text(
-            totalTransactionsData != 0
-                ? "Transactions ($totalTransactionsData)"
-                : "Transactions",
-            style: const TextStyle(
-              fontSize: 16,
-              fontFamily: 'Mulish-SemiBold',
-            ),
-          )),
+        title: Text(
+          totalTransactionsData != 0
+              ? "Transactions ($totalTransactionsData)"
+              : "Transactions",
+          style: const TextStyle(fontSize: 16, fontFamily: 'Mulish-SemiBold'),
+        ),
+      ),
       body: Column(
         children: [
           // Filter UI
@@ -332,178 +357,188 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 : transactions.isEmpty
                 ? const Center(child: Text("No transactions found"))
                 : ListView.builder(
-              controller: _scrollController,
-              itemCount: transactions.length + 1,
-              itemBuilder: (context, index) {
-                if (index < transactions.length) {
-                  final data = transactions[index].data();
-                  final tableName = data["table"] ?? "Unknown";
-                  final cashAmount = (data["cashAmount"] as int?) ?? 0;
-                  final onlineAmount = (data["onlineAmount"] as int?) ?? 0;
-                  final total =
-                      (data["total"] as num?)?.toDouble() ?? 0.0;
-                  final dateTime =
-                  (data["createdAt"] as Timestamp?)?.toDate();
-                  final dateKey = dateTime != null
-                      ? DateFormat("dd-MM-yyyy").format(dateTime)
-                      : "Unknown Date";
+                    controller: _scrollController,
+                    itemCount: transactions.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index < transactions.length) {
+                        final data = transactions[index].data();
+                        final tableName = data["table"] ?? "Unknown";
+                        final cashAmount = (data["cashAmount"] as int?) ?? 0;
+                        final onlineAmount =
+                            (data["onlineAmount"] as int?) ?? 0;
+                        final total =
+                            (data["total"] as num?)?.toDouble() ?? 0.0;
+                        final dateTime = (data["createdAt"] as Timestamp?)
+                            ?.toDate();
+                        final dateKey = dateTime != null
+                            ? DateFormat("dd-MM-yyyy").format(dateTime)
+                            : "Unknown Date";
 
-                  // show date header for first item or when date changes
-                  bool showDateHeader = true;
-                  if (index > 0) {
-                    final prevData = transactions[index - 1].data();
-                    final prevDateTime =
-                    (prevData["createdAt"] as Timestamp?)?.toDate();
-                    final prevDateKey = prevDateTime != null
-                        ? DateFormat("dd-MM-yyyy")
-                        .format(prevDateTime)
-                        : "Unknown Date";
-                    if (prevDateKey == dateKey) {
-                      showDateHeader = false;
-                    }
-                  }
+                        // show date header for first item or when date changes
+                        bool showDateHeader = true;
+                        if (index > 0) {
+                          final prevData = transactions[index - 1].data();
+                          final prevDateTime =
+                              (prevData["createdAt"] as Timestamp?)?.toDate();
+                          final prevDateKey = prevDateTime != null
+                              ? DateFormat("dd-MM-yyyy").format(prevDateTime)
+                              : "Unknown Date";
+                          if (prevDateKey == dateKey) {
+                            showDateHeader = false;
+                          }
+                        }
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (showDateHeader)
-                        Container(
-                          width: double.infinity,
-                          color: primary_color.withOpacity(0.1),
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 22,
-                            vertical: 8,
-                          ),
-                          child: Text(
-                            dateKey,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontFamily: 'Mulish-Bold',
-                            ),
-                          ),
-                        ),
-                      InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => TransactionDetailsPage(
-                                transaction: data,
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (showDateHeader)
+                              Container(
+                                width: double.infinity,
+                                color: primary_color.withOpacity(0.1),
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 22,
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  dateKey,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontFamily: fontMulishBold,
+                                  ),
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: 12),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12),
-                          child: Column(
-                            children: [
-                              Row(
-                                crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: Column(
+                            InkWell(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => TransactionDetailsPage(
+                                      transaction: data,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                child: Column(
+                                  children: [
+                                    Row(
                                       crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          "$tableName",
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontFamily:
-                                            'Mulish-SemiBold',
-                                            color: Colors.black87,
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                "$tableName",
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontFamily: 'Mulish-SemiBold',
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                dateTime != null
+                                                    ? DateFormat(
+                                                        'hh:mm a',
+                                                      ).format(dateTime)
+                                                    : "-",
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey.shade600,
+                                                  fontFamily: fontMulishRegular,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          dateTime != null
-                                              ? DateFormat('hh:mm a')
-                                              .format(dateTime)
-                                              : "-",
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color:
-                                            Colors.grey.shade600,
-                                          ),
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
+                                          children: [
+                                            Text(
+                                              "\₹${total.toStringAsFixed(2)}",
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontFamily: fontMulishBold,
+                                                color: Colors.green,
+                                              ),
+                                            ),
+
+                                            SizedBox(height: 6),
+
+                                            Row(
+                                              children: [
+                                                Image.asset(
+                                                  icon_online_transfer,
+                                                  height: 18,
+                                                ),
+
+                                                SizedBox(width: 2),
+
+                                                Text(
+                                                  "\₹$onlineAmount",
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                    fontFamily:
+                                                        fontMulishSemiBold,
+                                                    color: text_color,
+                                                  ),
+                                                ),
+
+                                                SizedBox(width: 16),
+
+                                                Image.asset(
+                                                  icon_cash,
+                                                  height: 18,
+                                                ),
+
+                                                SizedBox(width: 5),
+
+                                                Text(
+                                                  "\₹$cashAmount",
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                    fontFamily:
+                                                        fontMulishSemiBold,
+                                                    color: text_color,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        "\₹${total.toStringAsFixed(2)}",
-                                        style: const TextStyle(
-                                          fontSize: 15,
-                                          fontFamily: 'Mulish-Bold',
-                                          color: Colors.green,
-                                        ),
-                                      ),
-
-                                      SizedBox(height: 6,),
-
-                                      Row(children: [
-
-                                        SvgPicture.asset(icon_online, height: 26,),
-
-                                        SizedBox(width: 6,),
-
-                                        Text(
-                                          "\₹$onlineAmount",
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            fontFamily: 'Mulish-Bold',
-                                            color: text_color,
-                                          ),
-                                        ),
-
-                                        SizedBox(width: 16,),
-
-                                        SvgPicture.asset(icon_cash, height: 20,color: Colors.black54,),
-
-                                        SizedBox(width: 6,),
-
-
-                                        Text(
-                                          "\₹$cashAmount",
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            fontFamily: 'Mulish-Bold',
-                                            color: text_color,
-                                          ),
-                                        ),
-
-                                      ],)
-                                    ],
-                                  ),
-                                ],
+                                    const Divider(),
+                                  ],
+                                ),
                               ),
-                              const Divider(),
-                            ],
+                            ),
+                          ],
+                        );
+                      } else {
+                        // loader / no more
+                        return Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Center(
+                            child: hasMore
+                                ? const CircularProgressIndicator()
+                                : const Text("No more transactions"),
                           ),
-                        ),
-                      ),
-                    ],
-                  );
-                } else {
-                  // loader / no more
-                  return Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Center(
-                      child: hasMore
-                          ? const CircularProgressIndicator()
-                          : const Text("No more transactions"),
-                    ),
-                  );
-                }
-              },
-            ),
+                        );
+                      }
+                    },
+                  ),
           ),
 
           // Grand Total (from daily_stats)
@@ -516,7 +551,10 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 const Text(
                   "Grand Total:",
                   style: TextStyle(
-                      fontSize: 16, fontFamily: 'Mulish-SemiBold', color: Colors.white),
+                    fontSize: 16,
+                    fontFamily: 'Mulish-SemiBold',
+                    color: Colors.white,
+                  ),
                 ),
                 Text(
                   "\₹${grandTotal.toStringAsFixed(2)}",
@@ -534,5 +572,3 @@ class _TransactionsPageState extends State<TransactionsPage> {
     );
   }
 }
-
-

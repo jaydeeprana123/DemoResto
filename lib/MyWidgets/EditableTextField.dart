@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 
 class EditableTextField extends StatefulWidget {
   final TextEditingController controller;
+  final ValueChanged<bool>? onEditingChanged; // 👈 callback added
 
-  const EditableTextField({super.key, required this.controller});
+  const EditableTextField({
+    super.key,
+    required this.controller,
+    this.onEditingChanged,
+  });
 
   @override
   State<EditableTextField> createState() => _EditableTextFieldState();
@@ -19,13 +24,14 @@ class _EditableTextFieldState extends State<EditableTextField> {
 
   @override
   void dispose() {
-    widget.controller.dispose();
     super.dispose();
   }
 
   void _toggleEdit() {
     setState(() {
       _isEditing = !_isEditing;
+      // Notify parent about the change
+      widget.onEditingChanged?.call(_isEditing);
       // When entering edit mode, select all text
       if (_isEditing) {
         // Delay selection until after build completes
@@ -46,7 +52,7 @@ class _EditableTextFieldState extends State<EditableTextField> {
       children: [
         _isEditing
             ? SizedBox(
-                width: 200, // adjust as needed
+                width: 165, // adjust as needed
                 child: TextField(
                   controller: widget.controller,
                   style: TextStyle(fontSize: 16, fontFamily: 'Mulish-Bold'),

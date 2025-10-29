@@ -346,6 +346,10 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                 Radio<String>(
                                   value: 'Cash',
                                   groupValue: paymentMode,
+                                  visualDensity: VisualDensity(
+                                    horizontal: -4,
+                                    vertical: -4,
+                                  ),
                                   onChanged: (value) {
                                     setState(() {
                                       paymentMode = value!;
@@ -370,6 +374,10 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                 Radio<String>(
                                   value: 'Online',
                                   groupValue: paymentMode,
+                                  visualDensity: VisualDensity(
+                                    horizontal: -4,
+                                    vertical: -4,
+                                  ),
                                   onChanged: (value) {
                                     setState(() {
                                       paymentMode = value!;
@@ -393,6 +401,10 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                 Radio<String>(
                                   value: 'Both',
                                   groupValue: paymentMode,
+                                  visualDensity: VisualDensity(
+                                    horizontal: -4,
+                                    vertical: -4,
+                                  ),
                                   onChanged: (value) {
                                     setState(() {
                                       paymentMode = value!;
@@ -620,7 +632,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                               fontFamily: fontMulishSemiBold,
                             ),
                             decoration: InputDecoration(
-                              labelText: "Discount %",
+                              labelText: "Disc %",
                               labelStyle: const TextStyle(
                                 fontSize: 10,
                                 color: secondary_text_color,
