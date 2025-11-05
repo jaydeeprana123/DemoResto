@@ -8,6 +8,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 
+import 'MenuPage.dart';
 import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
 import 'Styles/my_icons.dart';
@@ -16,10 +17,12 @@ import 'Styles/my_icons.dart';
 class FinalBillingView extends StatefulWidget {
   final String tableName;
   final List<Map<String, dynamic>> menuData;
+  final List<Map<String, dynamic>> totalMenuList; // Passed from previous page
   final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
 
   FinalBillingView({
     required this.menuData,
+    required this.totalMenuList,
     required this.onConfirm,
     required this.tableName,
     Key? key,
@@ -127,6 +130,63 @@ class _FinalBillingViewState extends State<FinalBillingView> {
           "Cart - ${widget.tableName}",
           style: TextStyle(fontSize: 16, fontFamily: fontMulishBold),
         ),
+
+        actions: [
+          IconButton(
+            icon: Icon(Icons.menu),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MenuPage(
+                    menuList: widget.totalMenuList,
+                    tableName: widget.tableName,
+                    tableNameEditable: false,
+                    initialItems: widget.menuData,
+                    showBilling: false,
+                    isFromFinalBilling: true,
+                    onConfirm:
+                        (
+                          List<Map<String, dynamic>> selectedItems,
+                          bool isBillPaid,
+                          String tableName,
+                        ) async {
+                          setState(() {
+                            cartItems = selectedItems
+                                .map((item) => Map<String, dynamic>.from(item))
+                                .toList();
+
+                            lastQtys = cartItems
+                                .map<int>((e) => e['qty'] as int)
+                                .toList();
+
+                            _updatePaymentAmounts();
+                          });
+                        },
+                  ),
+                ),
+              ).then((onValue) {
+                if (onValue != null) {
+                  List<Map<String, dynamic>> changedItems = onValue;
+                  setState(() {
+                    cartItems = changedItems
+                        .map((item) => Map<String, dynamic>.from(item))
+                        .toList();
+
+                    lastQtys = cartItems
+                        .map<int>((e) => e['qty'] as int)
+                        .toList();
+
+                    _updatePaymentAmounts();
+                  });
+
+                  setState(() {});
+                }
+              });
+              ;
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -907,6 +967,8 @@ class _FinalBillingViewState extends State<FinalBillingView> {
           .doc(dateKey);
       batch.set(dailyRef, {
         "revenue": FieldValue.increment(total),
+        "totalCash": FieldValue.increment(cashAmount),
+        "totalOnline": FieldValue.increment(onlineAmount),
         "transactions": FieldValue.increment(1),
         "lastUpdated": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));

@@ -29,6 +29,7 @@ class MenuPage extends StatefulWidget {
   final String tableName;
   final bool tableNameEditable;
   final bool showBilling;
+  final bool isFromFinalBilling;
 
   const MenuPage({
     required this.onConfirm,
@@ -36,6 +37,7 @@ class MenuPage extends StatefulWidget {
     required this.tableName,
     required this.tableNameEditable,
     required this.showBilling,
+    required this.isFromFinalBilling,
     this.initialItems = const [],
     Key? key,
   }) : super(key: key);
@@ -532,38 +534,41 @@ class _MenuPageState extends State<MenuPage>
                   });
 
                   // Send selected items to cart or callback
-
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CartPage(
-                        tableName: tableNameController.text,
-                        tableNameEditable: widget.tableNameEditable,
-                        menuData: selectedItems,
-                        onConfirm: widget.onConfirm,
-                        showBilling: widget.showBilling,
+                  if (widget.isFromFinalBilling) {
+                    Navigator.pop(context, selectedItems);
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CartPage(
+                          tableName: tableNameController.text,
+                          tableNameEditable: widget.tableNameEditable,
+                          menuData: selectedItems,
+                          onConfirm: widget.onConfirm,
+                          showBilling: widget.showBilling,
+                        ),
                       ),
-                    ),
-                  ).then((onValue) {
-                    if (onValue != null) {
-                      List<Map<String, dynamic>> changedItems = onValue;
+                    ).then((onValue) {
+                      if (onValue != null) {
+                        List<Map<String, dynamic>> changedItems = onValue;
 
-                      // Pre-fill quantities from initialItems if any
-                      for (var category in menuData.keys) {
-                        for (var item in menuData[category]!) {
-                          final existingItem = changedItems.firstWhere(
-                            (e) => e['name'] == item['name'],
-                            orElse: () => {},
-                          );
-                          if (existingItem.isNotEmpty) {
-                            item['qty'] = existingItem['qty'];
+                        // Pre-fill quantities from initialItems if any
+                        for (var category in menuData.keys) {
+                          for (var item in menuData[category]!) {
+                            final existingItem = changedItems.firstWhere(
+                              (e) => e['name'] == item['name'],
+                              orElse: () => {},
+                            );
+                            if (existingItem.isNotEmpty) {
+                              item['qty'] = existingItem['qty'];
+                            }
                           }
                         }
-                      }
 
-                      setState(() {});
-                    }
-                  });
+                        setState(() {});
+                      }
+                    });
+                  }
                 },
                 child: Container(
                   padding: const EdgeInsets.all(16),

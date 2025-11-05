@@ -1065,6 +1065,8 @@ class _CartPageState extends State<CartPage> {
           .doc(dateKey);
       batch.set(dailyRef, {
         "revenue": FieldValue.increment(total),
+        "totalCash": FieldValue.increment(cashAmount),
+        "totalOnline": FieldValue.increment(onlineAmount),
         "transactions": FieldValue.increment(1),
         "lastUpdated": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));

@@ -66,6 +66,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
   bool isFilterApplied = false;
   double grandTotal = 0.0;
+  double grandTotalOnline = 0.0;
+  double grandTotalCash = 0.0;
   int totalTransactionsData = 0;
 
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> transactions = [];
@@ -180,6 +182,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
       setState(() {
         isFilterApplied = true;
         grandTotal = result["totalRevenue"];
+        grandTotalOnline = result["totalOnline"];
+        grandTotalCash = result["totalCash"];
         totalTransactionsData = result["totalTransactions"];
         // reset pagination
         transactions.clear();
@@ -206,15 +210,21 @@ class _TransactionsPageState extends State<TransactionsPage> {
         .get();
 
     double totalRevenue = 0;
+    double totalCash = 0;
+    double totalOnline = 0;
     int totalTransactions = 0;
 
     for (var doc in snapshot.docs) {
       totalRevenue += (doc["revenue"] as num?)?.toDouble() ?? 0.0;
+      totalCash += (doc["totalCash"] as num?)?.toDouble() ?? 0.0;
+      totalOnline += (doc["totalOnline"] as num?)?.toDouble() ?? 0.0;
       totalTransactions += (doc["transactions"] as int?) ?? 0;
     }
 
     return {
       "totalRevenue": totalRevenue,
+      "totalCash": totalCash,
+      "totalOnline": totalOnline,
       "totalTransactions": totalTransactions,
     };
   }
@@ -225,16 +235,22 @@ class _TransactionsPageState extends State<TransactionsPage> {
         .get();
 
     double totalRevenue = 0;
+    double totalCash = 0;
+    double totalOnline = 0;
     int totalTransactions = 0;
 
     for (var doc in snapshot.docs) {
       totalRevenue += (doc["revenue"] as num?)?.toDouble() ?? 0.0;
+      totalOnline += (doc["totalOnline"] as num?)?.toDouble() ?? 0.0;
+      totalCash += (doc["totalCash"] as num?)?.toDouble() ?? 0.0;
       totalTransactions += (doc["transactions"] as int?) ?? 0;
     }
 
     setState(() {
       isFilterApplied = false;
       grandTotal = totalRevenue;
+      grandTotalOnline = totalOnline;
+      grandTotalCash = totalCash;
       totalTransactionsData = totalTransactions;
     });
   }
@@ -305,11 +321,52 @@ class _TransactionsPageState extends State<TransactionsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          totalTransactionsData != 0
-              ? "Transactions ($totalTransactionsData)"
-              : "Transactions",
-          style: const TextStyle(fontSize: 16, fontFamily: 'Mulish-SemiBold'),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                totalTransactionsData != 0
+                    ? "Transactions ($totalTransactionsData)"
+                    : "Transactions",
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontFamily: 'Mulish-SemiBold',
+                ),
+              ),
+            ),
+
+            Row(
+              children: [
+                Image.asset(icon_online_transfer, height: 18),
+
+                SizedBox(width: 2),
+
+                Text(
+                  "\₹$grandTotalOnline",
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontFamily: fontMulishSemiBold,
+                    color: text_color,
+                  ),
+                ),
+
+                SizedBox(width: 16),
+
+                Image.asset(icon_cash, height: 18),
+
+                SizedBox(width: 5),
+
+                Text(
+                  "\₹$grandTotalCash",
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontFamily: fontMulishSemiBold,
+                    color: text_color,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
       body: Column(
