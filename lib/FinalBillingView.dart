@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+import 'package:flutter/services.dart' show rootBundle;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
@@ -836,6 +839,23 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                       onlineAmount: online,
                     );
 
+                    // ✅ Generate PDF
+                    final pdfBytes = await generateInvoicePdf(
+                      tableName: widget.tableName,
+                      items: cartItems,
+                      subtotal: subtotal,
+                      tax: subtotal * 0.085,
+                      discount: discountAmount,
+                      total: total,
+                      cashAmount: cash,
+                      onlineAmount: online,
+                    );
+
+                    // ✅ Show PDF preview and allow print
+                    await Printing.layoutPdf(
+                      onLayout: (format) async => pdfBytes,
+                    );
+
                     widget.onConfirm([]);
                     Navigator.pop(context);
                   },
@@ -989,5 +1009,148 @@ class _FinalBillingViewState extends State<FinalBillingView> {
     } catch (e) {
       Get.snackbar("Error", "Transaction not saved");
     }
+  }
+
+  Future<Uint8List> generateInvoicePdf({
+    required String tableName,
+    required List<Map<String, dynamic>> items,
+    required double subtotal,
+    required double tax,
+    required double discount,
+    required int total,
+    required int cashAmount,
+    required int onlineAmount,
+  }) async {
+    final pdf = pw.Document();
+
+    // ✅ Load custom Unicode font
+    final fontData = await rootBundle.load("assets/fonts/NotoSans-Regular.ttf");
+    final ttf = pw.Font.ttf(fontData);
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(24),
+        build: (context) {
+          return pw.DefaultTextStyle(
+            style: pw.TextStyle(font: ttf, fontSize: 12),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  "Invoice / Bill",
+                  style: pw.TextStyle(
+                    font: ttf,
+                    fontSize: 22,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                pw.Text("Table / Order: $tableName"),
+
+                pw.Divider(),
+
+                pw.Table(
+                  border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
+                  children: [
+                    pw.TableRow(
+                      decoration: const pw.BoxDecoration(
+                        color: PdfColors.grey300,
+                      ),
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text("Item"),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text("Qty"),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text("Price"),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text("Total"),
+                        ),
+                      ],
+                    ),
+                    ...items.map((item) {
+                      final qty = item['qty'] ?? 1;
+                      final price =
+                          double.tryParse(item['price'].toString()) ?? 0;
+                      return pw.TableRow(
+                        children: [
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text(item['name'] ?? ''),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text('$qty'),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text('₹${price.toStringAsFixed(2)}'),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text(
+                              '₹${(price * qty).toStringAsFixed(2)}',
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ],
+                ),
+
+                pw.SizedBox(height: 16),
+
+                pw.Align(
+                  alignment: pw.Alignment.centerRight,
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text("Subtotal: ₹${subtotal.toStringAsFixed(2)}"),
+                      pw.Text("Tax (8.5%): ₹${tax.toStringAsFixed(2)}"),
+                      pw.Text("Discount: ₹${discount.toStringAsFixed(2)}"),
+                      pw.Text(
+                        "Total: ₹${total.toStringAsFixed(2)}",
+                        style: pw.TextStyle(
+                          font: ttf,
+                          fontSize: 14,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.SizedBox(height: 8),
+                      pw.Text("Cash: ₹$cashAmount"),
+                      pw.Text("Online: ₹$onlineAmount"),
+                    ],
+                  ),
+                ),
+
+                pw.Divider(),
+
+                pw.Align(
+                  alignment: pw.Alignment.center,
+                  child: pw.Text(
+                    "Thank you for visiting!",
+                    style: pw.TextStyle(
+                      font: ttf,
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    return pdf.save();
   }
 }
