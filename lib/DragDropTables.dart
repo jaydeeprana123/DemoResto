@@ -1,3 +1,5 @@
+
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/AddCategoryPage.dart' hide AddTablePage;
 import 'package:demo/AddMenuItemPage.dart';
@@ -554,6 +556,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                     tableName: "Take Away ${tableNo + 1}",
                     initialItems: [],
                     showBilling: true,
+                    ifFromFinalBilling: false,
                     onConfirm:
                         (
                           List<Map<String, dynamic>> selectedItems,
@@ -731,6 +734,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                 tableName: tableName,
                 initialItems: [],
                 showBilling: groups.isEmpty,
+                ifFromFinalBilling: false,
                 onConfirm: (
                     List<Map<String, dynamic>> selectedItems,
                     bool isBillPaid,
@@ -758,7 +762,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
           MaterialPageRoute(
             builder: (_) => FinalBillingView(
               menuData: mergedItems,
-              onConfirm: (List<Map<String, dynamic>> confirmedItems) async {
+              onConfirm: (List<Map<String, dynamic>> confirmedItems, bool isBillPaid) async {
                 setState(() {
                   tables[tableName] = [confirmedItems];
                 });
@@ -812,6 +816,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                                     lastGroup,
                                   ),
                                   showBilling: groups.length == 1,
+                                  ifFromFinalBilling: false,
                                   onConfirm: (
                                       List<Map<String, dynamic>> selectedItems,
                                       bool isBillPaid,
@@ -842,6 +847,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                                   tableName: tableName,
                                   initialItems: [],
                                   showBilling: groups.isEmpty,
+                                  ifFromFinalBilling: false,
                                   onConfirm: (
                                       List<Map<String, dynamic>> selectedItems,
                                       bool isBillPaid,
@@ -993,6 +999,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                                   lastGroup,
                                 ),
                                 showBilling: groups.length == 1,
+                                ifFromFinalBilling: false,
                                 onConfirm:
                                     (
                                       List<Map<String, dynamic>> selectedItems,
@@ -1025,6 +1032,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                                 tableName: tableName,
                                 initialItems: [],
                                 showBilling: groups.isEmpty,
+                                ifFromFinalBilling: false,
                                 onConfirm:
                                     (
                                       List<Map<String, dynamic>> selectedItems,

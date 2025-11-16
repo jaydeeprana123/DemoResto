@@ -2,9 +2,11 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/Styles/my_icons.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 // import 'package:flutter_sms/flutter_sms.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
@@ -14,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 
+import 'MenuPage.dart';
 import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart'; // <-- for formatting
 
@@ -44,11 +47,47 @@ class FinalCartPage extends StatelessWidget {
     final total = subtotal + tax + tip;
 
     return Scaffold(
-      appBar: AppBar(title: Text("Cart", style: TextStyle(
-        fontSize: 16,
+      appBar: AppBar(title: Row(
+        children: [
+          Text("Cart", style: TextStyle(
+            fontSize: 16,
 
-        fontFamily: fontMulishSemiBold,
-      ))),
+            fontFamily: fontMulishSemiBold,
+          )),
+
+          InkWell(onTap: ()async{
+
+            // await Navigator.push(
+            //   context,
+            //   MaterialPageRoute(
+            //     builder: (_) => MenuPage(
+            //       menuList: menuData,
+            //       tableName: table,
+            //       initialItems: menuData,
+            //       showBilling: groups.isEmpty,
+            //       ifFromFinalBilling: true,
+            //       onConfirm:
+            //           (
+            //           List<Map<String, dynamic>> selectedItems,
+            //           bool isBillPaid,
+            //           ) async {
+            //         setState(() {
+            //           groups.add(selectedItems);
+            //         });
+            //         await _updateTableItemsInFirestore(
+            //           tableName,
+            //           groups,
+            //           isBillPaid,
+            //         );
+            //       },
+            //     ),
+            //   ),
+            // );
+
+          },child: SvgPicture.asset(icon_menu, color: Colors.black87,width: 28,))
+
+        ],
+      )),
       body: Column(
         children: [
           Expanded(

@@ -16,7 +16,7 @@ import 'Styles/my_icons.dart';
 class FinalBillingView extends StatefulWidget {
   final String tableName;
   final List<Map<String, dynamic>> menuData;
-  final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
+  final void Function(List<Map<String, dynamic>> selectedItems, bool isBillPaid) onConfirm;
 
    FinalBillingView({
     required this.menuData,
@@ -118,12 +118,22 @@ class _FinalBillingViewState extends State<FinalBillingView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          "Cart - ${widget.tableName}",
-          style: TextStyle(
-        fontSize: 16,
-        fontFamily: fontMulishBold,
-        )
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                "Cart - ${widget.tableName}",
+                style: TextStyle(
+              fontSize: 16,
+              fontFamily: fontMulishBold,
+              )
+              ),
+            ),
+
+
+            InkWell(onTap: (){
+            },child: SvgPicture.asset(icon_menu, color: Colors.black87, width: 24,))
+          ],
         ),
       ),
       body: Column(
@@ -609,7 +619,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                       onlineAmount: online,
                     );
 
-                    widget.onConfirm([]); Navigator.pop(context);
+                    widget.onConfirm([], true); Navigator.pop(context);
                   },
                   child: Container(
                     padding: const EdgeInsets.all(16),
