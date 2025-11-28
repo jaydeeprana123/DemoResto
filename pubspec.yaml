@@ -17,7 +17,7 @@ dependencies:
   path_provider: ^2.1.5
   share_plus: ^10.0.2
   url_launcher: ^6.3.0
-#  flutter_sms: ^2.3.3
+  #  flutter_sms: ^2.3.3
   firebase_core:
   firebase_storage:
   cloud_firestore: ^6.0.2
@@ -26,6 +26,8 @@ dependencies:
   intl: ^0.18.1
   audioplayers:
   flutter_svg: ^2.0.14
+  shared_preferences: ^2.5.3
+  firebase_auth:
 
 
 dev_dependencies:
@@ -59,6 +61,11 @@ flutter:
     - family: Mulish SemiBold
       fonts:
         - asset: assets/fonts/Mulish-SemiBold.ttf
+    - family: NotoSans
+      fonts:
+        - asset: assets/fonts/NotoSans-Regular.ttf
+
+
 
   # CRITICAL ASSET MANAGEMENT RULES:
   # - DO NOT ADD NEW ASSET DIRECTORIES (assets/svg/, assets/icons/, etc.)
