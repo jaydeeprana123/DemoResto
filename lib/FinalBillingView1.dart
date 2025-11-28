@@ -1,6 +1,3 @@
-import 'dart:typed_data';
-import 'package:flutter/services.dart' show rootBundle;
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
@@ -11,7 +8,6 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 
-import 'MenuPage.dart';
 import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
 import 'Styles/my_icons.dart';
@@ -20,12 +16,10 @@ import 'Styles/my_icons.dart';
 class FinalBillingView extends StatefulWidget {
   final String tableName;
   final List<Map<String, dynamic>> menuData;
-  final List<Map<String, dynamic>> totalMenuList; // Passed from previous page
   final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
 
   FinalBillingView({
     required this.menuData,
-    required this.totalMenuList,
     required this.onConfirm,
     required this.tableName,
     Key? key,
@@ -38,11 +32,13 @@ class FinalBillingView extends StatefulWidget {
 class _FinalBillingViewState extends State<FinalBillingView> {
   late List<Map<String, dynamic>> cartItems;
 
+  // track lastQty per item so we can animate direction correctly for each row
+  late List<int> lastQtys;
   final TextEditingController discountPercentController =
       TextEditingController();
   final TextEditingController discountAmountController =
       TextEditingController();
-  late List<int> lastQtys;
+
   final TextEditingController cashController = TextEditingController();
   final TextEditingController onlineController = TextEditingController();
 
@@ -133,63 +129,6 @@ class _FinalBillingViewState extends State<FinalBillingView> {
           "Cart - ${widget.tableName}",
           style: TextStyle(fontSize: 16, fontFamily: fontMulishBold),
         ),
-
-        actions: [
-          IconButton(
-            icon: Icon(Icons.menu),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MenuPage(
-                    menuList: widget.totalMenuList,
-                    tableName: widget.tableName,
-                    tableNameEditable: false,
-                    initialItems: widget.menuData,
-                    showBilling: false,
-                    isFromFinalBilling: true,
-                    onConfirm:
-                        (
-                          List<Map<String, dynamic>> selectedItems,
-                          bool isBillPaid,
-                          String tableName,
-                        ) async {
-                          setState(() {
-                            cartItems = selectedItems
-                                .map((item) => Map<String, dynamic>.from(item))
-                                .toList();
-
-                            lastQtys = cartItems
-                                .map<int>((e) => e['qty'] as int)
-                                .toList();
-
-                            _updatePaymentAmounts();
-                          });
-                        },
-                  ),
-                ),
-              ).then((onValue) {
-                if (onValue != null) {
-                  List<Map<String, dynamic>> changedItems = onValue;
-                  setState(() {
-                    cartItems = changedItems
-                        .map((item) => Map<String, dynamic>.from(item))
-                        .toList();
-
-                    lastQtys = cartItems
-                        .map<int>((e) => e['qty'] as int)
-                        .toList();
-
-                    _updatePaymentAmounts();
-                  });
-
-                  setState(() {});
-                }
-              });
-              ;
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -261,109 +200,130 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                       ),
                                     ),
 
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.remove_circle,
-                                            color: Colors.red,
-                                          ),
-                                          onPressed: () => decrementQty(index),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: Colors.black87,
+                                          width: 0.5,
                                         ),
-                                        SizedBox(
-                                          // Fixed width to contain the number
-                                          height: 30, // Fixed height
-                                          child: ClipRect(
-                                            // Extra ClipRect to ensure no overflow
-                                            child: AnimatedSwitcher(
-                                              duration: const Duration(
-                                                milliseconds: 300,
-                                              ),
-                                              transitionBuilder:
-                                                  (
-                                                    Widget child,
-                                                    Animation<double> animation,
-                                                  ) {
-                                                    final isIncrement =
-                                                        (item['qty'] as int) >
-                                                        lastQty;
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
 
-                                                    return ClipRect(
-                                                      child: SlideTransition(
-                                                        position:
-                                                            Tween<Offset>(
-                                                              begin: isIncrement
-                                                                  ? const Offset(
-                                                                      0,
-                                                                      0.5,
-                                                                    ) // New from bottom
-                                                                  : const Offset(
-                                                                      0,
-                                                                      -0.5,
-                                                                    ), // New from top
-                                                              end: Offset.zero,
-                                                            ).animate(
-                                                              CurvedAnimation(
-                                                                parent:
-                                                                    animation,
-                                                                curve: Curves
-                                                                    .easeOutCubic,
-                                                              ),
-                                                            ),
-                                                        child: child,
-                                                      ),
-                                                    );
-                                                  },
-                                              layoutBuilder: (currentChild, previousChildren) {
-                                                return Stack(
-                                                  alignment: Alignment.center,
-                                                  clipBehavior: Clip
-                                                      .hardEdge, // ⭐ IMPORTANT: Clip overflow
-                                                  children: [
-                                                    if (previousChildren
-                                                        .isNotEmpty)
-                                                      SlideTransition(
-                                                        position: AlwaysStoppedAnimation(
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          InkWell(
+                                            onTap: () {
+                                              decrementQty(index);
+                                            },
+                                            child: Icon(Icons.remove),
+                                          ),
+                                          // 🔥 Rickshaw-style rolling animation
+                                          // RICKSHAW style (roll up when increment, roll down when decrement)
+                                          SizedBox(
+                                            width:
+                                                30, // Fixed width to contain the number
+                                            height: 20, // Fixed height
+                                            child: ClipRect(
+                                              // Extra ClipRect to ensure no overflow
+                                              child: AnimatedSwitcher(
+                                                duration: const Duration(
+                                                  milliseconds: 300,
+                                                ),
+                                                transitionBuilder:
+                                                    (
+                                                      Widget child,
+                                                      Animation<double>
+                                                      animation,
+                                                    ) {
+                                                      final isIncrement =
                                                           (item['qty'] as int) >
-                                                                  lastQty
-                                                              ? const Offset(
-                                                                  0,
-                                                                  -0.5,
-                                                                ) // Exit to top
-                                                              : const Offset(
-                                                                  0,
-                                                                  0.5,
-                                                                ), // Exit to bottom
+                                                          lastQty;
+
+                                                      return ClipRect(
+                                                        child: SlideTransition(
+                                                          position:
+                                                              Tween<Offset>(
+                                                                begin:
+                                                                    isIncrement
+                                                                    ? const Offset(
+                                                                        0,
+                                                                        0.5,
+                                                                      ) // New from bottom
+                                                                    : const Offset(
+                                                                        0,
+                                                                        -0.5,
+                                                                      ), // New from top
+                                                                end:
+                                                                    Offset.zero,
+                                                              ).animate(
+                                                                CurvedAnimation(
+                                                                  parent:
+                                                                      animation,
+                                                                  curve: Curves
+                                                                      .easeOutCubic,
+                                                                ),
+                                                              ),
+                                                          child: child,
                                                         ),
-                                                        child: previousChildren
-                                                            .first,
-                                                      ),
-                                                    if (currentChild != null)
-                                                      currentChild,
-                                                  ],
-                                                );
-                                              },
-                                              child: Text(
-                                                "$qty",
-                                                key: ValueKey<int>(qty),
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  color: Colors.green,
-                                                  fontFamily: fontMulishBold,
+                                                      );
+                                                    },
+                                                layoutBuilder: (currentChild, previousChildren) {
+                                                  return Stack(
+                                                    alignment: Alignment.center,
+                                                    clipBehavior: Clip
+                                                        .hardEdge, // ⭐ IMPORTANT: Clip overflow
+                                                    children: [
+                                                      if (previousChildren
+                                                          .isNotEmpty)
+                                                        SlideTransition(
+                                                          position: AlwaysStoppedAnimation(
+                                                            (item['qty']
+                                                                        as int) >
+                                                                    lastQty
+                                                                ? const Offset(
+                                                                    0,
+                                                                    -0.5,
+                                                                  ) // Exit to top
+                                                                : const Offset(
+                                                                    0,
+                                                                    0.5,
+                                                                  ), // Exit to bottom
+                                                          ),
+                                                          child:
+                                                              previousChildren
+                                                                  .first,
+                                                        ),
+                                                      if (currentChild != null)
+                                                        currentChild,
+                                                    ],
+                                                  );
+                                                },
+                                                child: Text(
+                                                  "$qty",
+                                                  key: ValueKey<int>(qty),
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: Colors.green,
+                                                    fontFamily: fontMulishBold,
+                                                  ),
                                                 ),
                                               ),
                                             ),
                                           ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.add_circle,
-                                            color: Colors.green,
+
+                                          InkWell(
+                                            onTap: () {
+                                              incrementQty(index);
+                                            },
+                                            child: Icon(Icons.add),
                                           ),
-                                          onPressed: () => incrementQty(index),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -409,10 +369,6 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                 Radio<String>(
                                   value: 'Cash',
                                   groupValue: paymentMode,
-                                  visualDensity: VisualDensity(
-                                    horizontal: -4,
-                                    vertical: -4,
-                                  ),
                                   onChanged: (value) {
                                     setState(() {
                                       paymentMode = value!;
@@ -437,10 +393,6 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                 Radio<String>(
                                   value: 'Online',
                                   groupValue: paymentMode,
-                                  visualDensity: VisualDensity(
-                                    horizontal: -4,
-                                    vertical: -4,
-                                  ),
                                   onChanged: (value) {
                                     setState(() {
                                       paymentMode = value!;
@@ -464,10 +416,6 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                 Radio<String>(
                                   value: 'Both',
                                   groupValue: paymentMode,
-                                  visualDensity: VisualDensity(
-                                    horizontal: -4,
-                                    vertical: -4,
-                                  ),
                                   onChanged: (value) {
                                     setState(() {
                                       paymentMode = value!;
@@ -695,7 +643,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                               fontFamily: fontMulishSemiBold,
                             ),
                             decoration: InputDecoration(
-                              labelText: "Disc %",
+                              labelText: "Discount %",
                               labelStyle: const TextStyle(
                                 fontSize: 10,
                                 color: secondary_text_color,
@@ -839,23 +787,6 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                       onlineAmount: online,
                     );
 
-                    // ✅ Generate PDF
-                    final pdfBytes = await generateInvoicePdf(
-                      tableName: widget.tableName,
-                      items: cartItems,
-                      subtotal: subtotal,
-                      tax: subtotal * 0.085,
-                      discount: discountAmount,
-                      total: total,
-                      cashAmount: cash,
-                      onlineAmount: online,
-                    );
-
-                    // ✅ Show PDF preview and allow print
-                    await Printing.layoutPdf(
-                      onLayout: (format) async => pdfBytes,
-                    );
-
                     widget.onConfirm([]);
                     Navigator.pop(context);
                   },
@@ -967,8 +898,8 @@ class _FinalBillingViewState extends State<FinalBillingView> {
               (e) => {
                 "name": e["name"],
                 "qty": e["qty"],
-                "price": (e["price"]).round(), // convert to int
-                "total": ((e["qty"]) * (e["price"])).round(),
+                "price": (e["price"] as double).round(), // convert to int
+                "total": ((e["qty"] as int) * (e["price"] as double)).round(),
               },
             )
             .toList(),
@@ -987,8 +918,6 @@ class _FinalBillingViewState extends State<FinalBillingView> {
           .doc(dateKey);
       batch.set(dailyRef, {
         "revenue": FieldValue.increment(total),
-        "totalCash": FieldValue.increment(cashAmount),
-        "totalOnline": FieldValue.increment(onlineAmount),
         "transactions": FieldValue.increment(1),
         "lastUpdated": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -1009,148 +938,5 @@ class _FinalBillingViewState extends State<FinalBillingView> {
     } catch (e) {
       Get.snackbar("Error", "Transaction not saved");
     }
-  }
-
-  Future<Uint8List> generateInvoicePdf({
-    required String tableName,
-    required List<Map<String, dynamic>> items,
-    required double subtotal,
-    required double tax,
-    required double discount,
-    required int total,
-    required int cashAmount,
-    required int onlineAmount,
-  }) async {
-    final pdf = pw.Document();
-
-    // ✅ Load custom Unicode font
-    final fontData = await rootBundle.load("assets/fonts/NotoSans-Regular.ttf");
-    final ttf = pw.Font.ttf(fontData);
-
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(24),
-        build: (context) {
-          return pw.DefaultTextStyle(
-            style: pw.TextStyle(font: ttf, fontSize: 12),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  "Invoice / Bill",
-                  style: pw.TextStyle(
-                    font: ttf,
-                    fontSize: 22,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 8),
-                pw.Text("Table / Order: $tableName"),
-
-                pw.Divider(),
-
-                pw.Table(
-                  border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
-                  children: [
-                    pw.TableRow(
-                      decoration: const pw.BoxDecoration(
-                        color: PdfColors.grey300,
-                      ),
-                      children: [
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("Item"),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("Qty"),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("Price"),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("Total"),
-                        ),
-                      ],
-                    ),
-                    ...items.map((item) {
-                      final qty = item['qty'] ?? 1;
-                      final price =
-                          double.tryParse(item['price'].toString()) ?? 0;
-                      return pw.TableRow(
-                        children: [
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text(item['name'] ?? ''),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text('$qty'),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text('₹${price.toStringAsFixed(2)}'),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text(
-                              '₹${(price * qty).toStringAsFixed(2)}',
-                            ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                  ],
-                ),
-
-                pw.SizedBox(height: 16),
-
-                pw.Align(
-                  alignment: pw.Alignment.centerRight,
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text("Subtotal: ₹${subtotal.toStringAsFixed(2)}"),
-                      pw.Text("Tax (8.5%): ₹${tax.toStringAsFixed(2)}"),
-                      pw.Text("Discount: ₹${discount.toStringAsFixed(2)}"),
-                      pw.Text(
-                        "Total: ₹${total.toStringAsFixed(2)}",
-                        style: pw.TextStyle(
-                          font: ttf,
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.SizedBox(height: 8),
-                      pw.Text("Cash: ₹$cashAmount"),
-                      pw.Text("Online: ₹$onlineAmount"),
-                    ],
-                  ),
-                ),
-
-                pw.Divider(),
-
-                pw.Align(
-                  alignment: pw.Alignment.center,
-                  child: pw.Text(
-                    "Thank you for visiting!",
-                    style: pw.TextStyle(
-                      font: ttf,
-                      fontSize: 12,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-
-    return pdf.save();
   }
 }
