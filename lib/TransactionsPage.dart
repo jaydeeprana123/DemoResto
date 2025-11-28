@@ -535,41 +535,71 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
                                             Row(
                                               children: [
-                                                Image.asset(
-                                                  icon_online_transfer,
-                                                  height: 18,
-                                                ),
+                                                // Image.asset(
+                                                //   icon_online_transfer,
+                                                //   height: 18,
+                                                // ),
+                                                if (onlineAmount > 0)
+                                                  Row(
+                                                    children: [
+                                                      Text(
+                                                        "Online : ",
+                                                        style: const TextStyle(
+                                                          fontSize: 13,
+                                                          fontFamily:
+                                                              fontMulishRegular,
+                                                          color:
+                                                              secondary_text_color,
+                                                        ),
+                                                      ),
 
-                                                SizedBox(width: 2),
+                                                      SizedBox(width: 2),
 
-                                                Text(
-                                                  "\₹$onlineAmount",
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    fontFamily:
-                                                        fontMulishSemiBold,
-                                                    color: text_color,
+                                                      Text(
+                                                        "\₹$onlineAmount",
+                                                        style: const TextStyle(
+                                                          fontSize: 14,
+                                                          fontFamily:
+                                                              fontMulishSemiBold,
+                                                          color: text_color,
+                                                        ),
+                                                      ),
+
+                                                      SizedBox(width: 16),
+                                                    ],
                                                   ),
-                                                ),
 
-                                                SizedBox(width: 16),
+                                                // Image.asset(
+                                                //   icon_cash,
+                                                //   height: 18,
+                                                // ),
+                                                if (cashAmount > 0)
+                                                  Row(
+                                                    children: [
+                                                      Text(
+                                                        "Cash : ",
+                                                        style: const TextStyle(
+                                                          fontSize: 13,
+                                                          fontFamily:
+                                                              fontMulishRegular,
+                                                          color:
+                                                              secondary_text_color,
+                                                        ),
+                                                      ),
 
-                                                Image.asset(
-                                                  icon_cash,
-                                                  height: 18,
-                                                ),
+                                                      SizedBox(width: 2),
 
-                                                SizedBox(width: 5),
-
-                                                Text(
-                                                  "\₹$cashAmount",
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    fontFamily:
-                                                        fontMulishSemiBold,
-                                                    color: text_color,
+                                                      Text(
+                                                        "\₹$cashAmount",
+                                                        style: const TextStyle(
+                                                          fontSize: 14,
+                                                          fontFamily:
+                                                              fontMulishSemiBold,
+                                                          color: text_color,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                ),
                                               ],
                                             ),
                                           ],
