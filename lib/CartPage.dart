@@ -9,29 +9,22 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 
-import 'MyWidgets/EditableTextField.dart';
 import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
 
 /// Cart Page
 class CartPage extends StatefulWidget {
   final String tableName;
-  final bool tableNameEditable;
   final List<Map<String, dynamic>> menuData;
   final bool showBilling;
 
-  final void Function(
-    List<Map<String, dynamic>> selectedItems,
-    bool isBillPaid,
-    String tableName,
-  )
+  final void Function(List<Map<String, dynamic>> selectedItems, bool isBillPaid)
   onConfirm;
 
   const CartPage({
     required this.menuData,
     required this.onConfirm,
     required this.tableName,
-    required this.tableNameEditable,
     required this.showBilling,
     Key? key,
   }) : super(key: key);
@@ -42,7 +35,7 @@ class CartPage extends StatefulWidget {
 
 class _CartPageState extends State<CartPage> {
   late List<Map<String, dynamic>> cartItems;
-  late TextEditingController tableNameController;
+
   final TextEditingController discountPercentController =
       TextEditingController();
   final TextEditingController discountAmountController =
@@ -61,7 +54,6 @@ class _CartPageState extends State<CartPage> {
   @override
   void initState() {
     super.initState();
-    tableNameController = TextEditingController(text: widget.tableName);
     cartItems = widget.menuData
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
@@ -145,23 +137,12 @@ class _CartPageState extends State<CartPage> {
               //   icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
               //   onPressed: () => Navigator.pop(context, cartItems),
               // ),
-              // ),),
-              Text(
-                "cart - ",
-                style: TextStyle(fontSize: 16, fontFamily: fontMulishBold),
+              Expanded(
+                child: Text(
+                  "Cart - ${widget.tableName}",
+                  style: TextStyle(fontSize: 16, fontFamily: fontMulishBold),
+                ),
               ),
-
-              (widget.tableName.contains("Table") || !widget.tableNameEditable)
-                  ? Text(
-                      widget.tableName,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontFamily: fontMulishBold,
-                      ),
-                    )
-                  : Expanded(
-                      child: EditableTextField(controller: tableNameController),
-                    ),
 
               // if (widget.showBilling)
               //   InkWell(
@@ -821,7 +802,7 @@ class _CartPageState extends State<CartPage> {
 
                             await addTransactionToFirestore(
                               items: cartItems,
-                              tableName: tableNameController.text,
+                              tableName: widget.tableName,
                               subtotal: subtotal.round(),
                               tax: (subtotal * 0.085).round(),
                               discount: discountAmount.round(),
@@ -830,11 +811,7 @@ class _CartPageState extends State<CartPage> {
                               onlineAmount: online,
                             );
 
-                            widget.onConfirm(
-                              cartItems,
-                              true,
-                              tableNameController.text,
-                            );
+                            widget.onConfirm(cartItems, true);
 
                             // if(widget.tableName.contains("Take Away")){
                             //   widget.onConfirm(cartItems, true);
@@ -930,11 +907,7 @@ class _CartPageState extends State<CartPage> {
                     alignment: Alignment.bottomCenter,
                     child: InkWell(
                       onTap: () {
-                        widget.onConfirm(
-                          cartItems,
-                          false,
-                          tableNameController.text,
-                        );
+                        widget.onConfirm(cartItems, false);
                         Navigator.pop(context);
                         Navigator.pop(context);
                       },
@@ -1065,8 +1038,6 @@ class _CartPageState extends State<CartPage> {
           .doc(dateKey);
       batch.set(dailyRef, {
         "revenue": FieldValue.increment(total),
-        "totalCash": FieldValue.increment(cashAmount),
-        "totalOnline": FieldValue.increment(onlineAmount),
         "transactions": FieldValue.increment(1),
         "lastUpdated": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -1487,7 +1458,7 @@ class _CartPageState extends State<CartPage> {
                                               fontFamily: fontMulishSemiBold,
                                             ),
                                             decoration: InputDecoration(
-                                              labelText: "Disc %",
+                                              labelText: "Discount %",
                                               labelStyle: const TextStyle(
                                                 fontSize: 10,
                                                 color: secondary_text_color,
@@ -1627,11 +1598,7 @@ class _CartPageState extends State<CartPage> {
                             onlineAmount: online,
                           );
 
-                          widget.onConfirm(
-                            cartItems,
-                            true,
-                            tableNameController.text,
-                          );
+                          widget.onConfirm(cartItems, true);
                           Navigator.pop(context);
                           Navigator.pop(context);
                           Navigator.pop(context);

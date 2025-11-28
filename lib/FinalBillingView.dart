@@ -1,6 +1,3 @@
-import 'dart:typed_data';
-import 'package:flutter/services.dart' show rootBundle;
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
@@ -11,7 +8,6 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 
-import 'MenuPage.dart';
 import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
 import 'Styles/my_icons.dart';
@@ -20,14 +16,10 @@ import 'Styles/my_icons.dart';
 class FinalBillingView extends StatefulWidget {
   final String tableName;
   final List<Map<String, dynamic>> menuData;
+  final void Function(List<Map<String, dynamic>> selectedItems, bool isBillPaid) onConfirm;
 
-  final List<Map<String, dynamic>> totalMenuList; // Passed from previous page
-  final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
-
-
-  FinalBillingView({
+   FinalBillingView({
     required this.menuData,
-    required this.totalMenuList,
     required this.onConfirm,
     required this.tableName,
     Key? key,
@@ -44,7 +36,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
       TextEditingController();
   final TextEditingController discountAmountController =
       TextEditingController();
-  late List<int> lastQtys;
+
   final TextEditingController cashController = TextEditingController();
   final TextEditingController onlineController = TextEditingController();
 
@@ -59,9 +51,6 @@ class _FinalBillingViewState extends State<FinalBillingView> {
     cartItems = widget.menuData
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
-
-    lastQtys = cartItems.map<int>((e) => e['qty'] as int).toList();
-
     _updatePaymentAmounts();
   }
 
@@ -74,7 +63,6 @@ class _FinalBillingViewState extends State<FinalBillingView> {
 
   void incrementQty(int index) {
     setState(() {
-      lastQtys[index] = cartItems[index]['qty']; // store old value
       cartItems[index]['qty']++;
       _updateDiscountFromPercent();
       _updatePaymentAmounts();
@@ -83,7 +71,6 @@ class _FinalBillingViewState extends State<FinalBillingView> {
 
   void decrementQty(int index) {
     setState(() {
-      lastQtys[index] = cartItems[index]['qty']; // store old value
       if (cartItems[index]['qty'] > 1) {
         cartItems[index]['qty']--;
       } else {
@@ -131,7 +118,6 @@ class _FinalBillingViewState extends State<FinalBillingView> {
 
     return Scaffold(
       appBar: AppBar(
-
         title: Row(
           children: [
             Expanded(
@@ -148,65 +134,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
             InkWell(onTap: (){
             },child: SvgPicture.asset(icon_menu, color: Colors.black87, width: 24,))
           ],
-
         ),
-
-        actions: [
-          IconButton(
-            icon: Icon(Icons.menu),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MenuPage(
-                    menuList: widget.totalMenuList,
-                    tableName: widget.tableName,
-                    tableNameEditable: false,
-                    initialItems: widget.menuData,
-                    showBilling: false,
-                    isFromFinalBilling: true,
-                    onConfirm:
-                        (
-                          List<Map<String, dynamic>> selectedItems,
-                          bool isBillPaid,
-                          String tableName,
-                        ) async {
-                          setState(() {
-                            cartItems = selectedItems
-                                .map((item) => Map<String, dynamic>.from(item))
-                                .toList();
-
-                            lastQtys = cartItems
-                                .map<int>((e) => e['qty'] as int)
-                                .toList();
-
-                            _updatePaymentAmounts();
-                          });
-                        },
-                  ),
-                ),
-              ).then((onValue) {
-                if (onValue != null) {
-                  List<Map<String, dynamic>> changedItems = onValue;
-                  setState(() {
-                    cartItems = changedItems
-                        .map((item) => Map<String, dynamic>.from(item))
-                        .toList();
-
-                    lastQtys = cartItems
-                        .map<int>((e) => e['qty'] as int)
-                        .toList();
-
-                    _updatePaymentAmounts();
-                  });
-
-                  setState(() {});
-                }
-              });
-              ;
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -220,61 +148,52 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                       itemBuilder: (context, index) {
                         final item = cartItems[index];
                         final qty = item['qty'] as int;
-                        final lastQty = lastQtys[index];
                         return InkWell(
-                          onTap: () {
+                          onTap: (){
                             incrementQty(index);
                           },
                           child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
-                            ),
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.start,
                                   children: [
+
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            item['name'],
-                                            style: TextStyle(
-                                              fontSize: 14,
+                                        crossAxisAlignment: CrossAxisAlignment.start
+                                        ,children: [
+                                        Text(item['name'], style: TextStyle(
+                                          fontSize: 14,
+                                          color: text_color,
+                                          fontFamily: fontMulishSemiBold,
+                                        )),
+
+                                        SizedBox(height: 2,),
+
+                                        Row(
+                                          children: [
+                                            Text("₹${item['price']}", style: TextStyle(
+                                              fontSize: 13,
                                               color: text_color,
                                               fontFamily: fontMulishSemiBold,
+                                            )),
+                                            const SizedBox(width: 16),
+                                            Text(
+                                              "\u00D7$qty",
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.red,
+                                                fontFamily: fontMulishBold,
+                                              ),
                                             ),
-                                          ),
+                                          ],
+                                        ),
 
-                                          SizedBox(height: 2),
 
-                                          Row(
-                                            children: [
-                                              Text(
-                                                "₹${item['price']}",
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color: text_color,
-                                                  fontFamily:
-                                                      fontMulishSemiBold,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 16),
-                                              Text(
-                                                "\u00D7$qty",
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  color: Colors.red,
-                                                  fontFamily: fontMulishBold,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
+                                      ],
                                       ),
                                     ),
 
@@ -288,91 +207,11 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                           ),
                                           onPressed: () => decrementQty(index),
                                         ),
-                                        SizedBox(
-                                          // Fixed width to contain the number
-                                          height: 30, // Fixed height
-                                          child: ClipRect(
-                                            // Extra ClipRect to ensure no overflow
-                                            child: AnimatedSwitcher(
-                                              duration: const Duration(
-                                                milliseconds: 300,
-                                              ),
-                                              transitionBuilder:
-                                                  (
-                                                    Widget child,
-                                                    Animation<double> animation,
-                                                  ) {
-                                                    final isIncrement =
-                                                        (item['qty'] as int) >
-                                                        lastQty;
-
-                                                    return ClipRect(
-                                                      child: SlideTransition(
-                                                        position:
-                                                            Tween<Offset>(
-                                                              begin: isIncrement
-                                                                  ? const Offset(
-                                                                      0,
-                                                                      0.5,
-                                                                    ) // New from bottom
-                                                                  : const Offset(
-                                                                      0,
-                                                                      -0.5,
-                                                                    ), // New from top
-                                                              end: Offset.zero,
-                                                            ).animate(
-                                                              CurvedAnimation(
-                                                                parent:
-                                                                    animation,
-                                                                curve: Curves
-                                                                    .easeOutCubic,
-                                                              ),
-                                                            ),
-                                                        child: child,
-                                                      ),
-                                                    );
-                                                  },
-                                              layoutBuilder: (currentChild, previousChildren) {
-                                                return Stack(
-                                                  alignment: Alignment.center,
-                                                  clipBehavior: Clip
-                                                      .hardEdge, // ⭐ IMPORTANT: Clip overflow
-                                                  children: [
-                                                    if (previousChildren
-                                                        .isNotEmpty)
-                                                      SlideTransition(
-                                                        position: AlwaysStoppedAnimation(
-                                                          (item['qty'] as int) >
-                                                                  lastQty
-                                                              ? const Offset(
-                                                                  0,
-                                                                  -0.5,
-                                                                ) // Exit to top
-                                                              : const Offset(
-                                                                  0,
-                                                                  0.5,
-                                                                ), // Exit to bottom
-                                                        ),
-                                                        child: previousChildren
-                                                            .first,
-                                                      ),
-                                                    if (currentChild != null)
-                                                      currentChild,
-                                                  ],
-                                                );
-                                              },
-                                              child: Text(
-                                                "$qty",
-                                                key: ValueKey<int>(qty),
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  color: Colors.green,
-                                                  fontFamily: fontMulishBold,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
+                                        Text("$qty", style: TextStyle(
+                                          fontSize: 14,
+                                          color: text_color,
+                                          fontFamily: fontMulishSemiBold,
+                                        )),
                                         IconButton(
                                           icon: const Icon(
                                             Icons.add_circle,
@@ -382,14 +221,12 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                         ),
                                       ],
                                     ),
+
                                   ],
                                 ),
 
-                                Container(
-                                  margin: EdgeInsets.only(top: 8),
-                                  height: 0.5,
-                                  color: Colors.grey.shade300,
-                                ),
+                                Container(margin: EdgeInsets.only(top: 8),height: 0.5, color: Colors.grey.shade300),
+
                               ],
                             ),
                           ),
@@ -410,26 +247,21 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                         // Payment Mode Selection
                         Row(
                           children: [
+
                             Expanded(
-                              child: Text(
-                                "Payment By",
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: secondary_text_color,
-                                  fontFamily: fontMulishSemiBold,
-                                ),
-                              ),
+                              child: Text("Payment By", style: const TextStyle(
+                                fontSize: 14,
+                                color: secondary_text_color,
+                                fontFamily: fontMulishSemiBold,
+                              )),
                             ),
+
 
                             Row(
                               children: [
                                 Radio<String>(
                                   value: 'Cash',
                                   groupValue: paymentMode,
-                                  visualDensity: VisualDensity(
-                                    horizontal: -4,
-                                    vertical: -4,
-                                  ),
                                   onChanged: (value) {
                                     setState(() {
                                       paymentMode = value!;
@@ -448,16 +280,12 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                               ],
                             ),
 
-                            SizedBox(width: 12),
+                            SizedBox(width: 12,),
                             Row(
                               children: [
                                 Radio<String>(
                                   value: 'Online',
                                   groupValue: paymentMode,
-                                  visualDensity: VisualDensity(
-                                    horizontal: -4,
-                                    vertical: -4,
-                                  ),
                                   onChanged: (value) {
                                     setState(() {
                                       paymentMode = value!;
@@ -475,16 +303,12 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                 ),
                               ],
                             ),
-                            SizedBox(width: 12),
+                            SizedBox(width: 12,),
                             Row(
                               children: [
                                 Radio<String>(
                                   value: 'Both',
                                   groupValue: paymentMode,
-                                  visualDensity: VisualDensity(
-                                    horizontal: -4,
-                                    vertical: -4,
-                                  ),
                                   onChanged: (value) {
                                     setState(() {
                                       paymentMode = value!;
@@ -510,13 +334,11 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                         // Cash + Online Inputs (only if Both selected)
                         if (paymentMode == 'Both')
                           Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: 12.0,
-                              top: 8,
-                            ),
+                            padding: const EdgeInsets.only(bottom: 12.0, top: 8),
                             child: Row(
                               children: [
                                 // Cash Amount Field
+
                                 Expanded(child: SizedBox()),
 
                                 Expanded(
@@ -536,39 +358,26 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                         fontFamily: fontMulishMedium,
                                       ),
                                       isDense: true,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            vertical: 10,
-                                            horizontal: 12,
-                                          ),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                          vertical: 10, horizontal: 12),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Colors.grey,
-                                        ),
+                                        borderSide: const BorderSide(color: Colors.grey),
                                       ),
                                       focusedBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Colors.blue,
-                                        ),
+                                        borderSide: const BorderSide(color: Colors.blue),
                                       ),
                                     ),
                                     onChanged: (value) {
                                       setState(() {
                                         int cashVal = int.tryParse(value) ?? 0;
                                         if (cashVal > total) cashVal = total;
-                                        cashController.text = cashVal
-                                            .toString();
-                                        onlineController.text =
-                                            (total - cashVal).toString();
-                                        cashController.selection =
-                                            TextSelection.fromPosition(
-                                              TextPosition(
-                                                offset:
-                                                    cashController.text.length,
-                                              ),
-                                            );
+                                        cashController.text = cashVal.toString();
+                                        onlineController.text = (total - cashVal).toString();
+                                        cashController.selection = TextSelection.fromPosition(
+                                          TextPosition(offset: cashController.text.length),
+                                        );
                                       });
                                     },
                                   ),
@@ -594,42 +403,26 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                         fontFamily: fontMulishMedium,
                                       ),
                                       isDense: true,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            vertical: 10,
-                                            horizontal: 12,
-                                          ),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                          vertical: 10, horizontal: 12),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Colors.grey,
-                                        ),
+                                        borderSide: const BorderSide(color: Colors.grey),
                                       ),
                                       focusedBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Colors.blue,
-                                        ),
+                                        borderSide: const BorderSide(color: Colors.blue),
                                       ),
                                     ),
                                     onChanged: (value) {
                                       setState(() {
-                                        int onlineVal =
-                                            int.tryParse(value) ?? 0;
-                                        if (onlineVal > total)
-                                          onlineVal = total;
-                                        onlineController.text = onlineVal
-                                            .toString();
-                                        cashController.text =
-                                            (total - onlineVal).toString();
-                                        onlineController.selection =
-                                            TextSelection.fromPosition(
-                                              TextPosition(
-                                                offset: onlineController
-                                                    .text
-                                                    .length,
-                                              ),
-                                            );
+                                        int onlineVal = int.tryParse(value) ?? 0;
+                                        if (onlineVal > total) onlineVal = total;
+                                        onlineController.text = onlineVal.toString();
+                                        cashController.text = (total - onlineVal).toString();
+                                        onlineController.selection = TextSelection.fromPosition(
+                                          TextPosition(offset: onlineController.text.length),
+                                        );
                                       });
                                     },
                                   ),
@@ -640,68 +433,56 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                       ],
                     ),
 
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          "Subtotal",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: secondary_text_color,
-                            fontFamily: fontMulishSemiBold,
-                          ),
-                        ),
-                        Text(
-                          "₹${subtotal.toStringAsFixed(0)}",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: text_color,
-                            fontFamily: fontMulishSemiBold,
-                          ),
-                        ),
-                      ],
-                    ),
 
-                    SizedBox(height: 8),
 
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          "Tax (8.5%)",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: secondary_text_color,
-                            fontFamily: fontMulishSemiBold,
-                          ),
-                        ),
-                        Text(
-                          "₹$tax",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: text_color,
-                            fontFamily: fontMulishSemiBold,
-                          ),
-                        ),
+                        const Text("Subtotal", style: const TextStyle(
+                          fontSize: 14,
+                          color: secondary_text_color,
+                          fontFamily: fontMulishSemiBold,
+                        )),
+                        Text("₹${subtotal.toStringAsFixed(0)}", style: const TextStyle(
+                          fontSize: 14,
+                          color: text_color,
+                          fontFamily: fontMulishSemiBold,
+                        )),
                       ],
                     ),
 
-                    SizedBox(height: 6),
+                    SizedBox(height: 8,),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [Text("Tax (8.5%)",  style: const TextStyle(
+                        fontSize: 14,
+                        color: secondary_text_color,
+                        fontFamily: fontMulishSemiBold,
+                      )), Text("₹$tax", style: const TextStyle(
+                        fontSize: 14,
+                        color: text_color,
+                        fontFamily: fontMulishSemiBold,
+                      ))],
+                    ),
+
+                    SizedBox(height: 6,),
 
                     Row(
                       children: [
                         // Discount Percentage
+
                         Expanded(
-                          flex: 2,
-                          child: Text(
-                            "Discount",
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: secondary_text_color,
-                              fontFamily: fontMulishSemiBold,
-                            ),
-                          ),
+                          flex: 2
+                          ,child: Text("Discount", style: const TextStyle(
+                          fontSize: 14,
+                          color: secondary_text_color,
+                          fontFamily: fontMulishSemiBold,
+                        )),
                         ),
+
+
+
 
                         Expanded(
                           child: TextField(
@@ -712,7 +493,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                               fontFamily: fontMulishSemiBold,
                             ),
                             decoration: InputDecoration(
-                              labelText: "Disc %",
+                              labelText: "Discount %",
                               labelStyle: const TextStyle(
                                 fontSize: 10,
                                 color: secondary_text_color,
@@ -725,28 +506,17 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                 fontFamily: fontMulishRegular,
                               ),
                               isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 10,
-                                horizontal: 12,
-                              ),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade100,
-                                  width: 0.25,
-                                ),
+                                borderSide: BorderSide(color: Colors.grey.shade100,width: 0.25 ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(
-                                  color: primary_color,
-                                  width: 0.5,
-                                ),
+                                borderSide: const BorderSide(color: primary_color,width: 0.5),
                               ),
                             ),
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             onChanged: (value) {
                               setState(() {
                                 discountPercent = double.tryParse(value) ?? 0;
@@ -755,7 +525,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                             },
                           ),
                         ),
-                        SizedBox(width: 8),
+                        SizedBox(width: 8,),
                         // Discount Amount
                         Expanded(
                           child: TextField(
@@ -779,21 +549,14 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                 fontFamily: fontMulishRegular,
                               ),
                               isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 10,
-                                horizontal: 12,
-                              ),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(
-                                  color: Colors.grey,
-                                ),
+                                borderSide: const BorderSide(color: Colors.grey),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(
-                                  color: primary_color,
-                                ),
+                                borderSide: const BorderSide(color: primary_color),
                               ),
                             ),
                             keyboardType: TextInputType.number,
@@ -809,8 +572,8 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                     ),
 
                     const SizedBox(height: 12),
-
                     // Payment Mode Radio
+
                     DottedLine(
                       dashLength: 2,
                       dashGapLength: 6,
@@ -841,7 +604,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
               Align(
                 alignment: Alignment.bottomCenter,
                 child: InkWell(
-                  onTap: () async {
+                  onTap: () async{
                     final cash = int.tryParse(cashController.text) ?? 0;
                     final online = int.tryParse(onlineController.text) ?? 0;
 
@@ -856,29 +619,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                       onlineAmount: online,
                     );
 
-
-
-
-                    // ✅ Generate PDF
-                    final pdfBytes = await generateInvoicePdf(
-                      tableName: widget.tableName,
-                      items: cartItems,
-                      subtotal: subtotal,
-                      tax: subtotal * 0.085,
-                      discount: discountAmount,
-                      total: total,
-                      cashAmount: cash,
-                      onlineAmount: online,
-                    );
-
-                    // ✅ Show PDF preview and allow print
-                    await Printing.layoutPdf(
-                      onLayout: (format) async => pdfBytes,
-                    );
-
-                    widget.onConfirm([], true);
-                    Navigator.pop(context);
-
+                    widget.onConfirm([], true); Navigator.pop(context);
                   },
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -889,13 +630,10 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                         Expanded(
                           child: Row(
                             children: [
-                              SvgPicture.asset(
-                                icon_bill,
-                                width: 24,
-                                color: Colors.white,
-                              ),
 
-                              SizedBox(width: 6),
+                              SvgPicture.asset(icon_bill, width: 24,color: Colors.white,),
+
+                              SizedBox(width: 6,),
 
                               Text(
                                 "Confirm & Billing",
@@ -909,7 +647,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                           ),
                         ),
 
-                        Icon(Icons.arrow_forward_ios, color: Colors.white),
+                        Icon(Icons.arrow_forward_ios, color: Colors.white,)
 
                         // ElevatedButton(
                         //   onPressed: () {
@@ -963,6 +701,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
     );
   }
 
+
   Future<void> addTransactionToFirestore({
     required List<Map<String, dynamic>> items,
     required String tableName,
@@ -984,14 +723,12 @@ class _FinalBillingViewState extends State<FinalBillingView> {
       batch.set(txRef, {
         "table": tableName,
         "items": items
-            .map(
-              (e) => {
-                "name": e["name"],
-                "qty": e["qty"],
-                "price": (e["price"]).round(), // convert to int
-                "total": ((e["qty"]) * (e["price"])).round(),
-              },
-            )
+            .map((e) => {
+          "name": e["name"],
+          "qty": e["qty"],
+          "price": (e["price"] as double).round(), // convert to int
+          "total": ((e["qty"] as int) * (e["price"] as double)).round(),
+        })
             .toList(),
         "subtotal": subtotal,
         "tax": tax,
@@ -1003,26 +740,28 @@ class _FinalBillingViewState extends State<FinalBillingView> {
       });
 
       // 2️⃣ Update daily_stats
-      final dailyRef = FirebaseFirestore.instance
-          .collection("daily_stats")
-          .doc(dateKey);
-      batch.set(dailyRef, {
-        "revenue": FieldValue.increment(total),
-        "totalCash": FieldValue.increment(cashAmount),
-        "totalOnline": FieldValue.increment(onlineAmount),
-        "transactions": FieldValue.increment(1),
-        "lastUpdated": FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      final dailyRef = FirebaseFirestore.instance.collection("daily_stats").doc(dateKey);
+      batch.set(
+        dailyRef,
+        {
+          "revenue": FieldValue.increment(total),
+          "transactions": FieldValue.increment(1),
+          "lastUpdated": FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
 
       // 3️⃣ Update global summary
-      final summaryRef = FirebaseFirestore.instance
-          .collection("stats")
-          .doc("summary");
-      batch.set(summaryRef, {
-        "totalRevenue": FieldValue.increment(total),
-        "totalTransactions": FieldValue.increment(1),
-        "lastUpdated": FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      final summaryRef = FirebaseFirestore.instance.collection("stats").doc("summary");
+      batch.set(
+        summaryRef,
+        {
+          "totalRevenue": FieldValue.increment(total),
+          "totalTransactions": FieldValue.increment(1),
+          "lastUpdated": FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
 
       // 4️⃣ Commit batch
       await batch.commit();
@@ -1032,146 +771,4 @@ class _FinalBillingViewState extends State<FinalBillingView> {
     }
   }
 
-  Future<Uint8List> generateInvoicePdf({
-    required String tableName,
-    required List<Map<String, dynamic>> items,
-    required double subtotal,
-    required double tax,
-    required double discount,
-    required int total,
-    required int cashAmount,
-    required int onlineAmount,
-  }) async {
-    final pdf = pw.Document();
-
-    // ✅ Load custom Unicode font
-    final fontData = await rootBundle.load("assets/fonts/NotoSans-Regular.ttf");
-    final ttf = pw.Font.ttf(fontData);
-
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(24),
-        build: (context) {
-          return pw.DefaultTextStyle(
-            style: pw.TextStyle(font: ttf, fontSize: 12),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  "Invoice / Bill",
-                  style: pw.TextStyle(
-                    font: ttf,
-                    fontSize: 22,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 8),
-                pw.Text("Table / Order: $tableName"),
-
-                pw.Divider(),
-
-                pw.Table(
-                  border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
-                  children: [
-                    pw.TableRow(
-                      decoration: const pw.BoxDecoration(
-                        color: PdfColors.grey300,
-                      ),
-                      children: [
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("Item"),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("Qty"),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("Price"),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("Total"),
-                        ),
-                      ],
-                    ),
-                    ...items.map((item) {
-                      final qty = item['qty'] ?? 1;
-                      final price =
-                          double.tryParse(item['price'].toString()) ?? 0;
-                      return pw.TableRow(
-                        children: [
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text(item['name'] ?? ''),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text('$qty'),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text('₹${price.toStringAsFixed(2)}'),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text(
-                              '₹${(price * qty).toStringAsFixed(2)}',
-                            ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                  ],
-                ),
-
-                pw.SizedBox(height: 16),
-
-                pw.Align(
-                  alignment: pw.Alignment.centerRight,
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text("Subtotal: ₹${subtotal.toStringAsFixed(2)}"),
-                      pw.Text("Tax (8.5%): ₹${tax.toStringAsFixed(2)}"),
-                      pw.Text("Discount: ₹${discount.toStringAsFixed(2)}"),
-                      pw.Text(
-                        "Total: ₹${total.toStringAsFixed(2)}",
-                        style: pw.TextStyle(
-                          font: ttf,
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.SizedBox(height: 8),
-                      pw.Text("Cash: ₹$cashAmount"),
-                      pw.Text("Online: ₹$onlineAmount"),
-                    ],
-                  ),
-                ),
-
-                pw.Divider(),
-
-                pw.Align(
-                  alignment: pw.Alignment.center,
-                  child: pw.Text(
-                    "Thank you for visiting!",
-                    style: pw.TextStyle(
-                      font: ttf,
-                      fontSize: 12,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-
-    return pdf.save();
-  }
 }

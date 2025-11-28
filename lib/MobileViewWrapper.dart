@@ -18,9 +18,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:get/get_utils/src/platform/platform.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'dart:math';
-
-import 'Styles/my_icons.dart'; // 👈 needed for max()
+import 'dart:math'; // 👈 needed for max()
 
 class MobileViewWrapper extends StatelessWidget {
   final Widget child;
@@ -53,78 +51,65 @@ class MobileViewWrapper extends StatelessWidget {
     return kIsWeb && GetPlatform.isDesktop
         ? Scaffold(
             backgroundColor: Colors.white,
-            body: Stack(
-              children: [
-                SvgPicture.asset(
-                  img_top_hompage_bg,
-                  width: double.infinity,
-                  height: double.infinity,
-                  fit: BoxFit.cover,
+            body: Align(
+              alignment: Alignment.center,
+              child: Container(
+                width: scale >= 1 ? phoneWidth + 10 : phoneWidth,
+                height: phoneHeight + 20,
+                margin: EdgeInsets.only(
+                  bottom: scale >= 1 ? 20 : 20,
+                  top: scale >= 1 ? 20 : 20,
+                  left: scale >= 1 ? 0 : 20,
+                  right: scale >= 1 ? 0 : 20,
                 ),
-
-                Align(
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(scale >= 1 ? 40 : 30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(scale >= 1 ? 0.8 : 0.6),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: Stack(
                   alignment: Alignment.center,
-                  child: Container(
-                    width: scale >= 1 ? phoneWidth + 10 : phoneWidth,
-                    height: phoneHeight + 20,
-                    margin: EdgeInsets.only(
-                      bottom: scale >= 1 ? 20 : 20,
-                      top: scale >= 1 ? 20 : 20,
-                      left: scale >= 1 ? 0 : 20,
-                      right: scale >= 1 ? 0 : 20,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(scale >= 1 ? 40 : 30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(
-                            scale >= 1 ? 0.8 : 0.6,
-                          ),
-                          blurRadius: 8,
-                          spreadRadius: 2,
+                  children: [
+                    Positioned.fill(
+                      top: scale >= 1 ? 12 : 6,
+                      bottom: scale >= 1 ? 12 : 6,
+                      left: scale >= 1 ? 10 : 4,
+                      right: scale >= 1 ? 10 : 4,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(
+                          scale >= 1 ? 40 : 30,
                         ),
-                      ],
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Positioned.fill(
-                          top: scale >= 1 ? 12 : 6,
-                          bottom: scale >= 1 ? 12 : 6,
-                          left: scale >= 1 ? 10 : 4,
-                          right: scale >= 1 ? 10 : 4,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(
-                              scale >= 1 ? 40 : 30,
-                            ),
-                            child: MediaQuery(
-                              data: MediaQueryData(
-                                size: Size(phoneWidth, phoneHeight),
-                                devicePixelRatio: 3,
-                              ),
-                              child: child,
-                            ),
+                        child: MediaQuery(
+                          data: MediaQueryData(
+                            size: Size(phoneWidth, phoneHeight),
+                            devicePixelRatio: 3,
                           ),
+                          child: child,
                         ),
+                      ),
+                    ),
 
-                        // Notch
-                        Positioned(
-                          top: scale >= 1 ? 3 : 1,
-                          child: Container(
-                            width: 120 * scale,
-                            height: scale >= 1 ? 18 * scale : 15 * scale,
-                            decoration: BoxDecoration(
-                              color: Colors.black,
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                          ),
+                    // Notch
+                    Positioned(
+                      top: scale >= 1 ? 3 : 1,
+                      child: Container(
+                        width: 120 * scale,
+                        height: scale >= 1 ? 18 * scale : 15 * scale,
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(15),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           )
         : child;

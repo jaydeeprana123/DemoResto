@@ -56,14 +56,14 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:intl/intl.dart';
 import 'package:dotted_line/dotted_line.dart';
 
-class KitchenOrdersListView extends StatefulWidget {
-  const KitchenOrdersListView({super.key});
+class OrdersGroupedListPage extends StatefulWidget {
+  const OrdersGroupedListPage({super.key});
 
   @override
-  State<KitchenOrdersListView> createState() => _KitchenOrdersListViewState();
+  State<OrdersGroupedListPage> createState() => _OrdersGroupedListPageState();
 }
 
-class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
+class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   final AudioPlayer audioPlayer = AudioPlayer();
   Set<String> previousKeys = {};
   int? blinkingGroupKey;

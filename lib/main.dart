@@ -1,7 +1,4 @@
 import "package:demo/DragDropTables.dart";
-import 'package:demo/Screens/Authentication/LoginScreenView.dart';
-import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -40,27 +37,18 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return GetMaterialApp(
       title: 'Flutter Demo',
-      builder: (context, child) {
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            // textScaleFactor: const TextScaler.linear(1.0),
-          ),
-          child: MobileViewWrapper(child: child!),
-        );
-      },
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasData) {
-            return const BottomNavigationView();
-          }
-          return const LoginPage();
+        builder: (context, child) {
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              // textScaleFactor: const TextScaler.linear(1.0),
+            ),
+            child: MobileViewWrapper(child: child!),
+          );
         },
-      ),
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+        ),
+      home: DragListBetweenTables(),
     );
   }
 }
