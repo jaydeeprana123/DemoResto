@@ -284,6 +284,18 @@ class _CartPageState extends State<CartPage> {
                                                   ),
                                                 ],
                                               ),
+                                              if (item['remarks'] != null && item['remarks'].toString().isNotEmpty)
+                                                Padding(
+                                                  padding: const EdgeInsets.only(top: 4.0),
+                                                  child: Text(
+                                                    "Remarks: ${item['remarks']}",
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.orange,
+                                                      fontFamily: fontMulishSemiBold,
+                                                    ),
+                                                  ),
+                                                ),
                                             ],
                                           ),
                                         ),

@@ -2,6 +2,8 @@ import 'package:demo/CartPageForTakeAway.dart';
 import 'package:flutter/material.dart';
 import 'dart:math'; // ⬅️ add this at the top
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:demo/services/ai_order_service.dart';
 
 import 'package:flutter/material.dart';
 
@@ -60,6 +62,12 @@ class _MenuPageState extends State<MenuPage>
   Set<String> selectedCategories = {};
   bool showAllCategories = true; // Track if "All" is selected
 
+  // Voice AI
+  final SpeechToText _speech = SpeechToText();
+  bool _isListening = false;
+  String _recognizedText = "";
+  final AiOrderService _aiService = AiOrderService();
+
   @override
   void initState() {
     super.initState();
@@ -101,6 +109,136 @@ class _MenuPageState extends State<MenuPage>
         menuData[category]![index]['qty']--;
       }
     });
+  }
+
+  void _startVoiceOrder() async {
+    bool available = await _speech.initialize(
+      onError: (val) => print('onError: $val'),
+    );
+
+    if (!available) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Microphone permission denied.")));
+      return;
+    }
+
+    _recognizedText = '';
+    _isListening = true;
+    bool isProcessing = false;
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            
+            // Start listening exactly once when the sheet opens
+            if (_isListening && !_speech.isListening) {
+               _speech.listen(
+                onResult: (val) {
+                  setSheetState(() {
+                    _recognizedText = val.recognizedWords;
+                  });
+                  if (val.finalResult) {
+                    setSheetState(() {
+                      _isListening = false;
+                      isProcessing = true;
+                    });
+                    _processOrderAndClose(_recognizedText);
+                  }
+                },
+              );
+            }
+
+            return Container(
+              padding: EdgeInsets.all(24),
+              height: 250,
+              width: double.infinity,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    isProcessing ? Icons.auto_awesome : (_isListening ? Icons.mic : Icons.mic_none), 
+                    size: 48, 
+                    color: isProcessing ? Colors.blue : (_isListening ? Colors.red : Colors.grey)
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    isProcessing ? "AI is processing..." : (_isListening ? "Listening... Speak your order" : "Processing"), 
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                  ),
+                  SizedBox(height: 12),
+                  Text(_recognizedText, style: TextStyle(fontSize: 16, color: Colors.black87), textAlign: TextAlign.center),
+                  Spacer(),
+                  if (_isListening) 
+                    ElevatedButton(
+                       onPressed: () {
+                         _speech.stop();
+                         setSheetState(() {
+                           _isListening = false;
+                           isProcessing = true;
+                         });
+                         _processOrderAndClose(_recognizedText);
+                       },
+                       child: Text("Done"),
+                    )
+                ],
+              ),
+            );
+          }
+        );
+      }
+    );
+  }
+
+  Future<void> _processOrderAndClose(String text) async {
+    if (text.trim().isEmpty) {
+      if (Navigator.canPop(context)) Navigator.pop(context);
+      return;
+    }
+
+    List<Map<String, dynamic>> allItems = [];
+    menuData.forEach((key, items) {
+      allItems.addAll(items);
+    });
+    
+    try {
+      final results = await _aiService.parseOrder(text, allItems);
+      
+      setState(() {
+        for (var r in results) {
+          String itemName = r.item['name'];
+          int qty = r.quantity;
+          String remarks = r.remarks;
+          
+          for (var category in menuData.keys) {
+            for (int i = 0; i < menuData[category]!.length; i++) {
+              if (menuData[category]![i]['name'] == itemName) {
+                menuData[category]![i]['qty'] += qty;
+                if (remarks.isNotEmpty) {
+                  menuData[category]![i]['remarks'] = remarks;
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      if (Navigator.canPop(context)) Navigator.pop(context);
+      if (!mounted) return;
+      if (results.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Added ${results.length} item(s) via Voice!"), backgroundColor: Colors.green));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("No matching items found.")));
+      }
+    } catch (e) {
+      if (Navigator.canPop(context)) Navigator.pop(context);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to parse order: $e"), backgroundColor: Colors.red));
+    }
   }
 
   int get totalItems {
@@ -175,6 +313,12 @@ class _MenuPageState extends State<MenuPage>
                 ),
 
           actions: [
+            if (!isNameEdit)
+              IconButton(
+                icon: const Icon(Icons.mic, color: Colors.red),
+                onPressed: _startVoiceOrder,
+                tooltip: "Voice Order",
+              ),
             if (!isNameEdit)
               IconButton(
                 icon: Icon(_showSearch ? Icons.close : Icons.search),
@@ -275,27 +419,44 @@ class _MenuPageState extends State<MenuPage>
                                     ),
                                     subtitle: Padding(
                                       padding: const EdgeInsets.only(top: 2.0),
-                                      child: Row(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          SizedBox(height: 6),
-                                          Text(
-                                            "₹${item['price'].toStringAsFixed(2)}",
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: secondary_text_color,
-                                              fontFamily: fontMulishRegular,
-                                            ),
+                                          Row(
+                                            children: [
+                                              SizedBox(height: 6),
+                                              Text(
+                                                "₹${item['price'].toStringAsFixed(2)}",
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: secondary_text_color,
+                                                  fontFamily: fontMulishRegular,
+                                                ),
+                                              ),
+
+                                              SizedBox(width: 16),
+
+                                              if (item['qty'] > 0)
+                                                Text(
+                                                  "\u00D7${item['qty']}",
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: Colors.red,
+                                                    fontFamily: fontMulishBold,
+                                                  ),
+                                                ),
+                                            ],
                                           ),
-
-                                          SizedBox(width: 16),
-
-                                          if (item['qty'] > 0)
-                                            Text(
-                                              "\u00D7${item['qty']}",
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.red,
-                                                fontFamily: fontMulishBold,
+                                          if (item['remarks'] != null && item['remarks'].toString().isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(top: 4.0),
+                                              child: Text(
+                                                "Remarks: ${item['remarks']}",
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.orange,
+                                                  fontFamily: fontMulishSemiBold,
+                                                ),
                                               ),
                                             ),
                                         ],
@@ -414,27 +575,44 @@ class _MenuPageState extends State<MenuPage>
                                     ),
                                     subtitle: Padding(
                                       padding: const EdgeInsets.only(top: 2.0),
-                                      child: Row(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          SizedBox(height: 6),
-                                          Text(
-                                            "₹${item?['price'].toStringAsFixed(2)}",
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: secondary_text_color,
-                                              fontFamily: fontMulishRegular,
-                                            ),
+                                          Row(
+                                            children: [
+                                              SizedBox(height: 6),
+                                              Text(
+                                                "₹${item?['price'].toStringAsFixed(2)}",
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: secondary_text_color,
+                                                  fontFamily: fontMulishRegular,
+                                                ),
+                                              ),
+
+                                              SizedBox(width: 16),
+
+                                              if ((item?['qty'] ?? 0) > 0)
+                                                Text(
+                                                  "\u00D7${item?['qty']}",
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: Colors.red,
+                                                    fontFamily: fontMulishBold,
+                                                  ),
+                                                ),
+                                            ],
                                           ),
-
-                                          SizedBox(width: 16),
-
-                                          if ((item?['qty'] ?? 0) > 0)
-                                            Text(
-                                              "\u00D7${item?['qty']}",
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.red,
-                                                fontFamily: fontMulishBold,
+                                          if (item?['remarks'] != null && item!['remarks'].toString().isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(top: 4.0),
+                                              child: Text(
+                                                "Remarks: ${item!['remarks']}",
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.orange,
+                                                  fontFamily: fontMulishSemiBold,
+                                                ),
                                               ),
                                             ),
                                         ],
