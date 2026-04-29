@@ -24,7 +24,7 @@ class AiOrderService {
 
   GenerativeModel get _gemini {
     _model ??= GenerativeModel(
-      model: 'gemini-1.5-flash',
+      model: 'gemini-pro',
       apiKey: geminiApiKey,
     );
     return _model!;
