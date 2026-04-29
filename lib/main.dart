@@ -8,8 +8,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'DragDropTables.dart';
 import 'package:get/get.dart';
 
-import 'MobileViewWrapper.dart';
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (kIsWeb) {
@@ -35,19 +33,11 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: 'Flutter Demo',
-      builder: (context, child) {
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            // textScaleFactor: const TextScaler.linear(1.0),
-          ),
-          child: MobileViewWrapper(child: child!),
-        );
-      },
+      title: 'Flavor Flow',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue),
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),

@@ -1,5 +1,5 @@
 import 'package:demo/AddMenuItemPage.dart';
-import 'package:flutter/material.dart';
+import 'package:demo/MenuSeederPage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
@@ -41,6 +41,24 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
           fontSize: 16,
           fontFamily: fontMulishSemiBold,
         ))),
+            // ── Import Al-Haadi Menu button ──
+            InkWell(
+              onTap: () {
+                Get.to(() => const MenuSeederPage());
+              },
+              child: Row(
+                children: [
+                  Icon(Icons.cloud_upload_outlined, size: 20, color: Colors.green),
+                  SizedBox(width: 4),
+                  Text("Import Menu", style: TextStyle(
+                    fontSize: 13,
+                    fontFamily: fontMulishSemiBold,
+                    color: Colors.green,
+                  )),
+                ],
+              ),
+            ),
+            SizedBox(width: 12),
             InkWell(
               onTap: () {
                 Get.to(AddMenuItemPage());

@@ -138,80 +138,39 @@ class _CartPageState extends State<CartPage> {
         }
       },
       child: Scaffold(
+        backgroundColor: const Color(0xFFF5F6FA),
         appBar: AppBar(
+          backgroundColor: const Color(0xFF1A3A5C),
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white),
           title: Row(
             children: [
-              // IconButton(
-              //   icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
-              //   onPressed: () => Navigator.pop(context, cartItems),
-              // ),
-              // ),),
+              const Icon(Icons.shopping_cart_outlined, color: Colors.white70, size: 20),
+              const SizedBox(width: 8),
               Text(
-                "cart - ",
-                style: TextStyle(fontSize: 16, fontFamily: fontMulishBold),
+                "Cart",
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontFamily: fontMulishSemiBold,
+                  color: Colors.white54,
+                ),
               ),
-
+              const Text(
+                " — ",
+                style: TextStyle(fontSize: 15, color: Colors.white38),
+              ),
               (widget.tableName.contains("Table") || !widget.tableNameEditable)
                   ? Text(
                       widget.tableName,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 16,
                         fontFamily: fontMulishBold,
+                        color: Colors.white,
                       ),
                     )
                   : Expanded(
                       child: EditableTextField(controller: tableNameController),
                     ),
-
-              // if (widget.showBilling)
-              //   InkWell(
-              //     onTap: () async {
-              //       setState(() {
-              //         isBilling = !isBilling;
-              //       });
-              //     },
-              //     child: isBilling
-              //         ? Row(
-              //             children: [
-              //               SvgPicture.asset(
-              //                 icon_cooking,
-              //                 width: 28,
-              //                 height: 28,
-              //                 color: Colors.black87,
-              //               ),
-              //
-              //               SizedBox(width: 6),
-              //               Text(
-              //                 "Kitchen",
-              //                 style: TextStyle(
-              //                   fontSize: 14,
-              //                   color: text_color,
-              //                   fontFamily: fontMulishBold,
-              //                 ),
-              //               ),
-              //             ],
-              //           )
-              //         : Row(
-              //             children: [
-              //               SvgPicture.asset(
-              //                 icon_bill,
-              //                 width: 24,
-              //                 height: 24,
-              //                 color: Colors.black87,
-              //               ),
-              //
-              //               SizedBox(width: 6),
-              //               Text(
-              //                 "Billing",
-              //                 style: TextStyle(
-              //                   fontSize: 14,
-              //                   color: text_color,
-              //                   fontFamily: fontMulishBold,
-              //                 ),
-              //               ),
-              //             ],
-              //           ),
-              //   ),
             ],
           ),
         ),
@@ -347,14 +306,18 @@ class _CartPageState extends State<CartPage> {
                         Align(
                           alignment: Alignment.bottomRight,
                           child: Container(
-                            margin: EdgeInsets.all(22),
-                            child: FloatingActionButton(
-                              backgroundColor: primary_color,
-                              child: SvgPicture.asset(
-                                icon_bill,
-                                width: 36,
-                                height: 28,
-                                color: Colors.white,
+                            margin: const EdgeInsets.all(22),
+                            child: FloatingActionButton.extended(
+                              backgroundColor: const Color(0xFF1A3A5C),
+                              foregroundColor: Colors.white,
+                              elevation: 6,
+                              icon: const Icon(Icons.receipt_long_outlined, size: 22),
+                              label: const Text(
+                                'Billing',
+                                style: TextStyle(
+                                  fontFamily: fontMulishSemiBold,
+                                  fontSize: 14,
+                                ),
                               ),
                               tooltip: 'Billing',
                               onPressed: () async {

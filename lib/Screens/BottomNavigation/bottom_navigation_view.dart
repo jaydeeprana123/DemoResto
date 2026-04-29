@@ -62,133 +62,83 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
     _loadUserRole();
   }
 
+  // ── Brand colours ────────────────────────────────────────────────────────
+  static const _navy   = Color(0xFF1A3A5C);
+  static const _orange = Color(0xFFf57c35);
+
   @override
   Widget build(BuildContext context) {
+    final isAdmin = userRole == "Admin";
+    final tabs   = isAdmin ? tabsForAdmin : tabsForStaff;
+
     return SafeArea(
       child: Scaffold(
-        backgroundColor: Colors.white,
-        body: userRole == "Admin"
-            ? tabsForAdmin[_currentIndex]
-            : tabsForStaff[_currentIndex],
-        bottomNavigationBar: BottomNavigationBar(
-          backgroundColor: Colors.white,
-          selectedItemColor: primary_color,
-          unselectedItemColor: silver_9393aa,
-          selectedLabelStyle: TextStyle(
-            fontFamily: fontMulishSemiBold,
-            fontSize: 11,
-            color: primary_color,
+        backgroundColor: const Color(0xFFF5F6FA),
+        body: tabs[_currentIndex],
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: _navy,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 12,
+                offset: const Offset(0, -2),
+              ),
+            ],
           ),
-          unselectedLabelStyle: TextStyle(
-            fontFamily: fontMulishSemiBold,
-            fontSize: 11,
-            color: silver_9393aa,
+          child: BottomNavigationBar(
+            backgroundColor: _navy,
+            selectedItemColor: _orange,
+            unselectedItemColor: Colors.white54,
+            selectedLabelStyle: const TextStyle(
+              fontFamily: fontMulishSemiBold,
+              fontSize: 11,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontFamily: fontMulishSemiBold,
+              fontSize: 11,
+            ),
+            currentIndex: _currentIndex,
+            showSelectedLabels: true,
+            showUnselectedLabels: true,
+            elevation: 0,
+            type: BottomNavigationBarType.fixed,
+            items: [
+              // Dashboard — always shown
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.grid_view_rounded, size: 24),
+                activeIcon: Icon(Icons.grid_view_rounded, size: 26),
+                label: "Dashboard",
+              ),
+              // Table — always shown
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.table_restaurant_rounded, size: 24),
+                activeIcon: Icon(Icons.table_restaurant_rounded, size: 26),
+                label: "Table",
+              ),
+              // Menu — Admin only
+              if (isAdmin)
+                const BottomNavigationBarItem(
+                  icon: Icon(Icons.menu_book_rounded, size: 24),
+                  activeIcon: Icon(Icons.menu_book_rounded, size: 26),
+                  label: "Menu",
+                ),
+              // Kitchen — always shown
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.soup_kitchen_rounded, size: 24),
+                activeIcon: Icon(Icons.soup_kitchen_rounded, size: 26),
+                label: "Kitchen",
+              ),
+              // Transactions — Admin only
+              if (isAdmin)
+                const BottomNavigationBarItem(
+                  icon: Icon(Icons.receipt_long_rounded, size: 24),
+                  activeIcon: Icon(Icons.receipt_long_rounded, size: 26),
+                  label: "Transactions",
+                ),
+            ],
+            onTap: (index) => setState(() => _currentIndex = index),
           ),
-          currentIndex: _currentIndex,
-          showSelectedLabels: true,
-          showUnselectedLabels: true,
-          elevation: 6,
-          type: BottomNavigationBarType.fixed,
-          items: [
-            BottomNavigationBarItem(
-              icon: SvgPicture.asset(
-                icon_dashboard,
-                width: 25,
-                height: 25,
-                color: silver_9393aa,
-              ),
-              activeIcon: SvgPicture.asset(
-                icon_dashboard,
-                width: 25,
-                height: 25,
-                color: primary_color,
-              ),
-              label: "Dashboard",
-            ),
-            BottomNavigationBarItem(
-              icon: SvgPicture.asset(
-                icon_table,
-                width: 25,
-                height: 25,
-                color: silver_9393aa,
-              ),
-              activeIcon: SvgPicture.asset(
-                icon_table,
-                width: 25,
-                height: 25,
-                color: primary_color,
-              ),
-              label: "Table",
-            ),
-
-            if (userRole == "Admin")
-              BottomNavigationBarItem(
-                icon: SvgPicture.asset(
-                  icon_menu,
-                  width: 25,
-                  height: 25,
-                  color: silver_9393aa,
-                ),
-                activeIcon: SvgPicture.asset(
-                  icon_menu,
-                  width: 25,
-                  height: 25,
-                  color: primary_color,
-                ),
-                label: "Menu",
-              ),
-            BottomNavigationBarItem(
-              icon: SvgPicture.asset(
-                icon_cooking,
-                width: 25,
-                height: 25,
-                color: silver_9393aa,
-              ),
-              activeIcon: SvgPicture.asset(
-                icon_menu,
-                width: 25,
-                height: 25,
-                color: primary_color,
-              ),
-              label: "Kitchen",
-            ),
-            // BottomNavigationBarItem(
-            //   icon: SvgPicture.asset(
-            //     icon_payouts,
-            //     width: 25,
-            //     height: 25,
-            //     color: silver_9393aa,
-            //   ),
-            //   activeIcon: SvgPicture.asset(
-            //     icon_payouts,
-            //     width: 25,
-            //     height: 25,
-            //     color: blue_3093bb,
-            //   ),
-            //   label: "Payouts",
-            // ),
-            if (userRole == "Admin")
-              BottomNavigationBarItem(
-                icon: SvgPicture.asset(
-                  icon_transaction,
-                  width: 25,
-                  height: 25,
-                  color: silver_9393aa,
-                ),
-                activeIcon: SvgPicture.asset(
-                  icon_transaction,
-                  width: 25,
-                  height: 25,
-                  color: primary_color,
-                ),
-                label: "Transactions",
-              ),
-          ],
-          onTap: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
         ),
       ),
     );

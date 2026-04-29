@@ -320,7 +320,11 @@ class _TransactionsPageState extends State<TransactionsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
+        backgroundColor: const Color(0xFF1A3A5C),
+        elevation: 0,
+        titleSpacing: 16,
         title: Row(
           children: [
             Expanded(
@@ -330,62 +334,97 @@ class _TransactionsPageState extends State<TransactionsPage> {
                     : "Transactions",
                 style: const TextStyle(
                   fontSize: 16,
-                  fontFamily: 'Mulish-SemiBold',
+                  fontFamily: fontMulishBold,
+                  color: Colors.white,
                 ),
               ),
             ),
-
-            Row(
-              children: [
-                Image.asset(icon_online_transfer, height: 18),
-
-                SizedBox(width: 2),
-
-                Text(
-                  "\₹$grandTotalOnline",
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontFamily: fontMulishSemiBold,
-                    color: text_color,
+            // Online total
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.phone_android, color: Colors.white70, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    "₹${grandTotalOnline.toStringAsFixed(0)}",
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontFamily: fontMulishSemiBold,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-
-                SizedBox(width: 16),
-
-                Image.asset(icon_cash, height: 18),
-
-                SizedBox(width: 5),
-
-                Text(
-                  "\₹$grandTotalCash",
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontFamily: fontMulishSemiBold,
-                    color: text_color,
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Cash total
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.currency_rupee, color: Colors.white70, size: 14),
+                  const SizedBox(width: 2),
+                  Text(
+                    grandTotalCash.toStringAsFixed(0),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontFamily: fontMulishSemiBold,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
       ),
       body: Column(
         children: [
-          // Filter UI
+          // Date filter row
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: fromController,
                     readOnly: true,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: "From Date",
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                        fontFamily: fontMulishRegular,
+                      ),
+                      prefixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF1A3A5C), width: 1),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFf57c35), width: 1.5),
+                      ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                      filled: true,
+                      fillColor: Colors.white,
                     ),
+                    style: const TextStyle(fontSize: 14, fontFamily: fontMulishSemiBold),
                     onTap: () => _pickDate(context: context, isFrom: true),
-                    style: const TextStyle(fontSize: 14),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -393,19 +432,40 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   child: TextField(
                     controller: toController,
                     readOnly: true,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: "To Date",
-                      border: OutlineInputBorder(),
+                      labelStyle: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                        fontFamily: fontMulishRegular,
+                      ),
+                      prefixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF1A3A5C), width: 1),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFf57c35), width: 1.5),
+                      ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                      filled: true,
+                      fillColor: Colors.white,
                     ),
+                    style: const TextStyle(fontSize: 14, fontFamily: fontMulishSemiBold),
                     onTap: () => _pickDate(context: context, isFrom: false),
-                    style: const TextStyle(fontSize: 14),
                   ),
                 ),
               ],
             ),
           ),
 
-          const Divider(),
+          const Divider(height: 1),
 
           // Grouped list (unchanged layout, paginated)
           Expanded(
@@ -448,20 +508,21 @@ class _TransactionsPageState extends State<TransactionsPage> {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Date group header
                             if (showDateHeader)
                               Container(
                                 width: double.infinity,
-                                color: primary_color.withOpacity(0.1),
-                                margin: const EdgeInsets.only(bottom: 8),
+                                color: const Color(0xFF1A3A5C),
+                                margin: const EdgeInsets.only(bottom: 6),
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 22,
-                                  vertical: 8,
+                                  horizontal: 16, vertical: 8,
                                 ),
                                 child: Text(
                                   dateKey,
                                   style: const TextStyle(
-                                    fontSize: 15,
+                                    fontSize: 13,
                                     fontFamily: fontMulishBold,
+                                    color: Colors.white,
                                   ),
                                 ),
                               ),
@@ -478,135 +539,113 @@ class _TransactionsPageState extends State<TransactionsPage> {
                               },
                               child: Container(
                                 margin: const EdgeInsets.symmetric(
-                                  horizontal: 12,
+                                  horizontal: 10, vertical: 4,
                                 ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
-                                child: Column(
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
+                                    // Table icon
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1A3A5C).withOpacity(0.08),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.table_restaurant_outlined,
+                                        size: 18,
+                                        color: Color(0xFF1A3A5C),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            tableName,
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontFamily: fontMulishBold,
+                                              color: Color(0xFF1A3A5C),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            dateTime != null
+                                                ? DateFormat('hh:mm a').format(dateTime)
+                                                : "-",
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade500,
+                                              fontFamily: fontMulishRegular,
+                                            ),
+                                          ),
+                                          // Payment pills
+                                          const SizedBox(height: 6),
+                                          Row(
                                             children: [
-                                              Text(
-                                                "$tableName",
-                                                style: const TextStyle(
-                                                  fontSize: 16,
-                                                  fontFamily: 'Mulish-SemiBold',
-                                                  color: Colors.black87,
+                                              if (onlineAmount > 0)
+                                                Container(
+                                                  margin: const EdgeInsets.only(right: 6),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.blue.shade50,
+                                                    borderRadius: BorderRadius.circular(20),
+                                                    border: Border.all(color: Colors.blue.shade200),
+                                                  ),
+                                                  child: Text(
+                                                    "Online ₹$onlineAmount",
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontFamily: fontMulishSemiBold,
+                                                      color: Colors.blue.shade700,
+                                                    ),
+                                                  ),
                                                 ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                dateTime != null
-                                                    ? DateFormat(
-                                                        'hh:mm a',
-                                                      ).format(dateTime)
-                                                    : "-",
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey.shade600,
-                                                  fontFamily: fontMulishRegular,
+                                              if (cashAmount > 0)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.green.shade50,
+                                                    borderRadius: BorderRadius.circular(20),
+                                                    border: Border.all(color: Colors.green.shade200),
+                                                  ),
+                                                  child: Text(
+                                                    "Cash ₹$cashAmount",
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontFamily: fontMulishSemiBold,
+                                                      color: Colors.green.shade700,
+                                                    ),
+                                                  ),
                                                 ),
-                                              ),
                                             ],
                                           ),
-                                        ),
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            Text(
-                                              "\₹${total.toStringAsFixed(2)}",
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                fontFamily: fontMulishBold,
-                                                color: Colors.green,
-                                              ),
-                                            ),
-
-                                            SizedBox(height: 6),
-
-                                            Row(
-                                              children: [
-                                                // Image.asset(
-                                                //   icon_online_transfer,
-                                                //   height: 18,
-                                                // ),
-                                                if (onlineAmount > 0)
-                                                  Row(
-                                                    children: [
-                                                      Text(
-                                                        "Online : ",
-                                                        style: const TextStyle(
-                                                          fontSize: 13,
-                                                          fontFamily:
-                                                              fontMulishRegular,
-                                                          color:
-                                                              secondary_text_color,
-                                                        ),
-                                                      ),
-
-                                                      SizedBox(width: 2),
-
-                                                      Text(
-                                                        "\₹$onlineAmount",
-                                                        style: const TextStyle(
-                                                          fontSize: 14,
-                                                          fontFamily:
-                                                              fontMulishSemiBold,
-                                                          color: text_color,
-                                                        ),
-                                                      ),
-
-                                                      SizedBox(width: 16),
-                                                    ],
-                                                  ),
-
-                                                // Image.asset(
-                                                //   icon_cash,
-                                                //   height: 18,
-                                                // ),
-                                                if (cashAmount > 0)
-                                                  Row(
-                                                    children: [
-                                                      Text(
-                                                        "Cash : ",
-                                                        style: const TextStyle(
-                                                          fontSize: 13,
-                                                          fontFamily:
-                                                              fontMulishRegular,
-                                                          color:
-                                                              secondary_text_color,
-                                                        ),
-                                                      ),
-
-                                                      SizedBox(width: 2),
-
-                                                      Text(
-                                                        "\₹$cashAmount",
-                                                        style: const TextStyle(
-                                                          fontSize: 14,
-                                                          fontFamily:
-                                                              fontMulishSemiBold,
-                                                          color: text_color,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                    const Divider(),
+                                    // Total amount
+                                    Text(
+                                      "₹${total.toStringAsFixed(0)}",
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontFamily: fontMulishBold,
+                                        color: Colors.green,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -628,27 +667,36 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   ),
           ),
 
-          // Grand Total (from daily_stats)
+          // Grand Total bar
           Container(
-            padding: const EdgeInsets.all(16),
-            color: Colors.orangeAccent.shade200,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1A3A5C),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 8,
+                  offset: Offset(0, -2),
+                ),
+              ],
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  "Grand Total:",
+                  "Grand Total",
                   style: TextStyle(
-                    fontSize: 16,
-                    fontFamily: 'Mulish-SemiBold',
-                    color: Colors.white,
+                    fontSize: 15,
+                    fontFamily: fontMulishSemiBold,
+                    color: Colors.white70,
                   ),
                 ),
                 Text(
-                  "\₹${grandTotal.toStringAsFixed(2)}",
+                  "₹${grandTotal.toStringAsFixed(0)}",
                   style: const TextStyle(
-                    fontSize: 18,
-                    fontFamily: 'Mulish-Bold',
-                    color: Colors.white,
+                    fontSize: 22,
+                    fontFamily: fontMulishBold,
+                    color: Color(0xFFf57c35),
                   ),
                 ),
               ],

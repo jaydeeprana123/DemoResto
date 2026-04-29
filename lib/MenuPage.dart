@@ -1,23 +1,19 @@
 import 'package:demo/CartPageForTakeAway.dart';
 import 'package:flutter/material.dart';
-import 'dart:math'; // ⬅️ add this at the top
+import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:demo/services/ai_order_service.dart';
 
-import 'package:flutter/material.dart';
-
-import 'package:flutter/material.dart';
-
-import 'package:flutter/material.dart';
-
 import 'CartPage.dart';
-
-import 'package:flutter/material.dart';
-
 import 'MyWidgets/EditableTextField.dart';
 import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
+
+// ── Brand colours (shared across screens) ─────────────────────────────────
+const _kNavy   = Color(0xFF1A3A5C);
+const _kOrange = Color(0xFFf57c35);
+
 
 class MenuPage extends StatefulWidget {
   final void Function(
@@ -65,7 +61,12 @@ class _MenuPageState extends State<MenuPage>
   // Voice AI
   final SpeechToText _speech = SpeechToText();
   bool _isListening = false;
-  String _recognizedText = "";
+  bool _speechInitialized = false;   // init only once per session
+  String _recognizedText = '';       // full display text (accumulated + partial)
+  String _accumulatedText = '';      // permanently committed text across restarts
+  String _partialText = '';          // current session partial (not yet committed)
+  bool _keepListening = false;       // user intent: keep going until Stop
+  StateSetter? _sheetSetState;       // ref to sheet's setState for auto-restart
   final AiOrderService _aiService = AiOrderService();
 
   @override
@@ -111,109 +112,322 @@ class _MenuPageState extends State<MenuPage>
     });
   }
 
-  void _startVoiceOrder() async {
-    bool available = await _speech.initialize(
-      onError: (val) => print('onError: $val'),
+  // ── Continuous listening ─────────────────────────────────────────────────
+
+  /// Restarts the speech engine. Called automatically on pause (onStatus=done)
+  /// or on error. Only runs while _keepListening is true.
+  void _resumeListening() {
+    if (!_keepListening || !mounted || _speech.isListening) return;
+
+    _partialText = '';
+
+    _speech.listen(
+      onResult: (val) {
+        if (!mounted) return;
+        _partialText = val.recognizedWords;
+
+        if (val.finalResult) {
+          // Commit partial permanently to accumulated
+          _accumulatedText = _accumulatedText.isEmpty
+              ? _partialText
+              : '$_accumulatedText $_partialText';
+          _partialText = '';
+        }
+
+        // Display = accumulated + current partial
+        final display = _accumulatedText.isEmpty
+            ? _partialText
+            : _partialText.isEmpty
+                ? _accumulatedText
+                : '$_accumulatedText $_partialText';
+
+        _sheetSetState?.call(() {
+          _recognizedText = display.trim();
+        });
+      },
+      listenFor: const Duration(minutes: 5),
+      // generous pauseFor — onStatus('done') will restart us anyway
+      pauseFor: const Duration(seconds: 10),
+      cancelOnError: false,
+      partialResults: true,
+      localeId: 'en_IN', // Indian English — better for mixed Hindi/Gujarati
     );
 
-    if (!available) {
+    _sheetSetState?.call(() => _isListening = true);
+  }
+
+  void _startVoiceOrder() async {
+    // Reset all voice state
+    _accumulatedText = '';
+    _recognizedText = '';
+    _partialText = '';
+    _keepListening = false;
+    _isListening = false;
+    _sheetSetState = null;
+
+    if (!_speechInitialized) {
+      _speechInitialized = await _speech.initialize(
+        onError: (val) {
+          debugPrint('Speech error: $val');
+          if (_keepListening && mounted) {
+            Future.delayed(const Duration(milliseconds: 600), _resumeListening);
+          }
+        },
+        onStatus: (status) {
+          debugPrint('Speech status: $status');
+          // Android fires 'done'/'notListening' after each pause.
+          // Only restart if the USER has not pressed Stop.
+          if (_keepListening &&
+              mounted &&
+              (status == 'done' || status == 'notListening')) {
+            Future.delayed(const Duration(milliseconds: 300), _resumeListening);
+          }
+        },
+      );
+    }
+
+    if (!_speechInitialized) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Microphone permission denied.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Microphone permission denied.')),
+      );
       return;
     }
 
-    _recognizedText = '';
-    _isListening = true;
-    bool isProcessing = false;
-
     if (!mounted) return;
+
     showModalBottomSheet(
       context: context,
       isDismissible: false,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (BuildContext context) {
+      enableDrag: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (BuildContext sheetContext) {
         return StatefulBuilder(
-          builder: (context, setSheetState) {
-            
-            // Start listening exactly once when the sheet opens
-            if (_isListening && !_speech.isListening) {
-               _speech.listen(
-                onResult: (val) {
-                  setSheetState(() {
-                    _recognizedText = val.recognizedWords;
-                  });
-                  if (val.finalResult) {
-                    setSheetState(() {
-                      _isListening = false;
-                      isProcessing = true;
-                    });
-                    _processOrderAndClose(_recognizedText);
-                  }
-                },
-              );
+          builder: (sheetContext, setSheetState) {
+            _sheetSetState = setSheetState;
+
+            void startRecording() {
+              _keepListening = true;
+              _resumeListening();
+            }
+
+            void stopAndProcess() async {
+              // Set flag FIRST so onStatus('done') won't restart
+              _keepListening = false;
+              await _speech.stop();
+              // Use accumulated + any remaining partial
+              final finalText = _recognizedText.trim();
+              setSheetState(() => _isListening = false);
+              _processOrderAndClose(finalText, sheetContext);
+            }
+
+            void cancel() async {
+              _keepListening = false;
+              await _speech.stop();
+              setSheetState(() => _isListening = false);
+              if (Navigator.canPop(sheetContext)) Navigator.pop(sheetContext);
             }
 
             return Container(
-              padding: EdgeInsets.all(24),
-              height: 250,
-              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Handle bar
+                  Container(
+                    width: 40, height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+
+                  // Mic icon with colour state
                   Icon(
-                    isProcessing ? Icons.auto_awesome : (_isListening ? Icons.mic : Icons.mic_none), 
-                    size: 48, 
-                    color: isProcessing ? Colors.blue : (_isListening ? Colors.red : Colors.grey)
+                    _isListening ? Icons.mic : Icons.mic_none,
+                    size: 40,
+                    color: _isListening ? Colors.red : Colors.grey.shade400,
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 8),
+
+                  // Title + subtitle
                   Text(
-                    isProcessing ? "AI is processing..." : (_isListening ? "Listening... Speak your order" : "Processing"), 
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                    'Voice Order',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontFamily: fontMulishBold,
+                      color: Colors.black87,
+                    ),
                   ),
-                  SizedBox(height: 12),
-                  Text(_recognizedText, style: TextStyle(fontSize: 16, color: Colors.black87), textAlign: TextAlign.center),
-                  Spacer(),
-                  if (_isListening) 
-                    ElevatedButton(
-                       onPressed: () {
-                         _speech.stop();
-                         setSheetState(() {
-                           _isListening = false;
-                           isProcessing = true;
-                         });
-                         _processOrderAndClose(_recognizedText);
-                       },
-                       child: Text("Done"),
-                    )
+                  const SizedBox(height: 4),
+                  Text(
+                    _isListening
+                        ? '🔴 Listening — speak items, quantities & remarks'
+                        : _recognizedText.isNotEmpty
+                            ? 'Tap Stop & Process to confirm'
+                            : 'Tap Start, then speak your full order',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _isListening
+                          ? Colors.red.shade700
+                          : Colors.grey.shade600,
+                      fontFamily: fontMulishRegular,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Live transcript
+                  Container(
+                    width: double.infinity,
+                    constraints:
+                        const BoxConstraints(minHeight: 64, maxHeight: 120),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _isListening
+                          ? Colors.red.shade50
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _isListening
+                            ? Colors.red.shade200
+                            : Colors.grey.shade300,
+                        width: _isListening ? 1.5 : 1,
+                      ),
+                    ),
+                    child: SingleChildScrollView(
+                      reverse: true,
+                      child: Text(
+                        _recognizedText.isEmpty
+                            ? 'e.g. "do chicken tikka rice aur teen malai tikka less spicy"'
+                            : _recognizedText,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: _recognizedText.isEmpty
+                              ? Colors.grey.shade400
+                              : Colors.black87,
+                          fontFamily: fontMulishRegular,
+                          fontStyle: _recognizedText.isEmpty
+                              ? FontStyle.italic
+                              : FontStyle.normal,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: cancel,
+                          icon: const Icon(Icons.close, size: 18),
+                          label: const Text('Cancel'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey.shade700,
+                            side: BorderSide(color: Colors.grey.shade400),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: _isListening
+                            ? ElevatedButton.icon(
+                                onPressed: stopAndProcess,
+                                icon: const Icon(
+                                    Icons.stop_circle_outlined, size: 20),
+                                label: const Text('Stop & Process'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green.shade700,
+                                  foregroundColor: Colors.white,
+                                  elevation: 3,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 13),
+                                ),
+                              )
+                            : ElevatedButton.icon(
+                                onPressed: startRecording,
+                                icon: const Icon(Icons.mic, size: 20),
+                                label: Text(
+                                  _recognizedText.isEmpty
+                                      ? 'Start'
+                                      : 'Continue',
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white,
+                                  elevation: 3,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 13),
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             );
-          }
+          },
         );
-      }
-    );
+      },
+    ).whenComplete(() {
+      _keepListening = false;
+      _sheetSetState = null;
+      _speech.stop();
+    });
   }
 
-  Future<void> _processOrderAndClose(String text) async {
+  Future<void> _processOrderAndClose(
+    String text,
+    BuildContext sheetContext,
+  ) async {
     if (text.trim().isEmpty) {
-      if (Navigator.canPop(context)) Navigator.pop(context);
+      if (mounted && Navigator.canPop(sheetContext)) Navigator.pop(sheetContext);
       return;
     }
+
+    // Close sheet first
+    if (mounted && Navigator.canPop(sheetContext)) Navigator.pop(sheetContext);
+
+    if (!mounted) return;
 
     List<Map<String, dynamic>> allItems = [];
     menuData.forEach((key, items) {
       allItems.addAll(items);
     });
-    
+
     try {
+      // Local parser is instant — no loading dialog needed
       final results = await _aiService.parseOrder(text, allItems);
-      
+
+      if (!mounted) return;
+
       setState(() {
         for (var r in results) {
-          String itemName = r.item['name'];
-          int qty = r.quantity;
-          String remarks = r.remarks;
-          
+          final itemName = r.item['name'];
+          final qty = r.quantity;
+          final remarks = r.remarks;
+
           for (var category in menuData.keys) {
             for (int i = 0; i < menuData[category]!.length; i++) {
               if (menuData[category]![i]['name'] == itemName) {
@@ -226,18 +440,27 @@ class _MenuPageState extends State<MenuPage>
           }
         }
       });
-      
-      if (Navigator.canPop(context)) Navigator.pop(context);
-      if (!mounted) return;
+
       if (results.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Added ${results.length} item(s) via Voice!"), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Added ${results.length} item(s) via Voice!'),
+            backgroundColor: Colors.green,
+          ),
+        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("No matching items found.")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No matching items found in menu.')),
+        );
       }
     } catch (e) {
-      if (Navigator.canPop(context)) Navigator.pop(context);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to parse order: $e"), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to parse order: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -266,7 +489,11 @@ class _MenuPageState extends State<MenuPage>
     return DefaultTabController(
       length: showAllCategories ? categories.length : selectedCategories.length,
       child: Scaffold(
+        backgroundColor: const Color(0xFFF5F6FA),
         appBar: AppBar(
+          backgroundColor: _kNavy,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white),
           title: _showSearch
               ? TextField(
                   controller: searchController,
@@ -276,38 +503,36 @@ class _MenuPageState extends State<MenuPage>
                       searchQuery = value.toLowerCase();
                     });
                   },
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Search menu...',
                     border: InputBorder.none,
-                    hintStyle: TextStyle(color: Colors.black54),
+                    hintStyle: TextStyle(color: Colors.white38),
                   ),
                   style: const TextStyle(
-                    color: Colors.black87,
+                    color: Colors.white,
                     fontFamily: fontMulishRegular,
                   ),
                 )
               : Row(
                   children: [
-                    // Text("Menu - ",style: TextStyle(
-                    //   fontSize: 16,
-                    //   fontFamily: fontMulishBold,
-                    // ),),
-                    (widget.tableName.contains("Table") ||
-                            !widget.tableNameEditable)
+                    const Icon(Icons.restaurant_menu, color: Colors.white70, size: 20),
+                    const SizedBox(width: 8),
+                    (widget.tableName.contains("Table") || !widget.tableNameEditable)
                         ? Text(
                             widget.tableName,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 16,
                               fontFamily: fontMulishBold,
+                              color: Colors.white,
                             ),
                           )
-                        : EditableTextField(
-                            controller: tableNameController,
-                            onEditingChanged: (value) {
-                              setState(() {
-                                isNameEdit = value;
-                              });
-                            },
+                        : Expanded(
+                            child: EditableTextField(
+                              controller: tableNameController,
+                              onEditingChanged: (value) {
+                                setState(() => isNameEdit = value);
+                              },
+                            ),
                           ),
                   ],
                 ),
@@ -315,47 +540,43 @@ class _MenuPageState extends State<MenuPage>
           actions: [
             if (!isNameEdit)
               IconButton(
-                icon: const Icon(Icons.mic, color: Colors.red),
+                icon: const Icon(Icons.mic, color: Colors.redAccent),
                 onPressed: _startVoiceOrder,
                 tooltip: "Voice Order",
               ),
             if (!isNameEdit)
               IconButton(
-                icon: Icon(_showSearch ? Icons.close : Icons.search),
+                icon: Icon(
+                  _showSearch ? Icons.close : Icons.search,
+                  color: Colors.white,
+                ),
                 onPressed: () {
                   if (_showSearch) {
                     searchQuery = '';
                     searchController.clear();
-                  } else {}
+                  }
                   _showSearch = !_showSearch;
-
                   setState(() {});
                 },
               ),
-
-            // Filter button with badge showing count
             if (!isNameEdit)
               Stack(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.filter_list),
+                    icon: const Icon(Icons.filter_list, color: Colors.white),
                     onPressed: () => _showCategoryFilterDialog(context),
                     tooltip: "Filter by Category",
                   ),
                   if (!showAllCategories && selectedCategories.isNotEmpty)
                     Positioned(
-                      right: 8,
-                      top: 8,
+                      right: 8, top: 8,
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: const BoxDecoration(
-                          color: Colors.red,
+                          color: _kOrange,
                           shape: BoxShape.circle,
                         ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
+                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                         child: Center(
                           child: Text(
                             '${selectedCategories.length}',
@@ -375,6 +596,14 @@ class _MenuPageState extends State<MenuPage>
           bottom: !_showSearch
               ? TabBar(
                   isScrollable: true,
+                  indicatorColor: _kOrange,
+                  indicatorWeight: 3,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.white60,
+                  labelStyle: const TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 13,
+                  ),
                   tabs: showAllCategories
                       ? categories.map((c) => Tab(text: c)).toList()
                       : selectedCategories.map((c) => Tab(text: c)).toList(),
