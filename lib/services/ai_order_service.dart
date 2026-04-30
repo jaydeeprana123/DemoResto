@@ -51,25 +51,43 @@ class AiOrderService {
         .join(', ');
 
     final prompt = '''
-You are a smart restaurant ordering assistant for an Indian restaurant.
+You are an intelligent restaurant order assistant.
 
-MENU ITEMS (use EXACT names):
+Your job is to convert user speech text into structured order JSON.
+
+The input may contain:
+- Gujarati, Hindi, English or mixed language
+- Wrong words due to speech recognition (example: "cook" may mean "coke", "bear" may mean "beer", "soap" may mean "soup")
+- Half words (example: "pan" may mean "paneer", "chik" may mean "chicken")
+- Spelling mistakes
+
+You must:
+1. Correct wrong or similar sounding words
+2. Predict the most likely food item from the menu
+3. Match ONLY from the provided menu
+4. Detect quantity (default = 1 if not mentioned)
+5. Extract notes like: spicy, less oil, butter, parcel, etc.
+
+Important:
+- Use common Indian restaurant understanding
+- Use context to guess missing words (example: "butter" → "butter paneer")
+- Ignore items not in menu
+- Be tolerant to errors and incomplete input
+- Number words: ek/one=1, be/do/two=2, tran/teen/three=3, chaar/char/four=4, paanch/panch/five=5, chha/chhe/six=6, saat/sat/seven=7, aath/eight=8, nav/nine=9, das/ten=10
+
+STRICT RULES:
+- Return ONLY valid JSON array
+- Do not add any explanation or markdown
+- If unsure, choose the closest matching item from menu
+
+MENU (match ONLY from these exact names):
 $menuStr
 
-CUSTOMER SAID: "$userText"
+Return format:
+[{"name":"EXACT_MENU_NAME","quantity":NUMBER,"remarks":"REMARK_OR_EMPTY_STRING"}]
 
-The customer may speak in English, Hindi, Gujarati, or a mix.
-Number words: ek/one=1, be/do/two=2, tran/teen/three=3, chaar/char/four=4, paanch/panch/five=5, chha/chhe/six=6, saat/sat/seven=7.
-
-Task:
-1. Match each spoken item to the EXACT menu item name above (fuzzy/phonetic match allowed).
-2. Extract quantity (default 1 if not stated).
-3. Extract any remarks per item (e.g. "less spicy", "no onion", "extra cheese").
-
-Respond with ONLY a raw JSON array — no markdown, no explanation:
-[{"name":"EXACT_MENU_NAME","quantity":NUMBER,"remarks":"REMARK_OR_EMPTY"}]
-
-Return [] if nothing matches.''';
+User input:
+"$userText"''';
 
     final body = jsonEncode({
       'contents': [
@@ -203,17 +221,23 @@ Return [] if nothing matches.''';
   static const Map<String, int> _nums = {
     '1': 1, '2': 2, '3': 3, '4': 4, '5': 5,
     '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
+    // English
     'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
     'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+    // STT English homophones
     'to': 2, 'too': 2, 'for': 4, 'free': 3,
+    // Hindi numbers
     'ek': 1, 'do': 2, 'teen': 3, 'chaar': 4, 'char': 4,
     'paanch': 5, 'panch': 5, 'chhah': 6, 'chhe': 6,
     'saat': 7, 'sat': 7, 'aath': 8, 'nau': 9, 'das': 10,
-    'be': 2, 'tran': 3, 'chha': 6,
+    // Gujarati numbers
+    'be': 2, 'tran': 3, 'chha': 6, 'nav': 9,
+    'aek': 1, 'ek1': 1, 'pach': 5, 'saath': 7, 'aat': 8,
   };
 
   static const Set<String> _seps = {
     'and', 'aur', 'ane', 'va', 'plus', 'also', 'then',
+    'ne', 'tatha', 'sathe', // Gujarati/Hindi conjunctions
   };
 
   static const List<String> _remarks = [
@@ -223,18 +247,45 @@ Return [] if nothing matches.''';
     'no garlic', 'without garlic', 'extra cheese', 'no cheese',
     'well done', 'half done', 'less oil', 'no oil',
     'less salt', 'no salt', 'take away', 'takeaway', 'parcel',
-    'extra sauce', 'no sauce', 'spicy',
+    'extra sauce', 'no sauce', 'spicy', 'butter', 'extra butter',
+    'no butter', 'jain', 'without egg', 'no egg',
+    'extra gravy', 'dry', 'semi dry', 'full gravy',
   ];
 
   static const Map<String, String> _fix = {
-    'soap': 'soup', 'soop': 'soup',
-    'chikin': 'chicken', 'chiken': 'chicken',
-    'tika': 'tikka', 'tica': 'tikka',
+    // Soup
+    'soap': 'soup', 'soop': 'soup', 'sob': 'soup', 'sop': 'soup',
+    // Chicken
+    'chikin': 'chicken', 'chiken': 'chicken', 'chick': 'chicken',
+    'chikn': 'chicken', 'chickan': 'chicken',
+    // Tikka
+    'tika': 'tikka', 'tica': 'tikka', 'tican': 'tikka',
+    // Coke / Drinks
+    'cook': 'coke', 'coc': 'coke', 'kok': 'coke',
+    'bear': 'beer', 'bir': 'beer',
+    // Paneer
+    'pan': 'paneer', 'paner': 'paneer', 'panner': 'paneer',
+    'panier': 'paneer', 'panir': 'paneer',
+    // Naan / Bread
+    'nan': 'naan', 'naaan': 'naan', 'roti': 'roti',
+    // Rice dishes
+    'biriyani': 'biryani', 'briyani': 'biryani', 'bryani': 'biryani',
+    'birani': 'biryani', 'beriani': 'biryani',
+    // Dal
+    'daal': 'dal', 'dall': 'dal', 'dhal': 'dal',
+    // Malai
+    'malei': 'malai', 'malie': 'malai', 'malay': 'malai',
+    // Alfaham
     'alfam': 'alfaham', 'alfaam': 'alfaham', 'alphaam': 'alfaham',
-    'thok': 'thukpa', 'malei': 'malai',
-    'khubus': 'khaboos', 'berger': 'burger',
-    'manchuri': 'manchurian', 'singapur': 'singapuri',
-    'shezvan': 'shezwan', 'nudels': 'noodles',
+    // Other fixes
+    'thok': 'thukpa', 'khubus': 'khaboos', 'berger': 'burger',
+    'manchuri': 'manchurian', 'manchoori': 'manchurian',
+    'singapur': 'singapuri', 'shezvan': 'shezwan',
+    'nudels': 'noodles', 'noodels': 'noodles', 'nudal': 'noodles',
+    'fryed': 'fried', 'fride': 'fried',
+    'sambar': 'sambar', 'sambhar': 'sambar',
+    'lassi': 'lassi', 'lasi': 'lassi',
+    'mojito': 'mojito', 'mohito': 'mojito',
   };
 
   List<OrderResult> _parseLocally(

@@ -1,9 +1,9 @@
-import 'package:demo/CartPageForTakeAway.dart';
 import 'package:flutter/material.dart';
-import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:demo/services/ai_order_service.dart';
+import 'package:demo/services/restaurant_agent_service.dart';
+import 'package:demo/models/agent_response.dart';
 
 import 'CartPage.dart';
 import 'MyWidgets/EditableTextField.dart';
@@ -61,13 +61,15 @@ class _MenuPageState extends State<MenuPage>
   // Voice AI
   final SpeechToText _speech = SpeechToText();
   bool _isListening = false;
+  bool _isProcessing = false;        // true while Agent is working
   bool _speechInitialized = false;   // init only once per session
   String _recognizedText = '';       // full display text (accumulated + partial)
   String _accumulatedText = '';      // permanently committed text across restarts
   String _partialText = '';          // current session partial (not yet committed)
   bool _keepListening = false;       // user intent: keep going until Stop
   StateSetter? _sheetSetState;       // ref to sheet's setState for auto-restart
-  final AiOrderService _aiService = AiOrderService();
+  // Agent layer — sits on top of AiOrderService
+  final RestaurantAgentService _agentService = RestaurantAgentService();
 
   @override
   void initState() {
@@ -163,6 +165,7 @@ class _MenuPageState extends State<MenuPage>
     _partialText = '';
     _keepListening = false;
     _isListening = false;
+    _isProcessing = false;
     _sheetSetState = null;
 
     if (!_speechInitialized) {
@@ -219,8 +222,12 @@ class _MenuPageState extends State<MenuPage>
               await _speech.stop();
               // Use accumulated + any remaining partial
               final finalText = _recognizedText.trim();
-              setSheetState(() => _isListening = false);
-              _processOrderAndClose(finalText, sheetContext);
+              setSheetState(() {
+                _isListening = false;
+                _isProcessing = true;
+              });
+              await _processOrderAndClose(finalText, sheetContext);
+              setSheetState(() => _isProcessing = false);
             }
 
             void cancel() async {
@@ -324,12 +331,39 @@ class _MenuPageState extends State<MenuPage>
 
                   const SizedBox(height: 18),
 
+                   // Processing indicator
+                  if (_isProcessing)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.orange.shade700,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Processing with AI…',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.orange.shade700,
+                              fontFamily: fontMulishSemiBold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   // Buttons
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: cancel,
+                          onPressed: _isProcessing ? null : cancel,
                           icon: const Icon(Icons.close, size: 18),
                           label: const Text('Cancel'),
                           style: OutlinedButton.styleFrom(
@@ -345,7 +379,28 @@ class _MenuPageState extends State<MenuPage>
                       const SizedBox(width: 12),
                       Expanded(
                         flex: 2,
-                        child: _isListening
+                        child: _isProcessing
+                            ? ElevatedButton.icon(
+                                onPressed: null,
+                                icon: const SizedBox(
+                                  width: 18, height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                label: const Text('Processing…'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange.shade700,
+                                  foregroundColor: Colors.white,
+                                  elevation: 3,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(vertical: 13),
+                                ),
+                              )
+                            : _isListening
                             ? ElevatedButton.icon(
                                 onPressed: stopAndProcess,
                                 icon: const Icon(
@@ -406,62 +461,217 @@ class _MenuPageState extends State<MenuPage>
       return;
     }
 
-    // Close sheet first
-    if (mounted && Navigator.canPop(sheetContext)) Navigator.pop(sheetContext);
-
     if (!mounted) return;
 
-    List<Map<String, dynamic>> allItems = [];
-    menuData.forEach((key, items) {
-      allItems.addAll(items);
-    });
+    // Collect all menu items for the agent
+    final List<Map<String, dynamic>> allItems = [];
+    menuData.forEach((_, items) => allItems.addAll(items));
 
+    late AgentResponse response;
     try {
-      // Local parser is instant — no loading dialog needed
-      final results = await _aiService.parseOrder(text, allItems);
+      response = await _agentService.handleInput(
+        userText: text,
+        menuItems: allItems,
+      );
+    } catch (e) {
+      response = AgentResponse.retry('Order processing failed. Please try again.');
+      debugPrint('[MenuPage] Agent error: $e');
+    }
 
-      if (!mounted) return;
+    // Close voice sheet
+    if (mounted && Navigator.canPop(sheetContext)) Navigator.pop(sheetContext);
+    if (!mounted) return;
 
-      setState(() {
-        for (var r in results) {
-          final itemName = r.item['name'];
-          final qty = r.quantity;
-          final remarks = r.remarks;
+    // ── Route based on agent decision ─────────────────────────────────────
+    switch (response.action) {
+      case AgentAction.auto:
+        _applyOrderResults(response.items);
+        final itemNames = response.items
+            .map((r) => '${r.item['name']} ×${r.quantity}')
+            .join(', ');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('✅ Added: $itemNames'),
+          backgroundColor: Colors.green.shade700,
+          duration: const Duration(seconds: 4),
+        ));
+        // Save to Firestore history (fire and forget)
+        _agentService.saveOrderToHistory(response.items).ignore();
+        break;
 
-          for (var category in menuData.keys) {
-            for (int i = 0; i < menuData[category]!.length; i++) {
-              if (menuData[category]![i]['name'] == itemName) {
-                menuData[category]![i]['qty'] += qty;
-                if (remarks.isNotEmpty) {
-                  menuData[category]![i]['remarks'] = remarks;
-                }
+      case AgentAction.suggest:
+        _showSuggestSheet(response);
+        break;
+
+      case AgentAction.retry:
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('🎤 ${response.message}'),
+          backgroundColor: Colors.orange.shade700,
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'Try Again',
+            textColor: Colors.white,
+            onPressed: _startVoiceOrder,
+          ),
+        ));
+        break;
+    }
+  }
+
+  /// Applies a confirmed list of OrderResults into the menuData quantities.
+  void _applyOrderResults(List<OrderResult> results) {
+    setState(() {
+      for (final r in results) {
+        final itemName = r.item['name'];
+        for (final category in menuData.keys) {
+          for (int i = 0; i < menuData[category]!.length; i++) {
+            if (menuData[category]![i]['name'] == itemName) {
+              menuData[category]![i]['qty'] += r.quantity;
+              if (r.remarks.isNotEmpty) {
+                menuData[category]![i]['remarks'] = r.remarks;
               }
             }
           }
         }
-      });
+      }
+    });
+  }
 
-      if (results.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Added ${results.length} item(s) via Voice!'),
-            backgroundColor: Colors.green,
+  /// Shows the "Did you mean?" confirmation sheet (AgentAction.suggest).
+  void _showSuggestSheet(AgentResponse response) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle bar
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Header
+              Row(
+                children: [
+                  Icon(Icons.help_outline,
+                      color: Colors.orange.shade700, size: 22),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      response.message,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontFamily: 'Mulish SemiBold',
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Confidence: ${(response.confidence * 100).toStringAsFixed(0)}%',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                  fontFamily: 'Mulish Regular',
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Item chips
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: response.suggestions.map((r) {
+                  return Chip(
+                    label: Text(
+                      '${r.item['name']} ×${r.quantity}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontFamily: 'Mulish SemiBold',
+                      ),
+                    ),
+                    backgroundColor: Colors.orange.shade50,
+                    side: BorderSide(color: Colors.orange.shade200),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+              // Action buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        // Let user try voice again
+                        Future.delayed(
+                          const Duration(milliseconds: 300),
+                          _startVoiceOrder,
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.grey.shade700,
+                        side: BorderSide(color: Colors.grey.shade400),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 13),
+                      ),
+                      child: const Text('No, retry'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _applyOrderResults(response.suggestions);
+                        _agentService
+                            .saveOrderToHistory(response.suggestions)
+                            .ignore();
+                        final names = response.suggestions
+                            .map((r) =>
+                                '${r.item['name']} ×${r.quantity}')
+                            .join(', ');
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(SnackBar(
+                          content: Text('✅ Added: $names'),
+                          backgroundColor: Colors.green.shade700,
+                          duration: const Duration(seconds: 4),
+                        ));
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade700,
+                        foregroundColor: Colors.white,
+                        elevation: 3,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 13),
+                      ),
+                      child: const Text('Yes, add these'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No matching items found in menu.')),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to parse order: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+      },
+    );
   }
 
   int get totalItems {
