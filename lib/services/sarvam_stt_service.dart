@@ -26,7 +26,7 @@ class SarvamSttService {
   static const String _apiKey = 'sk_jm9xxf0p_09FKG715K2n9hXMGKjmIlAIS';
   static const String _apiUrl = 'https://api.sarvam.ai/speech-to-text';
   static const String _model = 'saaras:v3';
-  static const String _mode = 'transcribe'; // transcribe | translate | codemix
+  static const String _mode = 'translate'; // translate → always outputs English text
 
   // ── State ─────────────────────────────────────────────────────────────────
   final AudioRecorder _recorder = AudioRecorder();
@@ -148,7 +148,7 @@ class SarvamSttService {
 
       // Form fields
       request.fields['model'] = _model;
-      request.fields['language_code'] = 'auto'; // auto-detect language
+      request.fields['language_code'] = 'unknown'; // auto-detect language
       request.fields['mode'] = _mode;
 
       // Audio file
@@ -161,14 +161,17 @@ class SarvamSttService {
 
       final response = await http.Response.fromStream(streamedResponse);
 
+      debugPrint('[SarvamSTT] Response status: ${response.statusCode}');
+      debugPrint('[SarvamSTT] Response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
         final transcript = json['transcript'] as String? ?? '';
-        debugPrint('[SarvamSTT] Transcript: "$transcript"');
+        debugPrint('[SarvamSTT] ✅ Transcript: "$transcript"');
         return transcript.trim().isEmpty ? null : transcript.trim();
       } else {
         debugPrint(
-          '[SarvamSTT] API error ${response.statusCode}: ${response.body}',
+          '[SarvamSTT] ❌ API error ${response.statusCode}: ${response.body}',
         );
         return null;
       }
