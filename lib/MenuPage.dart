@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:speech_to_text/speech_to_text.dart';
+import 'dart:async';
+import 'package:demo/services/sarvam_stt_service.dart';
 import 'package:demo/services/ai_order_service.dart';
 import 'package:demo/services/restaurant_agent_service.dart';
 import 'package:demo/models/agent_response.dart';
@@ -58,16 +59,17 @@ class _MenuPageState extends State<MenuPage>
   Set<String> selectedCategories = {};
   bool showAllCategories = true; // Track if "All" is selected
 
-  // Voice AI
-  final SpeechToText _speech = SpeechToText();
-  bool _isListening = false;
+  // Voice AI — Sarvam STT
+  final SarvamSttService _sttService = SarvamSttService();
+  bool _isRecording = false;
+  bool _isTranscribing = false;      // true while Sarvam API is working
   bool _isProcessing = false;        // true while Agent is working
-  bool _speechInitialized = false;   // init only once per session
-  String _recognizedText = '';       // full display text (accumulated + partial)
-  String _accumulatedText = '';      // permanently committed text across restarts
-  String _partialText = '';          // current session partial (not yet committed)
-  bool _keepListening = false;       // user intent: keep going until Stop
-  StateSetter? _sheetSetState;       // ref to sheet's setState for auto-restart
+  String _recognizedText = '';       // transcript from Sarvam
+  int _recordingSeconds = 0;         // elapsed recording time
+  Timer? _recordingTimer;
+  double _currentAmplitude = 0.0;    // for visual feedback
+  Timer? _amplitudeTimer;
+  StateSetter? _sheetSetState;       // ref to sheet's setState
   // Agent layer — sits on top of AiOrderService
   final RestaurantAgentService _agentService = RestaurantAgentService();
 
@@ -114,82 +116,43 @@ class _MenuPageState extends State<MenuPage>
     });
   }
 
-  // ── Continuous listening ─────────────────────────────────────────────────
+  // ── Sarvam STT Recording ─────────────────────────────────────────────────
 
-  /// Restarts the speech engine. Called automatically on pause (onStatus=done)
-  /// or on error. Only runs while _keepListening is true.
-  void _resumeListening() {
-    if (!_keepListening || !mounted || _speech.isListening) return;
+  String _formatDuration(int seconds) {
+    final m = (seconds ~/ 60).toString().padLeft(2, '0');
+    final s = (seconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
 
-    _partialText = '';
-
-    _speech.listen(
-      onResult: (val) {
-        if (!mounted) return;
-        _partialText = val.recognizedWords;
-
-        if (val.finalResult) {
-          // Commit partial permanently to accumulated
-          _accumulatedText = _accumulatedText.isEmpty
-              ? _partialText
-              : '$_accumulatedText $_partialText';
-          _partialText = '';
-        }
-
-        // Display = accumulated + current partial
-        final display = _accumulatedText.isEmpty
-            ? _partialText
-            : _partialText.isEmpty
-                ? _accumulatedText
-                : '$_accumulatedText $_partialText';
-
-        _sheetSetState?.call(() {
-          _recognizedText = display.trim();
-        });
+  void _startAmplitudePolling() {
+    _amplitudeTimer?.cancel();
+    _amplitudeTimer = Timer.periodic(
+      const Duration(milliseconds: 200),
+      (_) async {
+        if (!_isRecording || !mounted) return;
+        final amp = await _sttService.getAmplitude();
+        // Normalize from dBFS (-160..0) to 0..1
+        final normalized = ((amp + 50) / 50).clamp(0.0, 1.0);
+        _sheetSetState?.call(() => _currentAmplitude = normalized);
       },
-      listenFor: const Duration(minutes: 5),
-      // generous pauseFor — onStatus('done') will restart us anyway
-      pauseFor: const Duration(seconds: 10),
-      cancelOnError: false,
-      partialResults: true,
-      localeId: 'en_IN', // Indian English — better for mixed Hindi/Gujarati
     );
-
-    _sheetSetState?.call(() => _isListening = true);
   }
 
   void _startVoiceOrder() async {
     // Reset all voice state
-    _accumulatedText = '';
     _recognizedText = '';
-    _partialText = '';
-    _keepListening = false;
-    _isListening = false;
+    _isRecording = false;
+    _isTranscribing = false;
     _isProcessing = false;
+    _recordingSeconds = 0;
+    _currentAmplitude = 0.0;
     _sheetSetState = null;
+    _recordingTimer?.cancel();
+    _amplitudeTimer?.cancel();
 
-    if (!_speechInitialized) {
-      _speechInitialized = await _speech.initialize(
-        onError: (val) {
-          debugPrint('Speech error: $val');
-          if (_keepListening && mounted) {
-            Future.delayed(const Duration(milliseconds: 600), _resumeListening);
-          }
-        },
-        onStatus: (status) {
-          debugPrint('Speech status: $status');
-          // Android fires 'done'/'notListening' after each pause.
-          // Only restart if the USER has not pressed Stop.
-          if (_keepListening &&
-              mounted &&
-              (status == 'done' || status == 'notListening')) {
-            Future.delayed(const Duration(milliseconds: 300), _resumeListening);
-          }
-        },
-      );
-    }
-
-    if (!_speechInitialized) {
+    // Check mic permission
+    final hasPerms = await _sttService.hasPermission();
+    if (!hasPerms) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Microphone permission denied.')),
@@ -211,29 +174,80 @@ class _MenuPageState extends State<MenuPage>
           builder: (sheetContext, setSheetState) {
             _sheetSetState = setSheetState;
 
-            void startRecording() {
-              _keepListening = true;
-              _resumeListening();
+            void startRecording() async {
+              final started = await _sttService.startRecording();
+              if (!started) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Failed to start recording.')),
+                  );
+                }
+                return;
+              }
+              setSheetState(() {
+                _isRecording = true;
+                _recordingSeconds = 0;
+                _currentAmplitude = 0.0;
+              });
+
+              // Timer for elapsed seconds
+              _recordingTimer?.cancel();
+              _recordingTimer = Timer.periodic(
+                const Duration(seconds: 1),
+                (_) {
+                  if (!_isRecording || !mounted) return;
+                  _sheetSetState?.call(() => _recordingSeconds++);
+                },
+              );
+
+              // Amplitude polling for visual feedback
+              _startAmplitudePolling();
             }
 
             void stopAndProcess() async {
-              // Set flag FIRST so onStatus('done') won't restart
-              _keepListening = false;
-              await _speech.stop();
-              // Use accumulated + any remaining partial
-              final finalText = _recognizedText.trim();
+              // Stop timers
+              _recordingTimer?.cancel();
+              _amplitudeTimer?.cancel();
+
               setSheetState(() {
-                _isListening = false;
+                _isRecording = false;
+                _isTranscribing = true;
+              });
+
+              // Stop recording & transcribe via Sarvam AI
+              final transcript = await _sttService.stopAndTranscribe();
+
+              if (transcript == null || transcript.trim().isEmpty) {
+                setSheetState(() => _isTranscribing = false);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Could not recognise speech. Please try again.'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+                return;
+              }
+
+              setSheetState(() {
+                _recognizedText = transcript;
+                _isTranscribing = false;
                 _isProcessing = true;
               });
-              await _processOrderAndClose(finalText, sheetContext);
-              setSheetState(() => _isProcessing = false);
+
+              await _processOrderAndClose(transcript, sheetContext);
+              if (mounted) setSheetState(() => _isProcessing = false);
             }
 
             void cancel() async {
-              _keepListening = false;
-              await _speech.stop();
-              setSheetState(() => _isListening = false);
+              _recordingTimer?.cancel();
+              _amplitudeTimer?.cancel();
+              await _sttService.cancelRecording();
+              setSheetState(() {
+                _isRecording = false;
+                _isTranscribing = false;
+              });
               if (Navigator.canPop(sheetContext)) Navigator.pop(sheetContext);
             }
 
@@ -256,11 +270,25 @@ class _MenuPageState extends State<MenuPage>
                     ),
                   ),
 
-                  // Mic icon with colour state
-                  Icon(
-                    _isListening ? Icons.mic : Icons.mic_none,
-                    size: 40,
-                    color: _isListening ? Colors.red : Colors.grey.shade400,
+                  // Mic icon with colour state + amplitude ring
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (_isRecording)
+                        Container(
+                          width: 56 + (_currentAmplitude * 20),
+                          height: 56 + (_currentAmplitude * 20),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.red.withValues(alpha: 0.15 + _currentAmplitude * 0.15),
+                          ),
+                        ),
+                      Icon(
+                        _isRecording ? Icons.mic : Icons.mic_none,
+                        size: 40,
+                        color: _isRecording ? Colors.red : Colors.grey.shade400,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
 
@@ -275,57 +303,136 @@ class _MenuPageState extends State<MenuPage>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _isListening
-                        ? '🔴 Listening — speak items, quantities & remarks'
-                        : _recognizedText.isNotEmpty
-                            ? 'Tap Stop & Process to confirm'
-                            : 'Tap Start, then speak your full order',
+                    _isRecording
+                        ? '🔴 Recording ${_formatDuration(_recordingSeconds)} — speak your order'
+                        : _isTranscribing
+                            ? '⏳ Transcribing with Sarvam AI…'
+                            : _recognizedText.isNotEmpty
+                                ? 'Transcript ready'
+                                : 'Tap Start, then speak your full order',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,
-                      color: _isListening
+                      color: _isRecording
                           ? Colors.red.shade700
-                          : Colors.grey.shade600,
+                          : _isTranscribing
+                              ? Colors.blue.shade700
+                              : Colors.grey.shade600,
+                      fontFamily: fontMulishRegular,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Powered by Sarvam badge
+                  Text(
+                    'Powered by Sarvam AI • Hindi, Gujarati, English',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey.shade400,
                       fontFamily: fontMulishRegular,
                     ),
                   ),
                   const SizedBox(height: 14),
 
-                  // Live transcript
+                  // Transcript / recording indicator area
                   Container(
                     width: double.infinity,
                     constraints:
                         const BoxConstraints(minHeight: 64, maxHeight: 120),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: _isListening
+                      color: _isRecording
                           ? Colors.red.shade50
-                          : Colors.grey.shade100,
+                          : _isTranscribing
+                              ? Colors.blue.shade50
+                              : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: _isListening
+                        color: _isRecording
                             ? Colors.red.shade200
-                            : Colors.grey.shade300,
-                        width: _isListening ? 1.5 : 1,
+                            : _isTranscribing
+                                ? Colors.blue.shade200
+                                : Colors.grey.shade300,
+                        width: _isRecording || _isTranscribing ? 1.5 : 1,
                       ),
                     ),
                     child: SingleChildScrollView(
                       reverse: true,
-                      child: Text(
-                        _recognizedText.isEmpty
-                            ? 'e.g. "do chicken tikka rice aur teen malai tikka less spicy"'
-                            : _recognizedText,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: _recognizedText.isEmpty
-                              ? Colors.grey.shade400
-                              : Colors.black87,
-                          fontFamily: fontMulishRegular,
-                          fontStyle: _recognizedText.isEmpty
-                              ? FontStyle.italic
-                              : FontStyle.normal,
-                        ),
-                      ),
+                      child: _isRecording
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // Simple amplitude bars
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: List.generate(7, (i) {
+                                      final barHeight = 8.0 +
+                                          (_currentAmplitude *
+                                              24 *
+                                              (i.isEven ? 1.0 : 0.6));
+                                      return Container(
+                                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                                        width: 4,
+                                        height: barHeight,
+                                        decoration: BoxDecoration(
+                                          color: Colors.red.shade400,
+                                          borderRadius: BorderRadius.circular(2),
+                                        ),
+                                      );
+                                    }),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Speak items, quantities & remarks…',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.red.shade300,
+                                      fontFamily: fontMulishRegular,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : _isTranscribing
+                              ? Center(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      SizedBox(
+                                        width: 16, height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.blue.shade600,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        'Recognising speech…',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.blue.shade600,
+                                          fontFamily: fontMulishRegular,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : Text(
+                                  _recognizedText.isEmpty
+                                      ? 'e.g. "do chicken tikka rice aur teen malai tikka less spicy"'
+                                      : _recognizedText,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: _recognizedText.isEmpty
+                                        ? Colors.grey.shade400
+                                        : Colors.black87,
+                                    fontFamily: fontMulishRegular,
+                                    fontStyle: _recognizedText.isEmpty
+                                        ? FontStyle.italic
+                                        : FontStyle.normal,
+                                  ),
+                                ),
                     ),
                   ),
 
@@ -363,7 +470,7 @@ class _MenuPageState extends State<MenuPage>
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: _isProcessing ? null : cancel,
+                          onPressed: (_isProcessing || _isTranscribing) ? null : cancel,
                           icon: const Icon(Icons.close, size: 18),
                           label: const Text('Cancel'),
                           style: OutlinedButton.styleFrom(
@@ -379,7 +486,7 @@ class _MenuPageState extends State<MenuPage>
                       const SizedBox(width: 12),
                       Expanded(
                         flex: 2,
-                        child: _isProcessing
+                        child: (_isProcessing || _isTranscribing)
                             ? ElevatedButton.icon(
                                 onPressed: null,
                                 icon: const SizedBox(
@@ -389,9 +496,11 @@ class _MenuPageState extends State<MenuPage>
                                     color: Colors.white,
                                   ),
                                 ),
-                                label: const Text('Processing…'),
+                                label: Text(_isTranscribing ? 'Transcribing…' : 'Processing…'),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange.shade700,
+                                  backgroundColor: _isTranscribing
+                                      ? Colors.blue.shade600
+                                      : Colors.orange.shade700,
                                   foregroundColor: Colors.white,
                                   elevation: 3,
                                   shape: RoundedRectangleBorder(
@@ -400,7 +509,7 @@ class _MenuPageState extends State<MenuPage>
                                   padding: const EdgeInsets.symmetric(vertical: 13),
                                 ),
                               )
-                            : _isListening
+                            : _isRecording
                             ? ElevatedButton.icon(
                                 onPressed: stopAndProcess,
                                 icon: const Icon(
@@ -423,7 +532,7 @@ class _MenuPageState extends State<MenuPage>
                                 label: Text(
                                   _recognizedText.isEmpty
                                       ? 'Start'
-                                      : 'Continue',
+                                      : 'Retry',
                                 ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.red,
@@ -446,9 +555,10 @@ class _MenuPageState extends State<MenuPage>
         );
       },
     ).whenComplete(() {
-      _keepListening = false;
+      _recordingTimer?.cancel();
+      _amplitudeTimer?.cancel();
       _sheetSetState = null;
-      _speech.stop();
+      _sttService.cancelRecording();
     });
   }
 
