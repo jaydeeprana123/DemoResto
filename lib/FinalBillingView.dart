@@ -153,6 +153,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                           List<Map<String, dynamic>> selectedItems,
                           bool isBillPaid,
                           String tableName,
+                          String overallRemarks,
                         ) async {
                           setState(() {
                             cartItems = selectedItems

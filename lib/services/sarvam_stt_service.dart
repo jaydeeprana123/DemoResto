@@ -45,6 +45,11 @@ class SarvamSttService {
   /// Start recording audio to a temporary WAV file.
   /// Returns `true` if recording started successfully.
   Future<bool> startRecording() async {
+    // path_provider / record are not supported on web
+    if (kIsWeb) {
+      debugPrint('[SarvamSTT] Voice recording not supported on web platform.');
+      return false;
+    }
     if (_isRecording) return true;
 
     try {
@@ -123,6 +128,7 @@ class SarvamSttService {
   ///
   /// Returns the transcribed text, or `null` if the API call fails.
   Future<String?> transcribe(String filePath) async {
+    if (kIsWeb) return null; // File I/O not available on web
     final file = File(filePath);
     if (!await file.exists()) {
       debugPrint('[SarvamSTT] File not found: $filePath');

@@ -510,20 +510,41 @@ class _TransactionsPageState extends State<TransactionsPage> {
                           children: [
                             // Date group header
                             if (showDateHeader)
-                              Container(
-                                width: double.infinity,
-                                color: const Color(0xFF1A3A5C),
-                                margin: const EdgeInsets.only(bottom: 6),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8,
-                                ),
-                                child: Text(
-                                  dateKey,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontFamily: fontMulishBold,
-                                    color: Colors.white,
-                                  ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1A3A5C),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.calendar_today,
+                                              color: Colors.white70, size: 12),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            dateKey,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontFamily: fontMulishBold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Divider(
+                                          color: Colors.grey.shade300,
+                                          thickness: 1),
+                                    ),
+                                  ],
                                 ),
                               ),
                             InkWell(
@@ -545,6 +566,16 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(12),
+                                  border: Border(
+                                    left: BorderSide(
+                                      color: cashAmount > 0 && onlineAmount > 0
+                                          ? Colors.purple.shade300
+                                          : onlineAmount > 0
+                                              ? Colors.blue.shade400
+                                              : const Color(0xFFf57c35),
+                                      width: 4,
+                                    ),
+                                  ),
                                   boxShadow: [
                                     BoxShadow(
                                       color: Colors.black.withOpacity(0.05),

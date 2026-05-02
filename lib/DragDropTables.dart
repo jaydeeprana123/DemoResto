@@ -232,8 +232,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   Future<void> _updateTableItemsInFirestore(
     String tableName,
     List<List<Map<String, dynamic>>> groups,
-    bool isBillPaid,
-  ) async {
+    bool isBillPaid, [
+    String overallRemarks = '',
+  ]) async {
     try {
       print("=== UPDATING FIREBASE ===");
       print("Table name: $tableName");
@@ -282,6 +283,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         "isPaid": isBillPaid,
         'updatedAt': FieldValue.serverTimestamp(),
       };
+      
+      if (overallRemarks.isNotEmpty) {
+        updateData['remarks'] = overallRemarks;
+      }
 
       await FirebaseFirestore.instance
           .collection('tables')
@@ -349,8 +354,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   Future<void> _addTableAndUpdateItems(
     String tableName,
     List<Map<String, dynamic>> selectedItems,
-    bool isBillPaid,
-  ) async {
+    bool isBillPaid, [
+    String overallRemarks = '',
+  ]) async {
     try {
       print("=== ADDING NEW TABLE ===");
       print("Table name: $tableName");
@@ -383,14 +389,20 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         flattenedItems.add(item);
       }
 
-      // Step 2: Add the document to Firestore
-      final docRef = await FirebaseFirestore.instance.collection('tables').add({
+      final tableData = {
         'name': tableName,
         'items': flattenedItems,
         "isPaid": isBillPaid,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+      
+      if (overallRemarks.isNotEmpty) {
+        tableData['remarks'] = overallRemarks;
+      }
+
+      // Step 2: Add the document to Firestore
+      final docRef = await FirebaseFirestore.instance.collection('tables').add(tableData);
 
       print(
         "SUCCESS: Table $tableName added with ${flattenedItems.length} items",
@@ -625,8 +637,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                 List<Map<String, dynamic>> selectedItems,
                 bool isBillPaid,
                 String tableName,
+                String overallRemarks,
               ) async {
-                await _addTableAndUpdateItems(tableName, selectedItems, isBillPaid);
+                await _addTableAndUpdateItems(tableName, selectedItems, isBillPaid, overallRemarks);
                 setState(() {});
               },
             ),
@@ -806,9 +819,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                 initialItems: [],
                 showBilling: true,
                 isFromFinalBilling: false,
-                onConfirm: (selectedItems, isBillPaid, tName) async {
+                onConfirm: (selectedItems, isBillPaid, tName, overallRemarks) async {
                   setState(() => groups.add(selectedItems));
-                  await _updateTableItemsInFirestore(tName, groups, isBillPaid);
+                  await _updateTableItemsInFirestore(tName, groups, isBillPaid, overallRemarks);
                 },
               ),
             ),
@@ -900,10 +913,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                             initialItems: List<Map<String, dynamic>>.from(lastGroup),
                             showBilling: groups.length == 1,
                             isFromFinalBilling: false,
-                            onConfirm: (items, isBillPaid, tName) async {
+                            onConfirm: (items, isBillPaid, tName, overallRemarks) async {
                               setState(() => groups[groups.length - 1] = items);
                               await _updateTableItemsInFirestore(
-                                  tName, groups, isBillPaid);
+                                  tName, groups, isBillPaid, overallRemarks);
                             },
                           ),
                         ),
@@ -921,10 +934,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                             initialItems: [],
                             showBilling: !hasItems,
                             isFromFinalBilling: false,
-                            onConfirm: (items, isBillPaid, tName) async {
+                            onConfirm: (items, isBillPaid, tName, overallRemarks) async {
                               setState(() => groups.add(items));
                               await _updateTableItemsInFirestore(
-                                  tName, groups, isBillPaid);
+                                  tName, groups, isBillPaid, overallRemarks);
                             },
                           ),
                         ),

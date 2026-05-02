@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:demo/services/sarvam_stt_service.dart';
@@ -21,8 +22,8 @@ class MenuPage extends StatefulWidget {
     List<Map<String, dynamic>> selectedItems,
     bool isBillPaid,
     String tableName,
-  )
-  onConfirm;
+    String overallRemarks,
+  ) onConfirm;
   final List<Map<String, dynamic>> menuList; // Passed from previous page
   final List<Map<String, dynamic>> initialItems;
   final String tableName;
@@ -72,6 +73,9 @@ class _MenuPageState extends State<MenuPage>
   StateSetter? _sheetSetState;       // ref to sheet's setState
   // Agent layer — sits on top of AiOrderService
   final RestaurantAgentService _agentService = RestaurantAgentService();
+
+  // Overall order remarks built up via Voice STT
+  String _overallRemarks = '';
 
   @override
   void initState() {
@@ -175,6 +179,16 @@ class _MenuPageState extends State<MenuPage>
             _sheetSetState = setSheetState;
 
             void startRecording() async {
+              // Voice recording not supported on web
+              if (kIsWeb) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('🎤 Voice ordering requires the mobile app.'),
+                    backgroundColor: Color(0xFF1A3A5C),
+                  ),
+                );
+                return;
+              }
               final started = await _sttService.startRecording();
               if (!started) {
                 if (mounted) {
@@ -595,21 +609,22 @@ class _MenuPageState extends State<MenuPage>
     // ── Route based on agent decision ─────────────────────────────────────
     switch (response.action) {
       case AgentAction.auto:
-        _applyOrderResults(response.items);
-        final itemNames = response.items
-            .map((r) => '${r.item['name']} ×${r.quantity}')
-            .join(', ');
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('✅ Added: $itemNames'),
-          backgroundColor: Colors.green.shade700,
-          duration: const Duration(seconds: 4),
-        ));
-        // Save to Firestore history (fire and forget)
-        _agentService.saveOrderToHistory(response.items).ignore();
+        _showVoiceOrderDialog(
+          items: response.items,
+          title: 'Voice Order Recognised',
+          isSuggestion: false,
+          transcript: text,
+        );
         break;
 
       case AgentAction.suggest:
-        _showSuggestSheet(response);
+        _showVoiceOrderDialog(
+          items: response.suggestions,
+          title: response.message,
+          isSuggestion: true,
+          confidence: response.confidence,
+          transcript: text,
+        );
         break;
 
       case AgentAction.retry:
@@ -646,141 +661,569 @@ class _MenuPageState extends State<MenuPage>
     });
   }
 
-  /// Shows the "Did you mean?" confirmation sheet (AgentAction.suggest).
-  void _showSuggestSheet(AgentResponse response) {
+  /// Large dialog that shows all voice-recognised items with remove buttons
+  /// and editable remarks fields per item.
+  void _showVoiceOrderDialog({
+    required List<OrderResult> items,
+    required String title,
+    required bool isSuggestion,
+    double confidence = 1.0,
+    String transcript = '',
+  }) {
+    if (items.isEmpty) return;
+
+    // Mutable copy — user can remove items before confirming
+    final editableItems = List<OrderResult>.from(items);
+    // One TextEditingController per item — pre-filled with AI-extracted remarks
+    final remarkControllers = editableItems
+        .map((r) => TextEditingController(text: r.remarks))
+        .toList();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        return StatefulBuilder(builder: (dialogCtx, setDialogState) {
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── Header ────────────────────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
+                  decoration: BoxDecoration(
+                    color: isSuggestion ? Colors.orange.shade700 : const Color(0xFF1A3A5C),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isSuggestion ? Icons.help_outline : Icons.mic,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontFamily: fontMulishBold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Confidence badge (only for suggestions)
+                if (isSuggestion)
+                  Container(
+                    width: double.infinity,
+                    color: Colors.orange.shade50,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                    child: Text(
+                      'AI Confidence: ${(confidence * 100).toStringAsFixed(0)}%  •  Review items below',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange.shade800,
+                        fontFamily: fontMulishRegular,
+                      ),
+                    ),
+                  ),
+
+                // ── Item list ─────────────────────────────────────────────
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 380),
+                  child: editableItems.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            children: [
+                              Icon(Icons.remove_shopping_cart,
+                                  size: 48, color: Colors.grey.shade300),
+                              const SizedBox(height: 12),
+                              Text(
+                                'All items removed.\nTap Cancel or try again.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontFamily: fontMulishRegular,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          itemCount: editableItems.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (_, index) {
+                            final r = editableItems[index];
+                            return Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                border: Border.all(
+                                  color: isSuggestion
+                                      ? Colors.orange.shade200
+                                      : const Color(0xFF1A3A5C).withValues(alpha: 0.25),
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.04),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Item colour dot
+                                      Container(
+                                        margin: const EdgeInsets.only(top: 3),
+                                        width: 10,
+                                        height: 10,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: isSuggestion
+                                              ? Colors.orange.shade600
+                                              : const Color(0xFFf57c35),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      // Name + qty
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    r.item['name'] as String? ?? '',
+                                                    style: TextStyle(
+                                                      fontFamily: fontMulishBold,
+                                                      fontSize: 14,
+                                                      color: Colors.black87,
+                                                    ),
+                                                  ),
+                                                ),
+                                                // Quantity badge
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(
+                                                      horizontal: 10, vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: isSuggestion
+                                                        ? Colors.orange.shade50
+                                                        : const Color(0xFF1A3A5C).withValues(alpha: 0.08),
+                                                    borderRadius: BorderRadius.circular(20),
+                                                    border: Border.all(
+                                                      color: isSuggestion
+                                                          ? Colors.orange.shade300
+                                                          : const Color(0xFF1A3A5C).withValues(alpha: 0.3),
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    'Qty: ${r.quantity}',
+                                                    style: TextStyle(
+                                                      fontFamily: fontMulishBold,
+                                                      fontSize: 12,
+                                                      color: isSuggestion
+                                                          ? Colors.orange.shade800
+                                                          : const Color(0xFF1A3A5C),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      // Remove button
+                                      GestureDetector(
+                                        onTap: () {
+                                          setDialogState(() {
+                                            remarkControllers[index].dispose();
+                                            editableItems.removeAt(index);
+                                            remarkControllers.removeAt(index);
+                                          });
+                                        },
+                                        child: Container(
+                                          margin: const EdgeInsets.only(left: 8),
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.red.shade50,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(Icons.close,
+                                              size: 16, color: Colors.red.shade400),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  // ── Remarks field (always visible in dialog) ─
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: remarkControllers[index],
+                                    decoration: InputDecoration(
+                                      hintText: 'e.g. less spicy, no onion, parcel…',
+                                      hintStyle: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade400,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                      isDense: true,
+                                      prefixIcon: Icon(Icons.notes_outlined,
+                                          size: 16, color: Colors.orange.shade600),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.grey.shade300),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.grey.shade300),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(
+                                            color: Colors.orange.shade400, width: 1.5),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 8),
+                                      filled: true,
+                                      fillColor: Colors.orange.shade50,
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.orange.shade800,
+                                      fontFamily: fontMulishRegular,
+                                    ),
+                                    maxLines: 1,
+                                  ),
+                                ],
+                              ),
+                            );
+
+
+                          },
+                        ),
+                ),
+
+                // ── Footer buttons ────────────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+                  ),
+                  child: Row(
+                    children: [
+                      // Cancel / Retry
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(dialogCtx);
+                            Future.delayed(
+                              const Duration(milliseconds: 300),
+                              _startVoiceOrder,
+                            );
+                          },
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Retry'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey.shade700,
+                            side: BorderSide(color: Colors.grey.shade400),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Confirm (disabled if no items left)
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton.icon(
+                          onPressed: editableItems.isEmpty
+                              ? null
+                              : () {
+                                  final updated = List.generate(
+                                    editableItems.length,
+                                    (i) => OrderResult(
+                                      item: editableItems[i].item,
+                                      quantity: editableItems[i].quantity,
+                                      remarks: remarkControllers[i].text.trim(),
+                                    ),
+                                  );
+                                  if (transcript.isNotEmpty) {
+                                    if (_overallRemarks.isNotEmpty) {
+                                      _overallRemarks += '\n';
+                                    }
+                                    _overallRemarks += transcript;
+                                  }
+                                  
+                                  Navigator.pop(dialogCtx);
+                                  _applyOrderResults(updated);
+                                  _agentService.saveOrderToHistory(updated).ignore();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('✅ ${updated.length} item(s) added to cart'),
+                                      backgroundColor: Colors.green.shade700,
+                                      duration: const Duration(seconds: 3),
+                                    ),
+                                  );
+                                },
+
+                          icon: const Icon(Icons.check, size: 18),
+                          label: Text(
+                            editableItems.isEmpty ? 'Nothing to add' : 'Add to Cart',
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green.shade700,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: Colors.grey.shade300,
+                            elevation: 3,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
+      },
+    ).whenComplete(() {
+      for (final c in remarkControllers) c.dispose();
+    });
+  }
+
+  // ── Menu item card helper ────────────────────────────────────────────────
+  Widget _buildMenuItem(String category, int index) {
+    final item = menuData[category]![index];
+    final qty = item['qty'] as int;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+
+
+          // ── Name + price ────────────────────────────────────────────
+          Expanded(
+            child: InkWell(
+              onTap: (){
+                incrementQty(category, index);
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item['name'].toString(),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontFamily: fontMulishBold,
+                      color: Color(0xFF1A3A5C),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '₹${(item['price'] as num).toStringAsFixed(0)}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade500,
+                      fontFamily: fontMulishRegular,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // ── ADD button or stepper ────────────────────────────────────
+          qty == 0
+              ? _addButton(onTap: () => incrementQty(category, index))
+              : _stepper(
+                  qty: qty,
+                  onDecrement: () => decrementQty(category, index),
+                  onIncrement: () => incrementQty(category, index),
+                ),
+        ],
+      ),
+    );
+  }
+
+  // Orange outlined ADD pill (original brand design)
+  Widget _addButton({required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFf57c35), width: 1.5),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Text(
+          'ADD',
+          style: TextStyle(
+            fontSize: 13,
+            fontFamily: fontMulishBold,
+            color: Color(0xFFf57c35),
+            letterSpacing: 0.5,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Navy − qty − orange + pill stepper (original brand design)
+  Widget _stepper({
+    required int qty,
+    required VoidCallback onDecrement,
+    required VoidCallback onIncrement,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A3A5C),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: onDecrement,
+            child: Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              child: const Icon(Icons.remove, color: Colors.white, size: 16),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              '$qty',
+              style: const TextStyle(
+                fontSize: 14,
+                fontFamily: fontMulishBold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: onIncrement,
+            child: Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Color(0xFFf57c35),
+                borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
+  void _showRemarkEditSheet(String category, int index) {
+    final item = menuData[category]![index];
+    final ctrl = TextEditingController(text: (item['remarks'] ?? '').toString());
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle bar
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20, right: 20, top: 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              item['name'].toString(),
+              style: const TextStyle(
+                fontSize: 15, fontFamily: fontMulishBold, color: Color(0xFF1A3A5C),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'e.g. less spicy, no onion, kam tel…',
+                hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                prefixIcon: Icon(Icons.notes_outlined, color: Colors.orange.shade600),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFFf57c35), width: 1.5),
                 ),
+                filled: true,
+                fillColor: Colors.orange.shade50,
               ),
-              // Header
-              Row(
-                children: [
-                  Icon(Icons.help_outline,
-                      color: Colors.orange.shade700, size: 22),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      response.message,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontFamily: 'Mulish SemiBold',
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Confidence: ${(response.confidence * 100).toStringAsFixed(0)}%',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade500,
-                  fontFamily: 'Mulish Regular',
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    item['remarks'] = ctrl.text.trim();
+                  });
+                  Navigator.pop(ctx);
+                  ctrl.dispose();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1A3A5C),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                 ),
+                child: const Text('Save Remark', style: TextStyle(fontFamily: fontMulishBold)),
               ),
-              const SizedBox(height: 16),
-              // Item chips
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: response.suggestions.map((r) {
-                  return Chip(
-                    label: Text(
-                      '${r.item['name']} ×${r.quantity}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontFamily: 'Mulish SemiBold',
-                      ),
-                    ),
-                    backgroundColor: Colors.orange.shade50,
-                    side: BorderSide(color: Colors.orange.shade200),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 20),
-              // Action buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        // Let user try voice again
-                        Future.delayed(
-                          const Duration(milliseconds: 300),
-                          _startVoiceOrder,
-                        );
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey.shade700,
-                        side: BorderSide(color: Colors.grey.shade400),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 13),
-                      ),
-                      child: const Text('No, retry'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _applyOrderResults(response.suggestions);
-                        _agentService
-                            .saveOrderToHistory(response.suggestions)
-                            .ignore();
-                        final names = response.suggestions
-                            .map((r) =>
-                                '${r.item['name']} ×${r.quantity}')
-                            .join(', ');
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(SnackBar(
-                          content: Text('✅ Added: $names'),
-                          backgroundColor: Colors.green.shade700,
-                          duration: const Duration(seconds: 4),
-                        ));
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.shade700,
-                        foregroundColor: Colors.white,
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 13),
-                      ),
-                      child: const Text('Yes, add these'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -942,153 +1385,9 @@ class _MenuPageState extends State<MenuPage>
 
                         return ListView.builder(
                           itemCount: items.length,
-                          padding: EdgeInsets.only(top: 8),
-                          itemBuilder: (context, index) {
-                            final item = items[index];
-                            final qty = item['qty'] as int;
-
-                            return InkWell(
-                              onTap: () {
-                                incrementQty(category, index);
-                              },
-                              child: Column(
-                                children: [
-                                  ListTile(
-                                    contentPadding: EdgeInsets.symmetric(
-                                      vertical: 2,
-                                      horizontal: 16,
-                                    ),
-                                    title: Text(
-                                      item['name'],
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: text_color,
-                                        fontFamily: fontMulishSemiBold,
-                                      ),
-                                    ),
-                                    subtitle: Padding(
-                                      padding: const EdgeInsets.only(top: 2.0),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              SizedBox(height: 6),
-                                              Text(
-                                                "₹${item['price'].toStringAsFixed(2)}",
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color: secondary_text_color,
-                                                  fontFamily: fontMulishRegular,
-                                                ),
-                                              ),
-
-                                              SizedBox(width: 16),
-
-                                              if (item['qty'] > 0)
-                                                Text(
-                                                  "\u00D7${item['qty']}",
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                    color: Colors.red,
-                                                    fontFamily: fontMulishBold,
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                          if (item['remarks'] != null && item['remarks'].toString().isNotEmpty)
-                                            Padding(
-                                              padding: const EdgeInsets.only(top: 4.0),
-                                              child: Text(
-                                                "Remarks: ${item['remarks']}",
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.orange,
-                                                  fontFamily: fontMulishSemiBold,
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                    trailing: qty == 0
-                                        ? GestureDetector(
-                                            onTap: () {
-                                              setState(() {
-                                                item['qty'] = 1;
-                                              });
-                                            },
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 20,
-                                                    vertical: 5,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                border: Border.all(
-                                                  color: Colors.black87,
-                                                  width: 0.5,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: const Text(
-                                                "Add",
-                                                style: TextStyle(
-                                                  color: Colors.black87,
-                                                  fontWeight: FontWeight.normal,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ),
-                                          )
-                                        : Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.remove_circle,
-                                                  color: Colors.red,
-                                                ),
-                                                onPressed: () => decrementQty(
-                                                  category,
-                                                  index,
-                                                ),
-                                              ),
-                                              Text(
-                                                "$qty",
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  color: text_color,
-                                                  fontFamily:
-                                                      fontMulishSemiBold,
-                                                ),
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.add_circle,
-                                                  color: Colors.green,
-                                                ),
-                                                onPressed: () => incrementQty(
-                                                  category,
-                                                  index,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                  ),
-
-                                  Container(
-                                    margin: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                    ),
-                                    height: 0.5,
-                                    color: Colors.grey.shade300,
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemBuilder: (context, index) =>
+                              _buildMenuItem(category, index),
                         );
                       }).toList(),
                     )
@@ -1097,158 +1396,15 @@ class _MenuPageState extends State<MenuPage>
                         final items = menuData[category];
 
                         return ListView.builder(
-                          itemCount: items?.length,
-                          padding: EdgeInsets.only(top: 8),
-                          itemBuilder: (context, index) {
-                            final item = items?[index];
-                            final qty = item?['qty'];
-
-                            return InkWell(
-                              onTap: () {
-                                incrementQty(category, index);
-                              },
-                              child: Column(
-                                children: [
-                                  ListTile(
-                                    contentPadding: EdgeInsets.symmetric(
-                                      vertical: 2,
-                                      horizontal: 16,
-                                    ),
-                                    title: Text(
-                                      item?['name'] ?? "",
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: text_color,
-                                        fontFamily: fontMulishSemiBold,
-                                      ),
-                                    ),
-                                    subtitle: Padding(
-                                      padding: const EdgeInsets.only(top: 2.0),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              SizedBox(height: 6),
-                                              Text(
-                                                "₹${item?['price'].toStringAsFixed(2)}",
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color: secondary_text_color,
-                                                  fontFamily: fontMulishRegular,
-                                                ),
-                                              ),
-
-                                              SizedBox(width: 16),
-
-                                              if ((item?['qty'] ?? 0) > 0)
-                                                Text(
-                                                  "\u00D7${item?['qty']}",
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                    color: Colors.red,
-                                                    fontFamily: fontMulishBold,
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                          if (item?['remarks'] != null && item!['remarks'].toString().isNotEmpty)
-                                            Padding(
-                                              padding: const EdgeInsets.only(top: 4.0),
-                                              child: Text(
-                                                "Remarks: ${item!['remarks']}",
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.orange,
-                                                  fontFamily: fontMulishSemiBold,
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                    trailing: qty == 0
-                                        ? GestureDetector(
-                                            onTap: () {
-                                              setState(() {
-                                                item?['qty'] = 1;
-                                              });
-                                            },
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 20,
-                                                    vertical: 5,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                border: Border.all(
-                                                  color: Colors.black87,
-                                                  width: 0.5,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: const Text(
-                                                "Add",
-                                                style: TextStyle(
-                                                  color: Colors.black87,
-                                                  fontWeight: FontWeight.normal,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ),
-                                          )
-                                        : Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.remove_circle,
-                                                  color: Colors.red,
-                                                ),
-                                                onPressed: () => decrementQty(
-                                                  category,
-                                                  index,
-                                                ),
-                                              ),
-                                              Text(
-                                                "$qty",
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  color: text_color,
-                                                  fontFamily:
-                                                      fontMulishSemiBold,
-                                                ),
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.add_circle,
-                                                  color: Colors.green,
-                                                ),
-                                                onPressed: () => incrementQty(
-                                                  category,
-                                                  index,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                  ),
-
-                                  Container(
-                                    margin: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                    ),
-                                    height: 0.5,
-                                    color: Colors.grey.shade300,
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                          itemCount: items?.length ?? 0,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemBuilder: (context, index) =>
+                              _buildMenuItem(category, index),
                         );
                       }).toList(),
                     ),
             ),
+
             if (totalItems > 0)
               InkWell(
                 onTap: () {
@@ -1271,6 +1427,7 @@ class _MenuPageState extends State<MenuPage>
                           tableName: tableNameController.text,
                           tableNameEditable: widget.tableNameEditable,
                           menuData: selectedItems,
+                          overallRemarks: _overallRemarks,
                           onConfirm: widget.onConfirm,
                           showBilling: widget.showBilling,
                         ),
@@ -1279,7 +1436,7 @@ class _MenuPageState extends State<MenuPage>
                       if (onValue != null) {
                         List<Map<String, dynamic>> changedItems = onValue;
 
-                        // Pre-fill quantities from initialItems if any
+                        // Sync qty + remarks back from cart → menu
                         for (var category in menuData.keys) {
                           for (var item in menuData[category]!) {
                             final existingItem = changedItems.firstWhere(
@@ -1288,6 +1445,10 @@ class _MenuPageState extends State<MenuPage>
                             );
                             if (existingItem.isNotEmpty) {
                               item['qty'] = existingItem['qty'];
+                              item['remarks'] = existingItem['remarks'] ?? '';
+                            } else {
+                              // Item was removed entirely from cart
+                              item['qty'] = 0;
                             }
                           }
                         }
@@ -1639,37 +1800,41 @@ class _MenuPageState extends State<MenuPage>
                       ),
                     ),
                   )
-                : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.remove_circle,
-                          color: Colors.red,
+                : GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {}, // Absorb stray taps so parent InkWell doesn't trigger
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.remove_circle,
+                            color: Colors.red,
+                          ),
+                          onPressed: () {
+                            if (item['qty'] > 0) {
+                              item['qty']--;
+                              setState(() {});
+                            }
+                          },
                         ),
-                        onPressed: () {
-                          if (item['qty'] > 0) {
-                            item['qty']--;
+                        Text(
+                          "$qty",
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: text_color,
+                            fontFamily: fontMulishSemiBold,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle, color: Colors.green),
+                          onPressed: () {
+                            item['qty']++;
                             setState(() {});
-                          }
-                        },
-                      ),
-                      Text(
-                        "$qty",
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: text_color,
-                          fontFamily: fontMulishSemiBold,
+                          },
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.add_circle, color: Colors.green),
-                        onPressed: () {
-                          item['qty']++;
-                          setState(() {});
-                        },
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
           ),
           Container(

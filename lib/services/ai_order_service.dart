@@ -66,7 +66,13 @@ You must:
 2. Predict the most likely food item from the menu
 3. Match ONLY from the provided menu
 4. Detect quantity (default = 1 if not mentioned)
-5. Extract notes like: spicy, less oil, butter, parcel, etc.
+5. ALWAYS extract the remark/modifier portion into the "remarks" field:
+   - Copy the EXACT words the user spoke for the modifier (verbatim), do NOT summarize or paraphrase
+   - Examples of modifiers: spice level, oil, onion, garlic, parcel, cooking style, any preference
+   - IMPORTANT: Even if the modifier is attached to the item name, extract it as-is into remarks
+   - Example: user says "paneer tikka don't make it spicy" → remarks = "don't make it spicy" (verbatim)
+   - Example: user says "two peri peri wraps keep it less spicy" → remarks = "keep it less spicy" (verbatim)
+   - If no modifier is spoken, remarks = ""
 
 Important:
 - Use common Indian restaurant understanding
@@ -76,15 +82,16 @@ Important:
 - Number words: ek/one=1, be/do/two=2, tran/teen/three=3, chaar/char/four=4, paanch/panch/five=5, chha/chhe/six=6, saat/sat/seven=7, aath/eight=8, nav/nine=9, das/ten=10
 
 STRICT RULES:
-- Return ONLY valid JSON array
-- Do not add any explanation or markdown
-- If unsure, choose the closest matching item from menu
+- Return ONLY valid JSON array, no markdown, no explanation
+- "name" must exactly match one of the provided menu names
+- "remarks" must be empty string if no modifier spoken, NOT null
+- If unsure about item, choose the closest matching item from menu
 
 MENU (match ONLY from these exact names):
 $menuStr
 
-Return format:
-[{"name":"EXACT_MENU_NAME","quantity":NUMBER,"remarks":"REMARK_OR_EMPTY_STRING"}]
+Return format (strict):
+[{"name":"EXACT_MENU_NAME","quantity":NUMBER,"remarks":"MODIFIER_OR_EMPTY_STRING"}]
 
 User input:
 "$userText"''';
@@ -160,7 +167,9 @@ User input:
     for (final entry in parsed) {
       final rawName = (entry['name'] as String? ?? '').trim();
       final qty = ((entry['quantity'] as num?) ?? 1).toInt().clamp(1, 99);
-      final remarks = (entry['remarks'] as String? ?? '').trim();
+      final rawRemarks = (entry['remarks'] as String? ?? '').trim();
+      // Use remark verbatim as extracted from speech — do NOT normalize
+      final remarks = rawRemarks;
 
       // Find exact match first
       Map<String, dynamic>? matched = _exactMatch(rawName, menuItems);
@@ -245,12 +254,69 @@ User input:
     'less spicy', 'more spicy', 'extra spicy', 'not spicy', 'no spicy',
     'without spice', 'no spice', 'no onion', 'without onion',
     'no garlic', 'without garlic', 'extra cheese', 'no cheese',
-    'well done', 'half done', 'less oil', 'no oil',
+    'well done', 'half done', 'less oil', 'no oil', 'extra oil',
     'less salt', 'no salt', 'take away', 'takeaway', 'parcel',
     'extra sauce', 'no sauce', 'spicy', 'butter', 'extra butter',
     'no butter', 'jain', 'without egg', 'no egg',
     'extra gravy', 'dry', 'semi dry', 'full gravy',
+    // English remark phrases that Sarvam translate mode outputs
+    'less spice', 'more spice', 'not spice', 'no spice level',
+    'half spicy', 'medium spicy', 'mild spicy',
   ];
+
+  /// Maps Hindi/Gujarati spoken remark phrases → standard English remarks.
+  /// Order matters: longer/more-specific phrases must come first.
+  static const List<(String, String)> _remarkPhraseMap = [
+    // "less spicy" variants
+    ('thoda kam tikha', 'less spicy'),
+    ('thoda kam spicy', 'less spicy'),
+    ('kam tikha', 'less spicy'),
+    ('kam spicy', 'less spicy'),
+    ('kam masala', 'less spicy'),
+    ('zyada kam tikha', 'less spicy'),
+    ('bilkul kam tikha', 'not spicy'),
+    ('bilkul nahi tikha', 'not spicy'),
+    ('thoda spicy', 'less spicy'),
+    // "more spicy" variants
+    ('zyada tikha', 'extra spicy'),
+    ('zyada spicy', 'extra spicy'),
+    ('bahut tikha', 'extra spicy'),
+    ('jyada tikha', 'extra spicy'),
+    ('jyada spicy', 'extra spicy'),
+    // "less oil" variants
+    ('kam tel', 'less oil'),
+    ('zyada tel', 'extra oil'),
+    // "less salt" variants
+    ('kam namak', 'less salt'),
+    ('no namak', 'no salt'),
+    // "no onion no garlic" variants
+    ('jain food', 'jain'),
+    ('jain item', 'jain'),
+    ('without onion garlic', 'no onion no garlic'),
+    ('no onion garlic', 'no onion no garlic'),
+    ('lasan dungri nahi', 'no onion no garlic'),
+    // "parcel" variants
+    ('parcel karo', 'parcel'),
+    ('packing', 'parcel'),
+    // "extra butter"
+    ('extra butter lagao', 'extra butter'),
+    ('butter lagao', 'extra butter'),
+    // "well done"
+    ('achha bano', 'well done'),
+    ('full done', 'well done'),
+  ];
+
+  /// Normalises a raw spoken remark string by converting Hindi/Gujarati
+  /// phrases into standard English. Call this on Gemini output remarks too.
+  static String normalizeRemarks(String raw) {
+    String text = raw.toLowerCase().trim();
+    for (final (phrase, replacement) in _remarkPhraseMap) {
+      text = text.replaceAll(phrase, replacement);
+    }
+    // Collapse multiple spaces
+    text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return text.isEmpty ? '' : text[0].toUpperCase() + text.substring(1);
+  }
 
   static const Map<String, String> _fix = {
     // Soup
@@ -293,15 +359,6 @@ User input:
     String text = raw.toLowerCase().trim();
     _fix.forEach((w, r) => text = text.replaceAll(RegExp('\\b$w\\b'), r));
 
-    // Extract global remarks
-    final globalRemarks = <String>[];
-    for (final rp in _remarks) {
-      if (text.contains(rp)) {
-        globalRemarks.add(_cap(rp));
-        text = text.replaceAll(rp, ' ');
-      }
-    }
-
     final tokens = text
         .replaceAll(RegExp(r'[,\.]'), ' ')
         .split(RegExp(r'\s+'))
@@ -318,30 +375,35 @@ User input:
 
     for (final seg in segments) {
       if (seg.words.isEmpty) continue;
-      String segText = seg.words.join(' ');
-      final segRemarks = <String>[];
-      for (final rp in _remarks) {
-        if (segText.contains(rp)) {
-          segRemarks.add(_cap(rp));
-          segText = segText.replaceAll(rp, ' ');
-        }
-      }
-      final cleanWords = segText
-          .split(RegExp(r'\s+'))
-          .where((w) => w.isNotEmpty)
-          .toList();
+      
+      final cleanWords = seg.words.toList();
 
       final matched = _bestMatch(cleanWords, menu, used);
       if (matched == null) continue;
       used.add(matched['name'].toString());
 
-      final remark = segRemarks.isNotEmpty
-          ? segRemarks.join(', ')
-          : segments.length == 1
-              ? globalRemarks.join(', ')
-              : '';
+      // Get words that make up the item name to filter them out
+      final itemWords = matched['name']
+          .toString()
+          .toLowerCase()
+          .split(RegExp(r'\s+'))
+          .where((w) => w.length > 2)
+          .toSet();
+
+      // The remaining words in the segment are the verbatim remark!
+      final remarkWords = cleanWords.where((w) {
+        // Skip words that look like they belong to the item name
+        return !itemWords.any((iw) => iw.contains(w) || w.contains(iw));
+      }).toList();
+
+      // Re-capitalize the first letter
+      String rawRemark = remarkWords.join(' ');
+      if (rawRemark.isNotEmpty) {
+        rawRemark = rawRemark[0].toUpperCase() + rawRemark.substring(1);
+      }
+
       results.add(
-          OrderResult(item: matched, quantity: seg.qty, remarks: remark));
+          OrderResult(item: matched, quantity: seg.qty, remarks: rawRemark));
     }
     return results;
   }

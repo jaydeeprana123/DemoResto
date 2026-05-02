@@ -78,7 +78,7 @@ class RestaurantAgentService {
     }
 
     // 6. Inject user preferences into remarks
-    final enriched = applyPreferences(results, data.preferences);
+    var enriched = applyPreferences(results, data.preferences);
 
     // 7. Score confidence
     final confidence = calculateConfidence(
