@@ -66,7 +66,8 @@ class RestaurantAgentService {
     }
 
     // 4. Filter menu to top-30 relevant items (faster + more accurate AI)
-    final filteredMenu = filterMenuByContext(text, menuItems);
+    // Use full menu for max accuracy (Gemini handles large context easily)
+    final filteredMenu = menuItems;
 
     // 5. Parse via AiOrderService (Gemini → local fallback)
     List<OrderResult> results;

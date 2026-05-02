@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Order parser — PRIMARY: Gemini REST API (v1, direct HTTP, no SDK issues)
@@ -30,14 +31,25 @@ class AiOrderService {
     List<Map<String, dynamic>> menuItems,
   ) async {
     if (text.trim().isEmpty) return [];
+    debugPrint('[AiOrderService] ── parseOrder called ──────────────────');
+    debugPrint('[AiOrderService] Input text: "$text"');
+    debugPrint('[AiOrderService] Menu size: ${menuItems.length} items');
 
     try {
+      debugPrint('[AiOrderService] Trying Gemini API...');
       final aiResults = await _callGemini(text, menuItems);
-      if (aiResults.isNotEmpty) return aiResults;
-    } catch (_) {
-      // fall through to local parser
+      if (aiResults.isNotEmpty) {
+        debugPrint('[AiOrderService] ✅ Gemini succeeded with ${aiResults.length} items.');
+        return aiResults;
+      }
+      debugPrint('[AiOrderService] ⚠️ Gemini returned 0 items — falling back to local parser.');
+    } catch (e) {
+      debugPrint('[AiOrderService] ❌ Gemini FAILED: $e');
+      debugPrint('[AiOrderService] Falling back to local parser...');
     }
-    return _parseLocally(text, menuItems);
+    final localResults = _parseLocally(text, menuItems);
+    debugPrint('[AiOrderService] Local parser returned ${localResults.length} items.');
+    return localResults;
   }
 
   // ── Gemini REST call ────────────────────────────────────────────────────
@@ -47,8 +59,8 @@ class AiOrderService {
   ) async {
     // Build compact menu list for the prompt
     final menuStr = menuItems
-        .map((m) => '"${m['name']}"')
-        .join(', ');
+        .map((m) => '- ${m['name']}')
+        .join('\n');
 
     final prompt = '''
 You are an intelligent restaurant order assistant.
@@ -60,6 +72,7 @@ The input may contain:
 - Wrong words due to speech recognition (example: "cook" may mean "coke", "bear" may mean "beer", "soap" may mean "soup")
 - Half words (example: "pan" may mean "paneer", "chik" may mean "chicken")
 - Spelling mistakes
+- IMPORTANT: The provided MENU may itself contain spelling mistakes (example: "Chciken" instead of "Chicken"). You must match the user's intent to the EXISTING menu name, even if the menu name is spelled incorrectly.
 
 You must:
 1. Correct wrong or similar sounding words
@@ -81,11 +94,22 @@ Important:
 - Be tolerant to errors and incomplete input
 - Number words: ek/one=1, be/do/two=2, tran/teen/three=3, chaar/char/four=4, paanch/panch/five=5, chha/chhe/six=6, saat/sat/seven=7, aath/eight=8, nav/nine=9, das/ten=10
 
+CORRECTIONS & OVERRIDES:
+- Handle natural language corrections within the same input.
+- If the user says "make it 4 instead of 3", your output must contain ONLY the final quantity (4).
+- If the user says "not X, give me Y", your output must contain ONLY Y.
+- If the user repeats an item with a different quantity, use the LAST mentioned quantity as the source of truth.
+- "to be added" or "add X" means the final count for that item should be identified.
+- QUANTITY RULE: If a quantity is mentioned for one item, do NOT apply it to other items unless explicitly stated.
+- DEFAULT RULE: If no quantity is mentioned for an item, the quantity is ALWAYS 1.
+- DO NOT multiply or sum quantities unless the user explicitly says "plus" or "more".
+
 STRICT RULES:
 - Return ONLY valid JSON array, no markdown, no explanation
 - "name" must exactly match one of the provided menu names
 - "remarks" must be empty string if no modifier spoken, NOT null
 - If unsure about item, choose the closest matching item from menu
+- Number words: ek=1, be/do=2, tran/teen=3, char=4, panch=5, chhe=6, sat=7, ath=8, nav=9, das=10
 
 MENU (match ONLY from these exact names):
 $menuStr
@@ -117,15 +141,18 @@ User input:
     try {
       final request = await client.postUrl(Uri.parse(_url));
       request.headers
-        ..set(HttpHeaders.contentTypeHeader, 'application/json')
+        ..set(HttpHeaders.contentTypeHeader, 'application/json; charset=utf-8')
         ..set(HttpHeaders.acceptHeader, 'application/json');
-      request.write(body);
+      // Use utf8.encode to safely handle special characters (like & in menu names)
+      request.add(utf8.encode(body));
 
       final response = await request.close();
       final responseBody = await response.transform(utf8.decoder).join();
 
+      debugPrint('[AiOrderService] Gemini HTTP ${response.statusCode}');
+      
       if (response.statusCode != 200) {
-        // API error — let fallback handle it
+        debugPrint('[AiOrderService] ❌ Gemini error body: $responseBody');
         throw Exception('Gemini HTTP ${response.statusCode}: $responseBody');
       }
 
@@ -134,6 +161,7 @@ User input:
               ?.firstOrNull?['content']?['parts']
               ?.firstOrNull?['text'] as String? ??
           '';
+      debugPrint('[AiOrderService] 📦 Gemini raw response: "$raw"');
 
       return _parseGeminiJson(raw.trim(), menuItems);
     } finally {
@@ -168,8 +196,9 @@ User input:
       final rawName = (entry['name'] as String? ?? '').trim();
       final qty = ((entry['quantity'] as num?) ?? 1).toInt().clamp(1, 99);
       final rawRemarks = (entry['remarks'] as String? ?? '').trim();
-      // Use remark verbatim as extracted from speech — do NOT normalize
       final remarks = rawRemarks;
+
+      debugPrint('[AiOrderService] Gemini identified: name="$rawName" qty=$qty remarks="$rawRemarks"');
 
       // Find exact match first
       Map<String, dynamic>? matched = _exactMatch(rawName, menuItems);
@@ -177,7 +206,10 @@ User input:
       matched ??= _fuzzyMatch(rawName, menuItems);
 
       if (matched != null) {
+        debugPrint('[AiOrderService]   ✅ Matched to menu item: "${matched['name']}"');
         results.add(OrderResult(item: matched, quantity: qty, remarks: remarks));
+      } else {
+        debugPrint('[AiOrderService]   ❌ No menu match found for: "$rawName"');
       }
     }
     return results;
@@ -208,19 +240,39 @@ User input:
     Map<String, dynamic>? best;
     int bestScore = 0;
     for (final item in items) {
-      final iWords = item['name']
-          .toString()
-          .toLowerCase()
-          .split(' ')
-          .where((w) => w.length > 2)
-          .toSet();
-      final score = qWords.intersection(iWords).length;
+      final iName = item['name'].toString().toLowerCase();
+      final iWords = iName.split(RegExp(r'\s+')).where((w) => w.length > 1).toSet();
+      
+      int score = 0;
+      for (final qw in qWords) {
+        for (final iw in iWords) {
+          // Exact match
+          if (qw == iw) {
+            score += 10;
+          } 
+          // Stemming / Plural match (e.g., "pizzas" contains "pizza")
+          else if (qw.startsWith(iw) || iw.startsWith(qw)) {
+            score += 5;
+          }
+          // Partial match
+          else if (qw.contains(iw) || iw.contains(qw)) {
+            score += 2;
+          }
+        }
+      }
+      
+      // Bonus for contains the whole string
+      if (iName.contains(lower) || lower.contains(iName)) {
+        score += 15;
+      }
+
       if (score > bestScore) {
         bestScore = score;
         best = item;
       }
     }
-    return bestScore > 0 ? best : null;
+    // Only return if we have a reasonably good match
+    return bestScore > 5 ? best : null;
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -244,8 +296,7 @@ User input:
     'aek': 1, 'ek1': 1, 'pach': 5, 'saath': 7, 'aat': 8,
   };
 
-  static const Set<String> _seps = {
-    'and', 'aur', 'ane', 'va', 'plus', 'also', 'then',
+  static const Set<String> _seps = {',', '.', 'plus', '&', 'aur', 'va', 'also', 'then',
     'ne', 'tatha', 'sathe', // Gujarati/Hindi conjunctions
   };
 
@@ -422,8 +473,20 @@ User input:
       hasQty = false;
     }
 
-    for (final t in tokens) {
+    for (int i = 0; i < tokens.length; i++) {
+      final t = tokens[i];
       if (_seps.contains(t)) { flush(); continue; }
+      
+      // Special handle for 'and'
+      if (t == 'and') {
+        if (i + 1 < tokens.length && _nums[tokens[i+1]] != null) {
+          flush();
+        } else {
+          buf.add(t);
+        }
+        continue;
+      }
+
       final n = _nums[t];
       if (n != null) {
         if (!hasQty && buf.isEmpty) { pQty = n; hasQty = true; }
@@ -463,7 +526,7 @@ User input:
         }
         sc += top;
       }
-      final norm = sc / iw.length;
+      final norm = sc / q.length;
       if (norm > bestScore) { bestScore = norm; best = item; }
     }
     return bestScore >= 0.55 ? best : null;
@@ -471,14 +534,24 @@ User input:
 
   double _wSim(String a, String b) {
     if (a == b) return 2.0;
-    if (b.startsWith(a) || a.startsWith(b)) return 1.5;
+    if (b.contains(a) || a.contains(b)) return 1.5;
+    
+    // Character overlap score (ignoring position)
+    final aSet = a.runes.toSet();
+    final bSet = b.runes.toSet();
+    final intersection = aSet.intersection(bSet).length;
+    final overlap = (intersection * 2.0) / (aSet.length + bSet.length);
+    
+    // Positional match
     int m = 0;
     final s = a.length <= b.length ? a : b;
     final l = a.length <= b.length ? b : a;
-    for (int i = 0; i < s.length && i < l.length; i++) {
+    for (int i = 0; i < s.length; i++) {
       if (s[i] == l[i]) m++;
     }
-    return m / l.length;
+    final positional = m / l.length;
+
+    return (overlap + positional) / 1.0; // Max possible ~2.0
   }
 
   String _cap(String s) =>

@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:dotted_line/dotted_line.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:demo/services/sarvam_stt_service.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -13,12 +15,15 @@ import 'MyWidgets/EditableTextField.dart';
 import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
 import 'services/ai_order_service.dart';
+import 'services/restaurant_agent_service.dart';
+import 'models/agent_response.dart';
 
 /// Cart Page
 class CartPage extends StatefulWidget {
   final String tableName;
   final bool tableNameEditable;
-  final List<Map<String, dynamic>> menuData;
+  final List<Map<String, dynamic>> menuData; // selected items
+  final List<Map<String, dynamic>> fullMenu; // all items for AI detection
   final bool showBilling;
 
   final String? overallRemarks;
@@ -33,6 +38,7 @@ class CartPage extends StatefulWidget {
 
   const CartPage({
     required this.menuData,
+    required this.fullMenu,
     required this.onConfirm,
     required this.tableName,
     required this.tableNameEditable,
@@ -100,6 +106,211 @@ class _CartPageState extends State<CartPage> {
     0,
     (sum, item) => sum + (item['qty'] as int) * (item['price']),
   );
+
+  Future<void> _extractItemsFromRemarks() async {
+    final text = overallRemarksController.text.trim();
+    if (text.isEmpty) {
+      Get.snackbar('Empty Remarks', 'Please enter some text in remarks first.');
+      return;
+    }
+
+    // Show loading
+    Get.dialog(
+      const Center(child: CircularProgressIndicator(color: Color(0xFFf57c35))),
+      barrierDismissible: false,
+    );
+
+    try {
+      // Call AI directly — simpler, no confidence threshold cutoffs
+      debugPrint('[CartPage] Extracting items from: "$text"');
+      debugPrint('[CartPage] fullMenu has ${widget.fullMenu.length} items');
+      if (widget.fullMenu.isNotEmpty) {
+        debugPrint('[CartPage] Sample items: ${widget.fullMenu.take(3).map((m) => m['name']).join(', ')}');
+      }
+      final aiService = AiOrderService();
+      final results = await aiService.parseOrder(text, widget.fullMenu);
+
+      Get.back(); // close loading
+
+      if (results.isEmpty) {
+        Get.snackbar('No Items Found', 'Could not match any menu items from these remarks.');
+        return;
+      }
+
+      // Show a confirmation dialog
+      _showExtractedItemsDialog(results);
+    } catch (e) {
+      Get.back(); // close loading
+      Get.snackbar('Error', 'AI extraction failed: $e');
+    }
+  }
+
+  void _showExtractedItemsDialog(List<OrderResult> newItems) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Identified Items?', style: TextStyle(fontFamily: fontMulishBold)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: newItems.length,
+            itemBuilder: (context, i) {
+              final item = newItems[i];
+              return ListTile(
+                title: Text(item.item['name'], style: const TextStyle(fontFamily: fontMulishSemiBold)),
+                subtitle: Text('Qty: ${item.quantity} ${item.remarks.isNotEmpty ? "\u2022 ${item.remarks}" : ""}', style: const TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.add_circle, color: Colors.green),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1A3A5C), foregroundColor: Colors.white),
+            onPressed: () {
+              setState(() {
+                // We will perform a Full Sync: the remarks are the "Truth"
+                
+                // 1. Create a set of identified item names
+                final identifiedNames = newItems.map((ni) => ni.item['name']).toSet();
+
+                // 2. Update or Remove existing items
+                // We iterate backwards to safely remove items if needed
+                for (int i = cartItems.length - 1; i >= 0; i--) {
+                  final cartItemName = cartItems[i]['name'].toString().toLowerCase();
+                  
+                  final match = newItems.firstWhereOrNull(
+                    (ni) => ni.item['name'].toString().toLowerCase() == cartItemName
+                  );
+                  
+                  if (match != null) {
+                    // Update to match remarks exactly
+                    cartItems[i]['qty'] = match.quantity;
+                    cartItems[i]['remarks'] = match.remarks;
+                    _remarkControllers[i].text = match.remarks;
+                    _remarkExpanded[i] = match.remarks.isNotEmpty;
+                  } else {
+                    // Item in cart but NOT in "perfect" remarks -> Remove it
+                    cartItems.removeAt(i);
+                    _remarkControllers[i].dispose();
+                    _remarkControllers.removeAt(i);
+                    _remarkExpanded.removeAt(i);
+                  }
+                }
+
+                // 3. Add brand new items found in remarks
+                for (var ni in newItems) {
+                  final niNameLower = ni.item['name'].toString().toLowerCase();
+                  final alreadyHandled = cartItems.any(
+                    (ci) => ci['name'].toString().toLowerCase() == niNameLower
+                  );
+                  if (!alreadyHandled) {
+                    final newItem = Map<String, dynamic>.from(ni.item);
+                    newItem['qty'] = ni.quantity;
+                    newItem['remarks'] = ni.remarks;
+                    cartItems.add(newItem);
+                    _remarkControllers.add(TextEditingController(text: ni.remarks));
+                    _remarkExpanded.add(ni.remarks.isNotEmpty);
+                  }
+                }
+                
+                _updatePaymentAmounts();
+              });
+              Navigator.pop(context);
+              Get.snackbar('Success', 'Cart synced perfectly with remarks.');
+            },
+            child: const Text('Add All'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  final SarvamSttService _sttService = SarvamSttService();
+
+  Future<void> _startVoiceOrderCart() async {
+    final hasPerms = await _sttService.hasPermission();
+    if (!hasPerms) {
+      Get.snackbar('Permission Denied', 'Microphone permission is required.');
+      return;
+    }
+
+    String recognizedText = '';
+    bool isRecording = false;
+    bool isTranscribing = false;
+
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          return Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(isRecording ? 'Listening...' : isTranscribing ? 'Transcribing...' : 'Ready to listen', 
+                  style: const TextStyle(fontFamily: fontMulishBold, fontSize: 18)),
+                const SizedBox(height: 20),
+                if (recognizedText.isNotEmpty)
+                  Text(recognizedText, style: const TextStyle(fontFamily: fontMulishSemiBold)),
+                const SizedBox(height: 30),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isRecording ? Colors.red : Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () async {
+                        if (!isRecording) {
+                          await _sttService.startRecording();
+                          setSheetState(() => isRecording = true);
+                        } else {
+                          setSheetState(() {
+                            isRecording = false;
+                            isTranscribing = true;
+                          });
+                          final text = await _sttService.stopAndTranscribe();
+                          setSheetState(() {
+                            isTranscribing = false;
+                            recognizedText = text ?? '';
+                          });
+                          if (recognizedText.isNotEmpty) {
+                            Navigator.pop(context);
+                            setState(() {
+                              if (overallRemarksController.text.isNotEmpty) {
+                                overallRemarksController.text += '\n';
+                              }
+                              overallRemarksController.text += recognizedText;
+                            });
+                            // Automatically trigger extraction
+                            _extractItemsFromRemarks();
+                          }
+                        }
+                      },
+                      child: Text(isRecording ? 'Stop' : 'Start Recording'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   int get total => ((subtotal + (subtotal * 0.085) - discountAmount).round());
 
@@ -450,6 +661,22 @@ class _CartPageState extends State<CartPage> {
                     filled: true,
                     fillColor: Colors.white,
                     prefixIcon: Icon(Icons.speaker_notes, color: Colors.grey.shade400, size: 20),
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.mic, color: Colors.red.shade400),
+                          tooltip: 'Speak more instructions/items',
+                          onPressed: _startVoiceOrderCart,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.auto_awesome, color: Color(0xFFf57c35)),
+                          tooltip: 'Detect items from remarks',
+                          onPressed: _extractItemsFromRemarks,
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ),
                   ),
                 ),
               ),

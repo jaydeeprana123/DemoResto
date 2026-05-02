@@ -1123,9 +1123,13 @@ class _MenuPageState extends State<MenuPage>
           GestureDetector(
             onTap: onDecrement,
             child: Container(
-              width: 32,
+              width: 45,
               height: 32,
               alignment: Alignment.center,
+              // decoration: const BoxDecoration(
+              //   color: Color(0xFFf57c35),
+              //   borderRadius: BorderRadius.horizontal(left: Radius.circular(20)),
+              // ),
               child: const Icon(Icons.remove, color: Colors.white, size: 16),
             ),
           ),
@@ -1143,7 +1147,7 @@ class _MenuPageState extends State<MenuPage>
           GestureDetector(
             onTap: onIncrement,
             child: Container(
-              width: 32,
+              width: 45,
               height: 32,
               alignment: Alignment.center,
               decoration: const BoxDecoration(
@@ -1427,6 +1431,7 @@ class _MenuPageState extends State<MenuPage>
                           tableName: tableNameController.text,
                           tableNameEditable: widget.tableNameEditable,
                           menuData: selectedItems,
+                          fullMenu: widget.menuList,
                           overallRemarks: _overallRemarks,
                           onConfirm: widget.onConfirm,
                           showBilling: widget.showBilling,
