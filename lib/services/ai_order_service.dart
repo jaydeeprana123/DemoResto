@@ -57,10 +57,15 @@ class AiOrderService {
     String userText,
     List<Map<String, dynamic>> menuItems,
   ) async {
-    // Build compact menu list for the prompt
-    final menuStr = menuItems
-        .map((m) => '- ${m['name']}')
-        .join('\n');
+    // Build category-annotated menu string so Gemini can disambiguate
+    // similar names (e.g. "Chicken Fried Rice" vs "Chicken Singapuri Rice").
+    // Items that carry a 'category' field get a [Category] prefix; others
+    // are listed plain so the prompt stays clean.
+    final menuStr = menuItems.map((m) {
+      final cat = (m['category'] as String? ?? '').trim();
+      final name = (m['name'] as String? ?? '').trim();
+      return cat.isNotEmpty ? '- [$cat] $name' : '- $name';
+    }).join('\n');
 
     final prompt = '''
 You are an intelligent restaurant order assistant.
@@ -93,6 +98,14 @@ Important:
 - Ignore items not in menu
 - Be tolerant to errors and incomplete input
 - Number words: ek/one=1, be/do/two=2, tran/teen/three=3, chaar/char/four=4, paanch/panch/five=5, chha/chhe/six=6, saat/sat/seven=7, aath/eight=8, nav/nine=9, das/ten=10
+- Menu items are shown with a [Category] prefix to help you disambiguate.
+  Example: if user says "chicken rice", prefer items in [Fried Rice and Noodles] over [Hamara Specials].
+  The category prefix is for context ONLY — the "name" in your JSON output must NOT include it.
+- Shawarma wraps appear as e.g. "Crispy Samoli (Bun)" — the part in () is just a
+  descriptor; if user says "samoli" or "bun shawarma", match to the full exact menu name.
+- Al-Haadi specific terms: alfaham/alfam = grilled chicken; tukda = a large portion;
+  samoli = a bun-style shawarma wrap; lebnani = chapati wrap; khaboos = pita wrap;
+  zafrani = saffron; pahadi = hills-style; surti = Surat style.
 
 CORRECTIONS & OVERRIDES:
 - Handle natural language corrections within the same input.
@@ -215,12 +228,20 @@ User input:
     return results;
   }
 
+  /// Strips parenthetical descriptors from a menu name so they don't
+  /// interfere with matching.  e.g. "Crispy Samoli (Bun)" → "Crispy Samoli"
+  static String _stripParens(String name) =>
+      name.replaceAll(RegExp(r'\s*\(.*?\)'), '').trim();
+
+  /// Normalises & → and so tokenisers don't choke on it.
+  static String _normalizeAmp(String s) => s.replaceAll('&', 'and');
+
   Map<String, dynamic>? _exactMatch(
       String name, List<Map<String, dynamic>> items) {
-    final lower = name.toLowerCase();
+    final lower = _normalizeAmp(name).toLowerCase();
     try {
       return items.firstWhere(
-          (m) => m['name'].toString().toLowerCase() == lower);
+          (m) => _normalizeAmp(m['name'].toString()).toLowerCase() == lower);
     } catch (_) {
       return null;
     }
@@ -228,43 +249,43 @@ User input:
 
   Map<String, dynamic>? _fuzzyMatch(
       String name, List<Map<String, dynamic>> items) {
-    final lower = name.toLowerCase();
-    // Contains match
+    // Normalise the query: strip parens + & so "(Bun)" etc. don't hurt score
+    final lower = _normalizeAmp(_stripParens(name)).toLowerCase();
+
+    // 1. Contains match (normalised both sides)
     try {
-      return items.firstWhere(
-          (m) => m['name'].toString().toLowerCase().contains(lower));
+      return items.firstWhere((m) {
+        final mNorm = _normalizeAmp(_stripParens(m['name'].toString())).toLowerCase();
+        return mNorm.contains(lower) || lower.contains(mNorm);
+      });
     } catch (_) {}
-    // Word overlap
-    final qWords =
-        lower.split(' ').where((w) => w.length > 2).toSet();
+
+    // 2. Word-overlap scoring
+    final qWords = lower.split(' ').where((w) => w.length > 2).toSet();
     Map<String, dynamic>? best;
     int bestScore = 0;
+
     for (final item in items) {
-      final iName = item['name'].toString().toLowerCase();
-      final iWords = iName.split(RegExp(r'\s+')).where((w) => w.length > 1).toSet();
-      
+      final iName =
+          _normalizeAmp(_stripParens(item['name'].toString())).toLowerCase();
+      final iWords =
+          iName.split(RegExp(r'\s+')).where((w) => w.length > 1).toSet();
+
       int score = 0;
       for (final qw in qWords) {
         for (final iw in iWords) {
-          // Exact match
           if (qw == iw) {
-            score += 10;
-          } 
-          // Stemming / Plural match (e.g., "pizzas" contains "pizza")
-          else if (qw.startsWith(iw) || iw.startsWith(qw)) {
-            score += 5;
-          }
-          // Partial match
-          else if (qw.contains(iw) || iw.contains(qw)) {
-            score += 2;
+            score += 10; // exact word match
+          } else if (qw.startsWith(iw) || iw.startsWith(qw)) {
+            score += 5;  // stem / prefix match
+          } else if (qw.contains(iw) || iw.contains(qw)) {
+            score += 2;  // partial match
           }
         }
       }
-      
-      // Bonus for contains the whole string
-      if (iName.contains(lower) || lower.contains(iName)) {
-        score += 15;
-      }
+
+      // Bonus when one string fully contains the other
+      if (iName.contains(lower) || lower.contains(iName)) score += 15;
 
       if (score > bestScore) {
         bestScore = score;
@@ -300,20 +321,6 @@ User input:
     'ne', 'tatha', 'sathe', // Gujarati/Hindi conjunctions
   };
 
-  static const List<String> _remarks = [
-    'no onion no garlic', 'less spicy please', 'more spicy please',
-    'less spicy', 'more spicy', 'extra spicy', 'not spicy', 'no spicy',
-    'without spice', 'no spice', 'no onion', 'without onion',
-    'no garlic', 'without garlic', 'extra cheese', 'no cheese',
-    'well done', 'half done', 'less oil', 'no oil', 'extra oil',
-    'less salt', 'no salt', 'take away', 'takeaway', 'parcel',
-    'extra sauce', 'no sauce', 'spicy', 'butter', 'extra butter',
-    'no butter', 'jain', 'without egg', 'no egg',
-    'extra gravy', 'dry', 'semi dry', 'full gravy',
-    // English remark phrases that Sarvam translate mode outputs
-    'less spice', 'more spice', 'not spice', 'no spice level',
-    'half spicy', 'medium spicy', 'mild spicy',
-  ];
 
   /// Maps Hindi/Gujarati spoken remark phrases → standard English remarks.
   /// Order matters: longer/more-specific phrases must come first.
@@ -392,11 +399,31 @@ User input:
     'daal': 'dal', 'dall': 'dal', 'dhal': 'dal',
     // Malai
     'malei': 'malai', 'malie': 'malai', 'malay': 'malai',
-    // Alfaham
+    // ── Al-Haadi specific ────────────────────────────────────────────────────
+    // Alfaham (grilled chicken)
     'alfam': 'alfaham', 'alfaam': 'alfaham', 'alphaam': 'alfaham',
-    // Other fixes
-    'thok': 'thukpa', 'khubus': 'khaboos', 'berger': 'burger',
-    'manchuri': 'manchurian', 'manchoori': 'manchurian',
+    'alpham': 'alfaham', 'alfaham': 'alfaham',
+    // Shawarma wrap types
+    'samoli': 'samoli', 'samoly': 'samoli', 'samolee': 'samoli',
+    'lebnani': 'lebnani', 'libnani': 'lebnani', 'lebni': 'lebnani',
+    'khaboos': 'khaboos', 'khubus': 'khaboos', 'khabus': 'khaboos',
+    'khuboos': 'khaboos', 'kaboos': 'khaboos',
+    // Specials / starters
+    'tukda': 'tukda', 'tokda': 'tukda',
+    'zafrani': 'zafrani', 'zafran': 'zafrani', 'jafrani': 'zafrani',
+    'pahadi': 'pahadi', 'pehadi': 'pahadi', 'pahari': 'pahadi',
+    'surti': 'surti', 'surthi': 'surti',
+    'lolipop': 'lolipop', 'lollipop': 'lolipop',
+    'popcorn': 'popcorn', 'pop corn': 'popcorn',
+    'talmari': 'talmari', 'talmary': 'talmari',
+    'hakka': 'hakka', 'haka': 'hakka',
+    'manchurian': 'manchurian', 'manchuri': 'manchurian', 'manchoori': 'manchurian',
+    // Crispy prefix (very common in this menu)
+    'crispy': 'crispy', 'crispi': 'crispy', 'krispi': 'crispy',
+    // Grill
+    'grill': 'grill', 'grilled': 'grill',
+    // ── General fixes ────────────────────────────────────────────────────────
+    'thok': 'thukpa', 'berger': 'burger',
     'singapur': 'singapuri', 'shezvan': 'shezwan',
     'nudels': 'noodles', 'noodels': 'noodles', 'nudal': 'noodles',
     'fryed': 'fried', 'fride': 'fried',
@@ -407,7 +434,8 @@ User input:
 
   List<OrderResult> _parseLocally(
       String raw, List<Map<String, dynamic>> menu) {
-    String text = raw.toLowerCase().trim();
+    // Normalise ampersand before tokenising so "Hot & Sour" doesn't split wrong
+    String text = _normalizeAmp(raw).toLowerCase().trim();
     _fix.forEach((w, r) => text = text.replaceAll(RegExp('\\b$w\\b'), r));
 
     final tokens = text
@@ -553,7 +581,4 @@ User input:
 
     return (overlap + positional) / 1.0; // Max possible ~2.0
   }
-
-  String _cap(String s) =>
-      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 }

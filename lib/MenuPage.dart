@@ -873,44 +873,44 @@ class _MenuPageState extends State<MenuPage>
                                     ],
                                   ),
                                   // ── Remarks field (always visible in dialog) ─
-                                  const SizedBox(height: 8),
-                                  TextField(
-                                    controller: remarkControllers[index],
-                                    decoration: InputDecoration(
-                                      hintText: 'e.g. less spicy, no onion, parcel…',
-                                      hintStyle: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade400,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                      isDense: true,
-                                      prefixIcon: Icon(Icons.notes_outlined,
-                                          size: 16, color: Colors.orange.shade600),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey.shade300),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey.shade300),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(
-                                            color: Colors.orange.shade400, width: 1.5),
-                                      ),
-                                      contentPadding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 8),
-                                      filled: true,
-                                      fillColor: Colors.orange.shade50,
-                                    ),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.orange.shade800,
-                                      fontFamily: fontMulishRegular,
-                                    ),
-                                    maxLines: 1,
-                                  ),
+                                  // const SizedBox(height: 8),
+                                  // TextField(
+                                  //   controller: remarkControllers[index],
+                                  //   decoration: InputDecoration(
+                                  //     hintText: 'e.g. less spicy, no onion, parcel…',
+                                  //     hintStyle: TextStyle(
+                                  //       fontSize: 12,
+                                  //       color: Colors.grey.shade400,
+                                  //       fontStyle: FontStyle.italic,
+                                  //     ),
+                                  //     isDense: true,
+                                  //     prefixIcon: Icon(Icons.notes_outlined,
+                                  //         size: 16, color: Colors.orange.shade600),
+                                  //     border: OutlineInputBorder(
+                                  //       borderRadius: BorderRadius.circular(8),
+                                  //       borderSide: BorderSide(color: Colors.grey.shade300),
+                                  //     ),
+                                  //     enabledBorder: OutlineInputBorder(
+                                  //       borderRadius: BorderRadius.circular(8),
+                                  //       borderSide: BorderSide(color: Colors.grey.shade300),
+                                  //     ),
+                                  //     focusedBorder: OutlineInputBorder(
+                                  //       borderRadius: BorderRadius.circular(8),
+                                  //       borderSide: BorderSide(
+                                  //           color: Colors.orange.shade400, width: 1.5),
+                                  //     ),
+                                  //     contentPadding: const EdgeInsets.symmetric(
+                                  //         horizontal: 10, vertical: 8),
+                                  //     filled: true,
+                                  //     fillColor: Colors.orange.shade50,
+                                  //   ),
+                                  //   style: TextStyle(
+                                  //     fontSize: 12,
+                                  //     color: Colors.orange.shade800,
+                                  //     fontFamily: fontMulishRegular,
+                                  //   ),
+                                  //   maxLines: 1,
+                                  // ),
                                 ],
                               ),
                             );

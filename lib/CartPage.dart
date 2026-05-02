@@ -114,6 +114,20 @@ class _CartPageState extends State<CartPage> {
       return;
     }
 
+    // ── Guard: fullMenu must be populated for accurate matching ──────────────
+    if (widget.fullMenu.isEmpty) {
+      debugPrint('[CartPage] ⚠️ fullMenu is EMPTY — cannot match items. '
+          'Make sure CartPage is called with the complete menu list.');
+      Get.snackbar(
+        'Menu Not Loaded',
+        'The full menu is not available. Please go back and try again.',
+        backgroundColor: Colors.orange.shade700,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 4),
+      );
+      return;
+    }
+
     // Show loading
     Get.dialog(
       const Center(child: CircularProgressIndicator(color: Color(0xFFf57c35))),
@@ -121,19 +135,29 @@ class _CartPageState extends State<CartPage> {
     );
 
     try {
-      // Call AI directly — simpler, no confidence threshold cutoffs
+      // Call AI — fullMenu items carry 'category' so the category-annotated
+      // Gemini prompt can disambiguate similar names (e.g. rice vs noodles).
       debugPrint('[CartPage] Extracting items from: "$text"');
       debugPrint('[CartPage] fullMenu has ${widget.fullMenu.length} items');
+      final withCategory =
+          widget.fullMenu.where((m) => (m['category'] ?? '').toString().isNotEmpty).length;
+      debugPrint('[CartPage] Items with category field: $withCategory / ${widget.fullMenu.length}');
       if (widget.fullMenu.isNotEmpty) {
-        debugPrint('[CartPage] Sample items: ${widget.fullMenu.take(3).map((m) => m['name']).join(', ')}');
+        debugPrint('[CartPage] Sample: ${widget.fullMenu.take(3).map((m) => "[${m['category'] ?? ''}] ${m['name']}").join(' | ')}');
       }
+
       final aiService = AiOrderService();
       final results = await aiService.parseOrder(text, widget.fullMenu);
 
       Get.back(); // close loading
 
       if (results.isEmpty) {
-        Get.snackbar('No Items Found', 'Could not match any menu items from these remarks.');
+        Get.snackbar(
+          'No Items Found',
+          'Could not match any menu items from these remarks. '
+          'Try saying the item name more clearly.',
+          duration: const Duration(seconds: 4),
+        );
         return;
       }
 
@@ -629,7 +653,7 @@ class _CartPageState extends State<CartPage> {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: TextField(
                   controller: overallRemarksController,
-                  maxLines: 10,
+                  maxLines: 12,
                   minLines: 5,
                   style: const TextStyle(
                     fontSize: 14,

@@ -11,6 +11,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 
+import 'Screens/BottomNavigation/bottom_navigation_view.dart';
 import 'MenuPage.dart';
 import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
@@ -22,6 +23,8 @@ class FinalBillingView extends StatefulWidget {
   final List<Map<String, dynamic>> menuData;
   final List<Map<String, dynamic>> totalMenuList; // Passed from previous page
   final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
+
+
 
   FinalBillingView({
     required this.menuData,
@@ -36,6 +39,10 @@ class FinalBillingView extends StatefulWidget {
 }
 
 class _FinalBillingViewState extends State<FinalBillingView> {
+  static const _navy   = Color(0xFF1A3A5C);
+  static const _orange = Color(0xFFf57c35);
+  static const _bg     = Color(0xFFF5F6FA);
+
   late List<Map<String, dynamic>> cartItems;
 
   final TextEditingController discountPercentController =
@@ -128,15 +135,18 @@ class _FinalBillingViewState extends State<FinalBillingView> {
     final tax = (subtotal * 0.085).round();
 
     return Scaffold(
+      backgroundColor: _bg,
       appBar: AppBar(
+        backgroundColor: _navy,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
           "Cart - ${widget.tableName}",
-          style: TextStyle(fontSize: 16, fontFamily: fontMulishBold),
+          style: const TextStyle(fontSize: 16, fontFamily: fontMulishBold, color: Colors.white),
         ),
-
         actions: [
           IconButton(
-            icon: Icon(Icons.menu),
+            icon: const Icon(Icons.menu, color: Colors.white),
             onPressed: () async {
               await Navigator.push(
                 context,
@@ -196,11 +206,21 @@ class _FinalBillingViewState extends State<FinalBillingView> {
         children: [
           Expanded(
             child: cartItems.isEmpty
-                ? Center(child: Text("No items in cart"))
+                ? Center(
+                    child: Text(
+                      "No items in cart",
+                      style: TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        color: secondary_text_color,
+                        fontSize: 16,
+                      ),
+                    ),
+                  )
                 : Scrollbar(
                     thickness: 4,
                     child: ListView.builder(
                       itemCount: cartItems.length,
+                      padding: const EdgeInsets.only(top: 12, bottom: 12),
                       itemBuilder: (context, index) {
                         final item = cartItems[index];
                         final qty = item['qty'] as int;
@@ -210,9 +230,18 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                             incrementQty(index);
                           },
                           child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
+                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -369,11 +398,6 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                   ],
                                 ),
 
-                                Container(
-                                  margin: EdgeInsets.only(top: 8),
-                                  height: 0.5,
-                                  color: Colors.grey.shade300,
-                                ),
                               ],
                             ),
                           ),
@@ -382,15 +406,28 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                     ),
                   ),
           ),
-          Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 16,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
                       children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                         // Payment Mode Selection
                         Row(
                           children: [
@@ -857,80 +894,76 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                       onLayout: (format) async => pdfBytes,
                     );
 
-                    widget.onConfirm([]);
-                    Navigator.pop(context);
+                    // ✅ CLEAR TABLE IN FIRESTORE
+                    final query = await FirebaseFirestore.instance
+                        .collection('tables')
+                        .where('name', isEqualTo: widget.tableName)
+                        .get();
+                    
+                    for (var doc in query.docs) {
+                      if (widget.tableName.contains("Take Away")) {
+                        await doc.reference.delete();
+                      } else {
+                        await doc.reference.update({
+                          'items': [],
+                          'isPaid': false,
+                          'remarks': FieldValue.delete(),
+                        });
+                      }
+                    }
+
+                    // ✅ Return to dashboard
+                    if (context.mounted) {
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const BottomNavigationView(),
+                        ),
+                        (route) => false,
+                      );
+                    }
                   },
                   child: Container(
-                    padding: const EdgeInsets.all(16),
-                    color: primary_color,
+                    margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: _orange,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _orange.withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        const SizedBox(width: 24), // balance out the icon on the right
                         Expanded(
                           child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               SvgPicture.asset(
                                 icon_bill,
-                                width: 24,
+                                width: 22,
                                 color: Colors.white,
                               ),
-
-                              SizedBox(width: 6),
-
-                              Text(
+                              const SizedBox(width: 8),
+                              const Text(
                                 "Confirm & Billing",
-                                style: const TextStyle(
-                                  fontSize: 15,
+                                style: TextStyle(
+                                  fontSize: 16,
                                   color: Colors.white,
-                                  fontFamily: fontMulishSemiBold,
+                                  fontFamily: fontMulishBold,
                                 ),
                               ),
                             ],
                           ),
                         ),
-
-                        Icon(Icons.arrow_forward_ios, color: Colors.white),
-
-                        // ElevatedButton(
-                        //   onPressed: () {
-                        //     final selectedItems = <Map<String, dynamic>>[];
-                        //     menuData.forEach((category, items) {
-                        //       selectedItems.addAll(
-                        //         items.where((item) => item['qty'] > 0),
-                        //       );
-                        //     });
-                        //
-                        //     // Send selected items to cart or callback
-                        //
-                        //
-                        //     if(widget.tableName == "Take Away"){
-                        //       Navigator.push(
-                        //         context,
-                        //         MaterialPageRoute(
-                        //           builder: (_) => CartPageForTakeAway(
-                        //             tableName: widget.tableName,
-                        //             menuData: selectedItems,
-                        //             onConfirm: widget.onConfirm,
-                        //           ),
-                        //         ),
-                        //       );
-                        //     }else{
-                        //       Navigator.push(
-                        //         context,
-                        //         MaterialPageRoute(
-                        //           builder: (_) => CartPage(
-                        //             tableName: widget.tableName,
-                        //             menuData: selectedItems,
-                        //             onConfirm: widget.onConfirm,
-                        //           ),
-                        //         ),
-                        //       );
-                        //     }
-                        //
-                        //
-                        //   },
-                        //   child: const Text("View Cart"),
-                        // ),
+                        const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+                        const SizedBox(width: 24),
                       ],
                     ),
                   ),
@@ -938,9 +971,11 @@ class _FinalBillingViewState extends State<FinalBillingView> {
               ),
             ],
           ),
-        ],
+        ),
       ),
-    );
+    ],
+  ),
+);
   }
 
   Future<void> addTransactionToFirestore({
@@ -1028,6 +1063,11 @@ class _FinalBillingViewState extends State<FinalBillingView> {
     final fontData = await rootBundle.load("assets/fonts/NotoSans-Regular.ttf");
     final ttf = pw.Font.ttf(fontData);
 
+    // ✅ Load logo
+    final ByteData logoData = await rootBundle.load('assets/images/logo.png');
+    final Uint8List logoBytes = logoData.buffer.asUint8List();
+    final logoImage = pw.MemoryImage(logoBytes);
+
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
@@ -1038,16 +1078,38 @@ class _FinalBillingViewState extends State<FinalBillingView> {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Text(
-                  "Invoice / Bill",
-                  style: pw.TextStyle(
-                    font: ttf,
-                    fontSize: 22,
-                    fontWeight: pw.FontWeight.bold,
+                // Header section with logo
+                pw.Center(
+                  child: pw.Column(
+                    children: [
+                      pw.Image(logoImage, width: 64, height: 64),
+                      pw.SizedBox(height: 8),
+                      pw.Text(
+                        "Flavor Flow",
+                        style: pw.TextStyle(
+                          font: ttf,
+                          fontSize: 24,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        "Invoice / Bill",
+                        style: pw.TextStyle(
+                          font: ttf,
+                          fontSize: 16,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                pw.SizedBox(height: 8),
-                pw.Text("Table / Order: $tableName"),
+                pw.SizedBox(height: 16),
+                
+                pw.Text(
+                  "Table / Order: $tableName",
+                  style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold, fontSize: 14),
+                ),
 
                 pw.Divider(),
 
