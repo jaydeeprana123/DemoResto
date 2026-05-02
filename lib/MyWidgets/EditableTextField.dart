@@ -54,9 +54,14 @@ class _EditableTextFieldState extends State<EditableTextField> {
             ? SizedBox(
                 width: 165, // adjust as needed
                 child: TextField(
+
                   controller: widget.controller,
-                  style: TextStyle(fontSize: 16, fontFamily: 'Mulish-Bold'),
+                  style: TextStyle(fontSize: 16, fontFamily: 'Mulish-Bold', color: Colors.white),
                   autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: "",
+                    hintStyle: TextStyle(color: Colors.white70),
+                  ),
                   onSubmitted: (_) => _toggleEdit(),
                 ),
               )

@@ -430,6 +430,7 @@ User input:
     'sambar': 'sambar', 'sambhar': 'sambar',
     'lassi': 'lassi', 'lasi': 'lassi',
     'mojito': 'mojito', 'mohito': 'mojito',
+    'shower': 'shawarma', 'morning': 'shawarma', 'shavarma': 'shawarma', 'shwarma': 'shawarma',
   };
 
   List<OrderResult> _parseLocally(
@@ -439,7 +440,8 @@ User input:
     _fix.forEach((w, r) => text = text.replaceAll(RegExp('\\b$w\\b'), r));
 
     final tokens = text
-        .replaceAll(RegExp(r'[,\.]'), ' ')
+        .replaceAll(',', ' , ')
+        .replaceAll('.', ' . ')
         .split(RegExp(r'\s+'))
         .where((t) => t.isNotEmpty)
         .toList();

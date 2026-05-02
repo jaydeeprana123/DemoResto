@@ -1282,8 +1282,8 @@ class _MenuPageState extends State<MenuPage>
                 )
               : Row(
                   children: [
-                    const Icon(Icons.restaurant_menu, color: Colors.white70, size: 20),
-                    const SizedBox(width: 8),
+                    // const Icon(Icons.restaurant_menu, color: Colors.white70, size: 20),
+                    // const SizedBox(width: 8),
                     (widget.tableName.contains("Table") || !widget.tableNameEditable)
                         ? Text(
                             widget.tableName,
@@ -1299,6 +1299,7 @@ class _MenuPageState extends State<MenuPage>
                               onEditingChanged: (value) {
                                 setState(() => isNameEdit = value);
                               },
+
                             ),
                           ),
                   ],

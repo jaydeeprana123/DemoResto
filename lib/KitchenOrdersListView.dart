@@ -1,60 +1,18 @@
-import 'package:demo/AddMenuItemPage.dart';
-import 'package:demo/Styles/my_colors.dart';
-import 'package:demo/Styles/my_icons.dart';
-import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'MenuPage.dart';
+import 'package:dotted_line/dotted_line.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+
+import 'package:demo/Styles/my_colors.dart';
+import 'package:demo/Styles/my_icons.dart';
 import 'Styles/my_font.dart';
 import 'models/GroupOrder.dart';
-
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dotted_line/dotted_line.dart';
-
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dotted_line/dotted_line.dart';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:dotted_line/dotted_line.dart';
-
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
-import 'package:dotted_line/dotted_line.dart';
-
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:audioplayers/audioplayers.dart';
-import 'package:intl/intl.dart';
-import 'package:dotted_line/dotted_line.dart';
-import 'dart:async';
-
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:audioplayers/audioplayers.dart';
-import 'package:intl/intl.dart';
-import 'package:dotted_line/dotted_line.dart';
-import 'dart:async';
-
-import 'dart:async';
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:audioplayers/audioplayers.dart';
-import 'package:intl/intl.dart';
-import 'package:dotted_line/dotted_line.dart';
+import 'MenuPage.dart';
 
 class KitchenOrdersListView extends StatefulWidget {
   const KitchenOrdersListView({super.key});
@@ -77,8 +35,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     try {
       await audioPlayer.play(AssetSource('sounds/phone_bell.mp3'));
     } catch (e) {
-      // ignore audio errors in production or print for debug:
-      // print('Audio play failed: $e');
+      // ignore audio errors
+    }
+  }
+
+  void _playDeleteSound() async {
+    try {
+      // Re-using phone_bell.mp3 or a different one if available.
+      await audioPlayer.play(AssetSource('sounds/phone_bell.mp3'));
+    } catch (e) {
+      // ignore audio errors
     }
   }
 
@@ -560,18 +526,19 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             );
           }
 
-          return ListView.separated(
+          final screenW = MediaQuery.of(context).size.width;
+          final crossCols = screenW > 1200 ? 5
+              : screenW > 900  ? 4
+              : screenW > 600  ? 3
+              : screenW > 400  ? 2
+              : 1;
+
+          return MasonryGridView.count(
+            crossAxisCount: crossCols,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
             padding: const EdgeInsets.all(12),
             itemCount: filteredGroups.length,
-            separatorBuilder: (_, __) => const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: DottedLine(
-                dashLength: 6,
-                dashGapLength: 4,
-                lineThickness: 1,
-                dashColor: Colors.grey,
-              ),
-            ),
             itemBuilder: (context, index) {
               final group = filteredGroups[index];
               final time = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
@@ -586,6 +553,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                 onDoubleTap: () {
                   if (group.isPaid && selectedCategories.isEmpty) {
                     showServedDialog(context, group.tableName, () async {
+                      _playDeleteSound();
                       if (group.tableName.contains("Take Away")) {
                         await FirebaseFirestore.instance
                             .collection('tables')
@@ -602,110 +570,173 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeInOut,
-                  color: isBlinking
-                      ? Colors.lightGreenAccent
-                      : isOld
-                      ? Colors.red.shade100
-                      : Colors.transparent,
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4.0),
-                        child: SvgPicture.asset(
-                          (group.tableName).contains("Take Away")
-                              ? icon_packing
-                              : icon_table,
-                          color: Colors.black87,
-                          width: (group.tableName).contains("Take Away") ? 18 : 24,
-                        ),
+                  decoration: BoxDecoration(
+                    color: isBlinking ? Colors.lightGreenAccent.shade100 : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: isOld ? Colors.red.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    ],
+                    border: isOld ? Border.all(color: Colors.red, width: 2) : Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Header
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A3A5C), // Brand Navy
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Row(
-                                    children: [
-                                      Text(
-                                        "${group.tableName} ",
-                                        style: TextStyle(
-                                          fontFamily: (group.tableName)
-                                              .contains("Take Away")
-                                              ? fontMulishBold
-                                              : fontMulishSemiBold,
-                                          fontSize: 15,
-                                          color: Colors.black,
-                                        ),
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  SvgPicture.asset(
+                                    (group.tableName).contains("Take Away")
+                                        ? icon_packing
+                                        : icon_table,
+                                    colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                                    width: (group.tableName).contains("Take Away") ? 18 : 22,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      group.tableName,
+                                      style: TextStyle(
+                                        fontFamily: (group.tableName).contains("Take Away")
+                                            ? fontMulishBold
+                                            : fontMulishSemiBold,
+                                        fontSize: 16,
+                                        color: Colors.white,
                                       ),
-                                      if (group.isPaid)
-                                        Container(
-                                          color: Colors.red,
-                                          margin: const EdgeInsets.symmetric(
-                                              vertical: 3, horizontal: 8),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 3,
-                                          ),
-                                          child: const Text(
-                                            "PAID",
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 10,
-                                              fontFamily: fontMulishBold,
-                                            ),
-                                          ),
-                                        )
-                                    ],
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  formatRelativeTime(time),
-                                  style: const TextStyle(
-                                    fontFamily: fontMulishSemiBold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 2),
-                            ...group.items.map((item) {
-                              final qty = item['qty'] ?? 1;
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Text.rich(
-                                  TextSpan(
-                                    children: [
-                                      TextSpan(
-                                        text: item['name']?.toString() ?? '',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.black,
-                                          fontFamily: fontMulishRegular,
-                                        ),
-                                      ),
-                                      TextSpan(
-                                        text: "  x$qty",
-                                        style: const TextStyle(
-                                          fontSize: 15,
-                                          color: Colors.red,
-                                          fontFamily: fontMulishSemiBold,
-                                        ),
-                                      ),
-                                    ],
+                            if (group.isPaid)
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.green,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  "PAID",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontFamily: fontMulishBold,
                                   ),
                                 ),
-                              );
-                            }),
+                              ),
                           ],
                         ),
-                      )
+                      ),
+                      // Time indicator
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        color: isOld ? Colors.red.shade50 : const Color(0xFFF5F6FA),
+                        child: Row(
+                          children: [
+                            Icon(Icons.access_time, size: 14, color: isOld ? Colors.red : Colors.grey.shade700),
+                            const SizedBox(width: 6),
+                            Text(
+                              formatRelativeTime(time),
+                              style: TextStyle(
+                                fontFamily: fontMulishSemiBold,
+                                fontSize: 13,
+                                color: isOld ? Colors.red : Colors.grey.shade800,
+                              ),
+                            ),
+                            if (isOld) ...[
+                              const Spacer(),
+                              const Text(
+                                "DELAYED",
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 10,
+                                  fontFamily: fontMulishBold,
+                                ),
+                              )
+                            ]
+                          ],
+                        ),
+                      ),
+                      // Items List
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: group.items.map((item) {
+                            final qty = item['qty'] ?? 1;
+                            final remarks = item['remarks']?.toString() ?? '';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFf57c35).withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: const Color(0xFFf57c35).withValues(alpha: 0.3)),
+                                    ),
+                                    child: Text(
+                                      "${qty}x",
+                                      style: const TextStyle(
+                                        color: Color(0xFFf57c35), // Brand Orange
+                                        fontFamily: fontMulishBold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item['name']?.toString() ?? '',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.black87,
+                                            fontFamily: fontMulishSemiBold,
+                                            height: 1.2,
+                                          ),
+                                        ),
+                                        if (remarks.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 2),
+                                            child: Text(
+                                              "* $remarks",
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.red.shade400,
+                                                fontFamily: fontMulishSemiBold,
+                                                fontStyle: FontStyle.italic,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
                     ],
                   ),
                 ),
