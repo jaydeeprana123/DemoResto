@@ -1136,7 +1136,7 @@ class _MenuPageState extends State<MenuPage>
           Expanded(
             child: InkWell(
               onTap: () {
-                // incrementQty(category, index);
+                incrementQty(category, index);
               },
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1178,7 +1178,7 @@ class _MenuPageState extends State<MenuPage>
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           // ── ADD button or stepper ────────────────────────────────────
           qty == 0
               ? _addButton(onTap: () => incrementQty(category, index))
