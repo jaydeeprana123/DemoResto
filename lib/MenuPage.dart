@@ -108,6 +108,7 @@ class _MenuPageState extends State<MenuPage>
 
   void incrementQty(String category, int index) {
     setState(() {
+      menuData[category]![index]['lastQty'] = menuData[category]![index]['qty'];
       menuData[category]![index]['qty']++;
     });
   }
@@ -115,6 +116,7 @@ class _MenuPageState extends State<MenuPage>
   void decrementQty(String category, int index) {
     setState(() {
       if (menuData[category]![index]['qty'] > 0) {
+        menuData[category]![index]['lastQty'] = menuData[category]![index]['qty'];
         menuData[category]![index]['qty']--;
       }
     });
@@ -1184,6 +1186,7 @@ class _MenuPageState extends State<MenuPage>
               ? _addButton(onTap: () => incrementQty(category, index))
               : _stepper(
                   qty: qty,
+                  lastQty: (item['lastQty'] as int?) ?? (qty - 1),
                   onDecrement: () => decrementQty(category, index),
                   onIncrement: () => incrementQty(category, index),
                 ),
@@ -1216,12 +1219,14 @@ class _MenuPageState extends State<MenuPage>
     );
   }
 
-  // Navy − qty − orange + pill stepper (original brand design)
+  // Zomato-style navy-left / orange-right pill stepper with animated qty
   Widget _stepper({
     required int qty,
+    required int lastQty,
     required VoidCallback onDecrement,
     required VoidCallback onIncrement,
   }) {
+    final isIncrementing = qty >= lastQty;
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF1A3A5C),
@@ -1230,41 +1235,74 @@ class _MenuPageState extends State<MenuPage>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          InkWell(
+          // Minus button
+          GestureDetector(
             onTap: onDecrement,
             child: Container(
-              width: 45,
+              width: 40,
               height: 32,
               alignment: Alignment.center,
-              // decoration: const BoxDecoration(
-              //   color: Color(0xFFf57c35),
-              //   borderRadius: BorderRadius.horizontal(left: Radius.circular(20)),
-              // ),
               child: const Icon(Icons.remove, color: Colors.white, size: 16),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              '$qty',
-              style: const TextStyle(
-                fontSize: 14,
-                fontFamily: fontMulishBold,
-                color: Colors.white,
+          // Animated quantity counter
+          SizedBox(
+            width: 26,
+            height: 32,
+            child: ClipRect(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  final isIncoming = child.key == ValueKey<int>(qty);
+                  Offset beginOffset;
+                  if (isIncrementing) {
+                    beginOffset = isIncoming ? const Offset(0, 1.0) : const Offset(0, -1.0);
+                  } else {
+                    beginOffset = isIncoming ? const Offset(0, -1.0) : const Offset(0, 1.0);
+                  }
+                  return SlideTransition(
+                    position: Tween<Offset>(
+                      begin: beginOffset,
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeInOutCubic,
+                    )),
+                    child: child,
+                  );
+                },
+                layoutBuilder: (currentChild, previousChildren) {
+                  return Stack(
+                    alignment: Alignment.center,
+                    clipBehavior: Clip.hardEdge,
+                    children: [
+                      ...previousChildren,
+                      if (currentChild != null) currentChild,
+                    ],
+                  );
+                },
+                child: Text(
+                  '$qty',
+                  key: ValueKey<int>(qty),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontFamily: fontMulishBold,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ),
-          InkWell(
+          // Plus button
+          GestureDetector(
             onTap: onIncrement,
             child: Container(
-              width: 45,
+              width: 40,
               height: 32,
               alignment: Alignment.center,
               decoration: const BoxDecoration(
                 color: Color(0xFFf57c35),
-                borderRadius: BorderRadius.horizontal(
-                  right: Radius.circular(20),
-                ),
+                borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
               ),
               child: const Icon(Icons.add, color: Colors.white, size: 16),
             ),

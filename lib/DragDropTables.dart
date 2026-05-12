@@ -283,7 +283,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         "isPaid": isBillPaid,
         'updatedAt': FieldValue.serverTimestamp(),
       };
-      
+
       if (overallRemarks.isNotEmpty) {
         updateData['remarks'] = overallRemarks;
       }
@@ -396,13 +396,15 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       };
-      
+
       if (overallRemarks.isNotEmpty) {
         tableData['remarks'] = overallRemarks;
       }
 
       // Step 2: Add the document to Firestore
-      final docRef = await FirebaseFirestore.instance.collection('tables').add(tableData);
+      final docRef = await FirebaseFirestore.instance
+          .collection('tables')
+          .add(tableData);
 
       print(
         "SUCCESS: Table $tableName added with ${flattenedItems.length} items",
@@ -419,17 +421,20 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   }
 
   // ── Brand colours (matches login/signup) ────────────────────────────────
-  static const _navy   = Color(0xFF1A3A5C);
+  static const _navy = Color(0xFF1A3A5C);
   static const _orange = Color(0xFFf57c35);
-  static const _green  = Color(0xFF4CAF50);
-  static const _bg     = Color(0xFFF5F6FA);
+  static const _green = Color(0xFF4CAF50);
+  static const _bg = Color(0xFFF5F6FA);
 
   @override
   Widget build(BuildContext context) {
     final screenW = MediaQuery.of(context).size.width;
-    final crossCols = screenW > 1200 ? 5
-        : screenW > 900  ? 4
-        : screenW > 600  ? 3
+    final crossCols = screenW > 1200
+        ? 5
+        : screenW > 900
+        ? 4
+        : screenW > 600
+        ? 3
         : 2;
 
     return Scaffold(
@@ -458,8 +463,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                           ),
                           itemCount: _filteredTableKeys().length,
                           itemBuilder: (context, index) {
-                            final tableName =
-                                _filteredTableKeys().elementAt(index);
+                            final tableName = _filteredTableKeys().elementAt(
+                              index,
+                            );
                             final groups = tables[tableName]!;
                             return _buildTableCard(tableName, groups);
                           },
@@ -491,7 +497,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
           ClipOval(
             child: Image.asset(
               'assets/images/logo.png',
-              width: 36, height: 36,
+              width: 36,
+              height: 36,
               fit: BoxFit.contain,
               errorBuilder: (_, __, ___) =>
                   const Icon(Icons.restaurant, color: Colors.white, size: 28),
@@ -502,14 +509,22 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Text('Flavor Flow',
-                  style: TextStyle(
-                    fontSize: 16, fontFamily: fontMulishBold, color: Colors.white,
-                  )),
-              Text('Restaurant Dashboard',
-                  style: TextStyle(
-                    fontSize: 11, fontFamily: fontMulishRegular, color: Colors.white60,
-                  )),
+              Text(
+                'Flavor Flow',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontFamily: fontMulishBold,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                'Restaurant Dashboard',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: fontMulishRegular,
+                  color: Colors.white60,
+                ),
+              ),
             ],
           ),
         ],
@@ -525,7 +540,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
           child: Text(
             '${_filteredTableKeys().length} tables',
             style: const TextStyle(
-              color: Colors.white70, fontSize: 12, fontFamily: fontMulishSemiBold,
+              color: Colors.white70,
+              fontSize: 12,
+              fontFamily: fontMulishSemiBold,
             ),
           ),
         ),
@@ -571,12 +588,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                     borderRadius: BorderRadius.circular(9),
                   ),
                   child: Center(
-                    child: Text(label,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontFamily: fontMulishSemiBold,
-                          color: selected ? Colors.white : Colors.white60,
-                        )),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontFamily: fontMulishSemiBold,
+                        color: selected ? Colors.white : Colors.white60,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -598,17 +617,31 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
               color: _orange.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.table_restaurant_outlined, size: 56, color: _orange),
+            child: const Icon(
+              Icons.table_restaurant_outlined,
+              size: 56,
+              color: _orange,
+            ),
           ),
           const SizedBox(height: 16),
-          const Text('No tables yet',
-              style: TextStyle(fontSize: 18, fontFamily: fontMulishBold, color: _navy)),
+          const Text(
+            'No tables yet',
+            style: TextStyle(
+              fontSize: 18,
+              fontFamily: fontMulishBold,
+              color: _navy,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text('Add tables from the Table tab\nor use the Take Away button below',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13, fontFamily: fontMulishRegular, color: Colors.grey.shade500,
-              )),
+          Text(
+            'Add tables from the Table tab\nor use the Take Away button below',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              fontFamily: fontMulishRegular,
+              color: Colors.grey.shade500,
+            ),
+          ),
         ],
       ),
     );
@@ -619,9 +652,16 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
       backgroundColor: _navy,
       foregroundColor: Colors.white,
       elevation: 6,
-      icon: SvgPicture.asset(icon_take_away, width: 22, height: 22, color: Colors.white),
-      label: const Text('Take Away',
-          style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 14)),
+      icon: SvgPicture.asset(
+        icon_take_away,
+        width: 22,
+        height: 22,
+        color: Colors.white,
+      ),
+      label: const Text(
+        'Take Away',
+        style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 14),
+      ),
       onPressed: () async {
         await Navigator.push(
           context,
@@ -633,22 +673,27 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
               initialItems: [],
               showBilling: true,
               isFromFinalBilling: false,
-              onConfirm: (
-                List<Map<String, dynamic>> selectedItems,
-                bool isBillPaid,
-                String tableName,
-                String overallRemarks,
-              ) async {
-                await _addTableAndUpdateItems(tableName, selectedItems, isBillPaid, overallRemarks);
-                setState(() {});
-              },
+              onConfirm:
+                  (
+                    List<Map<String, dynamic>> selectedItems,
+                    bool isBillPaid,
+                    String tableName,
+                    String overallRemarks,
+                  ) async {
+                    await _addTableAndUpdateItems(
+                      tableName,
+                      selectedItems,
+                      isBillPaid,
+                      overallRemarks,
+                    );
+                    setState(() {});
+                  },
             ),
           ),
         );
       },
     );
   }
-
 
   Widget _buildTableCard(
     String tableName,
@@ -776,21 +821,24 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
     bool isPaid,
     String docId,
   ) {
-    final hasItems   = groups.isNotEmpty;
+    final hasItems = groups.isNotEmpty;
     final isTakeAway = !tableName.contains('Table');
     // Header colour: green=has items, orange=empty dine-in, blue=empty takeaway
     final headerColor = isPaid
         ? Colors.red.shade700
         : hasItems
-            ? _green
-            : isTakeAway
-                ? _navy
-                : _orange;
+        ? _green
+        : isTakeAway
+        ? _navy
+        : _orange;
 
     // Count total items across all groups
     final totalQty = groups
         .expand((g) => g)
-        .fold<int>(0, (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 1));
+        .fold<int>(
+          0,
+          (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 1),
+        );
 
     return GestureDetector(
       onDoubleTap: () async {
@@ -819,17 +867,24 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                 initialItems: [],
                 showBilling: true,
                 isFromFinalBilling: false,
-                onConfirm: (selectedItems, isBillPaid, tName, overallRemarks) async {
-                  setState(() => groups.add(selectedItems));
-                  await _updateTableItemsInFirestore(tName, groups, isBillPaid, overallRemarks);
-                },
+                onConfirm:
+                    (selectedItems, isBillPaid, tName, overallRemarks) async {
+                      setState(() => groups.add(selectedItems));
+                      await _updateTableItemsInFirestore(
+                        tName,
+                        groups,
+                        isBillPaid,
+                        overallRemarks,
+                      );
+                    },
               ),
             ),
           );
           return;
         }
         final merged = _mergeItemsByNameAndCategory(
-            groups.expand((g) => g).toList());
+          groups.expand((g) => g).toList(),
+        );
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -839,8 +894,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
               tableName: tableName,
               onConfirm: (confirmedItems) async {
                 setState(() => tables[tableName] = [confirmedItems]);
-                await _updateTableItemsInFirestore(
-                    tableName, [confirmedItems], false);
+                await _updateTableItemsInFirestore(tableName, [
+                  confirmedItems,
+                ], false);
                 if (isTakeAway && confirmedItems.isEmpty) {
                   await FirebaseFirestore.instance
                       .collection('tables')
@@ -874,7 +930,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
               decoration: BoxDecoration(
                 color: headerColor,
                 borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16)),
+                  top: Radius.circular(16),
+                ),
               ),
               child: Row(
                 children: [
@@ -910,14 +967,28 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                             menuList: menu,
                             tableName: tableName,
                             tableNameEditable: false,
-                            initialItems: List<Map<String, dynamic>>.from(lastGroup),
+                            initialItems: List<Map<String, dynamic>>.from(
+                              lastGroup,
+                            ),
                             showBilling: groups.length == 1,
                             isFromFinalBilling: false,
-                            onConfirm: (items, isBillPaid, tName, overallRemarks) async {
-                              setState(() => groups[groups.length - 1] = items);
-                              await _updateTableItemsInFirestore(
-                                  tName, groups, isBillPaid, overallRemarks);
-                            },
+                            onConfirm:
+                                (
+                                  items,
+                                  isBillPaid,
+                                  tName,
+                                  overallRemarks,
+                                ) async {
+                                  setState(
+                                    () => groups[groups.length - 1] = items,
+                                  );
+                                  await _updateTableItemsInFirestore(
+                                    tName,
+                                    groups,
+                                    isBillPaid,
+                                    overallRemarks,
+                                  );
+                                },
                           ),
                         ),
                       );
@@ -934,11 +1005,21 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                             initialItems: [],
                             showBilling: !hasItems,
                             isFromFinalBilling: false,
-                            onConfirm: (items, isBillPaid, tName, overallRemarks) async {
-                              setState(() => groups.add(items));
-                              await _updateTableItemsInFirestore(
-                                  tName, groups, isBillPaid, overallRemarks);
-                            },
+                            onConfirm:
+                                (
+                                  items,
+                                  isBillPaid,
+                                  tName,
+                                  overallRemarks,
+                                ) async {
+                                  setState(() => groups.add(items));
+                                  await _updateTableItemsInFirestore(
+                                    tName,
+                                    groups,
+                                    isBillPaid,
+                                    overallRemarks,
+                                  );
+                                },
                           ),
                         ),
                       );
@@ -947,17 +1028,21 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                   if (isPaid)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 3),
+                        horizontal: 10,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text('PAID',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontSize: 11,
-                            fontFamily: fontMulishBold,
-                          )),
+                      child: const Text(
+                        'PAID',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 11,
+                          fontFamily: fontMulishBold,
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -970,15 +1055,20 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                 child: Center(
                   child: Column(
                     children: [
-                      Icon(Icons.touch_app_outlined,
-                          color: Colors.grey.shade300, size: 28),
+                      Icon(
+                        Icons.touch_app_outlined,
+                        color: Colors.grey.shade300,
+                        size: 28,
+                      ),
                       const SizedBox(height: 6),
-                      Text('Double-tap to order',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade400,
-                            fontFamily: fontMulishRegular,
-                          )),
+                      Text(
+                        'Double-tap to order',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade400,
+                          fontFamily: fontMulishRegular,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1013,7 +1103,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                                   ),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 3),
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: _orange.withOpacity(0.12),
                                       borderRadius: BorderRadius.circular(10),
@@ -1051,7 +1143,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
                       children: [
                         Expanded(
                           child: Divider(
-                              color: Colors.grey.shade200, thickness: 1),
+                            color: Colors.grey.shade200,
+                            thickness: 1,
+                          ),
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1076,13 +1170,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
   }
 
   Widget _cardIconBtn(IconData icon, VoidCallback onTap) => GestureDetector(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Icon(icon, color: Colors.white70, size: 18),
-        ),
-      );
-
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Icon(icon, color: Colors.white70, size: 22),
+    ),
+  );
 
   // Filter the tables based on current selectedTab
   List<String> _filteredTableKeys() {

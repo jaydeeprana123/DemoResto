@@ -340,6 +340,7 @@ class _CartPageState extends State<CartPage> {
 
   void incrementQty(int index) {
     setState(() {
+      cartItems[index]['lastQty'] = cartItems[index]['qty'];
       cartItems[index]['qty']++;
       _updateDiscountFromPercent();
       _updatePaymentAmounts();
@@ -349,6 +350,7 @@ class _CartPageState extends State<CartPage> {
   void decrementQty(int index) {
     setState(() {
       if (cartItems[index]['qty'] > 1) {
+        cartItems[index]['lastQty'] = cartItems[index]['qty'];
         cartItems[index]['qty']--;
       } else {
         cartItems.removeAt(index);
@@ -497,47 +499,11 @@ class _CartPageState extends State<CartPage> {
                                         ),
                                       ),
                                       // ── Stepper ─────────────────────────
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF1A3A5C),
-                                          borderRadius: BorderRadius.circular(20),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            GestureDetector(
-                                              onTap: () => decrementQty(index),
-                                              child: Container(
-                                                width: 32, height: 32,
-                                                alignment: Alignment.center,
-                                                child: const Icon(Icons.remove, color: Colors.white, size: 16),
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                                              child: Text(
-                                                '$qty',
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  fontFamily: fontMulishBold,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                            ),
-                                            GestureDetector(
-                                              onTap: () => incrementQty(index),
-                                              child: Container(
-                                                width: 32, height: 32,
-                                                alignment: Alignment.center,
-                                                decoration: const BoxDecoration(
-                                                  color: Color(0xFFf57c35),
-                                                  borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
-                                                ),
-                                                child: const Icon(Icons.add, color: Colors.white, size: 16),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                      _buildStepper(
+                                        qty: qty,
+                                        lastQty: (item['lastQty'] as int?) ?? (qty - 1),
+                                        onDecrement: () => decrementQty(index),
+                                        onIncrement: () => incrementQty(index),
                                       ),
                                     ],
                                   ),
@@ -2017,6 +1983,98 @@ class _CartPageState extends State<CartPage> {
           },
         );
       },
+    );
+  }
+  // ── Zomato-style pill stepper with animated qty ─────────────────────────
+  Widget _buildStepper({
+    required int qty,
+    required int lastQty,
+    required VoidCallback onDecrement,
+    required VoidCallback onIncrement,
+  }) {
+    final isIncrementing = qty >= lastQty;
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A3A5C),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Minus button
+          GestureDetector(
+            onTap: onDecrement,
+            child: Container(
+              width: 36,
+              height: 34,
+              alignment: Alignment.center,
+              child: const Icon(Icons.remove, color: Colors.white, size: 16),
+            ),
+          ),
+          // Animated quantity
+          SizedBox(
+            width: 28,
+            height: 34,
+            child: ClipRect(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  final isIncoming = child.key == ValueKey<int>(qty);
+                  Offset beginOffset;
+                  if (isIncrementing) {
+                    beginOffset = isIncoming ? const Offset(0, 1.0) : const Offset(0, -1.0);
+                  } else {
+                    beginOffset = isIncoming ? const Offset(0, -1.0) : const Offset(0, 1.0);
+                  }
+                  return SlideTransition(
+                    position: Tween<Offset>(
+                      begin: beginOffset,
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeInOutCubic,
+                    )),
+                    child: child,
+                  );
+                },
+                layoutBuilder: (currentChild, previousChildren) {
+                  return Stack(
+                    alignment: Alignment.center,
+                    clipBehavior: Clip.hardEdge,
+                    children: [
+                      ...previousChildren,
+                      if (currentChild != null) currentChild,
+                    ],
+                  );
+                },
+                child: Text(
+                  '$qty',
+                  key: ValueKey<int>(qty),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontFamily: fontMulishBold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Plus button
+          GestureDetector(
+            onTap: onIncrement,
+            child: Container(
+              width: 36,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Color(0xFFf57c35),
+                borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 16),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
