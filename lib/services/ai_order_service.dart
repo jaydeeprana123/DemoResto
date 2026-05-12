@@ -25,6 +25,11 @@ class AiOrderService {
   static const _url =
       'https://generativelanguage.googleapis.com/v1/models/$_model:generateContent?key=$_apiKey';
 
+  // Sarvam Chat REST
+  static const _sarvamApiKey = 'sk_jm9xxf0p_09FKG715K2n9hXMGKjmIlAIS';
+  static const _sarvamModel = 'sarvam-105b';
+  static const _sarvamUrl = 'https://api.sarvam.ai/v1/chat/completions';
+
   // ── Public entry ────────────────────────────────────────────────────────
   Future<List<OrderResult>> parseOrder(
     String text,
@@ -35,7 +40,21 @@ class AiOrderService {
     debugPrint('[AiOrderService] Input text: "$text"');
     debugPrint('[AiOrderService] Menu size: ${menuItems.length} items');
 
-    // ── PRIMARY: Gemini AI parser ────────────────────────────────────────
+    // ── PRIMARY: Sarvam Chat AI parser ────────────────────────────────────────
+    try {
+      final sarvamResults = await _callSarvamChat(text, menuItems);
+      if (sarvamResults.isNotEmpty) {
+        debugPrint(
+          '[AiOrderService] ✅ Sarvam returned ${sarvamResults.length} items.',
+        );
+        return sarvamResults;
+      }
+      debugPrint('[AiOrderService] ⚠️ Sarvam returned empty — falling back to Gemini.');
+    } catch (e) {
+      debugPrint('[AiOrderService] ❌ Sarvam failed ($e) — falling back to Gemini.');
+    }
+
+    // ── SECONDARY: Gemini AI parser ────────────────────────────────────────
     try {
       final geminiResults = await _callGemini(text, menuItems);
       if (geminiResults.isNotEmpty) {
@@ -57,14 +76,8 @@ class AiOrderService {
     return localResults;
   }
 
-  // ── Gemini REST call ────────────────────────────────────────────────────
-  Future<List<OrderResult>> _callGemini(
-    String userText,
-    List<Map<String, dynamic>> menuItems,
-  ) async {
-    print("userText $userText");
-
-    // Build category-annotated menu string so Gemini can disambiguate
+  String _buildPrompt(String userText, List<Map<String, dynamic>> menuItems) {
+    // Build category-annotated menu string so the model can disambiguate
     // similar names (e.g. "Chicken Fried Rice" vs "Chicken Singapuri Rice").
     // Items that carry a 'category' field get a [Category] prefix; others
     // are listed plain so the prompt stays clean.
@@ -76,10 +89,7 @@ class AiOrderService {
         })
         .join('\n');
 
-    print("menuStr $menuStr");
-
-    final prompt =
-        '''
+    return '''
 You are a restaurant order-taking assistant. Convert spoken/typed user input into structured JSON orders.
 
 ═══════════════════════════════════════════
@@ -159,6 +169,8 @@ OUTPUT FORMAT (strict)
 ═══════════════════════════════
 Return ONLY a valid JSON array. No markdown, no explanation, no extra text.
 The "name" field must EXACTLY match one of the menu names above (copy-paste exact spelling).
+CRITICAL: If the user orders something that is NOT in the MENU list provided above, DO NOT include it in the JSON output. Ignore it entirely.
+If absolutely no items from the input match the menu, you MUST still return an empty JSON array: []
 
 [{"name":"EXACT_MENU_NAME","quantity":NUMBER,"remarks":"MODIFIER_OR_EMPTY"}]
 
@@ -192,6 +204,65 @@ USER INPUT TO PROCESS
 ═══════════════════════════════
 "$userText"
 ''';
+  }
+
+  // ── Sarvam Chat REST call ───────────────────────────────────────────────
+  Future<List<OrderResult>> _callSarvamChat(
+    String userText,
+    List<Map<String, dynamic>> menuItems,
+  ) async {
+    final prompt = _buildPrompt(userText, menuItems);
+
+    final body = jsonEncode({
+      'model': _sarvamModel,
+      'messages': [
+        {'role': 'system', 'content': prompt},
+        {'role': 'user', 'content': userText}
+      ],
+      'temperature': 0.1,
+      'max_tokens': 1024,
+      'top_p': 0.9,
+    });
+
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 15);
+
+    try {
+      final request = await client.postUrl(Uri.parse(_sarvamUrl));
+      request.headers
+        ..set(HttpHeaders.contentTypeHeader, 'application/json; charset=utf-8')
+        ..set(HttpHeaders.acceptHeader, 'application/json')
+        ..set(HttpHeaders.authorizationHeader, 'Bearer $_sarvamApiKey');
+        
+      request.add(utf8.encode(body));
+
+      final response = await request.close();
+      final responseBody = await response.transform(utf8.decoder).join();
+
+      debugPrint('[AiOrderService] Sarvam HTTP ${response.statusCode}');
+
+      if (response.statusCode != 200) {
+        debugPrint('[AiOrderService] ❌ Sarvam error body: $responseBody');
+        throw Exception('Sarvam HTTP ${response.statusCode}: $responseBody');
+      }
+
+      final json = jsonDecode(responseBody) as Map<String, dynamic>;
+      final raw = (json['choices'] as List?)?.firstOrNull?['message']?['content'] as String? ?? '';
+      
+      debugPrint('[AiOrderService] 📦 Sarvam raw response: "$raw"');
+
+      return _parseJsonOutput(raw.trim(), menuItems);
+    } finally {
+      client.close();
+    }
+  }
+
+  // ── Gemini REST call ────────────────────────────────────────────────────
+  Future<List<OrderResult>> _callGemini(
+    String userText,
+    List<Map<String, dynamic>> menuItems,
+  ) async {
+    final prompt = _buildPrompt(userText, menuItems);
 
     final body = jsonEncode({
       'contents': [
@@ -238,14 +309,14 @@ USER INPUT TO PROCESS
           '';
       debugPrint('[AiOrderService] 📦 Gemini raw response: "$raw"');
 
-      return _parseGeminiJson(raw.trim(), menuItems);
+      return _parseJsonOutput(raw.trim(), menuItems);
     } finally {
       client.close();
     }
   }
 
-  // ── Parse Gemini JSON response ──────────────────────────────────────────
-  List<OrderResult> _parseGeminiJson(
+  // ── Parse JSON response ──────────────────────────────────────────
+  List<OrderResult> _parseJsonOutput(
     String raw,
     List<Map<String, dynamic>> menuItems,
   ) {
@@ -274,7 +345,7 @@ USER INPUT TO PROCESS
       final remarks = rawRemarks;
 
       debugPrint(
-        '[AiOrderService] Gemini identified: name="$rawName" qty=$qty remarks="$rawRemarks"',
+        '[AiOrderService] AI identified: name="$rawName" qty=$qty remarks="$rawRemarks"',
       );
 
       // Find exact match first
@@ -370,8 +441,11 @@ USER INPUT TO PROCESS
         best = item;
       }
     }
-    // Only return if we have a reasonably good match
-    return bestScore > 5 ? best : null;
+    // Require a score that scales with the number of query words.
+    // This prevents generic single-word matches (e.g. "Rice" = 10) 
+    // from matching entirely different compound names.
+    final threshold = (qWords.length * 6).clamp(8, 25);
+    return bestScore >= threshold ? best : null;
   }
 
   // ════════════════════════════════════════════════════════════════════════

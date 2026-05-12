@@ -26,7 +26,7 @@ class SarvamSttService {
   static const String _apiKey = 'sk_jm9xxf0p_09FKG715K2n9hXMGKjmIlAIS';
   static const String _apiUrl = 'https://api.sarvam.ai/speech-to-text';
   static const String _model = 'saaras:v3';
-  static const String _mode = 'translate'; // translate → always outputs English text
+  static const String _mode = 'transcribe'; // transcribe → keeps the native language instead of translating to English
 
   // ── State ─────────────────────────────────────────────────────────────────
   final AudioRecorder _recorder = AudioRecorder();
