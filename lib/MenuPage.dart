@@ -13,9 +13,8 @@ import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
 
 // ── Brand colours (shared across screens) ─────────────────────────────────
-const _kNavy   = Color(0xFF1A3A5C);
+const _kNavy = Color(0xFF1A3A5C);
 const _kOrange = Color(0xFFf57c35);
-
 
 class MenuPage extends StatefulWidget {
   final void Function(
@@ -23,7 +22,8 @@ class MenuPage extends StatefulWidget {
     bool isBillPaid,
     String tableName,
     String overallRemarks,
-  ) onConfirm;
+  )
+  onConfirm;
   final List<Map<String, dynamic>> menuList; // Passed from previous page
   final List<Map<String, dynamic>> initialItems;
   final String tableName;
@@ -63,14 +63,14 @@ class _MenuPageState extends State<MenuPage>
   // Voice AI — Sarvam STT
   final SarvamSttService _sttService = SarvamSttService();
   bool _isRecording = false;
-  bool _isTranscribing = false;      // true while Sarvam API is working
-  bool _isProcessing = false;        // true while Agent is working
-  String _recognizedText = '';       // transcript from Sarvam
-  int _recordingSeconds = 0;         // elapsed recording time
+  bool _isTranscribing = false; // true while Sarvam API is working
+  bool _isProcessing = false; // true while Agent is working
+  String _recognizedText = ''; // transcript from Sarvam
+  int _recordingSeconds = 0; // elapsed recording time
   Timer? _recordingTimer;
-  double _currentAmplitude = 0.0;    // for visual feedback
+  double _currentAmplitude = 0.0; // for visual feedback
   Timer? _amplitudeTimer;
-  StateSetter? _sheetSetState;       // ref to sheet's setState
+  StateSetter? _sheetSetState; // ref to sheet's setState
   // Agent layer — sits on top of AiOrderService
   final RestaurantAgentService _agentService = RestaurantAgentService();
 
@@ -130,16 +130,15 @@ class _MenuPageState extends State<MenuPage>
 
   void _startAmplitudePolling() {
     _amplitudeTimer?.cancel();
-    _amplitudeTimer = Timer.periodic(
-      const Duration(milliseconds: 200),
-      (_) async {
-        if (!_isRecording || !mounted) return;
-        final amp = await _sttService.getAmplitude();
-        // Normalize from dBFS (-160..0) to 0..1
-        final normalized = ((amp + 50) / 50).clamp(0.0, 1.0);
-        _sheetSetState?.call(() => _currentAmplitude = normalized);
-      },
-    );
+    _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 200), (
+      _,
+    ) async {
+      if (!_isRecording || !mounted) return;
+      final amp = await _sttService.getAmplitude();
+      // Normalize from dBFS (-160..0) to 0..1
+      final normalized = ((amp + 50) / 50).clamp(0.0, 1.0);
+      _sheetSetState?.call(() => _currentAmplitude = normalized);
+    });
   }
 
   void _startVoiceOrder() async {
@@ -206,13 +205,10 @@ class _MenuPageState extends State<MenuPage>
 
               // Timer for elapsed seconds
               _recordingTimer?.cancel();
-              _recordingTimer = Timer.periodic(
-                const Duration(seconds: 1),
-                (_) {
-                  if (!_isRecording || !mounted) return;
-                  _sheetSetState?.call(() => _recordingSeconds++);
-                },
-              );
+              _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+                if (!_isRecording || !mounted) return;
+                _sheetSetState?.call(() => _recordingSeconds++);
+              });
 
               // Amplitude polling for visual feedback
               _startAmplitudePolling();
@@ -236,7 +232,9 @@ class _MenuPageState extends State<MenuPage>
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Could not recognise speech. Please try again.'),
+                      content: Text(
+                        'Could not recognise speech. Please try again.',
+                      ),
                       backgroundColor: Colors.orange,
                     ),
                   );
@@ -276,7 +274,8 @@ class _MenuPageState extends State<MenuPage>
                 children: [
                   // Handle bar
                   Container(
-                    width: 40, height: 4,
+                    width: 40,
+                    height: 4,
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade300,
@@ -294,7 +293,9 @@ class _MenuPageState extends State<MenuPage>
                           height: 56 + (_currentAmplitude * 20),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.red.withValues(alpha: 0.15 + _currentAmplitude * 0.15),
+                            color: Colors.red.withValues(
+                              alpha: 0.15 + _currentAmplitude * 0.15,
+                            ),
                           ),
                         ),
                       Icon(
@@ -320,18 +321,18 @@ class _MenuPageState extends State<MenuPage>
                     _isRecording
                         ? '🔴 Recording ${_formatDuration(_recordingSeconds)} — speak your order'
                         : _isTranscribing
-                            ? '⏳ Transcribing with Sarvam AI…'
-                            : _recognizedText.isNotEmpty
-                                ? 'Transcript ready'
-                                : 'Tap Start, then speak your full order',
+                        ? '⏳ Transcribing with Sarvam AI…'
+                        : _recognizedText.isNotEmpty
+                        ? 'Transcript ready'
+                        : 'Tap Start, then speak your full order',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,
                       color: _isRecording
                           ? Colors.red.shade700
                           : _isTranscribing
-                              ? Colors.blue.shade700
-                              : Colors.grey.shade600,
+                          ? Colors.blue.shade700
+                          : Colors.grey.shade600,
                       fontFamily: fontMulishRegular,
                     ),
                   ),
@@ -350,22 +351,24 @@ class _MenuPageState extends State<MenuPage>
                   // Transcript / recording indicator area
                   Container(
                     width: double.infinity,
-                    constraints:
-                        const BoxConstraints(minHeight: 64, maxHeight: 120),
+                    constraints: const BoxConstraints(
+                      minHeight: 64,
+                      maxHeight: 120,
+                    ),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: _isRecording
                           ? Colors.red.shade50
                           : _isTranscribing
-                              ? Colors.blue.shade50
-                              : Colors.grey.shade100,
+                          ? Colors.blue.shade50
+                          : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: _isRecording
                             ? Colors.red.shade200
                             : _isTranscribing
-                                ? Colors.blue.shade200
-                                : Colors.grey.shade300,
+                            ? Colors.blue.shade200
+                            : Colors.grey.shade300,
                         width: _isRecording || _isTranscribing ? 1.5 : 1,
                       ),
                     ),
@@ -380,17 +383,22 @@ class _MenuPageState extends State<MenuPage>
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: List.generate(7, (i) {
-                                      final barHeight = 8.0 +
+                                      final barHeight =
+                                          8.0 +
                                           (_currentAmplitude *
                                               24 *
                                               (i.isEven ? 1.0 : 0.6));
                                       return Container(
-                                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 3,
+                                        ),
                                         width: 4,
                                         height: barHeight,
                                         decoration: BoxDecoration(
                                           color: Colors.red.shade400,
-                                          borderRadius: BorderRadius.circular(2),
+                                          borderRadius: BorderRadius.circular(
+                                            2,
+                                          ),
                                         ),
                                       );
                                     }),
@@ -409,50 +417,51 @@ class _MenuPageState extends State<MenuPage>
                               ),
                             )
                           : _isTranscribing
-                              ? Center(
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      SizedBox(
-                                        width: 16, height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.blue.shade600,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Text(
-                                        'Recognising speech…',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.blue.shade600,
-                                          fontFamily: fontMulishRegular,
-                                        ),
-                                      ),
-                                    ],
+                          ? Center(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.blue.shade600,
+                                    ),
                                   ),
-                                )
-                              : Text(
-                                  _recognizedText.isEmpty
-                                      ? 'e.g. "do chicken tikka rice aur teen malai tikka less spicy"'
-                                      : _recognizedText,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: _recognizedText.isEmpty
-                                        ? Colors.grey.shade400
-                                        : Colors.black87,
-                                    fontFamily: fontMulishRegular,
-                                    fontStyle: _recognizedText.isEmpty
-                                        ? FontStyle.italic
-                                        : FontStyle.normal,
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Recognising speech…',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.blue.shade600,
+                                      fontFamily: fontMulishRegular,
+                                    ),
                                   ),
-                                ),
+                                ],
+                              ),
+                            )
+                          : Text(
+                              _recognizedText.isEmpty
+                                  ? 'e.g. "do chicken tikka rice aur teen malai tikka less spicy"'
+                                  : _recognizedText,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: _recognizedText.isEmpty
+                                    ? Colors.grey.shade400
+                                    : Colors.black87,
+                                fontFamily: fontMulishRegular,
+                                fontStyle: _recognizedText.isEmpty
+                                    ? FontStyle.italic
+                                    : FontStyle.normal,
+                              ),
+                            ),
                     ),
                   ),
 
                   const SizedBox(height: 18),
 
-                   // Processing indicator
+                  // Processing indicator
                   if (_isProcessing)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
@@ -460,7 +469,8 @@ class _MenuPageState extends State<MenuPage>
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           SizedBox(
-                            width: 16, height: 16,
+                            width: 16,
+                            height: 16,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: Colors.orange.shade700,
@@ -484,7 +494,9 @@ class _MenuPageState extends State<MenuPage>
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: (_isProcessing || _isTranscribing) ? null : cancel,
+                          onPressed: (_isProcessing || _isTranscribing)
+                              ? null
+                              : cancel,
                           icon: const Icon(Icons.close, size: 18),
                           label: const Text('Cancel'),
                           style: OutlinedButton.styleFrom(
@@ -504,13 +516,18 @@ class _MenuPageState extends State<MenuPage>
                             ? ElevatedButton.icon(
                                 onPressed: null,
                                 icon: const SizedBox(
-                                  width: 18, height: 18,
+                                  width: 18,
+                                  height: 18,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                     color: Colors.white,
                                   ),
                                 ),
-                                label: Text(_isTranscribing ? 'Transcribing…' : 'Processing…'),
+                                label: Text(
+                                  _isTranscribing
+                                      ? 'Transcribing…'
+                                      : 'Processing…',
+                                ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: _isTranscribing
                                       ? Colors.blue.shade600
@@ -520,14 +537,18 @@ class _MenuPageState extends State<MenuPage>
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(30),
                                   ),
-                                  padding: const EdgeInsets.symmetric(vertical: 13),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 13,
+                                  ),
                                 ),
                               )
                             : _isRecording
                             ? ElevatedButton.icon(
                                 onPressed: stopAndProcess,
                                 icon: const Icon(
-                                    Icons.stop_circle_outlined, size: 20),
+                                  Icons.stop_circle_outlined,
+                                  size: 20,
+                                ),
                                 label: const Text('Stop & Process'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.green.shade700,
@@ -537,16 +558,15 @@ class _MenuPageState extends State<MenuPage>
                                     borderRadius: BorderRadius.circular(30),
                                   ),
                                   padding: const EdgeInsets.symmetric(
-                                      vertical: 13),
+                                    vertical: 13,
+                                  ),
                                 ),
                               )
                             : ElevatedButton.icon(
                                 onPressed: startRecording,
                                 icon: const Icon(Icons.mic, size: 20),
                                 label: Text(
-                                  _recognizedText.isEmpty
-                                      ? 'Start'
-                                      : 'Retry',
+                                  _recognizedText.isEmpty ? 'Start' : 'Retry',
                                 ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.red,
@@ -556,7 +576,8 @@ class _MenuPageState extends State<MenuPage>
                                     borderRadius: BorderRadius.circular(30),
                                   ),
                                   padding: const EdgeInsets.symmetric(
-                                      vertical: 13),
+                                    vertical: 13,
+                                  ),
                                 ),
                               ),
                       ),
@@ -581,7 +602,8 @@ class _MenuPageState extends State<MenuPage>
     BuildContext sheetContext,
   ) async {
     if (text.trim().isEmpty) {
-      if (mounted && Navigator.canPop(sheetContext)) Navigator.pop(sheetContext);
+      if (mounted && Navigator.canPop(sheetContext))
+        Navigator.pop(sheetContext);
       return;
     }
 
@@ -598,7 +620,9 @@ class _MenuPageState extends State<MenuPage>
         menuItems: allItems,
       );
     } catch (e) {
-      response = AgentResponse.retry('Order processing failed. Please try again.');
+      response = AgentResponse.retry(
+        'Order processing failed. Please try again.',
+      );
       debugPrint('[MenuPage] Agent error: $e');
     }
 
@@ -628,16 +652,18 @@ class _MenuPageState extends State<MenuPage>
         break;
 
       case AgentAction.retry:
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('🎤 ${response.message}'),
-          backgroundColor: Colors.orange.shade700,
-          duration: const Duration(seconds: 4),
-          action: SnackBarAction(
-            label: 'Try Again',
-            textColor: Colors.white,
-            onPressed: _startVoiceOrder,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('🎤 ${response.message}'),
+            backgroundColor: Colors.orange.shade700,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Try Again',
+              textColor: Colors.white,
+              onPressed: _startVoiceOrder,
+            ),
           ),
-        ));
+        );
         break;
     }
   }
@@ -683,331 +709,401 @@ class _MenuPageState extends State<MenuPage>
       context: context,
       barrierDismissible: false,
       builder: (dialogCtx) {
-        return StatefulBuilder(builder: (dialogCtx, setDialogState) {
-          return Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // ── Header ────────────────────────────────────────────────
-                Container(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
-                  decoration: BoxDecoration(
-                    color: isSuggestion ? Colors.orange.shade700 : const Color(0xFF1A3A5C),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        isSuggestion ? Icons.help_outline : Icons.mic,
-                        color: Colors.white,
-                        size: 22,
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 40,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Header ────────────────────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
+                    decoration: BoxDecoration(
+                      color: isSuggestion
+                          ? Colors.orange.shade700
+                          : const Color(0xFF1A3A5C),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(20),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontFamily: fontMulishBold,
-                            color: Colors.white,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isSuggestion ? Icons.help_outline : Icons.mic,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontFamily: fontMulishBold,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Confidence badge (only for suggestions)
-                if (isSuggestion)
-                  Container(
-                    width: double.infinity,
-                    color: Colors.orange.shade50,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                    child: Text(
-                      'AI Confidence: ${(confidence * 100).toStringAsFixed(0)}%  •  Review items below',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.orange.shade800,
-                        fontFamily: fontMulishRegular,
-                      ),
+                      ],
                     ),
                   ),
 
-                // ── Item list ─────────────────────────────────────────────
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 380),
-                  child: editableItems.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Column(
-                            children: [
-                              Icon(Icons.remove_shopping_cart,
-                                  size: 48, color: Colors.grey.shade300),
-                              const SizedBox(height: 12),
-                              Text(
-                                'All items removed.\nTap Cancel or try again.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.grey.shade500,
-                                  fontFamily: fontMulishRegular,
-                                  fontSize: 13,
+                  // Confidence badge (only for suggestions)
+                  if (isSuggestion)
+                    Container(
+                      width: double.infinity,
+                      color: Colors.orange.shade50,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 6,
+                      ),
+                      child: Text(
+                        'AI Confidence: ${(confidence * 100).toStringAsFixed(0)}%  •  Review items below',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange.shade800,
+                          fontFamily: fontMulishRegular,
+                        ),
+                      ),
+                    ),
+
+                  // ── Item list ─────────────────────────────────────────────
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 380),
+                    child: editableItems.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.remove_shopping_cart,
+                                  size: 48,
+                                  color: Colors.grey.shade300,
                                 ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          itemCount: editableItems.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
-                          itemBuilder: (_, index) {
-                            final r = editableItems[index];
-                            return Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(
-                                  color: isSuggestion
-                                      ? Colors.orange.shade200
-                                      : const Color(0xFF1A3A5C).withValues(alpha: 0.25),
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.04),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'All items removed.\nTap Cancel or try again.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontFamily: fontMulishRegular,
+                                    fontSize: 13,
                                   ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      // Item colour dot
-                                      Container(
-                                        margin: const EdgeInsets.only(top: 3),
-                                        width: 10,
-                                        height: 10,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: isSuggestion
-                                              ? Colors.orange.shade600
-                                              : const Color(0xFFf57c35),
-                                        ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            itemCount: editableItems.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (_, index) {
+                              final r = editableItems[index];
+                              return Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  border: Border.all(
+                                    color: isSuggestion
+                                        ? Colors.orange.shade200
+                                        : const Color(
+                                            0xFF1A3A5C,
+                                          ).withValues(alpha: 0.25),
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.04,
                                       ),
-                                      const SizedBox(width: 10),
-                                      // Name + qty
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    r.item['name'] as String? ?? '',
-                                                    style: TextStyle(
-                                                      fontFamily: fontMulishBold,
-                                                      fontSize: 14,
-                                                      color: Colors.black87,
-                                                    ),
-                                                  ),
-                                                ),
-                                                // Quantity badge
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(
-                                                      horizontal: 10, vertical: 3),
-                                                  decoration: BoxDecoration(
-                                                    color: isSuggestion
-                                                        ? Colors.orange.shade50
-                                                        : const Color(0xFF1A3A5C).withValues(alpha: 0.08),
-                                                    borderRadius: BorderRadius.circular(20),
-                                                    border: Border.all(
-                                                      color: isSuggestion
-                                                          ? Colors.orange.shade300
-                                                          : const Color(0xFF1A3A5C).withValues(alpha: 0.3),
-                                                    ),
-                                                  ),
-                                                  child: Text(
-                                                    'Qty: ${r.quantity}',
-                                                    style: TextStyle(
-                                                      fontFamily: fontMulishBold,
-                                                      fontSize: 12,
-                                                      color: isSuggestion
-                                                          ? Colors.orange.shade800
-                                                          : const Color(0xFF1A3A5C),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      // Remove button
-                                      GestureDetector(
-                                        onTap: () {
-                                          setDialogState(() {
-                                            remarkControllers[index].dispose();
-                                            editableItems.removeAt(index);
-                                            remarkControllers.removeAt(index);
-                                          });
-                                        },
-                                        child: Container(
-                                          margin: const EdgeInsets.only(left: 8),
-                                          padding: const EdgeInsets.all(4),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        // Item colour dot
+                                        Container(
+                                          margin: const EdgeInsets.only(top: 3),
+                                          width: 10,
+                                          height: 10,
                                           decoration: BoxDecoration(
-                                            color: Colors.red.shade50,
                                             shape: BoxShape.circle,
+                                            color: isSuggestion
+                                                ? Colors.orange.shade600
+                                                : const Color(0xFFf57c35),
                                           ),
-                                          child: Icon(Icons.close,
-                                              size: 16, color: Colors.red.shade400),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                  // ── Remarks field (always visible in dialog) ─
-                                  // const SizedBox(height: 8),
-                                  // TextField(
-                                  //   controller: remarkControllers[index],
-                                  //   decoration: InputDecoration(
-                                  //     hintText: 'e.g. less spicy, no onion, parcel…',
-                                  //     hintStyle: TextStyle(
-                                  //       fontSize: 12,
-                                  //       color: Colors.grey.shade400,
-                                  //       fontStyle: FontStyle.italic,
-                                  //     ),
-                                  //     isDense: true,
-                                  //     prefixIcon: Icon(Icons.notes_outlined,
-                                  //         size: 16, color: Colors.orange.shade600),
-                                  //     border: OutlineInputBorder(
-                                  //       borderRadius: BorderRadius.circular(8),
-                                  //       borderSide: BorderSide(color: Colors.grey.shade300),
-                                  //     ),
-                                  //     enabledBorder: OutlineInputBorder(
-                                  //       borderRadius: BorderRadius.circular(8),
-                                  //       borderSide: BorderSide(color: Colors.grey.shade300),
-                                  //     ),
-                                  //     focusedBorder: OutlineInputBorder(
-                                  //       borderRadius: BorderRadius.circular(8),
-                                  //       borderSide: BorderSide(
-                                  //           color: Colors.orange.shade400, width: 1.5),
-                                  //     ),
-                                  //     contentPadding: const EdgeInsets.symmetric(
-                                  //         horizontal: 10, vertical: 8),
-                                  //     filled: true,
-                                  //     fillColor: Colors.orange.shade50,
-                                  //   ),
-                                  //   style: TextStyle(
-                                  //     fontSize: 12,
-                                  //     color: Colors.orange.shade800,
-                                  //     fontFamily: fontMulishRegular,
-                                  //   ),
-                                  //   maxLines: 1,
-                                  // ),
-                                ],
+                                        const SizedBox(width: 10),
+                                        // Name + qty
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      r.item['name']
+                                                              as String? ??
+                                                          '',
+                                                      style: TextStyle(
+                                                        fontFamily:
+                                                            fontMulishBold,
+                                                        fontSize: 14,
+                                                        color: Colors.black87,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  // Quantity badge
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 10,
+                                                          vertical: 3,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: isSuggestion
+                                                          ? Colors
+                                                                .orange
+                                                                .shade50
+                                                          : const Color(
+                                                              0xFF1A3A5C,
+                                                            ).withValues(
+                                                              alpha: 0.08,
+                                                            ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            20,
+                                                          ),
+                                                      border: Border.all(
+                                                        color: isSuggestion
+                                                            ? Colors
+                                                                  .orange
+                                                                  .shade300
+                                                            : const Color(
+                                                                0xFF1A3A5C,
+                                                              ).withValues(
+                                                                alpha: 0.3,
+                                                              ),
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      'Qty: ${r.quantity}',
+                                                      style: TextStyle(
+                                                        fontFamily:
+                                                            fontMulishBold,
+                                                        fontSize: 12,
+                                                        color: isSuggestion
+                                                            ? Colors
+                                                                  .orange
+                                                                  .shade800
+                                                            : const Color(
+                                                                0xFF1A3A5C,
+                                                              ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        // Remove button
+                                        GestureDetector(
+                                          onTap: () {
+                                            setDialogState(() {
+                                              remarkControllers[index]
+                                                  .dispose();
+                                              editableItems.removeAt(index);
+                                              remarkControllers.removeAt(index);
+                                            });
+                                          },
+                                          child: Container(
+                                            margin: const EdgeInsets.only(
+                                              left: 8,
+                                            ),
+                                            padding: const EdgeInsets.all(4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red.shade50,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              Icons.close,
+                                              size: 16,
+                                              color: Colors.red.shade400,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    // ── Remarks field (always visible in dialog) ─
+                                    // const SizedBox(height: 8),
+                                    // TextField(
+                                    //   controller: remarkControllers[index],
+                                    //   decoration: InputDecoration(
+                                    //     hintText: 'e.g. less spicy, no onion, parcel…',
+                                    //     hintStyle: TextStyle(
+                                    //       fontSize: 12,
+                                    //       color: Colors.grey.shade400,
+                                    //       fontStyle: FontStyle.italic,
+                                    //     ),
+                                    //     isDense: true,
+                                    //     prefixIcon: Icon(Icons.notes_outlined,
+                                    //         size: 16, color: Colors.orange.shade600),
+                                    //     border: OutlineInputBorder(
+                                    //       borderRadius: BorderRadius.circular(8),
+                                    //       borderSide: BorderSide(color: Colors.grey.shade300),
+                                    //     ),
+                                    //     enabledBorder: OutlineInputBorder(
+                                    //       borderRadius: BorderRadius.circular(8),
+                                    //       borderSide: BorderSide(color: Colors.grey.shade300),
+                                    //     ),
+                                    //     focusedBorder: OutlineInputBorder(
+                                    //       borderRadius: BorderRadius.circular(8),
+                                    //       borderSide: BorderSide(
+                                    //           color: Colors.orange.shade400, width: 1.5),
+                                    //     ),
+                                    //     contentPadding: const EdgeInsets.symmetric(
+                                    //         horizontal: 10, vertical: 8),
+                                    //     filled: true,
+                                    //     fillColor: Colors.orange.shade50,
+                                    //   ),
+                                    //   style: TextStyle(
+                                    //     fontSize: 12,
+                                    //     color: Colors.orange.shade800,
+                                    //     fontFamily: fontMulishRegular,
+                                    //   ),
+                                    //   maxLines: 1,
+                                    // ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+
+                  // ── Footer buttons ────────────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      border: Border(
+                        top: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(20),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        // Cancel / Retry
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(dialogCtx);
+                              Future.delayed(
+                                const Duration(milliseconds: 300),
+                                _startVoiceOrder,
+                              );
+                            },
+                            icon: const Icon(Icons.refresh, size: 16),
+                            label: const Text('Retry'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey.shade700,
+                              side: BorderSide(color: Colors.grey.shade400),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
                               ),
-                            );
-
-
-                          },
-                        ),
-                ),
-
-                // ── Footer buttons ────────────────────────────────────────
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    border: Border(top: BorderSide(color: Colors.grey.shade200)),
-                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
-                  ),
-                  child: Row(
-                    children: [
-                      // Cancel / Retry
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(dialogCtx);
-                            Future.delayed(
-                              const Duration(milliseconds: 300),
-                              _startVoiceOrder,
-                            );
-                          },
-                          icon: const Icon(Icons.refresh, size: 16),
-                          label: const Text('Retry'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.grey.shade700,
-                            side: BorderSide(color: Colors.grey.shade400),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Confirm (disabled if no items left)
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton.icon(
-                          onPressed: editableItems.isEmpty
-                              ? null
-                              : () {
-                                  final updated = List.generate(
-                                    editableItems.length,
-                                    (i) => OrderResult(
-                                      item: editableItems[i].item,
-                                      quantity: editableItems[i].quantity,
-                                      remarks: remarkControllers[i].text.trim(),
-                                    ),
-                                  );
-                                  if (transcript.isNotEmpty) {
-                                    if (_overallRemarks.isNotEmpty) {
-                                      _overallRemarks += '\n';
+                        const SizedBox(width: 12),
+                        // Confirm (disabled if no items left)
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton.icon(
+                            onPressed: editableItems.isEmpty
+                                ? null
+                                : () {
+                                    final updated = List.generate(
+                                      editableItems.length,
+                                      (i) => OrderResult(
+                                        item: editableItems[i].item,
+                                        quantity: editableItems[i].quantity,
+                                        remarks: remarkControllers[i].text
+                                            .trim(),
+                                      ),
+                                    );
+                                    if (transcript.isNotEmpty) {
+                                      if (_overallRemarks.isNotEmpty) {
+                                        _overallRemarks += '\n';
+                                      }
+                                      _overallRemarks += transcript;
                                     }
-                                    _overallRemarks += transcript;
-                                  }
-                                  
-                                  Navigator.pop(dialogCtx);
-                                  _applyOrderResults(updated);
-                                  _agentService.saveOrderToHistory(updated).ignore();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('✅ ${updated.length} item(s) added to cart'),
-                                      backgroundColor: Colors.green.shade700,
-                                      duration: const Duration(seconds: 3),
-                                    ),
-                                  );
-                                },
 
-                          icon: const Icon(Icons.check, size: 18),
-                          label: Text(
-                            editableItems.isEmpty ? 'Nothing to add' : 'Add to Cart',
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green.shade700,
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor: Colors.grey.shade300,
-                            elevation: 3,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                    Navigator.pop(dialogCtx);
+                                    _applyOrderResults(updated);
+                                    _agentService
+                                        .saveOrderToHistory(updated)
+                                        .ignore();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          '✅ ${updated.length} item(s) added to cart',
+                                        ),
+                                        backgroundColor: Colors.green.shade700,
+                                        duration: const Duration(seconds: 3),
+                                      ),
+                                    );
+                                  },
+
+                            icon: const Icon(Icons.check, size: 18),
+                            label: Text(
+                              editableItems.isEmpty
+                                  ? 'Nothing to add'
+                                  : 'Add to Cart',
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green.shade700,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: Colors.grey.shade300,
+                              elevation: 3,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          );
-        });
+                ],
+              ),
+            );
+          },
+        );
       },
     ).whenComplete(() {
       for (final c in remarkControllers) c.dispose();
@@ -1036,13 +1132,11 @@ class _MenuPageState extends State<MenuPage>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-
-
           // ── Name + price ────────────────────────────────────────────
           Expanded(
             child: InkWell(
-              onTap: (){
-                incrementQty(category, index);
+              onTap: () {
+                // incrementQty(category, index);
               },
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1056,13 +1150,29 @@ class _MenuPageState extends State<MenuPage>
                     ),
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    '₹${(item['price'] as num).toStringAsFixed(0)}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade500,
-                      fontFamily: fontMulishRegular,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        '₹${(item['price'] as num).toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade800,
+                          fontFamily: fontMulishRegular,
+                        ),
+                      ),
+
+                      SizedBox(width: 6),
+
+                      if (item['qty'] > 0)
+                        Text(
+                          'X ${(item['qty'] as num).toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade800,
+                            fontFamily: fontMulishRegular,
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -1120,7 +1230,7 @@ class _MenuPageState extends State<MenuPage>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          GestureDetector(
+          InkWell(
             onTap: onDecrement,
             child: Container(
               width: 45,
@@ -1144,7 +1254,7 @@ class _MenuPageState extends State<MenuPage>
               ),
             ),
           ),
-          GestureDetector(
+          InkWell(
             onTap: onIncrement,
             child: Container(
               width: 45,
@@ -1152,7 +1262,9 @@ class _MenuPageState extends State<MenuPage>
               alignment: Alignment.center,
               decoration: const BoxDecoration(
                 color: Color(0xFFf57c35),
-                borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
+                borderRadius: BorderRadius.horizontal(
+                  right: Radius.circular(20),
+                ),
               ),
               child: const Icon(Icons.add, color: Colors.white, size: 16),
             ),
@@ -1162,11 +1274,11 @@ class _MenuPageState extends State<MenuPage>
     );
   }
 
-
-
   void _showRemarkEditSheet(String category, int index) {
     final item = menuData[category]![index];
-    final ctrl = TextEditingController(text: (item['remarks'] ?? '').toString());
+    final ctrl = TextEditingController(
+      text: (item['remarks'] ?? '').toString(),
+    );
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1175,7 +1287,9 @@ class _MenuPageState extends State<MenuPage>
       ),
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
-          left: 20, right: 20, top: 20,
+          left: 20,
+          right: 20,
+          top: 20,
           bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
         ),
         child: Column(
@@ -1185,7 +1299,9 @@ class _MenuPageState extends State<MenuPage>
             Text(
               item['name'].toString(),
               style: const TextStyle(
-                fontSize: 15, fontFamily: fontMulishBold, color: Color(0xFF1A3A5C),
+                fontSize: 15,
+                fontFamily: fontMulishBold,
+                color: Color(0xFF1A3A5C),
               ),
             ),
             const SizedBox(height: 12),
@@ -1195,11 +1311,19 @@ class _MenuPageState extends State<MenuPage>
               decoration: InputDecoration(
                 hintText: 'e.g. less spicy, no onion, kam tel…',
                 hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                prefixIcon: Icon(Icons.notes_outlined, color: Colors.orange.shade600),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                prefixIcon: Icon(
+                  Icons.notes_outlined,
+                  color: Colors.orange.shade600,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFFf57c35), width: 1.5),
+                  borderSide: const BorderSide(
+                    color: Color(0xFFf57c35),
+                    width: 1.5,
+                  ),
                 ),
                 filled: true,
                 fillColor: Colors.orange.shade50,
@@ -1220,9 +1344,14 @@ class _MenuPageState extends State<MenuPage>
                   backgroundColor: const Color(0xFF1A3A5C),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
                 ),
-                child: const Text('Save Remark', style: TextStyle(fontFamily: fontMulishBold)),
+                child: const Text(
+                  'Save Remark',
+                  style: TextStyle(fontFamily: fontMulishBold),
+                ),
               ),
             ),
           ],
@@ -1284,7 +1413,8 @@ class _MenuPageState extends State<MenuPage>
                   children: [
                     // const Icon(Icons.restaurant_menu, color: Colors.white70, size: 20),
                     // const SizedBox(width: 8),
-                    (widget.tableName.contains("Table") || !widget.tableNameEditable)
+                    (widget.tableName.contains("Table") ||
+                            !widget.tableNameEditable)
                         ? Text(
                             widget.tableName,
                             style: const TextStyle(
@@ -1299,7 +1429,6 @@ class _MenuPageState extends State<MenuPage>
                               onEditingChanged: (value) {
                                 setState(() => isNameEdit = value);
                               },
-
                             ),
                           ),
                   ],
@@ -1337,14 +1466,18 @@ class _MenuPageState extends State<MenuPage>
                   ),
                   if (!showAllCategories && selectedCategories.isNotEmpty)
                     Positioned(
-                      right: 8, top: 8,
+                      right: 8,
+                      top: 8,
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: const BoxDecoration(
                           color: _kOrange,
                           shape: BoxShape.circle,
                         ),
-                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
                         child: Center(
                           child: Text(
                             '${selectedCategories.length}',
@@ -1808,7 +1941,8 @@ class _MenuPageState extends State<MenuPage>
                   )
                 : GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () {}, // Absorb stray taps so parent InkWell doesn't trigger
+                    onTap:
+                        () {}, // Absorb stray taps so parent InkWell doesn't trigger
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1833,7 +1967,10 @@ class _MenuPageState extends State<MenuPage>
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.add_circle, color: Colors.green),
+                          icon: const Icon(
+                            Icons.add_circle,
+                            color: Colors.green,
+                          ),
                           onPressed: () {
                             item['qty']++;
                             setState(() {});

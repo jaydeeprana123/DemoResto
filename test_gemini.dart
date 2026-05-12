@@ -3,7 +3,7 @@ import 'dart:io';
 
 void main() async {
   const _apiKey = 'AIzaSyBz_YVM6SrTCL-HFA3FG6SkHZ3T5h6VgBc';
-  const _model   = 'gemini-1.5-flash';
+  const _model   = 'gemini-2.0-flash';
   const _url = 'https://generativelanguage.googleapis.com/v1/models/$_model:generateContent?key=$_apiKey';
 
   final menuItems = [

@@ -21,7 +21,7 @@ class AiOrderService {
 
   // Gemini REST — v1 endpoint (avoids the v1beta SDK issue)
   static const _apiKey = 'AIzaSyBz_YVM6SrTCL-HFA3FG6SkHZ3T5h6VgBc';
-  static const _model   = 'gemini-1.5-flash';
+  static const _model = 'gemini-2.0-flash';
   static const _url =
       'https://generativelanguage.googleapis.com/v1/models/$_model:generateContent?key=$_apiKey';
 
@@ -35,20 +35,25 @@ class AiOrderService {
     debugPrint('[AiOrderService] Input text: "$text"');
     debugPrint('[AiOrderService] Menu size: ${menuItems.length} items');
 
+    // ── PRIMARY: Gemini AI parser ────────────────────────────────────────
     try {
-      debugPrint('[AiOrderService] Trying Gemini API...');
-      final aiResults = await _callGemini(text, menuItems);
-      if (aiResults.isNotEmpty) {
-        debugPrint('[AiOrderService] ✅ Gemini succeeded with ${aiResults.length} items.');
-        return aiResults;
+      final geminiResults = await _callGemini(text, menuItems);
+      if (geminiResults.isNotEmpty) {
+        debugPrint(
+          '[AiOrderService] ✅ Gemini returned ${geminiResults.length} items.',
+        );
+        return geminiResults;
       }
-      debugPrint('[AiOrderService] ⚠️ Gemini returned 0 items — falling back to local parser.');
+      debugPrint('[AiOrderService] ⚠️ Gemini returned empty — falling back to local parser.');
     } catch (e) {
-      debugPrint('[AiOrderService] ❌ Gemini FAILED: $e');
-      debugPrint('[AiOrderService] Falling back to local parser...');
+      debugPrint('[AiOrderService] ❌ Gemini failed ($e) — falling back to local parser.');
     }
+
+    // ── FALLBACK: local fuzzy parser (works offline) ─────────────────────
     final localResults = _parseLocally(text, menuItems);
-    debugPrint('[AiOrderService] Local parser returned ${localResults.length} items.');
+    debugPrint(
+      '[AiOrderService] Local parser returned ${localResults.length} items.',
+    );
     return localResults;
   }
 
@@ -57,89 +62,144 @@ class AiOrderService {
     String userText,
     List<Map<String, dynamic>> menuItems,
   ) async {
+    print("userText $userText");
+
     // Build category-annotated menu string so Gemini can disambiguate
     // similar names (e.g. "Chicken Fried Rice" vs "Chicken Singapuri Rice").
     // Items that carry a 'category' field get a [Category] prefix; others
     // are listed plain so the prompt stays clean.
-    final menuStr = menuItems.map((m) {
-      final cat = (m['category'] as String? ?? '').trim();
-      final name = (m['name'] as String? ?? '').trim();
-      return cat.isNotEmpty ? '- [$cat] $name' : '- $name';
-    }).join('\n');
+    final menuStr = menuItems
+        .map((m) {
+          final cat = (m['category'] as String? ?? '').trim();
+          final name = (m['name'] as String? ?? '').trim();
+          return cat.isNotEmpty ? '- [$cat] $name' : '- $name';
+        })
+        .join('\n');
 
-    final prompt = '''
-You are an intelligent restaurant order assistant.
+    print("menuStr $menuStr");
 
-Your job is to convert user speech text into structured order JSON.
+    final prompt =
+        '''
+You are a restaurant order-taking assistant. Convert spoken/typed user input into structured JSON orders.
 
-The input may contain:
-- Gujarati, Hindi, English or mixed language
-- Wrong words due to speech recognition (example: "cook" may mean "coke", "bear" may mean "beer", "soap" may mean "soup")
-- Half words (example: "pan" may mean "paneer", "chik" may mean "chicken")
-- Spelling mistakes
-- IMPORTANT: The provided MENU may itself contain spelling mistakes (example: "Chciken" instead of "Chicken"). You must match the user's intent to the EXISTING menu name, even if the menu name is spelled incorrectly.
-
-You must:
-1. Correct wrong or similar sounding words
-2. Predict the most likely food item from the menu
-3. Match ONLY from the provided menu
-4. Detect quantity (default = 1 if not mentioned)
-5. ALWAYS extract the remark/modifier portion into the "remarks" field:
-   - Copy the EXACT words the user spoke for the modifier (verbatim), do NOT summarize or paraphrase
-   - Examples of modifiers: spice level, oil, onion, garlic, parcel, cooking style, any preference
-   - IMPORTANT: Even if the modifier is attached to the item name, extract it as-is into remarks
-   - Example: user says "paneer tikka don't make it spicy" → remarks = "don't make it spicy" (verbatim)
-   - Example: user says "two peri peri wraps keep it less spicy" → remarks = "keep it less spicy" (verbatim)
-   - If no modifier is spoken, remarks = ""
-
-Important:
-- Use common Indian restaurant understanding
-- Use context to guess missing words (example: "butter" → "butter paneer")
-- Ignore items not in menu
-- Be tolerant to errors and incomplete input
-- Number words: ek/one=1, be/do/two=2, tran/teen/three=3, chaar/char/four=4, paanch/panch/five=5, chha/chhe/six=6, saat/sat/seven=7, aath/eight=8, nav/nine=9, das/ten=10
-- Menu items are shown with a [Category] prefix to help you disambiguate.
-  Example: if user says "chicken rice", prefer items in [Fried Rice and Noodles] over [Hamara Specials].
-  The category prefix is for context ONLY — the "name" in your JSON output must NOT include it.
-- Shawarma wraps appear as e.g. "Crispy Samoli (Bun)" — the part in () is just a
-  descriptor; if user says "samoli" or "bun shawarma", match to the full exact menu name.
-- Al-Haadi specific terms: alfaham/alfam = grilled chicken; tukda = a large portion;
-  samoli = a bun-style shawarma wrap; lebnani = chapati wrap; khaboos = pita wrap;
-  zafrani = saffron; pahadi = hills-style; surti = Surat style.
-
-CORRECTIONS & OVERRIDES:
-- Handle natural language corrections within the same input.
-- If the user says "make it 4 instead of 3", your output must contain ONLY the final quantity (4).
-- If the user says "not X, give me Y", your output must contain ONLY Y.
-- If the user repeats an item with a different quantity, use the LAST mentioned quantity as the source of truth.
-- "to be added" or "add X" means the final count for that item should be identified.
-- QUANTITY RULE: If a quantity is mentioned for one item, do NOT apply it to other items unless explicitly stated.
-- DEFAULT RULE: If no quantity is mentioned for an item, the quantity is ALWAYS 1.
-- DO NOT multiply or sum quantities unless the user explicitly says "plus" or "more".
-
-STRICT RULES:
-- Return ONLY valid JSON array, no markdown, no explanation
-- "name" must exactly match one of the provided menu names
-- "remarks" must be empty string if no modifier spoken, NOT null
-- If unsure about item, choose the closest matching item from menu
-- Number words: ek=1, be/do=2, tran/teen=3, char=4, panch=5, chhe=6, sat=7, ath=8, nav=9, das=10
-
-MENU (match ONLY from these exact names):
+═══════════════════════════════════════════
+MENU (you MUST only match from these items)
+═══════════════════════════════════════════
 $menuStr
 
-Return format (strict):
-[{"name":"EXACT_MENU_NAME","quantity":NUMBER,"remarks":"MODIFIER_OR_EMPTY_STRING"}]
+═══════════════════════════════
+LANGUAGE & SPEECH CORRECTION
+═══════════════════════════════
+Input may be in English, Hindi, Gujarati or mixed. Speech-to-text errors are common.
 
-User input:
-"$userText"''';
+KEY TERM DICTIONARY (spoken word → menu meaning):
+- alfam / alfaam / alpham / dohol farm / dohol / dohol pham → "Alfaham"
+- tukda / tokda → "Tukda" (a portion type — keep it in the name)
+- charbake / charbag / char bag / charback → "Char Bag"
+- samoli / samoly → "Samoli"
+- lebnani / libnani → "Lebnani"
+- khaboos / khubus / khabus → "Khaboos"
+- zafrani / jafrani → "Zafrani"
+- pahadi / pahari → "Pahadi"
+- surti / surthi → "Surti"
+- singapur → "Singapuri"
+- shezvan / schezwan → "Shezwan"
+- manchuri / manchoori → "Manchurian"
+- shower / shavarma / shwarma / morning → "Shawarma"
+- soap / soop → "Soup"
+- cook / kok → "Coke"
+- pan / paner → "Paneer"
+- biriyani / briyani / birani → "Biryani"
+- arabic rice / arbic rice → whichever menu item contains "Arabic Rice"
+
+NUMBER DICTIONARY:
+- ek / one / aek = 1
+- be / do / two = 2  
+- tran / teen / three = 3
+- chaar / char / four = 4
+- paanch / panch / five = 5
+- chha / chhe / six = 6
+- saat / sat / seven = 7
+- aath / eight = 8
+- nav / nine = 9
+- das / ten = 10
+
+═══════════════════════════════
+MATCHING RULES (follow strictly)
+═══════════════════════════════
+1. KEYWORD MATCHING: Match by identifying KEY WORDS in user input.
+   - Example: "alfam tukda rice" → keywords: alfam=Alfaham, tukda=Tukda, rice=Rice → "Alfaham Tukda Rice" ✅
+   - Example: "fish tukda rice" → keywords: fish=Fish, tukda=Tukda, rice=Rice → "Fish Tukda Rice" ✅
+   - Example: "charbake rice" → keywords: charbake≈charbag=Char Bag, rice=Rice → "Char Bag Rice" ✅
+
+2. CATEGORY HINT: The [Category] prefix helps disambiguate similar names.
+   - "chicken rice" → prefer [Fried Rice and Noodles] over [Hamara Specials]
+   - The category prefix must NOT appear in your output "name" field
+
+3. COMPOUND NAMES: Never drop parts of a compound menu name.
+   - "tukda rice" must match "Alfaham Tukda Rice" or "Fish Tukda Rice", NOT just "Arabic Rice"
+   - "fried rice" is different from "Tukda Rice"
+
+4. FUZZY SPELLING: Be tolerant of spelling/pronunciation errors.
+   - "charbake" ≈ "Char Bag" (sounds similar, same category)
+   - "alfam" = "Alfaham" (well-known abbreviation)
+
+5. QUANTITY: 
+   - Default quantity = 1 if not mentioned
+   - Apply quantity ONLY to the item it was spoken with
+   - Use the LAST mentioned quantity if corrected ("make it 4 instead of 3" → 4)
+
+6. REMARKS: 
+   - Extract VERBATIM any modifier/preference the user spoke
+   - Examples: spice level, oil, onion, garlic, parcel, cooking style
+   - If no modifier spoken → remarks = "" (empty string, never null)
+
+═══════════════════════════════
+OUTPUT FORMAT (strict)
+═══════════════════════════════
+Return ONLY a valid JSON array. No markdown, no explanation, no extra text.
+The "name" field must EXACTLY match one of the menu names above (copy-paste exact spelling).
+
+[{"name":"EXACT_MENU_NAME","quantity":NUMBER,"remarks":"MODIFIER_OR_EMPTY"}]
+
+═══════════════════════════════
+EXAMPLES
+═══════════════════════════════
+Menu has: "Alfaham Tukda Rice", "Fish Tukda Rice", "Char Bag Rice", "Garden Rice"
+
+Input: "one alfam tukda rice, two fish tukda rice, three charbake rice, one garden rice"
+Output: [
+  {"name":"Alfaham Tukda Rice","quantity":1,"remarks":""},
+  {"name":"Fish Tukda Rice","quantity":2,"remarks":""},
+  {"name":"Char Bag Rice","quantity":3,"remarks":""},
+  {"name":"Garden Rice","quantity":1,"remarks":""}
+]
+
+Input: "do chicken fried rice kam tikha, ek hakka noodle"
+Output: [
+  {"name":"Chicken Fried Rice","quantity":2,"remarks":"kam tikha"},
+  {"name":"Hakka Noodle","quantity":1,"remarks":""}
+]
+
+Input: "teen samoli, ek open shawarma parcel karo"
+Output: [
+  {"name":"Samoli (Bun)","quantity":3,"remarks":""},
+  {"name":"Open Shawarma","quantity":1,"remarks":"parcel karo"}
+]
+
+═══════════════════════════════
+USER INPUT TO PROCESS
+═══════════════════════════════
+"$userText"
+''';
 
     final body = jsonEncode({
       'contents': [
         {
           'parts': [
-            {'text': prompt}
-          ]
-        }
+            {'text': prompt},
+          ],
+        },
       ],
       'generationConfig': {
         'temperature': 0.1,
@@ -163,16 +223,18 @@ User input:
       final responseBody = await response.transform(utf8.decoder).join();
 
       debugPrint('[AiOrderService] Gemini HTTP ${response.statusCode}');
-      
+
       if (response.statusCode != 200) {
         debugPrint('[AiOrderService] ❌ Gemini error body: $responseBody');
         throw Exception('Gemini HTTP ${response.statusCode}: $responseBody');
       }
 
       final json = jsonDecode(responseBody) as Map<String, dynamic>;
-      final raw = (json['candidates'] as List?)
-              ?.firstOrNull?['content']?['parts']
-              ?.firstOrNull?['text'] as String? ??
+      final raw =
+          (json['candidates'] as List?)
+                  ?.firstOrNull?['content']?['parts']
+                  ?.firstOrNull?['text']
+              as String? ??
           '';
       debugPrint('[AiOrderService] 📦 Gemini raw response: "$raw"');
 
@@ -211,7 +273,9 @@ User input:
       final rawRemarks = (entry['remarks'] as String? ?? '').trim();
       final remarks = rawRemarks;
 
-      debugPrint('[AiOrderService] Gemini identified: name="$rawName" qty=$qty remarks="$rawRemarks"');
+      debugPrint(
+        '[AiOrderService] Gemini identified: name="$rawName" qty=$qty remarks="$rawRemarks"',
+      );
 
       // Find exact match first
       Map<String, dynamic>? matched = _exactMatch(rawName, menuItems);
@@ -219,8 +283,12 @@ User input:
       matched ??= _fuzzyMatch(rawName, menuItems);
 
       if (matched != null) {
-        debugPrint('[AiOrderService]   ✅ Matched to menu item: "${matched['name']}"');
-        results.add(OrderResult(item: matched, quantity: qty, remarks: remarks));
+        debugPrint(
+          '[AiOrderService]   ✅ Matched to menu item: "${matched['name']}"',
+        );
+        results.add(
+          OrderResult(item: matched, quantity: qty, remarks: remarks),
+        );
       } else {
         debugPrint('[AiOrderService]   ❌ No menu match found for: "$rawName"');
       }
@@ -237,25 +305,32 @@ User input:
   static String _normalizeAmp(String s) => s.replaceAll('&', 'and');
 
   Map<String, dynamic>? _exactMatch(
-      String name, List<Map<String, dynamic>> items) {
+    String name,
+    List<Map<String, dynamic>> items,
+  ) {
     final lower = _normalizeAmp(name).toLowerCase();
     try {
       return items.firstWhere(
-          (m) => _normalizeAmp(m['name'].toString()).toLowerCase() == lower);
+        (m) => _normalizeAmp(m['name'].toString()).toLowerCase() == lower,
+      );
     } catch (_) {
       return null;
     }
   }
 
   Map<String, dynamic>? _fuzzyMatch(
-      String name, List<Map<String, dynamic>> items) {
+    String name,
+    List<Map<String, dynamic>> items,
+  ) {
     // Normalise the query: strip parens + & so "(Bun)" etc. don't hurt score
     final lower = _normalizeAmp(_stripParens(name)).toLowerCase();
 
     // 1. Contains match (normalised both sides)
     try {
       return items.firstWhere((m) {
-        final mNorm = _normalizeAmp(_stripParens(m['name'].toString())).toLowerCase();
+        final mNorm = _normalizeAmp(
+          _stripParens(m['name'].toString()),
+        ).toLowerCase();
         return mNorm.contains(lower) || lower.contains(mNorm);
       });
     } catch (_) {}
@@ -266,10 +341,13 @@ User input:
     int bestScore = 0;
 
     for (final item in items) {
-      final iName =
-          _normalizeAmp(_stripParens(item['name'].toString())).toLowerCase();
-      final iWords =
-          iName.split(RegExp(r'\s+')).where((w) => w.length > 1).toSet();
+      final iName = _normalizeAmp(
+        _stripParens(item['name'].toString()),
+      ).toLowerCase();
+      final iWords = iName
+          .split(RegExp(r'\s+'))
+          .where((w) => w.length > 1)
+          .toSet();
 
       int score = 0;
       for (final qw in qWords) {
@@ -277,9 +355,9 @@ User input:
           if (qw == iw) {
             score += 10; // exact word match
           } else if (qw.startsWith(iw) || iw.startsWith(qw)) {
-            score += 5;  // stem / prefix match
+            score += 5; // stem / prefix match
           } else if (qw.contains(iw) || iw.contains(qw)) {
-            score += 2;  // partial match
+            score += 2; // partial match
           }
         }
       }
@@ -317,10 +395,10 @@ User input:
     'aek': 1, 'ek1': 1, 'pach': 5, 'saath': 7, 'aat': 8,
   };
 
-  static const Set<String> _seps = {',', '.', 'plus', '&', 'aur', 'va', 'also', 'then',
+  static const Set<String> _seps = {
+    ',', '.', 'plus', '&', 'aur', 'va', 'also', 'then',
     'ne', 'tatha', 'sathe', // Gujarati/Hindi conjunctions
   };
-
 
   /// Maps Hindi/Gujarati spoken remark phrases → standard English remarks.
   /// Order matters: longer/more-specific phrases must come first.
@@ -417,7 +495,9 @@ User input:
     'popcorn': 'popcorn', 'pop corn': 'popcorn',
     'talmari': 'talmari', 'talmary': 'talmari',
     'hakka': 'hakka', 'haka': 'hakka',
-    'manchurian': 'manchurian', 'manchuri': 'manchurian', 'manchoori': 'manchurian',
+    'manchurian': 'manchurian',
+    'manchuri': 'manchurian',
+    'manchoori': 'manchurian',
     // Crispy prefix (very common in this menu)
     'crispy': 'crispy', 'crispi': 'crispy', 'krispi': 'crispy',
     // Grill
@@ -430,11 +510,22 @@ User input:
     'sambar': 'sambar', 'sambhar': 'sambar',
     'lassi': 'lassi', 'lasi': 'lassi',
     'mojito': 'mojito', 'mohito': 'mojito',
-    'shower': 'shawarma', 'morning': 'shawarma', 'shavarma': 'shawarma', 'shwarma': 'shawarma',
+    'shower': 'shawarma',
+    'morning': 'shawarma',
+    'shavarma': 'shawarma',
+    'shwarma': 'shawarma',
+    // Char Bag rice variants
+    'bagged': 'char bag', 'bag': 'char bag',
   };
 
-  List<OrderResult> _parseLocally(
-      String raw, List<Map<String, dynamic>> menu) {
+  /// Filler words that carry no menu-item meaning and should be dropped
+  /// before fuzzy matching (e.g. "two chicken pieces" → "two chicken").
+  static const Set<String> _stopWords = {
+    'piece', 'pieces', 'pcs', 'pc', 'item', 'items', 'plate', 'plates',
+    'serving', 'servings', 'order', 'orders',
+  };
+
+  List<OrderResult> _parseLocally(String raw, List<Map<String, dynamic>> menu) {
     // Normalise ampersand before tokenising so "Hot & Sour" doesn't split wrong
     String text = _normalizeAmp(raw).toLowerCase().trim();
     _fix.forEach((w, r) => text = text.replaceAll(RegExp('\\b$w\\b'), r));
@@ -456,7 +547,7 @@ User input:
 
     for (final seg in segments) {
       if (seg.words.isEmpty) continue;
-      
+
       final cleanWords = seg.words.toList();
 
       final matched = _bestMatch(cleanWords, menu, used);
@@ -484,7 +575,8 @@ User input:
       }
 
       results.add(
-          OrderResult(item: matched, quantity: seg.qty, remarks: rawRemark));
+        OrderResult(item: matched, quantity: seg.qty, remarks: rawRemark),
+      );
     }
     return results;
   }
@@ -505,11 +597,17 @@ User input:
 
     for (int i = 0; i < tokens.length; i++) {
       final t = tokens[i];
-      if (_seps.contains(t)) { flush(); continue; }
-      
-      // Special handle for 'and'
+      if (_seps.contains(t)) {
+        flush();
+        continue;
+      }
+
+      // Skip filler / stop words — they add noise to fuzzy matching
+      if (_stopWords.contains(t)) continue;
+
+      // 'and' before a number → segment boundary
       if (t == 'and') {
-        if (i + 1 < tokens.length && _nums[tokens[i+1]] != null) {
+        if (i + 1 < tokens.length && _nums[tokens[i + 1]] != null) {
           flush();
         } else {
           buf.add(t);
@@ -517,11 +615,28 @@ User input:
         continue;
       }
 
+      // 'or' between numbers: "three or four" → override qty with later number
+      if (t == 'or') {
+        if (hasQty && i + 1 < tokens.length && _nums[tokens[i + 1]] != null) {
+          pQty = _nums[tokens[i + 1]]!;
+          i++; // consume the next number token
+        }
+        // either way, don't add 'or' to the word buffer
+        continue;
+      }
+
       final n = _nums[t];
       if (n != null) {
-        if (!hasQty && buf.isEmpty) { pQty = n; hasQty = true; }
-        else if (!hasQty && buf.isNotEmpty) { flush(ov: n); }
-        else { flush(); pQty = n; hasQty = true; }
+        if (!hasQty && buf.isEmpty) {
+          pQty = n;
+          hasQty = true;
+        } else if (!hasQty && buf.isNotEmpty) {
+          flush(ov: n);
+        } else {
+          flush();
+          pQty = n;
+          hasQty = true;
+        }
       } else {
         buf.add(t);
       }
@@ -544,8 +659,11 @@ User input:
     for (final item in menu) {
       if (used.contains(item['name'].toString())) continue;
       final iw = item['name']
-          .toString().toLowerCase().split(' ')
-          .where((w) => w.length > 1).toList();
+          .toString()
+          .toLowerCase()
+          .split(' ')
+          .where((w) => w.length > 1)
+          .toList();
       if (iw.isEmpty) continue;
       double sc = 0;
       for (final qw in q) {
@@ -557,7 +675,10 @@ User input:
         sc += top;
       }
       final norm = sc / q.length;
-      if (norm > bestScore) { bestScore = norm; best = item; }
+      if (norm > bestScore) {
+        bestScore = norm;
+        best = item;
+      }
     }
     return bestScore >= 0.55 ? best : null;
   }
@@ -565,13 +686,13 @@ User input:
   double _wSim(String a, String b) {
     if (a == b) return 2.0;
     if (b.contains(a) || a.contains(b)) return 1.5;
-    
+
     // Character overlap score (ignoring position)
     final aSet = a.runes.toSet();
     final bSet = b.runes.toSet();
     final intersection = aSet.intersection(bSet).length;
     final overlap = (intersection * 2.0) / (aSet.length + bSet.length);
-    
+
     // Positional match
     int m = 0;
     final s = a.length <= b.length ? a : b;
