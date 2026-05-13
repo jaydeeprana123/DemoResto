@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 
 import '../../KitchenOrdersListView.dart';
-import '../../DragDropTables.dart';
+import '../../Screens/Dashboard/DragDropTables.dart';
 import '../../Styles/my_icons.dart';
 
 class BottomNavigationView extends StatefulWidget {

@@ -1,11 +1,11 @@
-import "package:demo/DragDropTables.dart";
+import 'package:demo/Screens/Dashboard/DragDropTables.dart';
 import 'package:demo/Screens/Authentication/LoginScreenView.dart';
 import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'DragDropTables.dart';
+import 'package:demo/Screens/Dashboard/DragDropTables.dart';
 import 'package:get/get.dart';
 
 void main() async {
