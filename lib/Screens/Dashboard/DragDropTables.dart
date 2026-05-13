@@ -13,7 +13,7 @@ import 'package:get/get.dart';
 
 import 'package:demo/AddTablePage.dart';
 import 'package:demo/KitchenOrdersListView.dart';
-import 'package:demo/CartPage.dart';
+import 'package:demo/Screens/Cart/CartPage.dart';
 import 'package:demo/FinalBillingView.dart';
 import 'package:demo/FinalCartPage.dart';
 import 'package:demo/Screens/Menu/MenuPage.dart';

@@ -7,8 +7,6 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter/material.dart';
 
-import 'CartPage.dart';
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -65,7 +63,8 @@ class _MenuPageState extends State<MenuPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('menus').snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData)
+          return Center(child: CircularProgressIndicator());
 
         final categories = snapshot.data!.docs;
 
@@ -105,56 +104,66 @@ class _MenuPageState extends State<MenuPage> {
                               final itemId = item.id;
                               final name = item['name'];
                               final price = item['price'] * 1.0;
-                              final qty =
-                                  quantities[categoryId]?[itemId] ?? 0;
+                              final qty = quantities[categoryId]?[itemId] ?? 0;
 
                               return ListTile(
                                 title: Text(name),
                                 subtitle: Text("\$${price.toStringAsFixed(2)}"),
                                 trailing: qty == 0
                                     ? GestureDetector(
-                                  onTap: () {
-                                    incrementQty(categoryId, itemId);
-                                  },
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(
-                                        horizontal: 20, vertical: 5),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Colors.black87,
-                                        width: 0.5,
-                                      ),
-                                      borderRadius:
-                                      BorderRadius.circular(12),
-                                    ),
-                                    child: Text("Add"),
-                                  ),
-                                )
+                                        onTap: () {
+                                          incrementQty(categoryId, itemId);
+                                        },
+                                        child: Container(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                            vertical: 5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: Colors.black87,
+                                              width: 0.5,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text("Add"),
+                                        ),
+                                      )
                                     : Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: Icon(Icons.remove_circle,
-                                          color: Colors.red),
-                                      onPressed: () =>
-                                          decrementQty(categoryId, itemId),
-                                    ),
-                                    Text(
-                                      "$qty",
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        color: Colors.black87,
-                                        fontFamily: fontMulishSemiBold,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.remove_circle,
+                                              color: Colors.red,
+                                            ),
+                                            onPressed: () => decrementQty(
+                                              categoryId,
+                                              itemId,
+                                            ),
+                                          ),
+                                          Text(
+                                            "$qty",
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              color: Colors.black87,
+                                              fontFamily: fontMulishSemiBold,
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.add_circle,
+                                              color: Colors.green,
+                                            ),
+                                            onPressed: () => incrementQty(
+                                              categoryId,
+                                              itemId,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                    IconButton(
-                                      icon: Icon(Icons.add_circle,
-                                          color: Colors.green),
-                                      onPressed: () =>
-                                          incrementQty(categoryId, itemId),
-                                    ),
-                                  ],
-                                ),
                               );
                             },
                           );
@@ -187,20 +196,20 @@ class _MenuPageState extends State<MenuPage> {
                                   .collection('items')
                                   .get()
                                   .then((snapshot) {
-                                for (var item in snapshot.docs) {
-                                  final itemId = item.id;
-                                  final qty =
-                                      quantities[categoryId]?[itemId] ?? 0;
-                                  if (qty > 0) {
-                                    selectedItems.add({
-                                      "name": item['name'],
-                                      "price": item['price'],
-                                      "qty": qty,
-                                    });
-                                  }
-                                }
-                                widget.onConfirm(selectedItems);
-                              });
+                                    for (var item in snapshot.docs) {
+                                      final itemId = item.id;
+                                      final qty =
+                                          quantities[categoryId]?[itemId] ?? 0;
+                                      if (qty > 0) {
+                                        selectedItems.add({
+                                          "name": item['name'],
+                                          "price": item['price'],
+                                          "qty": qty,
+                                        });
+                                      }
+                                    }
+                                    widget.onConfirm(selectedItems);
+                                  });
                             });
                           },
                           child: Text("View Cart"),
@@ -216,4 +225,3 @@ class _MenuPageState extends State<MenuPage> {
     );
   }
 }
-

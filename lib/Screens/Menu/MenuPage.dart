@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import 'package:demo/models/agent_response.dart';
 import 'package:demo/services/ai_order_service.dart';
 
-import 'package:demo/CartPage.dart';
+import 'package:demo/Screens/Cart/CartPage.dart';
 import 'package:demo/MyWidgets/EditableTextField.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';

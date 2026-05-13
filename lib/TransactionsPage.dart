@@ -9,7 +9,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'AddTablePage.dart';
 import 'KitchenOrdersListView.dart';
-import 'CartPage.dart';
+import 'package:demo/Screens/Cart/CartPage.dart';
 import 'FinalCartPage.dart';
 import 'package:demo/Screens/Menu/MenuPage.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
