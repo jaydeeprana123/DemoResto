@@ -12,7 +12,7 @@ import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 
 import 'Screens/BottomNavigation/bottom_navigation_view.dart';
-import 'MenuPage.dart';
+import 'package:demo/Screens/Menu/MenuPage.dart';
 import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
 import 'Styles/my_icons.dart';

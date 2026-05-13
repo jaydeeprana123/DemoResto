@@ -11,15 +11,15 @@ import 'AddTablePage.dart';
 import 'KitchenOrdersListView.dart';
 import 'CartPage.dart';
 import 'FinalCartPage.dart';
-import 'MenuPage.dart';
+import 'package:demo/Screens/Menu/MenuPage.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import 'package:flutter/material.dart';
-import 'MenuPage.dart';
+import 'package:demo/Screens/Menu/MenuPage.dart';
 import 'package:get/get.dart';
 
 import 'package:flutter/material.dart';
-import 'MenuPage.dart';
+import 'package:demo/Screens/Menu/MenuPage.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import 'package:flutter/material.dart';

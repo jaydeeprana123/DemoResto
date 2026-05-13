@@ -7,7 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'MenuPage.dart';
+import 'package:demo/Screens/Menu/MenuPage.dart';
 import 'Styles/my_font.dart';
 import 'models/GroupOrder.dart';
 

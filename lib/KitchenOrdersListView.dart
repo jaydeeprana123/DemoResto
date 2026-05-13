@@ -12,7 +12,7 @@ import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'Styles/my_font.dart';
 import 'models/GroupOrder.dart';
-import 'MenuPage.dart';
+import 'package:demo/Screens/Menu/MenuPage.dart';
 
 class KitchenOrdersListView extends StatefulWidget {
   const KitchenOrdersListView({super.key});

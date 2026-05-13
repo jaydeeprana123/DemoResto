@@ -16,7 +16,7 @@ import 'package:demo/KitchenOrdersListView.dart';
 import 'package:demo/CartPage.dart';
 import 'package:demo/FinalBillingView.dart';
 import 'package:demo/FinalCartPage.dart';
-import 'package:demo/MenuPage.dart';
+import 'package:demo/Screens/Menu/MenuPage.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'DashboardController.dart';
