@@ -1,10 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/Screens/Authentication/SignupScreenView.dart';
-import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 import '../../Styles/my_font.dart';
+import 'LoginController.dart';
 
 // Brand colours extracted from the Flavor Flow logo
 const _navy   = Color(0xFF1A3A5C);
@@ -12,142 +11,59 @@ const _navyDk = Color(0xFF0D2137);
 const _orange = Color(0xFFf57c35);  // matches existing primary_color
 const _green  = Color(0xFF4CAF50);
 
-class LoginPage extends StatefulWidget {
+// Since we moved all state to LoginController, this widget is now a StatelessWidget!
+// This makes the UI code much lighter and faster.
+class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
-  @override
-  State<LoginPage> createState() => _LoginPageState();
-}
-
-class _LoginPageState extends State<LoginPage>
-    with SingleTickerProviderStateMixin {
-  final _emailCtrl    = TextEditingController();
-  final _passCtrl     = TextEditingController();
-  bool _loading       = false;
-  bool _obscurePass   = true;
-  bool _rememberMe    = false;
-  late AnimationController _animCtrl;
-  late Animation<double> _fadeAnim;
-  late Animation<Offset> _slideAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _animCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _fadeAnim  = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.12),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut));
-    _animCtrl.forward();
-  }
-
-  @override
-  void dispose() {
-    _animCtrl.dispose();
-    _emailCtrl.dispose();
-    _passCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _login() async {
-    if (_emailCtrl.text.trim().isEmpty || _passCtrl.text.trim().isEmpty) {
-      _snack('Please enter email and password.');
-      return;
-    }
-    setState(() => _loading = true);
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailCtrl.text.trim(),
-        password: _passCtrl.text.trim(),
-      );
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const BottomNavigationView()),
-      );
-    } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Login failed');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _register() async {
-    setState(() => _loading = true);
-    try {
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailCtrl.text.trim(),
-        password: _passCtrl.text.trim(),
-      );
-      final user = cred.user;
-      if (user != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({
-          'email': user.email,
-          'role': 'Staff',
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const BottomNavigationView()),
-      );
-    } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Signup failed');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  void _snack(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
-  }
 
   @override
   Widget build(BuildContext context) {
+    // Dependency Injection in GetX: 
+    // Get.put() initializes the controller and makes it available globally.
+    final controller = Get.put(LoginController());
+
     final size = MediaQuery.of(context).size;
     final isWide = size.width > 700;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
-      body: isWide ? _wideLayout() : _narrowLayout(),
+      body: isWide ? _wideLayout(controller) : _narrowLayout(controller),
     );
   }
 
   // ─────────────────────────── Wide / Tablet layout ────────────────────────
-  Widget _wideLayout() {
+  /// Builds the layout optimized for wide screens (tablets and desktops).
+  /// Splits the screen into a left decorative panel and a right login form panel.
+  Widget _wideLayout(LoginController controller) {
     return Row(
       children: [
         // Left panel — navy illustration
         Expanded(flex: 5, child: _leftPanel()),
         // Right panel — form
-        Expanded(flex: 6, child: _formPanel()),
+        Expanded(flex: 6, child: _formPanel(controller)),
       ],
     );
   }
 
   // ─────────────────────────── Narrow / Phone layout ───────────────────────
-  Widget _narrowLayout() {
+  /// Builds the layout optimized for narrow screens (mobile phones).
+  /// Stacks a top decorative banner above the login form panel.
+  Widget _narrowLayout(LoginController controller) {
     return SingleChildScrollView(
       child: Column(
         children: [
           // Top banner (compact version of left panel)
           _topBanner(),
           // Form
-          _formPanel(),
+          _formPanel(controller),
         ],
       ),
     );
   }
 
   // ─────────────────────────── Left / Top panel ────────────────────────────
+  /// Creates the large decorative left panel used in the wide layout.
+  /// Features a gradient background, decorative circles, and an illustration.
   Widget _leftPanel() {
     return Container(
       decoration: const BoxDecoration(
@@ -174,7 +90,7 @@ class _LoginPageState extends State<LoginPage>
                 ),
                 const Spacer(),
                 // Tag line
-                Text(
+                const Text(
                   'Smart Restaurant\nManagement',
                   style: TextStyle(
                     fontSize: 28,
@@ -184,7 +100,7 @@ class _LoginPageState extends State<LoginPage>
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(
+                const Text(
                   'Manage orders, tables, kitchen & billing\n'
                   'all from one powerful dashboard.',
                   style: TextStyle(
@@ -208,6 +124,7 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
+  /// Creates the compact decorative top banner used in the narrow layout.
   Widget _topBanner() {
     return Container(
       width: double.infinity,
@@ -229,7 +146,7 @@ class _LoginPageState extends State<LoginPage>
               children: [
                 _restaurantIllustration(size: 80),
                 const SizedBox(height: 12),
-                Text(
+                const Text(
                   'Smart Restaurant Management',
                   style: TextStyle(
                     fontSize: 16,
@@ -246,11 +163,13 @@ class _LoginPageState extends State<LoginPage>
   }
 
   // ─────────────────────────── Form panel ─────────────────────────────────
-  Widget _formPanel() {
+  /// Builds the main login form containing the email, password, and action buttons.
+  /// Uses [FadeTransition] and [SlideTransition] to animate into view on load.
+  Widget _formPanel(LoginController controller) {
     return FadeTransition(
-      opacity: _fadeAnim,
+      opacity: controller.fadeAnim,
       child: SlideTransition(
-        position: _slideAnim,
+        position: controller.slideAnim,
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
@@ -259,12 +178,7 @@ class _LoginPageState extends State<LoginPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Logo + brand
-                  // Center(child: _logoWidget()),
-                  // const SizedBox(height: 28),
-
-                  // Welcome text
-                  Text(
+                  const Text(
                     'Welcome Back 👋',
                     style: TextStyle(
                       fontSize: 24,
@@ -287,7 +201,7 @@ class _LoginPageState extends State<LoginPage>
                   _label('Email Address'),
                   const SizedBox(height: 8),
                   _inputField(
-                    controller: _emailCtrl,
+                    controller: controller.emailCtrl,
                     hint: 'your@email.com',
                     icon: Icons.mail_outline_rounded,
                     keyboardType: TextInputType.emailAddress,
@@ -297,53 +211,54 @@ class _LoginPageState extends State<LoginPage>
                   // Password field
                   _label('Password'),
                   const SizedBox(height: 8),
-                  _inputField(
-                    controller: _passCtrl,
-                    hint: '••••••••',
-                    icon: Icons.lock_outline_rounded,
-                    obscure: _obscurePass,
-                    suffix: IconButton(
-                      icon: Icon(
-                        _obscurePass
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        size: 20,
-                        color: Colors.grey.shade500,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscurePass = !_obscurePass),
-                    ),
-                  ),
+                  // Obx() listens to observable variables inside it (like controller.obscurePass.value)
+                  // When the value changes, ONLY this widget rebuilds, not the whole page!
+                  Obx(() => _inputField(
+                        controller: controller.passCtrl,
+                        hint: '••••••••',
+                        icon: Icons.lock_outline_rounded,
+                        obscure: controller.obscurePass.value,
+                        suffix: IconButton(
+                          icon: Icon(
+                            controller.obscurePass.value
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            size: 20,
+                            color: Colors.grey.shade500,
+                          ),
+                          onPressed: controller.toggleObscure,
+                        ),
+                      )),
                   const SizedBox(height: 14),
 
                   // Remember me + Forgot
                   Row(
                     children: [
                       GestureDetector(
-                        onTap: () =>
-                            setState(() => _rememberMe = !_rememberMe),
+                        onTap: controller.toggleRememberMe,
                         child: Row(
                           children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: 20, height: 20,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(5),
-                                border: Border.all(
-                                  color: _rememberMe
-                                      ? _orange
-                                      : Colors.grey.shade400,
-                                  width: 1.5,
-                                ),
-                                color: _rememberMe
-                                    ? _orange
-                                    : Colors.transparent,
-                              ),
-                              child: _rememberMe
-                                  ? const Icon(Icons.check,
-                                      size: 13, color: Colors.white)
-                                  : null,
-                            ),
+                            Obx(() => AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  width: 20,
+                                  height: 20,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(5),
+                                    border: Border.all(
+                                      color: controller.rememberMe.value
+                                          ? _orange
+                                          : Colors.grey.shade400,
+                                      width: 1.5,
+                                    ),
+                                    color: controller.rememberMe.value
+                                        ? _orange
+                                        : Colors.transparent,
+                                  ),
+                                  child: controller.rememberMe.value
+                                      ? const Icon(Icons.check,
+                                          size: 13, color: Colors.white)
+                                      : null,
+                                )),
                             const SizedBox(width: 8),
                             Text(
                               'Remember me',
@@ -358,8 +273,8 @@ class _LoginPageState extends State<LoginPage>
                       ),
                       const Spacer(),
                       GestureDetector(
-                        onTap: () => _snack('Reset email sent (if exists).'),
-                        child: Text(
+                        onTap: controller.showResetPasswordMsg,
+                        child: const Text(
                           'Forgot Password?',
                           style: TextStyle(
                             fontSize: 13,
@@ -373,14 +288,15 @@ class _LoginPageState extends State<LoginPage>
                   const SizedBox(height: 28),
 
                   // Sign In button
-                  _loading
+                  // Another Obx() wrapper perfectly scoped just around the loading state.
+                  Obx(() => controller.loading.value
                       ? const Center(
                           child: CircularProgressIndicator(color: _orange))
                       : _primaryButton(
                           label: 'Sign In',
                           icon: Icons.login_rounded,
-                          onTap: _login,
-                        ),
+                          onTap: controller.login,
+                        )),
                   const SizedBox(height: 16),
 
                   // Divider
@@ -406,11 +322,7 @@ class _LoginPageState extends State<LoginPage>
                   // Sign Up button
                   _outlineButton(
                     label: "Don't have an account? Sign Up",
-                    onTap: () => Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => SignupScreenView()),
-                    ),
+                    onTap: () => Get.off(() => SignupScreenView()),
                   ),
 
                   const SizedBox(height: 32),
@@ -436,6 +348,7 @@ class _LoginPageState extends State<LoginPage>
   }
 
   // ─────────────────────────── Logo widget ────────────────────────────────
+  /// Builds a circular container wrapping the application logo image.
   Widget _logoWidget() {
     return Container(
       width: 80,
@@ -466,6 +379,8 @@ class _LoginPageState extends State<LoginPage>
   }
 
   // ─────────────────────────── Restaurant illustration ────────────────────
+  /// Builds a custom illustration utilizing Material icons inside a circular layout
+  /// to visually represent restaurant management.
   Widget _restaurantIllustration({double size = 140}) {
     return Container(
       width: size,
@@ -503,7 +418,7 @@ class _LoginPageState extends State<LoginPage>
                   Container(
                     width: size * 0.18,
                     height: size * 0.18,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: _orange,
                       shape: BoxShape.circle,
                     ),
@@ -522,6 +437,7 @@ class _LoginPageState extends State<LoginPage>
   }
 
   // ─────────────────────────── Decorative circles ─────────────────────────
+  /// Generates a list of floating decorative circles used in the background panels.
   List<Widget> _decorCircles() {
     return [
       _circle(top: -30, right: -30, size: 140,
@@ -535,6 +451,7 @@ class _LoginPageState extends State<LoginPage>
     ];
   }
 
+  /// Helper method to create a single positioned decorative circle.
   Widget _circle({
     double? top, double? bottom, double? left, double? right,
     required double size, required Color color,
@@ -551,6 +468,7 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
+  /// Creates a small dot used as a decorative indicator in the left panel.
   Widget _dot(bool active) => AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         margin: const EdgeInsets.only(right: 6),
@@ -563,15 +481,18 @@ class _LoginPageState extends State<LoginPage>
       );
 
   // ─────────────────────────── Form helpers ────────────────────────────────
+  /// Helper method to create a styled label text widget for form fields.
   Widget _label(String text) => Text(
         text,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 13,
           fontFamily: fontMulishSemiBold,
           color: _navy,
         ),
       );
 
+  /// Helper method to build a styled [TextField] with standardized borders,
+  /// padding, and icons.
   Widget _inputField({
     required TextEditingController controller,
     required String hint,
@@ -584,7 +505,7 @@ class _LoginPageState extends State<LoginPage>
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboardType,
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: 14,
         fontFamily: fontMulishRegular,
         color: _navy,
@@ -618,6 +539,7 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
+  /// Helper method to build the primary filled action button (e.g., 'Sign In').
   Widget _primaryButton({
     required String label,
     required IconData icon,
@@ -630,7 +552,7 @@ class _LoginPageState extends State<LoginPage>
         icon: Icon(icon, size: 18),
         label: Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 15,
             fontFamily: fontMulishSemiBold,
           ),
@@ -649,6 +571,7 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
+  /// Helper method to build an outlined action button (e.g., 'Sign Up').
   Widget _outlineButton({
     required String label,
     required VoidCallback onTap,
@@ -667,7 +590,7 @@ class _LoginPageState extends State<LoginPage>
         ),
         child: Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 14,
             fontFamily: fontMulishSemiBold,
             color: _orange,

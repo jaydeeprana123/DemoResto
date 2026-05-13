@@ -1,139 +1,51 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/Screens/Authentication/LoginScreenView.dart';
-import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 import '../../Styles/my_font.dart';
+import 'SignupController.dart';
 
-// ── Brand colours (same as LoginScreenView) ───────────────────────────────
+// ── Brand colours ───────────────────────────────
 const _navy   = Color(0xFF1A3A5C);
 const _navyDk = Color(0xFF0D2137);
 const _orange = Color(0xFFf57c35);
 const _green  = Color(0xFF4CAF50);
 
-class SignupScreenView extends StatefulWidget {
+/// The main view for the Signup Screen.
+/// This widget is Stateless because all changing state is handled by the SignupController.
+class SignupScreenView extends StatelessWidget {
   const SignupScreenView({super.key});
-  @override
-  State<SignupScreenView> createState() => _SignupScreenViewState();
-}
 
-class _SignupScreenViewState extends State<SignupScreenView>
-    with SingleTickerProviderStateMixin {
-  final _nameCtrl    = TextEditingController();
-  final _emailCtrl   = TextEditingController();
-  final _passCtrl    = TextEditingController();
-  final _confirmCtrl = TextEditingController();
-  String _selectedRole = 'Staff';
-  final List<String> _roles = ['Admin', 'Staff'];
-  bool _loading        = false;
-  bool _obscurePass    = true;
-  bool _obscureConfirm = true;
-  bool _agreeTerms     = false;
-
-  late AnimationController _animCtrl;
-  late Animation<double> _fadeAnim;
-  late Animation<Offset> _slideAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _animCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _fadeAnim  = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.12),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut));
-    _animCtrl.forward();
-  }
-
-  @override
-  void dispose() {
-    _animCtrl.dispose();
-    _nameCtrl.dispose();
-    _emailCtrl.dispose();
-    _passCtrl.dispose();
-    _confirmCtrl.dispose();
-    super.dispose();
-  }
-
-  // ── Validation ────────────────────────────────────────────────────────
-  String? _validate() {
-    if (_nameCtrl.text.trim().isEmpty) return 'Please enter your full name.';
-    if (_emailCtrl.text.trim().isEmpty) return 'Please enter your email.';
-    if (!_emailCtrl.text.contains('@')) return 'Please enter a valid email.';
-    if (_passCtrl.text.length < 6)
-      return 'Password must be at least 6 characters.';
-    if (_passCtrl.text != _confirmCtrl.text) return 'Passwords do not match.';
-    if (!_agreeTerms) return 'Please agree to the terms to continue.';
-    return null;
-  }
-
-  Future<void> _register() async {
-    final err = _validate();
-    if (err != null) { _snack(err); return; }
-
-    setState(() => _loading = true);
-    try {
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailCtrl.text.trim(),
-        password: _passCtrl.text.trim(),
-      );
-      final user = cred.user;
-      if (user != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({
-          'name': _nameCtrl.text.trim(),
-          'email': user.email,
-          'role': _selectedRole,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const BottomNavigationView()),
-      );
-    } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Signup failed');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  void _snack(String msg) =>
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(msg)));
-
-  // ── Build ──────────────────────────────────────────────────────────────
+  /// Builds the signup screen UI depending on the screen size (tablet vs phone).
   @override
   Widget build(BuildContext context) {
+    // Get.put() creates the controller and keeps it ready for use across the screen.
+    final controller = Get.put(SignupController());
+    
     final isWide = MediaQuery.of(context).size.width > 700;
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
-      body: isWide ? _wideLayout() : _narrowLayout(),
+      body: isWide ? _wideLayout(controller) : _narrowLayout(controller),
     );
   }
 
-  Widget _wideLayout() => Row(
+  /// Creates a side-by-side layout for large screens like tablets.
+  Widget _wideLayout(SignupController controller) => Row(
         children: [
           Expanded(flex: 5, child: _leftPanel()),
-          Expanded(flex: 6, child: _formPanel()),
+          Expanded(flex: 6, child: _formPanel(controller)),
         ],
       );
 
-  Widget _narrowLayout() => SingleChildScrollView(
+  /// Creates a stacked layout for small screens like mobile phones.
+  Widget _narrowLayout(SignupController controller) => SingleChildScrollView(
         child: Column(
-          children: [_topBanner(), _formPanel()],
+          children: [_topBanner(), _formPanel(controller)],
         ),
       );
 
   // ── Left panel (navy) ─────────────────────────────────────────────────
+  /// Builds the large, decorative left-side panel seen on large screens.
   Widget _leftPanel() {
     return Container(
       decoration: const BoxDecoration(
@@ -154,7 +66,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
                 const Spacer(),
                 Center(child: _illustration()),
                 const Spacer(),
-                Text(
+                const Text(
                   'Join Flavor Flow\nToday',
                   style: TextStyle(
                     fontSize: 28,
@@ -164,7 +76,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(
+                const Text(
                   'Set up your restaurant in minutes.\n'
                   'Manage orders, staff, tables & billing\n'
                   'all from one smart dashboard.',
@@ -196,7 +108,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
                           const SizedBox(width: 12),
                           Text(
                             f.$1,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 13,
                               fontFamily: fontMulishSemiBold,
                               color: Colors.white70,
@@ -216,6 +128,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
     );
   }
 
+  /// Builds a small, decorative banner seen on the top of mobile screens.
   Widget _topBanner() => Container(
         width: double.infinity,
         height: 200,
@@ -236,7 +149,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
                 children: [
                   _illustration(size: 72),
                   const SizedBox(height: 12),
-                  Text(
+                  const Text(
                     'Create Your Account',
                     style: TextStyle(
                       fontSize: 16,
@@ -252,11 +165,13 @@ class _SignupScreenViewState extends State<SignupScreenView>
       );
 
   // ── Form panel (white) ────────────────────────────────────────────────
-  Widget _formPanel() {
+  /// Builds the signup form containing inputs for name, email, password, and roles.
+  /// Uses animations to gracefully slide into view.
+  Widget _formPanel(SignupController controller) {
     return FadeTransition(
-      opacity: _fadeAnim,
+      opacity: controller.fadeAnim,
       child: SlideTransition(
-        position: _slideAnim,
+        position: controller.slideAnim,
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
@@ -265,12 +180,8 @@ class _SignupScreenViewState extends State<SignupScreenView>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Logo
-                  // Center(child: _logoWidget()),
-                  // const SizedBox(height: 24),
-
                   // Heading
-                  Text(
+                  const Text(
                     'Create Account ✨',
                     style: TextStyle(
                       fontSize: 24,
@@ -293,7 +204,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
                   _label('Full Name'),
                   const SizedBox(height: 8),
                   _inputField(
-                    controller: _nameCtrl,
+                    controller: controller.nameCtrl,
                     hint: 'John Doe',
                     icon: Icons.person_outline_rounded,
                     keyboardType: TextInputType.name,
@@ -304,7 +215,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
                   _label('Email Address'),
                   const SizedBox(height: 8),
                   _inputField(
-                    controller: _emailCtrl,
+                    controller: controller.emailCtrl,
                     hint: 'your@email.com',
                     icon: Icons.mail_outline_rounded,
                     keyboardType: TextInputType.emailAddress,
@@ -314,66 +225,64 @@ class _SignupScreenViewState extends State<SignupScreenView>
                   // Password
                   _label('Password'),
                   const SizedBox(height: 8),
-                  _inputField(
-                    controller: _passCtrl,
-                    hint: 'Min. 6 characters',
-                    icon: Icons.lock_outline_rounded,
-                    obscure: _obscurePass,
-                    suffix: IconButton(
-                      icon: Icon(
-                        _obscurePass
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        size: 20,
-                        color: Colors.grey.shade500,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscurePass = !_obscurePass),
-                    ),
-                  ),
+                  Obx(() => _inputField(
+                        controller: controller.passCtrl,
+                        hint: 'Min. 6 characters',
+                        icon: Icons.lock_outline_rounded,
+                        obscure: controller.obscurePass.value,
+                        suffix: IconButton(
+                          icon: Icon(
+                            controller.obscurePass.value
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            size: 20,
+                            color: Colors.grey.shade500,
+                          ),
+                          onPressed: controller.toggleObscurePass,
+                        ),
+                      )),
                   const SizedBox(height: 16),
 
                   // Confirm Password
                   _label('Confirm Password'),
                   const SizedBox(height: 8),
-                  _inputField(
-                    controller: _confirmCtrl,
-                    hint: 'Re-enter password',
-                    icon: Icons.lock_outline_rounded,
-                    obscure: _obscureConfirm,
-                    suffix: IconButton(
-                      icon: Icon(
-                        _obscureConfirm
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        size: 20,
-                        color: Colors.grey.shade500,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscureConfirm = !_obscureConfirm),
-                    ),
-                  ),
+                  Obx(() => _inputField(
+                        controller: controller.confirmCtrl,
+                        hint: 'Re-enter password',
+                        icon: Icons.lock_outline_rounded,
+                        obscure: controller.obscureConfirm.value,
+                        suffix: IconButton(
+                          icon: Icon(
+                            controller.obscureConfirm.value
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            size: 20,
+                            color: Colors.grey.shade500,
+                          ),
+                          onPressed: controller.toggleObscureConfirm,
+                        ),
+                      )),
                   const SizedBox(height: 16),
 
                   // Role selector
                   _label('Account Role'),
                   const SizedBox(height: 8),
-                  _roleSelector(),
+                  _roleSelector(controller),
                   const SizedBox(height: 20),
 
                   // Agree to terms
-                  _termsRow(),
+                  _termsRow(controller),
                   const SizedBox(height: 24),
 
                   // Create Account button
-                  _loading
+                  Obx(() => controller.loading.value
                       ? const Center(
                           child: CircularProgressIndicator(color: _orange))
                       : _primaryButton(
                           label: 'Create Account',
                           icon: Icons.person_add_alt_1_rounded,
-                          onTap: _register,
-                        ),
+                          onTap: controller.register,
+                        )),
                   const SizedBox(height: 16),
 
                   // Divider
@@ -396,10 +305,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
                   // Back to login
                   _outlineButton(
                     label: 'Already have an account? Sign In',
-                    onTap: () => Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginPage()),
-                    ),
+                    onTap: () => Get.off(() => const LoginPage()),
                   ),
                   const SizedBox(height: 28),
 
@@ -423,58 +329,62 @@ class _SignupScreenViewState extends State<SignupScreenView>
   }
 
   // ── Role selector pills ───────────────────────────────────────────────
-  Widget _roleSelector() {
+  /// Builds the clickable buttons to choose between "Admin" and "Staff".
+  Widget _roleSelector(SignupController controller) {
     return Row(
-      children: _roles.map((role) {
-        final selected = _selectedRole == role;
-        final isAdmin  = role == 'Admin';
-        final selColor = isAdmin ? _navy : _orange;
+      children: controller.roles.map((role) {
         return Expanded(
           child: GestureDetector(
-            onTap: () => setState(() => _selectedRole = role),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              margin: EdgeInsets.only(right: isAdmin ? 8 : 0),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                color: selected ? selColor : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: selected ? selColor : Colors.grey.shade200,
-                  width: 1.5,
+            onTap: () => controller.selectRole(role),
+            child: Obx(() {
+              final selected = controller.selectedRole.value == role;
+              final isAdmin  = role == 'Admin';
+              final selColor = isAdmin ? _navy : _orange;
+              
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: EdgeInsets.only(right: isAdmin ? 8 : 0),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: selected ? selColor : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: selected ? selColor : Colors.grey.shade200,
+                    width: 1.5,
+                  ),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                            color: selColor.withOpacity(0.25),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          )
+                        ]
+                      : [],
                 ),
-                boxShadow: selected
-                    ? [
-                        BoxShadow(
-                          color: selColor.withOpacity(0.25),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        )
-                      ]
-                    : [],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    isAdmin
-                        ? Icons.admin_panel_settings_outlined
-                        : Icons.badge_outlined,
-                    size: 18,
-                    color: selected ? Colors.white : Colors.grey.shade500,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    role,
-                    style: TextStyle(
-                      fontFamily: fontMulishSemiBold,
-                      fontSize: 14,
-                      color: selected ? Colors.white : Colors.grey.shade600,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      isAdmin
+                          ? Icons.admin_panel_settings_outlined
+                          : Icons.badge_outlined,
+                      size: 18,
+                      color: selected ? Colors.white : Colors.grey.shade500,
                     ),
-                  ),
-                ],
-              ),
-            ),
+                    const SizedBox(width: 8),
+                    Text(
+                      role,
+                      style: TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 14,
+                        color: selected ? Colors.white : Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
           ),
         );
       }).toList(),
@@ -482,27 +392,28 @@ class _SignupScreenViewState extends State<SignupScreenView>
   }
 
   // ── Agree-to-terms row ────────────────────────────────────────────────
-  Widget _termsRow() {
+  /// Builds the checkbox and text asking the user to agree to Terms and Privacy Policy.
+  Widget _termsRow(SignupController controller) {
     return GestureDetector(
-      onTap: () => setState(() => _agreeTerms = !_agreeTerms),
+      onTap: controller.toggleTerms,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: 20, height: 20,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(5),
-              border: Border.all(
-                color: _agreeTerms ? _orange : Colors.grey.shade400,
-                width: 1.5,
-              ),
-              color: _agreeTerms ? _orange : Colors.transparent,
-            ),
-            child: _agreeTerms
-                ? const Icon(Icons.check, size: 13, color: Colors.white)
-                : null,
-          ),
+          Obx(() => AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 20, height: 20,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(
+                    color: controller.agreeTerms.value ? _orange : Colors.grey.shade400,
+                    width: 1.5,
+                  ),
+                  color: controller.agreeTerms.value ? _orange : Colors.transparent,
+                ),
+                child: controller.agreeTerms.value
+                    ? const Icon(Icons.check, size: 13, color: Colors.white)
+                    : null,
+              )),
           const SizedBox(width: 10),
           Expanded(
             child: RichText(
@@ -513,7 +424,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
                   color: Colors.grey.shade600,
                   fontFamily: fontMulishRegular,
                 ),
-                children: [
+                children: const [
                   TextSpan(
                     text: 'Terms of Service',
                     style: TextStyle(
@@ -540,33 +451,8 @@ class _SignupScreenViewState extends State<SignupScreenView>
     );
   }
 
-  // ── Logo widget ───────────────────────────────────────────────────────
-  Widget _logoWidget() {
-    return Container(
-      width: 80, height: 80,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withOpacity(0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ClipOval(
-        child: Image.asset(
-          'assets/images/logo.png',
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) =>
-              const Icon(Icons.restaurant, size: 40, color: _orange),
-        ),
-      ),
-    );
-  }
-
   // ── Illustration ──────────────────────────────────────────────────────
+  /// Builds a visual circle filled with restaurant and tech icons.
   Widget _illustration({double size = 140}) {
     return Container(
       width: size, height: size,
@@ -597,7 +483,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
                   SizedBox(width: size * 0.05),
                   Container(
                     width: size * 0.18, height: size * 0.18,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                         color: _orange, shape: BoxShape.circle),
                     child: Icon(Icons.play_arrow,
                         color: Colors.white, size: size * 0.13),
@@ -614,6 +500,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
   }
 
   // ── Decorative circles ────────────────────────────────────────────────
+  /// Generates floating circles to decorate the background panel.
   List<Widget> _decorCircles() => [
         _circle(top: -30, right: -30, size: 140,
             color: Colors.white.withOpacity(0.04)),
@@ -625,6 +512,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
             color: Colors.white.withOpacity(0.04)),
       ];
 
+  /// Helper tool that draws a single circle based on size, color, and location.
   Widget _circle({
     double? top, double? bottom, double? left, double? right,
     required double size, required Color color,
@@ -637,6 +525,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
         ),
       );
 
+  /// Draws a small horizontal indicator bar.
   Widget _dot(bool active) => AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         margin: const EdgeInsets.only(right: 6),
@@ -649,15 +538,17 @@ class _SignupScreenViewState extends State<SignupScreenView>
       );
 
   // ── Shared form widgets ───────────────────────────────────────────────
+  /// Reusable tool that creates the small text label directly above an input box.
   Widget _label(String text) => Text(
         text,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 13,
           fontFamily: fontMulishSemiBold,
           color: _navy,
         ),
       );
 
+  /// Reusable tool that creates a standardized, good-looking text field.
   Widget _inputField({
     required TextEditingController controller,
     required String hint,
@@ -670,7 +561,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
         controller: controller,
         obscureText: obscure,
         keyboardType: keyboardType,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 14,
           fontFamily: fontMulishRegular,
           color: _navy,
@@ -703,6 +594,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
         ),
       );
 
+  /// Reusable tool that creates the main action buttons (like "Sign Up") with a solid orange fill.
   Widget _primaryButton({
     required String label,
     required IconData icon,
@@ -714,7 +606,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
           onPressed: onTap,
           icon: Icon(icon, size: 18),
           label: Text(label,
-              style: TextStyle(
+              style: const TextStyle(
                   fontSize: 15, fontFamily: fontMulishSemiBold)),
           style: ElevatedButton.styleFrom(
             backgroundColor: _orange,
@@ -728,6 +620,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
         ),
       );
 
+  /// Reusable tool that creates an outlined button (like "Back to Login") with a white background.
   Widget _outlineButton({
     required String label,
     required VoidCallback onTap,
@@ -744,7 +637,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
             foregroundColor: _orange,
           ),
           child: Text(label,
-              style: TextStyle(
+              style: const TextStyle(
                   fontSize: 14,
                   fontFamily: fontMulishSemiBold,
                   color: _orange)),

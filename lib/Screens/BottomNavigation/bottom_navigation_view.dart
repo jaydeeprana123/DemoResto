@@ -3,7 +3,7 @@ import 'package:demo/AddCategoryPage.dart';
 import 'package:demo/AddTablePage.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
-import 'package:demo/TransactionsPage.dart';
+import 'package:demo/ReportsPage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,7 +30,7 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
     AddTablePage(),
     AddCategoryPage(),
     KitchenOrdersListView(),
-    TransactionsPage(),
+    const ReportsPage(),
   ];
 
   final tabsForStaff = [
@@ -129,12 +129,12 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
                 activeIcon: Icon(Icons.soup_kitchen_rounded, size: 26),
                 label: "Kitchen",
               ),
-              // Transactions — Admin only
+              // Reports (Transactions & Expenses) — Admin only
               if (isAdmin)
                 const BottomNavigationBarItem(
-                  icon: Icon(Icons.receipt_long_rounded, size: 24),
-                  activeIcon: Icon(Icons.receipt_long_rounded, size: 26),
-                  label: "Transactions",
+                  icon: Icon(Icons.analytics_rounded, size: 24),
+                  activeIcon: Icon(Icons.analytics_rounded, size: 26),
+                  label: "Reports",
                 ),
             ],
             onTap: (index) => setState(() => _currentIndex = index),
