@@ -50,3 +50,4 @@ const primary_color_transparent = Color(0x19B7410E);
 
 const text_color = Color(0xFF212121);
 const secondary_text_color = Color(0xFF424242);
+const orange = Color(0xFFf57c35);

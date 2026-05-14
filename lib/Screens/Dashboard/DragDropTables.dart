@@ -602,17 +602,25 @@ class DragListBetweenTables extends StatelessWidget {
               initialItems: const [],
               showBilling: true,
               isFromFinalBilling: false,
-              onConfirm:
-                  (selectedItems, isBillPaid, tName, overallRemarks) async {
-                    groups.add(selectedItems);
-                    controller.tables.refresh();
-                    await controller.updateTableItemsInFirestore(
-                      tName,
-                      groups,
-                      isBillPaid,
-                      overallRemarks,
-                    );
-                  },
+              onConfirm: (selectedItems, isBillPaid, tName, overallRemarks) async {
+                if (isBillPaid) {
+                  groups.clear();
+                } else {
+                  // If it's a new group of items
+                  groups.add(selectedItems);
+                }
+                controller.tables.refresh();
+                await controller.updateTableItemsInFirestore(
+                  tName,
+                  groups,
+                  isBillPaid,
+                  overallRemarks,
+                );
+
+                if (isTakeAway && groups.isEmpty) {
+                  await controller.deleteTable(docId);
+                }
+              },
             ),
           );
           return;
@@ -628,13 +636,18 @@ class DragListBetweenTables extends StatelessWidget {
             totalMenuList: controller.menu,
             tableName: tableName,
             onConfirm: (confirmedItems) async {
-              controller.tables[tableName] = [confirmedItems];
+              // For final billing, if items are empty, we clear the table
+              if (confirmedItems.isEmpty) {
+                groups.clear();
+              } else {
+                groups.clear();
+                groups.add(confirmedItems);
+              }
+              
               controller.tables.refresh();
-              await controller.updateTableItemsInFirestore(tableName, [
-                confirmedItems,
-              ], false);
+              await controller.updateTableItemsInFirestore(tableName, groups, false);
 
-              if (isTakeAway && confirmedItems.isEmpty) {
+              if (isTakeAway && groups.isEmpty) {
                 await controller.deleteTable(docId);
               }
             },
@@ -703,17 +716,23 @@ class DragListBetweenTables extends StatelessWidget {
                           ),
                           showBilling: groups.length == 1,
                           isFromFinalBilling: false,
-                          onConfirm:
-                              (items, isBillPaid, tName, overallRemarks) async {
-                                groups[groups.length - 1] = items;
-                                controller.tables.refresh();
-                                await controller.updateTableItemsInFirestore(
-                                  tName,
-                                  groups,
-                                  isBillPaid,
-                                  overallRemarks,
-                                );
-                              },
+                          onConfirm: (items, isBillPaid, tName, overallRemarks) async {
+                            if (isBillPaid) {
+                              groups.clear();
+                            } else {
+                              groups[groups.length - 1] = items;
+                            }
+                            controller.tables.refresh();
+                            await controller.updateTableItemsInFirestore(
+                              tName,
+                              groups,
+                              isBillPaid,
+                              overallRemarks,
+                            );
+                            if (isTakeAway && groups.isEmpty) {
+                              await controller.deleteTable(docId);
+                            }
+                          },
                         ),
                       );
                     }),
@@ -727,17 +746,23 @@ class DragListBetweenTables extends StatelessWidget {
                           initialItems: const [],
                           showBilling: !hasItems,
                           isFromFinalBilling: false,
-                          onConfirm:
-                              (items, isBillPaid, tName, overallRemarks) async {
-                                groups.add(items);
-                                controller.tables.refresh();
-                                await controller.updateTableItemsInFirestore(
-                                  tName,
-                                  groups,
-                                  isBillPaid,
-                                  overallRemarks,
-                                );
-                              },
+                          onConfirm: (items, isBillPaid, tName, overallRemarks) async {
+                            if (isBillPaid) {
+                              groups.clear();
+                            } else {
+                              groups.add(items);
+                            }
+                            controller.tables.refresh();
+                            await controller.updateTableItemsInFirestore(
+                              tName,
+                              groups,
+                              isBillPaid,
+                              overallRemarks,
+                            );
+                            if (isTakeAway && groups.isEmpty) {
+                              await controller.deleteTable(docId);
+                            }
+                          },
                         ),
                       );
                     }),
