@@ -1,3 +1,4 @@
+import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/AddCategoryPage.dart' hide AddTablePage;
 import 'package:demo/AddMenuItemPage.dart';
@@ -170,41 +171,50 @@ class DragListBetweenTables extends StatelessWidget {
               _buildTabBar(),
               Expanded(
                 // Obx() wraps the grid, so it automatically rebuilds when the tables update
-                child: Obx(() => controller.tables.isEmpty
-                    ? _buildEmptyState()
-                    : RefreshIndicator(
-                        color: _orange,
-                        onRefresh: () async => controller.loadMenu(),
-                        child: MasonryGridView.count(
-                          crossAxisCount: crossCols,
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
-                          padding: EdgeInsets.fromLTRB(
-                            screenW > 900 ? 16 : 8,
-                            8,
-                            screenW > 900 ? 16 : 8,
-                            100,
+                child: Obx(
+                  () => controller.tables.isEmpty
+                      ? _buildEmptyState()
+                      : RefreshIndicator(
+                          color: _orange,
+                          onRefresh: () async => controller.loadMenu(),
+                          child: MasonryGridView.count(
+                            crossAxisCount: crossCols,
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            padding: EdgeInsets.fromLTRB(
+                              screenW > 900 ? 16 : 8,
+                              8,
+                              screenW > 900 ? 16 : 8,
+                              100,
+                            ),
+                            itemCount: controller.filteredTableKeys.length,
+                            itemBuilder: (context, index) {
+                              final tableName = controller.filteredTableKeys
+                                  .elementAt(index);
+                              final groups = controller.tables[tableName]!;
+                              return _buildTableCard(
+                                context,
+                                tableName,
+                                groups,
+                              );
+                            },
                           ),
-                          itemCount: controller.filteredTableKeys.length,
-                          itemBuilder: (context, index) {
-                            final tableName = controller.filteredTableKeys.elementAt(index);
-                            final groups = controller.tables[tableName]!;
-                            return _buildTableCard(context, tableName, groups);
-                          },
                         ),
-                      )),
+                ),
               ),
             ],
           ),
           // Obx() wraps the loading spinner to automatically show/hide it
-          Obx(() => controller.isLoading.value
-              ? Container(
-                  color: Colors.black12,
-                  child: const Center(
-                    child: CircularProgressIndicator(color: _orange),
-                  ),
-                )
-              : const SizedBox.shrink()),
+          Obx(
+            () => controller.isLoading.value
+                ? Container(
+                    color: Colors.black12,
+                    child: const Center(
+                      child: CircularProgressIndicator(color: _orange),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
       floatingActionButton: _buildFab(context),
@@ -261,14 +271,16 @@ class DragListBetweenTables extends StatelessWidget {
             color: Colors.white.withOpacity(0.12),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: Obx(() => Text(
-            '${controller.filteredTableKeys.length} tables',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-              fontFamily: fontMulishSemiBold,
+          child: Obx(
+            () => Text(
+              '${controller.filteredTableKeys.length} tables',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontFamily: fontMulishSemiBold,
+              ),
             ),
-          )),
+          ),
         ),
         IconButton(
           icon: const Icon(Icons.logout_rounded, color: Colors.white70),
@@ -383,27 +395,30 @@ class DragListBetweenTables extends StatelessWidget {
         style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 14),
       ),
       onPressed: () {
-        Get.to(() => MenuPage(
-          menuList: controller.menu,
-          tableName: "Take Away ${controller.tableNo.value + 1}",
-          tableNameEditable: true,
-          initialItems: const [],
-          showBilling: true,
-          isFromFinalBilling: false,
-          onConfirm: (
-            List<Map<String, dynamic>> selectedItems,
-            bool isBillPaid,
-            String tableName,
-            String overallRemarks,
-          ) async {
-            await controller.addTableAndUpdateItems(
-              tableName,
-              selectedItems,
-              isBillPaid,
-              overallRemarks,
-            );
-          },
-        ));
+        Get.to(
+          () => MenuPage(
+            menuList: controller.menu,
+            tableName: "Take Away ${controller.tableNo.value + 1}",
+            tableNameEditable: true,
+            initialItems: const [],
+            showBilling: true,
+            isFromFinalBilling: false,
+            onConfirm:
+                (
+                  List<Map<String, dynamic>> selectedItems,
+                  bool isBillPaid,
+                  String tableName,
+                  String overallRemarks,
+                ) async {
+                  await controller.addTableAndUpdateItems(
+                    tableName,
+                    selectedItems,
+                    isBillPaid,
+                    overallRemarks,
+                  );
+                },
+          ),
+        );
       },
     );
   }
@@ -474,7 +489,11 @@ class DragListBetweenTables extends StatelessWidget {
                 controller.tables[tableName]!,
                 sourcePaidStatus,
               );
-              await controller.updateTableItemsInFirestore(sourceTable, [], false);
+              await controller.updateTableItemsInFirestore(
+                sourceTable,
+                [],
+                false,
+              );
 
               Get.snackbar(
                 'Success',
@@ -565,51 +584,62 @@ class DragListBetweenTables extends StatelessWidget {
             if (isTakeAway) {
               await controller.deleteTable(docId);
             } else {
-              await controller.updateTableItemsInFirestore(tableName, [], false);
+              await controller.updateTableItemsInFirestore(
+                tableName,
+                [],
+                false,
+              );
             }
           });
           return;
         }
         if (!hasItems) {
-          Get.to(() => MenuPage(
-            menuList: controller.menu,
-            tableName: tableName,
-            tableNameEditable: false,
-            initialItems: const [],
-            showBilling: true,
-            isFromFinalBilling: false,
-            onConfirm: (selectedItems, isBillPaid, tName, overallRemarks) async {
-              groups.add(selectedItems);
-              controller.tables.refresh();
-              await controller.updateTableItemsInFirestore(
-                tName,
-                groups,
-                isBillPaid,
-                overallRemarks,
-              );
-            },
-          ));
+          Get.to(
+            () => MenuPage(
+              menuList: controller.menu,
+              tableName: tableName,
+              tableNameEditable: false,
+              initialItems: const [],
+              showBilling: true,
+              isFromFinalBilling: false,
+              onConfirm:
+                  (selectedItems, isBillPaid, tName, overallRemarks) async {
+                    groups.add(selectedItems);
+                    controller.tables.refresh();
+                    await controller.updateTableItemsInFirestore(
+                      tName,
+                      groups,
+                      isBillPaid,
+                      overallRemarks,
+                    );
+                  },
+            ),
+          );
           return;
         }
-        
+
         final merged = controller.mergeItemsByNameAndCategory(
           groups.expand((g) => g).toList(),
         );
-        
-        Get.to(() => FinalBillingView(
-          menuData: merged,
-          totalMenuList: controller.menu,
-          tableName: tableName,
-          onConfirm: (confirmedItems) async {
-            controller.tables[tableName] = [confirmedItems];
-            controller.tables.refresh();
-            await controller.updateTableItemsInFirestore(tableName, [confirmedItems], false);
-            
-            if (isTakeAway && confirmedItems.isEmpty) {
-              await controller.deleteTable(docId);
-            }
-          },
-        ));
+
+        Get.to(
+          () => FinalBillingView(
+            menuData: merged,
+            totalMenuList: controller.menu,
+            tableName: tableName,
+            onConfirm: (confirmedItems) async {
+              controller.tables[tableName] = [confirmedItems];
+              controller.tables.refresh();
+              await controller.updateTableItemsInFirestore(tableName, [
+                confirmedItems,
+              ], false);
+
+              if (isTakeAway && confirmedItems.isEmpty) {
+                await controller.deleteTable(docId);
+              }
+            },
+          ),
+        );
       },
       child: Container(
         decoration: BoxDecoration(
@@ -663,45 +693,53 @@ class DragListBetweenTables extends StatelessWidget {
                   if (hasItems && !isPaid)
                     _cardIconBtn(Icons.edit_outlined, () {
                       final lastGroup = groups.last;
-                      Get.to(() => MenuPage(
-                        menuList: controller.menu,
-                        tableName: tableName,
-                        tableNameEditable: false,
-                        initialItems: List<Map<String, dynamic>>.from(lastGroup),
-                        showBilling: groups.length == 1,
-                        isFromFinalBilling: false,
-                        onConfirm: (items, isBillPaid, tName, overallRemarks) async {
-                          groups[groups.length - 1] = items;
-                          controller.tables.refresh();
-                          await controller.updateTableItemsInFirestore(
-                            tName,
-                            groups,
-                            isBillPaid,
-                            overallRemarks,
-                          );
-                        },
-                      ));
+                      Get.to(
+                        () => MenuPage(
+                          menuList: controller.menu,
+                          tableName: tableName,
+                          tableNameEditable: false,
+                          initialItems: List<Map<String, dynamic>>.from(
+                            lastGroup,
+                          ),
+                          showBilling: groups.length == 1,
+                          isFromFinalBilling: false,
+                          onConfirm:
+                              (items, isBillPaid, tName, overallRemarks) async {
+                                groups[groups.length - 1] = items;
+                                controller.tables.refresh();
+                                await controller.updateTableItemsInFirestore(
+                                  tName,
+                                  groups,
+                                  isBillPaid,
+                                  overallRemarks,
+                                );
+                              },
+                        ),
+                      );
                     }),
                   if (!isPaid)
                     _cardIconBtn(Icons.add_circle_outline, () {
-                      Get.to(() => MenuPage(
-                        menuList: controller.menu,
-                        tableName: tableName,
-                        tableNameEditable: false,
-                        initialItems: const [],
-                        showBilling: !hasItems,
-                        isFromFinalBilling: false,
-                        onConfirm: (items, isBillPaid, tName, overallRemarks) async {
-                          groups.add(items);
-                          controller.tables.refresh();
-                          await controller.updateTableItemsInFirestore(
-                            tName,
-                            groups,
-                            isBillPaid,
-                            overallRemarks,
-                          );
-                        },
-                      ));
+                      Get.to(
+                        () => MenuPage(
+                          menuList: controller.menu,
+                          tableName: tableName,
+                          tableNameEditable: false,
+                          initialItems: const [],
+                          showBilling: !hasItems,
+                          isFromFinalBilling: false,
+                          onConfirm:
+                              (items, isBillPaid, tName, overallRemarks) async {
+                                groups.add(items);
+                                controller.tables.refresh();
+                                await controller.updateTableItemsInFirestore(
+                                  tName,
+                                  groups,
+                                  isBillPaid,
+                                  overallRemarks,
+                                );
+                              },
+                        ),
+                      );
                     }),
                   // PAID pill
                   if (isPaid)
@@ -802,16 +840,69 @@ class DragListBetweenTables extends StatelessWidget {
                               ),
                             );
                           }),
-                          if (gi < groups.length - 1)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: DottedLine(
-                                dashColor: Colors.grey.shade300,
-                                lineThickness: 1,
-                                dashLength: 4,
-                                dashGapLength: 4,
-                              ),
+
+                          // --- New Group Summary (Count + Time) ---
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4, bottom: 2),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '.' * 30,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade300,
+                                      fontSize: 10,
+                                      letterSpacing: 2,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.clip,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${group.length} Item${group.length != 1 ? 's' : ''}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey.shade500,
+                                    fontFamily: fontMulishSemiBold,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Builder(
+                                  builder: (context) {
+                                    String gTime = "";
+                                    if (group.isNotEmpty &&
+                                        group[0].containsKey('addedAt')) {
+                                      final addedAt = group[0]['addedAt'];
+                                      if (addedAt is Timestamp) {
+                                        gTime = DateFormat(
+                                          'hh:mm a',
+                                        ).format(addedAt.toDate());
+                                      }
+                                    }
+                                    return Text(
+                                      gTime,
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        color: Colors.grey.shade400,
+                                        fontFamily: fontMulishMedium,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
+                          ),
+                          // if (gi < groups.length - 1)
+                          //   Padding(
+                          //     padding: const EdgeInsets.symmetric(vertical: 8),
+                          //     child: DottedLine(
+                          //       dashColor: Colors.grey.shade300,
+                          //       lineThickness: 1,
+                          //       dashLength: 4,
+                          //       dashGapLength: 4,
+                          //     ),
+                          //   ),
                         ],
                       );
                     }),
