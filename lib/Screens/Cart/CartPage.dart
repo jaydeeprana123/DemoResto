@@ -271,9 +271,7 @@ class CartPage extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(12),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.05,
-                                      ),
+                                      color: Colors.black.withOpacity(0.05),
                                       blurRadius: 6,
                                       offset: const Offset(0, 2),
                                     ),
@@ -470,6 +468,7 @@ class CartPage extends StatelessWidget {
                           ),
                         ],
                       ),
+                    ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                   child: TextField(
@@ -690,6 +689,66 @@ class CartPage extends StatelessWidget {
     );
   }
 
+  Widget _billingSmallText(String label, String value) {
+    return Row(
+      children: [
+        Text("$label: ", style: const TextStyle(fontSize: 13, color: Colors.grey, fontFamily: fontMulishMedium)),
+        Text(value, style: const TextStyle(fontSize: 13, fontFamily: fontMulishBold, color: Color(0xFF1A3A5C))),
+      ],
+    );
+  }
+
+  Widget _billingField({required TextEditingController controller, required String label, required IconData icon, required Function(String) onChanged}) {
+    return TextField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      onChanged: onChanged,
+      style: const TextStyle(fontSize: 14, fontFamily: fontMulishBold, color: Color(0xFF1A3A5C)),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+        prefixIcon: Icon(icon, size: 14, color: const Color(0xFF1A3A5C).withOpacity(0.5)),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade200)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade200)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFf57c35))),
+      ),
+    );
+  }
+
+  Widget _paymentRadio(CartController controller, String mode) {
+    return Obx(() {
+      final isSelected = controller.paymentMode.value == mode;
+      return GestureDetector(
+        onTap: () {
+          controller.paymentMode.value = mode;
+          controller.updatePaymentAmounts();
+        },
+        child: Container(
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF1A3A5C) : Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: isSelected ? const Color(0xFF1A3A5C) : Colors.grey.shade300),
+          ),
+          child: Text(
+            mode,
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: fontMulishBold,
+              color: isSelected ? Colors.white : Colors.grey.shade600,
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+
   void _showBillingBottomSheet(
     BuildContext context,
     CartController controller,
@@ -697,100 +756,120 @@ class CartPage extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => Obx(() {
         return Padding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            left: 16,
-            right: 16,
-            top: 16,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            left: 20,
+            right: 20,
+            top: 24,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                "Billing Summary",
-                style: TextStyle(fontSize: 18, fontFamily: fontMulishBold),
-              ),
-              const Divider(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text("Subtotal"),
-                  Text("₹${controller.subtotal.toStringAsFixed(0)}"),
-                ],
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text("Tax (8.5%)"),
-                  Text("₹${controller.tax.round()}"),
-                ],
-              ),
-              const Divider(),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    "Grand Total",
-                    style: TextStyle(fontSize: 18, fontFamily: fontMulishBold),
+                    "Checkout",
+                    style: TextStyle(fontSize: 20, fontFamily: fontMulishBold, color: Color(0xFF1A3A5C)),
                   ),
-                  Text(
-                    "₹${controller.total}",
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontFamily: fontMulishBold,
-                    ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    icon: const Icon(Icons.close),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              const Text(
-                "Payment Mode",
-                style: TextStyle(fontFamily: fontMulishSemiBold),
-              ),
+              const SizedBox(height: 20),
+              
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Radio<String>(
-                    value: 'Cash',
-                    groupValue: controller.paymentMode.value,
-                    onChanged: (v) => controller.setPaymentMode(v!),
-                  ),
-                  const Text("Cash"),
-                  Radio<String>(
-                    value: 'Online',
-                    groupValue: controller.paymentMode.value,
-                    onChanged: (v) => controller.setPaymentMode(v!),
-                  ),
-                  const Text("Online"),
-                  Radio<String>(
-                    value: 'Both',
-                    groupValue: controller.paymentMode.value,
-                    onChanged: (v) => controller.setPaymentMode(v!),
-                  ),
-                  const Text("Both"),
+                  _billingSmallText("Subtotal", "₹${controller.subtotal.toStringAsFixed(0)}"),
+                  _billingSmallText("Tax", "₹${controller.tax.round()}"),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
+              
+              const Text("Select Payment Method", style: TextStyle(fontSize: 14, fontFamily: fontMulishBold, color: Color(0xFF1A3A5C))),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _paymentRadio(controller, 'Cash'),
+                  _paymentRadio(controller, 'Online'),
+                  _paymentRadio(controller, 'Both'),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              if (controller.paymentMode.value == 'Both')
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: Row(
+                    children: [
+                      Expanded(child: _billingField(controller: controller.cashController, label: "Cash ₹", icon: Icons.money, onChanged: (v) {
+                        int cashVal = int.tryParse(v) ?? 0;
+                        if (cashVal > controller.total) cashVal = controller.total;
+                        controller.cashController.text = cashVal.toString();
+                        controller.onlineController.text = (controller.total - cashVal).toString();
+                        controller.cashController.selection = TextSelection.fromPosition(TextPosition(offset: controller.cashController.text.length));
+                      })),
+                      const SizedBox(width: 12),
+                      Expanded(child: _billingField(controller: controller.onlineController, label: "Online ₹", icon: Icons.phone_android, onChanged: (v) {
+                        int onlineVal = int.tryParse(v) ?? 0;
+                        if (onlineVal > controller.total) onlineVal = controller.total;
+                        controller.onlineController.text = onlineVal.toString();
+                        controller.cashController.text = (controller.total - onlineVal).toString();
+                        controller.onlineController.selection = TextSelection.fromPosition(TextPosition(offset: controller.onlineController.text.length));
+                      })),
+                    ],
+                  ),
+                ),
+
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F6FA),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "Total Amount",
+                      style: TextStyle(fontSize: 14, fontFamily: fontMulishSemiBold, color: Colors.grey),
+                    ),
+                    Text(
+                      "₹${controller.total}",
+                      style: const TextStyle(fontSize: 22, fontFamily: fontMulishBold, color: Color(0xFF1A3A5C)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFf57c35),
-                  minimumSize: const Size(double.infinity, 50),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 54),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
                 ),
                 onPressed: () {
                   controller.isBilling.value = true;
                   Navigator.pop(ctx);
                 },
                 child: const Text(
-                  "Proceed to Checkout",
-                  style: TextStyle(color: Colors.white),
+                  "CONFIRM & PROCEED",
+                  style: TextStyle(fontFamily: fontMulishBold, fontSize: 16),
                 ),
               ),
-              const SizedBox(height: 20),
             ],
           ),
         );

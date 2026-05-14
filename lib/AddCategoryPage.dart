@@ -362,21 +362,3 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
     );
   }
 }
-id)
-                                    .delete();
-                              },
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

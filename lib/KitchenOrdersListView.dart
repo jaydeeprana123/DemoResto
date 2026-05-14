@@ -582,7 +582,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: isOld ? Colors.red.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05),
+                        color: isOld ? Colors.red.withOpacity(0.3) : Colors.black.withOpacity(0.05),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -695,9 +695,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFf57c35).withValues(alpha: 0.1),
+                                      color: const Color(0xFFf57c35).withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(color: const Color(0xFFf57c35).withValues(alpha: 0.3)),
+                                      border: Border.all(color: const Color(0xFFf57c35).withOpacity(0.3)),
                                     ),
                                     child: Text(
                                       "${qty}x",

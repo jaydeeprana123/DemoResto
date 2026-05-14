@@ -87,9 +87,7 @@ class MenuPage extends StatelessWidget {
                         height: 56 + (controller.currentAmplitude.value * 20),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.red.withValues(
-                            alpha: 0.15 + controller.currentAmplitude.value * 0.15,
-                          ),
+                          color: Colors.red.withOpacity(0.15 + controller.currentAmplitude.value * 0.15),
                         ),
                       ),
                     Icon(
@@ -465,12 +463,12 @@ class MenuPage extends StatelessWidget {
                       border: Border.all(
                         color: isSuggestion
                             ? Colors.orange.shade200
-                            : const Color(0xFF1A3A5C).withValues(alpha: 0.25),
+                            : const Color(0xFF1A3A5C).withOpacity(0.25),
                       ),
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
+                          color: Colors.black.withOpacity(0.04),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -513,12 +511,12 @@ class MenuPage extends StatelessWidget {
                                         decoration: BoxDecoration(
                                           color: isSuggestion
                                               ? Colors.orange.shade50
-                                              : const Color(0xFF1A3A5C).withValues(alpha: 0.08),
+                                              : const Color(0xFF1A3A5C).withOpacity(0.08),
                                           borderRadius: BorderRadius.circular(20),
                                           border: Border.all(
                                             color: isSuggestion
                                                 ? Colors.orange.shade300
-                                                : const Color(0xFF1A3A5C).withValues(alpha: 0.3),
+                                                : const Color(0xFF1A3A5C).withOpacity(0.3),
                                           ),
                                         ),
                                         child: Text(
@@ -650,7 +648,7 @@ class MenuPage extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: Colors.black.withOpacity(0.05),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),

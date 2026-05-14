@@ -13,7 +13,7 @@ class ExpensePage extends StatefulWidget {
 
 class _ExpensePageState extends State<ExpensePage> {
   final ExpenseService _expenseService = ExpenseService();
-  
+
   DateTime? fromDate;
   DateTime? toDate;
 
@@ -34,16 +34,16 @@ class _ExpensePageState extends State<ExpensePage> {
     final now = DateTime.now();
     fromDate = DateTime(now.year, now.month, 1);
     toDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
-    
+
     fromController.text = DateFormat("dd-MM-yyyy").format(fromDate!);
     toController.text = DateFormat("dd-MM-yyyy").format(toDate!);
-    
+
     fetchExpenses();
   }
 
   Future<void> fetchExpenses() async {
     if (fromDate == null || toDate == null) return;
-    
+
     setState(() {
       isLoading = true;
     });
@@ -61,9 +61,9 @@ class _ExpensePageState extends State<ExpensePage> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load expenses: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load expenses: $e')));
       }
     } finally {
       if (mounted) {
@@ -77,7 +77,7 @@ class _ExpensePageState extends State<ExpensePage> {
   Future<void> _pickDate({required bool isFrom}) async {
     final now = DateTime.now();
     final initial = isFrom ? (fromDate ?? now) : (toDate ?? fromDate ?? now);
-    
+
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -104,7 +104,14 @@ class _ExpensePageState extends State<ExpensePage> {
           fromController.text = DateFormat("dd-MM-yyyy").format(picked);
 
           if (toDate == null || toDate!.isBefore(fromDate!)) {
-            toDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+            toDate = DateTime(
+              picked.year,
+              picked.month,
+              picked.day,
+              23,
+              59,
+              59,
+            );
             toController.text = DateFormat("dd-MM-yyyy").format(toDate!);
           }
         } else {
@@ -126,7 +133,7 @@ class _ExpensePageState extends State<ExpensePage> {
     final _descController = TextEditingController();
     final _categoryController = TextEditingController();
     DateTime selectedDate = DateTime.now();
-    
+
     showDialog(
       context: context,
       builder: (context) {
@@ -135,10 +142,16 @@ class _ExpensePageState extends State<ExpensePage> {
             return AlertDialog(
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               title: Text(
                 'New Expense',
-                style: TextStyle(fontFamily: fontMulishBold, color: _navy, fontSize: 18),
+                style: TextStyle(
+                  fontFamily: fontMulishBold,
+                  color: _navy,
+                  fontSize: 18,
+                ),
               ),
               content: SingleChildScrollView(
                 child: Form(
@@ -162,14 +175,16 @@ class _ExpensePageState extends State<ExpensePage> {
                         controller: _descController,
                         label: 'Description',
                         icon: Icons.description_outlined,
-                        validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+                        validator: (val) =>
+                            val == null || val.isEmpty ? 'Required' : null,
                       ),
                       const SizedBox(height: 12),
                       _dialogField(
                         controller: _categoryController,
                         label: 'Category (e.g. Utility)',
                         icon: Icons.category_outlined,
-                        validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+                        validator: (val) =>
+                            val == null || val.isEmpty ? 'Required' : null,
                       ),
                       const SizedBox(height: 16),
                       InkWell(
@@ -182,7 +197,9 @@ class _ExpensePageState extends State<ExpensePage> {
                             builder: (context, child) {
                               return Theme(
                                 data: Theme.of(context).copyWith(
-                                  colorScheme: const ColorScheme.light(primary: _orange),
+                                  colorScheme: const ColorScheme.light(
+                                    primary: _orange,
+                                  ),
                                 ),
                                 child: child!,
                               );
@@ -193,7 +210,10 @@ class _ExpensePageState extends State<ExpensePage> {
                           }
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 14,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.grey.shade50,
                             borderRadius: BorderRadius.circular(12),
@@ -201,14 +221,26 @@ class _ExpensePageState extends State<ExpensePage> {
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.calendar_today_outlined, size: 18, color: Colors.grey.shade500),
+                              Icon(
+                                Icons.calendar_today_outlined,
+                                size: 18,
+                                color: Colors.grey.shade500,
+                              ),
                               const SizedBox(width: 12),
                               Text(
                                 "Date: ${DateFormat('dd MMM yyyy').format(selectedDate)}",
-                                style: const TextStyle(fontFamily: fontMulishMedium, fontSize: 14, color: _navy),
+                                style: const TextStyle(
+                                  fontFamily: fontMulishMedium,
+                                  fontSize: 14,
+                                  color: _navy,
+                                ),
                               ),
                               const Spacer(),
-                              Icon(Icons.edit_outlined, size: 16, color: _orange),
+                              Icon(
+                                Icons.edit_outlined,
+                                size: 16,
+                                color: _orange,
+                              ),
                             ],
                           ),
                         ),
@@ -220,13 +252,21 @@ class _ExpensePageState extends State<ExpensePage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text('Cancel', style: TextStyle(color: Colors.grey.shade600, fontFamily: fontMulishSemiBold)),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontFamily: fontMulishSemiBold,
+                    ),
+                  ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _orange,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     elevation: 0,
                   ),
                   onPressed: () async {
@@ -251,11 +291,14 @@ class _ExpensePageState extends State<ExpensePage> {
                       }
                     }
                   },
-                  child: const Text('Save Expense', style: TextStyle(fontFamily: fontMulishBold)),
+                  child: const Text(
+                    'Save Expense',
+                    style: TextStyle(fontFamily: fontMulishBold),
+                  ),
                 ),
               ],
             );
-          }
+          },
         );
       },
     );
@@ -271,17 +314,33 @@ class _ExpensePageState extends State<ExpensePage> {
     return TextFormField(
       controller: controller,
       keyboardType: kbType,
-      style: const TextStyle(fontFamily: fontMulishSemiBold, fontSize: 14, color: _navy),
+      style: const TextStyle(
+        fontFamily: fontMulishSemiBold,
+        fontSize: 14,
+        color: _navy,
+      ),
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, size: 20, color: Colors.grey.shade400),
         filled: true,
         fillColor: Colors.grey.shade50,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _orange, width: 1.5)),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _orange, width: 1.5),
+        ),
         labelStyle: TextStyle(color: Colors.grey.shade500, fontSize: 13),
       ),
     );
@@ -289,16 +348,20 @@ class _ExpensePageState extends State<ExpensePage> {
 
   Future<void> _exportToCsv() async {
     if (fromDate == null || toDate == null || expenses.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No expenses to export')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No expenses to export')));
       return;
     }
     try {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generating CSV...')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Generating CSV...')));
       await _expenseService.exportExpensesToCsv(fromDate!, toDate!);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
     }
   }
 
@@ -312,7 +375,11 @@ class _ExpensePageState extends State<ExpensePage> {
         iconTheme: const IconThemeData(color: _navy),
         title: const Text(
           "Manage Expenses",
-          style: TextStyle(fontFamily: fontMulishBold, color: _navy, fontSize: 18),
+          style: TextStyle(
+            fontFamily: fontMulishBold,
+            color: _navy,
+            fontSize: 18,
+          ),
         ),
         centerTitle: false,
         actions: [
@@ -327,7 +394,10 @@ class _ExpensePageState extends State<ExpensePage> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _orange,
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text("Add Expense", style: TextStyle(color: Colors.white, fontFamily: fontMulishBold)),
+        label: const Text(
+          "Add Expense",
+          style: TextStyle(color: Colors.white, fontFamily: fontMulishBold),
+        ),
         onPressed: _showAddExpenseDialog,
       ),
       body: Column(
@@ -338,21 +408,41 @@ class _ExpensePageState extends State<ExpensePage> {
             color: Colors.white,
             child: Row(
               children: [
-                Expanded(child: _dateFilterField(controller: fromController, label: "From Date", onTap: () => _pickDate(isFrom: true))),
+                Expanded(
+                  child: _dateFilterField(
+                    controller: fromController,
+                    label: "From Date",
+                    onTap: () => _pickDate(isFrom: true),
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: _dateFilterField(controller: toController, label: "To Date", onTap: () => _pickDate(isFrom: false))),
+                Expanded(
+                  child: _dateFilterField(
+                    controller: toController,
+                    label: "To Date",
+                    onTap: () => _pickDate(isFrom: false),
+                  ),
+                ),
               ],
             ),
           ),
-          
+
           // Summary Card
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [_navy, Color(0xFF2C537D)]),
+              gradient: const LinearGradient(
+                colors: [_navy, Color(0xFF2C537D)],
+              ),
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: _navy.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4))],
+              boxShadow: [
+                BoxShadow(
+                  color: _navy.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -360,14 +450,32 @@ class _ExpensePageState extends State<ExpensePage> {
                 const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Total Period Expenses", style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: fontMulishMedium)),
+                    Text(
+                      "Total Period Expenses",
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontFamily: fontMulishMedium,
+                      ),
+                    ),
                     SizedBox(height: 4),
-                    Text("Current Summary", style: TextStyle(color: Colors.white, fontSize: 16, fontFamily: fontMulishBold)),
+                    Text(
+                      "Current Summary",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontFamily: fontMulishBold,
+                      ),
+                    ),
                   ],
                 ),
                 Text(
                   "₹${totalExpenses.toStringAsFixed(0)}",
-                  style: const TextStyle(fontSize: 24, fontFamily: fontMulishBold, color: Colors.white),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontFamily: fontMulishBold,
+                    color: Colors.white,
+                  ),
                 ),
               ],
             ),
@@ -378,70 +486,128 @@ class _ExpensePageState extends State<ExpensePage> {
             child: isLoading
                 ? const Center(child: CircularProgressIndicator(color: _orange))
                 : expenses.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey.shade300),
-                            const SizedBox(height: 16),
-                            Text("No expenses recorded", style: TextStyle(color: Colors.grey.shade400, fontFamily: fontMulishSemiBold)),
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.receipt_long_outlined,
+                          size: 64,
+                          color: Colors.grey.shade300,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          "No expenses recorded",
+                          style: TextStyle(
+                            color: Colors.grey.shade400,
+                            fontFamily: fontMulishSemiBold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                    itemCount: expenses.length,
+                    itemBuilder: (context, index) {
+                      final expense = expenses[index];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.02),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
                           ],
                         ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
-                        itemCount: expenses.length,
-                        itemBuilder: (context, index) {
-                          final expense = expenses[index];
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 12),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          leading: Container(
+                            width: 44,
+                            height: 44,
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2))],
+                              color: Colors.red.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              leading: Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(color: Colors.red.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
-                                child: const Icon(Icons.outbound_rounded, color: Colors.redAccent, size: 22),
-                              ),
-                              title: Text(expense.description, style: const TextStyle(fontFamily: fontMulishBold, fontSize: 15, color: _navy)),
-                              subtitle: Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Text("${expense.category} • ${DateFormat('dd MMM').format(expense.date)}", 
-                                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontFamily: fontMulishRegular)),
-                              ),
-                              trailing: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text("₹${expense.amount.toStringAsFixed(0)}", style: const TextStyle(color: Colors.redAccent, fontFamily: fontMulishBold, fontSize: 16)),
-                                  const SizedBox(height: 4),
-                                  GestureDetector(
-                                    onTap: () => _deleteExpense(expense),
-                                    child: Icon(Icons.delete_outline_rounded, color: Colors.grey.shade400, size: 18),
-                                  )
-                                ],
+                            child: const Icon(
+                              Icons.outbound_rounded,
+                              color: Colors.redAccent,
+                              size: 22,
+                            ),
+                          ),
+                          title: Text(
+                            expense.description,
+                            style: const TextStyle(
+                              fontFamily: fontMulishBold,
+                              fontSize: 15,
+                              color: _navy,
+                            ),
+                          ),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              "${expense.category} • ${DateFormat('dd MMM').format(expense.date)}",
+                              style: TextStyle(
+                                color: Colors.grey.shade500,
+                                fontSize: 12,
+                                fontFamily: fontMulishRegular,
                               ),
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                "₹${expense.amount.toStringAsFixed(0)}",
+                                style: const TextStyle(
+                                  color: Colors.redAccent,
+                                  fontFamily: fontMulishBold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              GestureDetector(
+                                onTap: () => _deleteExpense(expense),
+                                child: Icon(
+                                  Icons.delete_outline_rounded,
+                                  color: Colors.grey.shade400,
+                                  size: 18,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
     );
   }
 
-  Widget _dateFilterField({required TextEditingController controller, required String label, required VoidCallback onTap}) {
+  Widget _dateFilterField({
+    required TextEditingController controller,
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return TextField(
       controller: controller,
       readOnly: true,
       onTap: onTap,
-      style: const TextStyle(fontSize: 13, fontFamily: fontMulishSemiBold, color: _navy),
+      style: const TextStyle(
+        fontSize: 13,
+        fontFamily: fontMulishSemiBold,
+        color: _navy,
+      ),
       decoration: InputDecoration(
         labelText: label,
         labelStyle: TextStyle(color: Colors.grey.shade500, fontSize: 12),
@@ -449,10 +615,22 @@ class _ExpensePageState extends State<ExpensePage> {
         filled: true,
         fillColor: Colors.grey.shade50,
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade200)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade200)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _orange, width: 1.5)),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 12,
+          horizontal: 12,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _orange, width: 1.5),
+        ),
       ),
     );
   }
@@ -464,25 +642,31 @@ class _ExpensePageState extends State<ExpensePage> {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Delete Expense', style: TextStyle(fontFamily: fontMulishBold, color: _navy)),
+        title: const Text(
+          'Delete Expense',
+          style: TextStyle(fontFamily: fontMulishBold, color: _navy),
+        ),
         content: Text('Remove expense of ₹${expense.amount}?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('No', style: TextStyle(color: Colors.grey.shade600))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('No', style: TextStyle(color: Colors.grey.shade600)),
+          ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(ctx, true), 
-            child: const Text('Delete')
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
           ),
         ],
-      )
+      ),
     );
     if (confirm == true && expense.id != null) {
       setState(() => isLoading = true);
       await _expenseService.deleteExpense(expense.id!);
       await fetchExpenses();
     }
-  }
-}
-
   }
 }
