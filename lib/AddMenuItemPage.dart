@@ -59,7 +59,60 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
     );
   }
 
-  // ── Helper: dark themed text field ──────────────────────────────────────
+  Future<void> _deleteMenuItem(String categoryId, String itemId, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          "Delete Item",
+          style: TextStyle(color: _navy, fontFamily: fontMulishBold),
+        ),
+        content: Text(
+          "Are you sure you want to delete '$name'?",
+          style: TextStyle(color: Colors.black87, fontFamily: fontMulishRegular),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text("Cancel",
+                style: TextStyle(color: Colors.grey.shade600, fontFamily: fontMulishSemiBold)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text("Delete",
+                style: TextStyle(fontFamily: fontMulishSemiBold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await FirebaseFirestore.instance
+          .collection('menus')
+          .doc(categoryId)
+          .collection('items')
+          .doc(itemId)
+          .delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Item '$name' deleted"),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+  }
+
+  // ── Helper: styled light themed text field ──────────────────────────────
   Widget _field({
     required TextEditingController controller,
     required String label,
@@ -67,35 +120,35 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
   }) {
-    return TextField(
+    return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       style: const TextStyle(
-        color: Colors.white,
+        color: _navy,
         fontFamily: fontMulishSemiBold,
         fontSize: 14,
       ),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(
-          color: Colors.white60,
-          fontFamily: fontMulishRegular,
+        labelStyle: TextStyle(
+          color: Colors.grey.shade500,
+          fontFamily: fontMulishMedium,
           fontSize: 13,
         ),
         hintText: hint,
-        hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
-        prefixIcon: Icon(icon, color: Colors.white54, size: 20),
+        hintStyle: TextStyle(color: Colors.grey.shade300, fontSize: 13),
+        prefixIcon: Icon(icon, color: Colors.grey.shade400, size: 20),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.08),
+        fillColor: Colors.grey.shade50,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -108,384 +161,391 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _navyDk,
+      backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
-        backgroundColor: _navy,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        iconTheme: const IconThemeData(color: _navy),
         title: Text(
-          "Add Menu Item",
+          "Manage Menu Items",
           style: TextStyle(
-            color: Colors.white,
+            color: _navy,
             fontSize: 18,
             fontFamily: fontMulishBold,
           ),
         ),
+        centerTitle: false,
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [_navy, _navyDk],
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Add Item Form Card ──────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: _cardBg,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.25),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "New Menu Item",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontFamily: fontMulishBold,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // ── Category Dropdown ───────────────────────────────
-                    StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('menus')
-                          .orderBy('createdAt', descending: false)
-                          .snapshots(),
-                      builder: (context, snapshot) {
-                        if (!snapshot.hasData) {
-                          return const Center(
-                              child:
-                                  CircularProgressIndicator(color: _orange));
-                        }
-
-                        final categories = snapshot.data!.docs;
-
-                        return DropdownButtonFormField<String>(
-                          dropdownColor: _cardBg,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontFamily: fontMulishSemiBold,
-                            fontSize: 14,
-                          ),
-                          iconEnabledColor: Colors.white54,
-                          decoration: InputDecoration(
-                            labelText: "Select Category",
-                            labelStyle: const TextStyle(
-                              color: Colors.white60,
-                              fontFamily: fontMulishRegular,
-                              fontSize: 13,
-                            ),
-                            prefixIcon: const Icon(
-                              Icons.category_outlined,
-                              color: Colors.white54,
-                              size: 20,
-                            ),
-                            filled: true,
-                            fillColor: Colors.white.withOpacity(0.08),
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 14),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                  color: Colors.white.withOpacity(0.2)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                  color: Colors.white.withOpacity(0.2)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                  color: _orange, width: 1.5),
-                            ),
-                          ),
-                          value: _selectedCategoryId,
-                          items: categories.map((doc) {
-                            return DropdownMenuItem<String>(
-                              value: doc.id,
-                              child: Text(
-                                doc['name'],
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontFamily: fontMulishSemiBold,
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedCategoryId = value;
-                              _selectedCategoryName =
-                                  categories.firstWhere(
-                                (doc) => doc.id == value,
-                              )['name'];
-                            });
-                          },
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // ── Item Name ───────────────────────────────────────
-                    _field(
-                      controller: _nameController,
-                      label: "Item Name",
-                      hint: "e.g. Chicken Biryani",
-                      icon: Icons.fastfood_outlined,
-                    ),
-                    const SizedBox(height: 12),
-
-                    // ── Price ───────────────────────────────────────────
-                    _field(
-                      controller: _priceController,
-                      label: "Price (₹)",
-                      hint: "e.g. 180",
-                      icon: Icons.currency_rupee,
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── Add Button ──────────────────────────────────────
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _addMenuItem,
-                        icon: const Icon(Icons.add, size: 18),
-                        label: Text(
-                          "Add Menu Item",
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontFamily: fontMulishSemiBold,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _orange,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          elevation: 4,
-                          shadowColor: _orange.withOpacity(0.4),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 8),
-                child: Text(
-                  "Menu by Category",
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontFamily: fontMulishSemiBold,
-                    letterSpacing: 0.5,
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Add Item Form Card ──────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
-                ),
+                ],
               ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Add New Item",
+                    style: TextStyle(
+                      color: _navy,
+                      fontSize: 15,
+                      fontFamily: fontMulishBold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
-              // ── Category + Items Expanded List ──────────────────────────
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('menus')
-                      .orderBy('createdAt', descending: false)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(
-                          child: CircularProgressIndicator(color: _orange));
-                    }
+                  // ── Category Dropdown ───────────────────────────────
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('menus')
+                        .orderBy('createdAt', descending: false)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(
+                            child:
+                                CircularProgressIndicator(color: _orange));
+                      }
 
-                    final categories = snapshot.data!.docs;
+                      final categories = snapshot.data!.docs;
 
-                    if (categories.isEmpty) {
-                      return Center(
-                        child: Text(
-                          "No categories found",
-                          style: TextStyle(
-                            color: Colors.white38,
-                            fontFamily: fontMulishRegular,
-                            fontSize: 15,
+                      return DropdownButtonFormField<String>(
+                        dropdownColor: Colors.white,
+                        elevation: 2,
+                        style: const TextStyle(
+                          color: _navy,
+                          fontFamily: fontMulishSemiBold,
+                          fontSize: 14,
+                        ),
+                        iconEnabledColor: Colors.grey.shade400,
+                        decoration: InputDecoration(
+                          labelText: "Select Category",
+                          labelStyle: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontFamily: fontMulishMedium,
+                            fontSize: 13,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.category_outlined,
+                            color: Colors.grey.shade400,
+                            size: 20,
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 16),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                                color: _orange, width: 1.5),
+                          ),
+                        ),
+                        value: _selectedCategoryId,
+                        items: categories.map((doc) {
+                          return DropdownMenuItem<String>(
+                            value: doc.id,
+                            child: Text(
+                              doc['name'],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCategoryId = value;
+                            _selectedCategoryName =
+                                categories.firstWhere(
+                              (doc) => doc.id == value,
+                            )['name'];
+                          });
+                        },
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ── Item Name ───────────────────────────────────────
+                  _field(
+                    controller: _nameController,
+                    label: "Item Name",
+                    hint: "e.g. Chicken Biryani",
+                    icon: Icons.fastfood_outlined,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ── Price ───────────────────────────────────────────
+                  _field(
+                    controller: _priceController,
+                    label: "Price (₹)",
+                    hint: "e.g. 180",
+                    icon: Icons.currency_rupee,
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Add Button ──────────────────────────────────────
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _addMenuItem,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: Text(
+                        "Add Menu Item",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontFamily: fontMulishBold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _orange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        elevation: 2,
+                        shadowColor: _orange.withOpacity(0.3),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: _orange,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "MENU BY CATEGORY",
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                      fontFamily: fontMulishBold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Category + Items Expanded List ──────────────────────────
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('menus')
+                    .orderBy('createdAt', descending: false)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(
+                        child: CircularProgressIndicator(color: _orange));
+                  }
+
+                  final categories = snapshot.data!.docs;
+
+                  if (categories.isEmpty) {
+                    return Center(
+                      child: Text(
+                        "No categories found",
+                        style: TextStyle(
+                          color: Colors.grey.shade400,
+                          fontFamily: fontMulishSemiBold,
+                          fontSize: 15,
+                        ),
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    itemCount: categories.length,
+                    padding: const EdgeInsets.only(bottom: 20),
+                    itemBuilder: (context, index) {
+                      final category = categories[index];
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.02),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Theme(
+                          data: Theme.of(context).copyWith(
+                            dividerColor: Colors.transparent,
+                          ),
+                          child: ExpansionTile(
+                            tilePadding:
+                                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            leading: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: _navy.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.folder_open_rounded,
+                                  color: _navy, size: 20),
+                            ),
+                            title: Text(
+                              category['name'],
+                              style: TextStyle(
+                                color: _navy,
+                                fontSize: 15,
+                                fontFamily: fontMulishBold,
+                              ),
+                            ),
+                            iconColor: _navy,
+                            collapsedIconColor: Colors.grey.shade400,
+                            children: [
+                              StreamBuilder<QuerySnapshot>(
+                                stream: FirebaseFirestore.instance
+                                    .collection('menus')
+                                    .doc(category.id)
+                                    .collection('items')
+                                    .orderBy('createdAt', descending: false)
+                                    .snapshots(),
+                                builder: (context, itemSnapshot) {
+                                  if (!itemSnapshot.hasData) {
+                                    return const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: Center(
+                                        child: CircularProgressIndicator(
+                                            color: _orange),
+                                      ),
+                                    );
+                                  }
+
+                                  final items = itemSnapshot.data!.docs;
+
+                                  if (items.isEmpty) {
+                                    return Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Text(
+                                        "No items in this category",
+                                        style: TextStyle(
+                                          color: Colors.grey.shade400,
+                                          fontFamily: fontMulishRegular,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  return Column(
+                                    children: items.map((item) {
+                                      final itemName = item['name'] ?? '';
+                                      return Container(
+                                        margin: const EdgeInsets.only(
+                                            left: 16,
+                                            right: 16,
+                                            bottom: 8),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade50,
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          border: Border.all(color: Colors.grey.shade100),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 6,
+                                              height: 6,
+                                              decoration: const BoxDecoration(
+                                                color: _orange,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(
+                                                itemName,
+                                                style: TextStyle(
+                                                  color: _navy,
+                                                  fontSize: 14,
+                                                  fontFamily:
+                                                      fontMulishSemiBold,
+                                                ),
+                                              ),
+                                            ),
+                                            Text(
+                                              "₹${item['price']}",
+                                              style: TextStyle(
+                                                color: _orange,
+                                                fontSize: 14,
+                                                fontFamily: fontMulishBold,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            GestureDetector(
+                                              onTap: () => _deleteMenuItem(category.id, item.id, itemName),
+                                              child: Icon(
+                                                  Icons.delete_outline_rounded,
+                                                  color: Colors.red.shade300,
+                                                  size: 20),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                            ],
                           ),
                         ),
                       );
-                    }
-
-                    return ListView.builder(
-                      itemCount: categories.length,
-                      itemBuilder: (context, index) {
-                        final category = categories[index];
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          decoration: BoxDecoration(
-                            color: _cardBg,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: Colors.white.withOpacity(0.08)),
-                          ),
-                          child: Theme(
-                            data: Theme.of(context).copyWith(
-                              dividerColor: Colors.transparent,
-                            ),
-                            child: ExpansionTile(
-                              tilePadding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              leading: Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: _orange.withOpacity(0.15),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.fastfood_outlined,
-                                    color: _orange, size: 18),
-                              ),
-                              title: Text(
-                                category['name'],
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontFamily: fontMulishSemiBold,
-                                ),
-                              ),
-                              iconColor: Colors.white54,
-                              collapsedIconColor: Colors.white38,
-                              children: [
-                                StreamBuilder<QuerySnapshot>(
-                                  stream: FirebaseFirestore.instance
-                                      .collection('menus')
-                                      .doc(category.id)
-                                      .collection('items')
-                                      .orderBy('createdAt', descending: false)
-                                      .snapshots(),
-                                  builder: (context, itemSnapshot) {
-                                    if (!itemSnapshot.hasData) {
-                                      return const Padding(
-                                        padding: EdgeInsets.all(12),
-                                        child: Center(
-                                          child: CircularProgressIndicator(
-                                              color: _orange),
-                                        ),
-                                      );
-                                    }
-
-                                    final items = itemSnapshot.data!.docs;
-
-                                    if (items.isEmpty) {
-                                      return Padding(
-                                        padding: const EdgeInsets.all(12),
-                                        child: Text(
-                                          "No items in this category",
-                                          style: TextStyle(
-                                            color: Colors.white38,
-                                            fontFamily: fontMulishRegular,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      );
-                                    }
-
-                                    return Column(
-                                      children: items.map((item) {
-                                        return Container(
-                                          margin: const EdgeInsets.only(
-                                              left: 16,
-                                              right: 16,
-                                              bottom: 8),
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 10),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white
-                                                .withOpacity(0.06),
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              const Icon(Icons.circle,
-                                                  size: 6,
-                                                  color: _orange),
-                                              const SizedBox(width: 10),
-                                              Expanded(
-                                                child: Text(
-                                                  item['name'],
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 13,
-                                                    fontFamily:
-                                                        fontMulishSemiBold,
-                                                  ),
-                                                ),
-                                              ),
-                                              Text(
-                                                "₹${item['price']}",
-                                                style: TextStyle(
-                                                  color: Colors.white70,
-                                                  fontSize: 13,
-                                                  fontFamily: fontMulishMedium,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              GestureDetector(
-                                                onTap: () {
-                                                  FirebaseFirestore.instance
-                                                      .collection('menus')
-                                                      .doc(category.id)
-                                                      .collection('items')
-                                                      .doc(item.id)
-                                                      .delete();
-                                                },
-                                                child: const Icon(
-                                                    Icons.delete_outline,
-                                                    color: Colors.redAccent,
-                                                    size: 18),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }).toList(),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
+                    },
+                  );
+                },
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
+

@@ -214,27 +214,28 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // "All" checkbox
-                        CheckboxListTile(
-                          title: const Text(
-                            "All Categories",
-                            style: TextStyle(
-                              fontFamily: fontMulishSemiBold,
-                              fontSize: 15,
+                          CheckboxListTile(
+                            title: const Text(
+                              "All Categories",
+                              style: TextStyle(
+                                fontFamily: fontMulishBold,
+                                fontSize: 15,
+                                color: Color(0xFF1A3A5C),
+                              ),
                             ),
+                            value: showAllCategories,
+                            activeColor: const Color(0xFFf57c35),
+                            onChanged: (bool? value) {
+                              setDialogState(() {
+                                showAllCategories = value ?? true;
+                                if (showAllCategories) {
+                                  selectedCategories.clear();
+                                }
+                              });
+                            },
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
                           ),
-                          value: showAllCategories,
-                          activeColor: Colors.green,
-                          onChanged: (bool? value) {
-                            setDialogState(() {
-                              showAllCategories = value ?? true;
-                              if (showAllCategories) {
-                                selectedCategories.clear();
-                              }
-                            });
-                          },
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                        ),
                         const Divider(),
                         // Individual category checkboxes
                         Flexible(
@@ -295,21 +296,20 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor: const Color(0xFFf57c35),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
+                        elevation: 0,
                       ),
                       onPressed: () {
-                        setState(() {
-                          // Update the main state
-                        });
+                        setState(() {});
                         Navigator.pop(context);
                       },
                       child: const Text(
-                        "Apply",
+                        "Apply Filter",
                         style: TextStyle(
-                          fontFamily: fontMulishSemiBold,
+                          fontFamily: fontMulishBold,
                           color: Colors.white,
                         ),
                       ),
@@ -327,20 +327,26 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
         title: const Text(
-          "All Orders",
+          "KITCHEN DISPLAY",
           style: TextStyle(
-            fontFamily: fontMulishSemiBold,
-            fontSize: 16,
+            fontFamily: fontMulishBold,
+            fontSize: 18,
+            color: Color(0xFF1A3A5C),
+            letterSpacing: 1,
           ),
         ),
+        iconTheme: const IconThemeData(color: Color(0xFF1A3A5C)),
         actions: [
           // Filter button with badge showing count
           Stack(
             children: [
               IconButton(
-                icon: const Icon(Icons.filter_list),
+                icon: const Icon(Icons.filter_alt_outlined, size: 22),
                 onPressed: () => _showCategoryFilterDialog(context),
                 tooltip: "Filter by Category",
               ),
@@ -351,7 +357,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: const BoxDecoration(
-                      color: Colors.red,
+                      color: Color(0xFFf57c35),
                       shape: BoxShape.circle,
                     ),
                     constraints: const BoxConstraints(
@@ -372,6 +378,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                 ),
             ],
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -789,26 +796,22 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       builder: (BuildContext context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
           title: Text(
-           tableName.contains("Take Away")?"Mark as Delivered?": "Mark as Served?",
-            style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
+            tableName.contains("Take Away") ? "Deliver Order?" : "Mark as Served?",
+            style: const TextStyle(fontFamily: fontMulishBold, fontSize: 18, color: Color(0xFF1A3A5C)),
           ),
           content: Text(
-            tableName.contains("Take Away")? "Are you sure you want to mark table '$tableName' as delivered?":"Are you sure you want to mark table '$tableName' as served?",
-            style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 15),
+            tableName.contains("Take Away")
+                ? "This will mark '$tableName' as delivered and remove it from the display."
+                : "Confirm that all items for '$tableName' have been served to the customer.",
+            style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 14, color: Colors.grey),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text(
-                "Cancel",
-                style: TextStyle(
-                  fontFamily: fontMulishSemiBold,
-                  color: Colors.grey,
-                ),
-              ),
+              child: const Text("CANCEL", style: TextStyle(color: Colors.grey, fontFamily: fontMulishBold)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(

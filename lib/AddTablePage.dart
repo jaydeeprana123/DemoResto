@@ -31,7 +31,7 @@ class _AddTablePageState extends State<AddTablePage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Table '$name' added"),
+          content: Text("Table '$name' added successfully"),
           backgroundColor: _orange,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -44,30 +44,32 @@ class _AddTablePageState extends State<AddTablePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _navy,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           "Delete Table",
-          style: TextStyle(color: Colors.white, fontFamily: fontMulishBold),
+          style: TextStyle(color: _navy, fontFamily: fontMulishBold),
         ),
         content: Text(
           "Are you sure you want to delete '$name'?",
-          style: TextStyle(color: Colors.white70, fontFamily: fontMulishRegular),
+          style: TextStyle(color: Colors.black87, fontFamily: fontMulishRegular),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text("Cancel",
-                style: TextStyle(color: Colors.white60, fontFamily: fontMulishSemiBold)),
+                style: TextStyle(color: Colors.grey.shade600, fontFamily: fontMulishSemiBold)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text("Delete",
-                style: TextStyle(color: Colors.white, fontFamily: fontMulishSemiBold)),
+                style: TextStyle(fontFamily: fontMulishSemiBold)),
           ),
         ],
       ),
@@ -95,248 +97,267 @@ class _AddTablePageState extends State<AddTablePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _navyDk,
+      backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
-        backgroundColor: _navy,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        iconTheme: const IconThemeData(color: _navy),
         title: Text(
           "Manage Tables",
           style: TextStyle(
-            color: Colors.white,
+            color: _navy,
             fontSize: 18,
             fontFamily: fontMulishBold,
           ),
         ),
+        centerTitle: false,
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [_navy, _navyDk],
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Add Table Card ───────────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: _cardBg,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.25),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Add Table Card ───────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Add New Table",
+                      style: TextStyle(
+                        color: _navy,
+                        fontSize: 15,
+                        fontFamily: fontMulishBold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _tableNameController,
+                            style: const TextStyle(
+                              color: _navy,
+                              fontFamily: fontMulishSemiBold,
+                              fontSize: 14,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'Table Name',
+                              labelStyle: TextStyle(
+                                color: Colors.grey.shade500,
+                                fontFamily: fontMulishMedium,
+                                fontSize: 13,
+                              ),
+                              hintText: 'e.g. Table 5',
+                              hintStyle: TextStyle(
+                                color: Colors.grey.shade300,
+                                fontSize: 13,
+                              ),
+                              prefixIcon: Icon(
+                                Icons.table_restaurant_outlined,
+                                color: Colors.grey.shade400,
+                                size: 20,
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey.shade50,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 16),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.grey.shade200),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.grey.shade200),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                    color: _orange, width: 1.5),
+                              ),
+                              errorStyle: const TextStyle(color: Colors.redAccent),
+                            ),
+                            validator: (value) =>
+                                value == null || value.isEmpty
+                                    ? 'Required'
+                                    : null,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: _addTable,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _orange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 18),
+                            elevation: 2,
+                            shadowColor: _orange.withOpacity(0.3),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            'Add',
+                            style: TextStyle(
+                              fontFamily: fontMulishBold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Add New Table",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontFamily: fontMulishBold,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            // ── Tables List Header ────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: _orange,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "EXISTING TABLES",
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                      fontFamily: fontMulishBold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Real-time List ────────────────────────────────────────────
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('tables')
+                    .orderBy('createdAt', descending: false)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: _orange),
+                    );
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _tableNameController,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontFamily: fontMulishSemiBold,
-                                fontSize: 14,
-                              ),
-                              decoration: InputDecoration(
-                                labelText: 'Table Name',
-                                labelStyle: TextStyle(
-                                  color: Colors.white60,
-                                  fontFamily: fontMulishRegular,
-                                  fontSize: 13,
-                                ),
-                                hintText: 'e.g. Table 1',
-                                hintStyle: const TextStyle(
-                                  color: Colors.white30,
-                                  fontSize: 13,
-                                ),
-                                prefixIcon: const Icon(
-                                  Icons.table_restaurant_outlined,
-                                  color: Colors.white54,
-                                  size: 20,
-                                ),
-                                filled: true,
-                                fillColor: Colors.white.withOpacity(0.08),
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 14),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                      color: Colors.white.withOpacity(0.2)),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                      color: Colors.white.withOpacity(0.2)),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                      color: _orange, width: 1.5),
-                                ),
-                                errorStyle: const TextStyle(color: Colors.orangeAccent),
-                              ),
-                              validator: (value) =>
-                                  value == null || value.isEmpty
-                                      ? 'Please enter a table name'
-                                      : null,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          ElevatedButton(
-                            onPressed: _addTable,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _orange,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 16),
-                              elevation: 4,
-                              shadowColor: _orange.withOpacity(0.4),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              'Add',
-                              style: TextStyle(
-                                fontFamily: fontMulishBold,
-                                fontSize: 14,
-                              ),
+                          Icon(Icons.table_restaurant_outlined,
+                              color: Colors.grey.shade300, size: 64),
+                          const SizedBox(height: 16),
+                          Text(
+                            "No tables found",
+                            style: TextStyle(
+                              color: Colors.grey.shade400,
+                              fontFamily: fontMulishSemiBold,
+                              fontSize: 15,
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
+                    );
+                  }
 
-              const SizedBox(height: 20),
+                  final tables = snapshot.data!.docs;
 
-              // ── Tables List Header ────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 8),
-                child: Text(
-                  "Existing Tables",
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontFamily: fontMulishSemiBold,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
+                  return ListView.builder(
+                    itemCount: tables.length,
+                    padding: const EdgeInsets.only(bottom: 20),
+                    itemBuilder: (context, index) {
+                      final doc = tables[index];
+                      final name = doc['name'] ?? '';
 
-              // ── Real-time List ────────────────────────────────────────────
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('tables')
-                      .orderBy('createdAt', descending: false)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: _orange),
-                      );
-                    }
-
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.table_restaurant_outlined,
-                                color: Colors.white24, size: 56),
-                            const SizedBox(height: 12),
-                            Text(
-                              "No tables yet",
-                              style: TextStyle(
-                                color: Colors.white38,
-                                fontFamily: fontMulishRegular,
-                                fontSize: 15,
-                              ),
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.02),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
                           ],
                         ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          leading: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: _orange.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.table_restaurant_rounded,
+                                color: _orange, size: 22),
+                          ),
+                          title: Text(
+                            name,
+                            style: TextStyle(
+                              color: _navy,
+                              fontSize: 15,
+                              fontFamily: fontMulishBold,
+                            ),
+                          ),
+                          subtitle: Text(
+                            "Standard Table",
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 12,
+                              fontFamily: fontMulishRegular,
+                            ),
+                          ),
+                          trailing: IconButton(
+                            icon: Icon(Icons.delete_outline_rounded,
+                                color: Colors.red.shade300, size: 24),
+                            onPressed: () => _deleteTable(doc.id, name),
+                          ),
+                        ),
                       );
-                    }
-
-                    final tables = snapshot.data!.docs;
-
-                    return ListView.builder(
-                      itemCount: tables.length,
-                      itemBuilder: (context, index) {
-                        final doc = tables[index];
-                        final name = doc['name'] ?? '';
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          decoration: BoxDecoration(
-                            color: _cardBg,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: Colors.white.withOpacity(0.08)),
-                          ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 4),
-                            leading: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: _orange.withOpacity(0.15),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.table_restaurant,
-                                  color: _orange, size: 20),
-                            ),
-                            title: Text(
-                              name,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontFamily: fontMulishSemiBold,
-                              ),
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline,
-                                  color: Colors.redAccent, size: 22),
-                              onPressed: () => _deleteTable(doc.id, name),
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
+                    },
+                  );
+                },
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
+
