@@ -819,21 +819,44 @@ class CartPage extends StatelessWidget {
                               bool? doPrint = await showDialog<bool>(
                                 context: context,
                                 builder: (context) => AlertDialog(
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  title: const Text("Print Receipt", style: TextStyle(fontFamily: fontMulishBold)),
-                                  content: const Text("Do you want to print the receipt?"),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  title: const Text(
+                                    "Print Receipt",
+                                    style: TextStyle(
+                                      fontFamily: fontMulishBold,
+                                    ),
+                                  ),
+                                  content: const Text(
+                                    "Do you want to print the receipt?",
+                                  ),
                                   actions: [
                                     TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: const Text("No", style: TextStyle(color: Colors.grey)),
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: const Text(
+                                        "No",
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
                                     ),
                                     ElevatedButton(
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFf57c35),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        backgroundColor: const Color(
+                                          0xFFf57c35,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
                                       ),
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: const Text("Yes", style: TextStyle(color: Colors.white)),
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: const Text(
+                                        "Yes",
+                                        style: TextStyle(color: Colors.white),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -841,16 +864,18 @@ class CartPage extends StatelessWidget {
 
                               if (doPrint == true) {
                                 // ✅ Generate PDF
-                                final pdfBytes = await PdfService.generateInvoicePdf(
-                                  tableName: controller.tableNameController.text,
-                                  items: controller.cartItems,
-                                  subtotal: controller.subtotal,
-                                  tax: controller.subtotal * 0.085,
-                                  discount: controller.discountAmount.value,
-                                  total: controller.total,
-                                  cashAmount: cash,
-                                  onlineAmount: online,
-                                );
+                                final pdfBytes =
+                                    await PdfService.generateInvoicePdf(
+                                      tableName:
+                                          controller.tableNameController.text,
+                                      items: controller.cartItems,
+                                      subtotal: controller.subtotal,
+                                      tax: controller.subtotal * 0.085,
+                                      discount: controller.discountAmount.value,
+                                      total: controller.total,
+                                      cashAmount: cash,
+                                      onlineAmount: online,
+                                    );
 
                                 // ✅ Show PDF preview and allow print
                                 await Printing.layoutPdf(
@@ -859,7 +884,7 @@ class CartPage extends StatelessWidget {
                               }
 
                               await onConfirm(
-                                [],
+                                controller.cartItems,
                                 true,
                                 controller.tableNameController.text,
                                 controller.overallRemarksController.text.trim(),
@@ -870,7 +895,8 @@ class CartPage extends StatelessWidget {
                                 Navigator.pushAndRemoveUntil(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => const BottomNavigationView(),
+                                    builder: (_) =>
+                                        const BottomNavigationView(),
                                   ),
                                   (route) => false,
                                 );
