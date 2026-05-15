@@ -410,8 +410,9 @@ class DragListBetweenTables extends StatelessWidget {
                   String tableName,
                   String overallRemarks,
                 ) async {
+
                   await controller.addTableAndUpdateItems(
-                    tableName,
+                    tableName.trim(),
                     selectedItems,
                     isBillPaid,
                     overallRemarks,
@@ -605,6 +606,7 @@ class DragListBetweenTables extends StatelessWidget {
               onConfirm: (selectedItems, isBillPaid, tName, overallRemarks) async {
                 if (isBillPaid) {
                   groups.clear();
+                  groups.add(selectedItems);
                 } else {
                   // If it's a new group of items
                   groups.add(selectedItems);
@@ -636,16 +638,18 @@ class DragListBetweenTables extends StatelessWidget {
             totalMenuList: controller.menu,
             tableName: tableName,
             onConfirm: (confirmedItems) async {
-              // For final billing, if items are empty, we clear the table
-              if (confirmedItems.isEmpty) {
-                groups.clear();
-              } else {
-                groups.clear();
+              // Always update groups with confirmed items
+              groups.clear();
+              if (confirmedItems.isNotEmpty) {
                 groups.add(confirmedItems);
               }
               
               controller.tables.refresh();
-              await controller.updateTableItemsInFirestore(tableName, groups, false);
+              await controller.updateTableItemsInFirestore(
+                tableName,
+                groups,
+                true, // Mark as paid
+              );
 
               if (isTakeAway && groups.isEmpty) {
                 await controller.deleteTable(docId);
@@ -719,6 +723,7 @@ class DragListBetweenTables extends StatelessWidget {
                           onConfirm: (items, isBillPaid, tName, overallRemarks) async {
                             if (isBillPaid) {
                               groups.clear();
+                              groups.add(items);
                             } else {
                               groups[groups.length - 1] = items;
                             }
@@ -749,6 +754,7 @@ class DragListBetweenTables extends StatelessWidget {
                           onConfirm: (items, isBillPaid, tName, overallRemarks) async {
                             if (isBillPaid) {
                               groups.clear();
+                              groups.add(items);
                             } else {
                               groups.add(items);
                             }

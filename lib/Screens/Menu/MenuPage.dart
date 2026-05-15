@@ -1054,7 +1054,7 @@ class MenuPage extends StatelessWidget {
                       Navigator.pop(context, selectedItems);
                     } else {
                       Get.to(() => CartPage(
-                            tableName: controller.tableNameController.text,
+                            tableName: controller.tableNameController.text.trim(),
                             tableNameEditable: tableNameEditable,
                             menuData: selectedItems,
                             fullMenu: menuList,

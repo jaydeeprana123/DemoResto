@@ -490,14 +490,14 @@ class CartPage extends StatelessWidget {
                                     ),
                                   ),
                                   tooltip: 'Billing',
-                                  onPressed: () {
+                                  onPressed: () async {
                                     if (!controller.isBilling.value) {
                                       controller.isBilling.value = true;
                                     } else {
-                                      onConfirm(
+                                      await onConfirm(
                                         controller.cartItems,
                                         false,
-                                        controller.tableNameController.text,
+                                        controller.tableNameController.text.trim(),
                                         controller.overallRemarksController.text
                                             .trim(),
                                       );
@@ -886,9 +886,10 @@ class CartPage extends StatelessWidget {
                               await onConfirm(
                                 controller.cartItems,
                                 true,
-                                controller.tableNameController.text,
+                                controller.tableNameController.text.trim(),
                                 controller.overallRemarksController.text.trim(),
                               );
+                              controller.cartItems.clear(); // Clear local state after billing
 
                               Navigator.pop(context);
                               Navigator.pop(context);
@@ -938,11 +939,11 @@ class CartPage extends StatelessWidget {
                       ),
                       elevation: 2,
                     ),
-                    onPressed: () {
-                      onConfirm(
+                    onPressed: () async {
+                      await onConfirm(
                         controller.cartItems,
                         false,
-                        controller.tableNameController.text,
+                        controller.tableNameController.text.trim(),
                         controller.overallRemarksController.text.trim(),
                       );
                       Navigator.pop(context);
