@@ -890,17 +890,20 @@ class CartPage extends StatelessWidget {
                                 controller.overallRemarksController.text.trim(),
                               );
 
+                              Navigator.pop(context);
+                              Navigator.pop(context);
+
                               // ✅ Return to dashboard
-                              if (context.mounted) {
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const BottomNavigationView(),
-                                  ),
-                                  (route) => false,
-                                );
-                              }
+                              // if (context.mounted) {
+                              //   Navigator.pushAndRemoveUntil(
+                              //     context,
+                              //     MaterialPageRoute(
+                              //       builder: (_) =>
+                              //           const BottomNavigationView(),
+                              //     ),
+                              //     (route) => false,
+                              //   );
+                              // }
                             },
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
