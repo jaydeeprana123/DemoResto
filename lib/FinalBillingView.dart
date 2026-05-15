@@ -12,6 +12,7 @@ import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:demo/services/pdf_service.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
 import 'Screens/BottomNavigation/bottom_navigation_view.dart';
 import 'package:demo/Screens/Menu/MenuPage.dart';
 import 'Styles/my_colors.dart';
@@ -803,62 +804,68 @@ class _FinalBillingViewState extends State<FinalBillingView>
                           onlineAmount: online,
                         );
 
-                        // ✅ Ask for Print
-                        bool? doPrint = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            title: const Text(
-                              "Print Receipt",
-                              style: TextStyle(fontFamily: fontMulishBold),
-                            ),
-                            content: const Text(
-                              "Do you want to print the receipt?",
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: const Text(
-                                  "No",
-                                  style: TextStyle(color: Colors.grey),
-                                ),
+                        // ✅ Check Setting for Print
+                        final prefs = await SharedPreferences.getInstance();
+                        final bool showPrintSetting = prefs.getBool('show_print_dialog') ?? true;
+
+                        if (showPrintSetting) {
+                          // ✅ Ask for Print
+                          bool? doPrint = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _orange,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                              title: const Text(
+                                "Print Receipt",
+                                style: TextStyle(fontFamily: fontMulishBold),
+                              ),
+                              content: const Text(
+                                "Do you want to print the receipt?",
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, false),
+                                  child: const Text(
+                                    "No",
+                                    style: TextStyle(color: Colors.grey),
                                   ),
                                 ),
-                                onPressed: () => Navigator.pop(context, true),
-                                child: const Text(
-                                  "Yes",
-                                  style: TextStyle(color: Colors.white),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _orange,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: const Text(
+                                    "Yes",
+                                    style: TextStyle(color: Colors.white),
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        );
-
-                        if (doPrint == true) {
-                          // ✅ Generate PDF
-                          final pdfBytes = await PdfService.generateInvoicePdf(
-                            tableName: widget.tableName,
-                            items: cartItems,
-                            subtotal: subtotal,
-                            tax: subtotal * 0.085,
-                            discount: discountAmount,
-                            total: total,
-                            cashAmount: cash,
-                            onlineAmount: online,
+                              ],
+                            ),
                           );
 
-                          // ✅ Show PDF preview and allow print
-                          await Printing.layoutPdf(
-                            onLayout: (format) async => pdfBytes,
-                          );
+                          if (doPrint == true) {
+                            // ✅ Generate PDF
+                            final pdfBytes = await PdfService.generateInvoicePdf(
+                              tableName: widget.tableName,
+                              items: cartItems,
+                              subtotal: subtotal,
+                              tax: subtotal * 0.085,
+                              discount: discountAmount,
+                              total: total,
+                              cashAmount: cash,
+                              onlineAmount: online,
+                            );
+
+                            // ✅ Show PDF preview and allow print
+                            await Printing.layoutPdf(
+                              onLayout: (format) async => pdfBytes,
+                            );
+                          }
                         }
 
                         // ✅ CLEAR TABLE (or delete if Take Away) via callback

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/foundation.dart';
@@ -815,72 +816,78 @@ class CartPage extends StatelessWidget {
                                 onlineAmount: online,
                               );
 
-                              // ✅ Ask for Print
-                              bool? doPrint = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  title: const Text(
-                                    "Print Receipt",
-                                    style: TextStyle(
-                                      fontFamily: fontMulishBold,
+                              // ✅ Check Setting for Print
+                              final prefs = await SharedPreferences.getInstance();
+                              final bool showPrintSetting = prefs.getBool('show_print_dialog') ?? true;
+
+                              if (showPrintSetting) {
+                                // ✅ Ask for Print
+                                bool? doPrint = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
                                     ),
-                                  ),
-                                  content: const Text(
-                                    "Do you want to print the receipt?",
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, false),
-                                      child: const Text(
-                                        "No",
-                                        style: TextStyle(color: Colors.grey),
+                                    title: const Text(
+                                      "Print Receipt",
+                                      style: TextStyle(
+                                        fontFamily: fontMulishBold,
                                       ),
                                     ),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFFf57c35,
+                                    content: const Text(
+                                      "Do you want to print the receipt?",
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, false),
+                                        child: const Text(
+                                          "No",
+                                          style: TextStyle(color: Colors.grey),
                                         ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
+                                      ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(
+                                            0xFFf57c35,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
                                         ),
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
+                                        child: const Text(
+                                          "Yes",
+                                          style: TextStyle(color: Colors.white),
+                                        ),
                                       ),
-                                      onPressed: () =>
-                                          Navigator.pop(context, true),
-                                      child: const Text(
-                                        "Yes",
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-
-                              if (doPrint == true) {
-                                // ✅ Generate PDF
-                                final pdfBytes =
-                                    await PdfService.generateInvoicePdf(
-                                      tableName:
-                                          controller.tableNameController.text,
-                                      items: controller.cartItems,
-                                      subtotal: controller.subtotal,
-                                      tax: controller.subtotal * 0.085,
-                                      discount: controller.discountAmount.value,
-                                      total: controller.total,
-                                      cashAmount: cash,
-                                      onlineAmount: online,
-                                    );
-
-                                // ✅ Show PDF preview and allow print
-                                await Printing.layoutPdf(
-                                  onLayout: (format) async => pdfBytes,
+                                    ],
+                                  ),
                                 );
+
+                                if (doPrint == true) {
+                                  // ✅ Generate PDF
+                                  final pdfBytes =
+                                      await PdfService.generateInvoicePdf(
+                                        tableName:
+                                            controller.tableNameController.text,
+                                        items: controller.cartItems,
+                                        subtotal: controller.subtotal,
+                                        tax: controller.subtotal * 0.085,
+                                        discount: controller.discountAmount.value,
+                                        total: controller.total,
+                                        cashAmount: cash,
+                                        onlineAmount: online,
+                                      );
+
+                                  // ✅ Show PDF preview and allow print
+                                  await Printing.layoutPdf(
+                                    onLayout: (format) async => pdfBytes,
+                                  );
+                                }
                               }
 
                               await onConfirm(
