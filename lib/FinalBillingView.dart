@@ -870,7 +870,7 @@ class _FinalBillingViewState extends State<FinalBillingView>
 
                         // ✅ CLEAR TABLE (or delete if Take Away) via callback
                         if (widget.onConfirm != null) {
-                          await widget.onConfirm(cartItems);
+                          await widget.onConfirm([]);
                         }
 
                         // ✅ Return to dashboard

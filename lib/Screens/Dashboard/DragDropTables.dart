@@ -638,21 +638,18 @@ class DragListBetweenTables extends StatelessWidget {
             totalMenuList: controller.menu,
             tableName: tableName,
             onConfirm: (confirmedItems) async {
-              // Always update groups with confirmed items
               groups.clear();
-              if (confirmedItems.isNotEmpty) {
-                groups.add(confirmedItems);
-              }
               
               controller.tables.refresh();
-              await controller.updateTableItemsInFirestore(
-                tableName,
-                groups,
-                true, // Mark as paid
-              );
-
-              if (isTakeAway && groups.isEmpty) {
+              
+              if (isTakeAway) {
                 await controller.deleteTable(docId);
+              } else {
+                await controller.updateTableItemsInFirestore(
+                  tableName,
+                  [],
+                  false, // Mark as not paid (cleared)
+                );
               }
             },
           ),

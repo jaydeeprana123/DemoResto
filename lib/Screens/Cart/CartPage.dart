@@ -517,82 +517,82 @@ class CartPage extends StatelessWidget {
                         ],
                       ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: TextField(
-                  controller: controller.overallRemarksController,
-                  maxLines: 3,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF1A3A5C),
-                    fontFamily: fontMulishSemiBold,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: "Order Instructions",
-                    labelStyle: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                      fontFamily: fontMulishMedium,
-                    ),
-                    hintText: "e.g. Less spicy, extra parcel boxes...",
-                    hintStyle: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade400,
-                      fontFamily: fontMulishRegular,
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Color(0xFFf57c35),
-                        width: 1.5,
-                      ),
-                    ),
-                    prefixIcon: Icon(
-                      Icons.notes,
-                      color: Colors.grey.shade400,
-                      size: 20,
-                    ),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.mic,
-                            color: Colors.red.shade400,
-                            size: 20,
-                          ),
-                          onPressed: () =>
-                              _startVoiceOrderCart(context, controller),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.auto_awesome,
-                            color: Color(0xFFf57c35),
-                            size: 20,
-                          ),
-                          onPressed: controller.extractItemsFromRemarks,
-                        ),
-                        const SizedBox(width: 4),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              // Padding(
+              //   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              //   child: TextField(
+              //     controller: controller.overallRemarksController,
+              //     maxLines: 3,
+              //     style: const TextStyle(
+              //       fontSize: 14,
+              //       color: Color(0xFF1A3A5C),
+              //       fontFamily: fontMulishSemiBold,
+              //     ),
+              //     decoration: InputDecoration(
+              //       labelText: "Order Instructions",
+              //       labelStyle: TextStyle(
+              //         fontSize: 12,
+              //         color: Colors.grey.shade600,
+              //         fontFamily: fontMulishMedium,
+              //       ),
+              //       hintText: "e.g. Less spicy, extra parcel boxes...",
+              //       hintStyle: TextStyle(
+              //         fontSize: 13,
+              //         color: Colors.grey.shade400,
+              //         fontFamily: fontMulishRegular,
+              //       ),
+              //       filled: true,
+              //       fillColor: Colors.white,
+              //       isDense: true,
+              //       contentPadding: const EdgeInsets.symmetric(
+              //         horizontal: 16,
+              //         vertical: 12,
+              //       ),
+              //       border: OutlineInputBorder(
+              //         borderRadius: BorderRadius.circular(12),
+              //         borderSide: BorderSide(color: Colors.grey.shade200),
+              //       ),
+              //       enabledBorder: OutlineInputBorder(
+              //         borderRadius: BorderRadius.circular(12),
+              //         borderSide: BorderSide(color: Colors.grey.shade200),
+              //       ),
+              //       focusedBorder: OutlineInputBorder(
+              //         borderRadius: BorderRadius.circular(12),
+              //         borderSide: const BorderSide(
+              //           color: Color(0xFFf57c35),
+              //           width: 1.5,
+              //         ),
+              //       ),
+              //       prefixIcon: Icon(
+              //         Icons.notes,
+              //         color: Colors.grey.shade400,
+              //         size: 20,
+              //       ),
+              //       suffixIcon: Row(
+              //         mainAxisSize: MainAxisSize.min,
+              //         children: [
+              //           IconButton(
+              //             icon: Icon(
+              //               Icons.mic,
+              //               color: Colors.red.shade400,
+              //               size: 20,
+              //             ),
+              //             onPressed: () =>
+              //                 _startVoiceOrderCart(context, controller),
+              //           ),
+              //           IconButton(
+              //             icon: const Icon(
+              //               Icons.auto_awesome,
+              //               color: Color(0xFFf57c35),
+              //               size: 20,
+              //             ),
+              //             onPressed: controller.extractItemsFromRemarks,
+              //           ),
+              //           const SizedBox(width: 4),
+              //         ],
+              //       ),
+              //     ),
+              //   ),
+              // ),
 
               // Billing Section
               if (controller.isBilling.value)

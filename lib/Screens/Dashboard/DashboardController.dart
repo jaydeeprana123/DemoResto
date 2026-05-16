@@ -279,7 +279,7 @@ class DashboardController extends GetxController {
   List<Map<String, dynamic>> mergeItemsByNameAndCategory(List<Map<String, dynamic>> items) {
     final Map<String, Map<String, dynamic>> itemMap = {};
     for (var item in items) {
-      final key = "\${item['name']}_\${item['categoryId']}";
+      final key = "${item['name']}_${item['categoryId']}";
       if (itemMap.containsKey(key)) {
         itemMap[key]!['qty'] = (itemMap[key]!['qty'] ?? 1) + (item['qty'] ?? 1);
       } else {
@@ -288,4 +288,5 @@ class DashboardController extends GetxController {
     }
     return itemMap.values.toList();
   }
-}
+  }
+
