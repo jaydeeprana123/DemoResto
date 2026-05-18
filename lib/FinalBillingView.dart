@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
+import 'package:demo/repositories/order_repository.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -945,6 +946,8 @@ class _FinalBillingViewState extends State<FinalBillingView>
     );
   }
 
+  final OrderRepository _orderRepository = OrderRepository();
+
   Future<void> addTransactionToFirestore({
     required List<Map<String, dynamic>> items,
     required String tableName,
@@ -956,61 +959,19 @@ class _FinalBillingViewState extends State<FinalBillingView>
     required int onlineAmount,
   }) async {
     try {
-      final now = DateTime.now();
-      final dateKey = DateFormat("yyyy-MM-dd").format(now);
-
-      final batch = FirebaseFirestore.instance.batch();
-
-      // 1️⃣ Add transaction
-      final txRef = FirebaseFirestore.instance.collection("transactions").doc();
-      batch.set(txRef, {
-        "table": tableName,
-        "items": items
-            .map(
-              (e) => {
-                "name": e["name"],
-                "qty": e["qty"],
-                "price": (e["price"]).round(), // convert to int
-                "total": ((e["qty"]) * (e["price"])).round(),
-              },
-            )
-            .toList(),
-        "subtotal": subtotal,
-        "tax": tax,
-        "discount": discount,
-        "total": total,
-        "cashAmount": cashAmount,
-        "onlineAmount": onlineAmount,
-        "createdAt": FieldValue.serverTimestamp(),
-      });
-
-      // 2️⃣ Update daily_stats
-      final dailyRef = FirebaseFirestore.instance
-          .collection("daily_stats")
-          .doc(dateKey);
-      batch.set(dailyRef, {
-        "revenue": FieldValue.increment(total),
-        "totalCash": FieldValue.increment(cashAmount),
-        "totalOnline": FieldValue.increment(onlineAmount),
-        "transactions": FieldValue.increment(1),
-        "lastUpdated": FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      // 3️⃣ Update global summary
-      final summaryRef = FirebaseFirestore.instance
-          .collection("stats")
-          .doc("summary");
-      batch.set(summaryRef, {
-        "totalRevenue": FieldValue.increment(total),
-        "totalTransactions": FieldValue.increment(1),
-        "lastUpdated": FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      // 4️⃣ Commit batch
-      await batch.commit();
-      Get.snackbar("Successfull", "Transaction saved successfully!");
+      await _orderRepository.saveTransaction(
+        items: items,
+        tableName: tableName,
+        subtotal: subtotal,
+        tax: tax,
+        discount: discount,
+        total: total,
+        cashAmount: cashAmount,
+        onlineAmount: onlineAmount,
+      );
+      Get.snackbar("Successful", "Transaction saved successfully!", backgroundColor: Colors.green, colorText: Colors.white);
     } catch (e) {
-      Get.snackbar("Error", "Transaction not saved");
+      Get.snackbar("Error", "Transaction not saved: $e", backgroundColor: Colors.red, colorText: Colors.white);
     }
   }
 

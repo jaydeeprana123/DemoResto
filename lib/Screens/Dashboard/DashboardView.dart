@@ -474,6 +474,41 @@ class DashboardView extends StatelessWidget {
         );
 
     return GestureDetector(
+      onTap: () {
+        if (!hasItems && !isPaid) {
+          Get.to(
+            () => MenuPage(
+              menuList: controller.menu,
+              tableName: tableName,
+              tableNameEditable: false,
+              initialItems: const [],
+              showBilling: true,
+              isFromFinalBilling: false,
+              onConfirm:
+                  (selectedItems, isBillPaid, tName, overallRemarks) async {
+                    if (isBillPaid) {
+                      groups.clear();
+                      groups.add(selectedItems);
+                    } else {
+                      // If it's a new group of items
+                      groups.add(selectedItems);
+                    }
+                    controller.tables.refresh();
+                    await controller.updateTableItemsInFirestore(
+                      tName,
+                      groups,
+                      isBillPaid,
+                      overallRemarks,
+                    );
+
+                    if (isTakeAway && groups.isEmpty) {
+                      await controller.deleteTable(docId);
+                    }
+                  },
+            ),
+          );
+        }
+      },
       onDoubleTap: () async {
         if (isPaid) {
           showServedDialog(context, tableName, () async {

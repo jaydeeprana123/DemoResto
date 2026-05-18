@@ -1,33 +1,36 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/Screens/Authentication/LoginScreenView.dart';
+import 'package:demo/repositories/order_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-/// Controller for managing the dashboard (tables, take aways, and menu).
+/// GetX Controller for managing the restaurant dashboard (dine-in tables and take away orders).
 class DashboardController extends GetxController {
+  // ── Repository Dependency ──
+  final OrderRepository _orderRepository = OrderRepository();
+
   // ── Reactive State Variables (Observables) ──
   
-  /// Holds all tables and their associated item groups.
+  /// Holds all tables and their grouped items: { "Table 1": [ [Item1, Item2], [Item3] ] }
   var tables = <String, List<List<Map<String, dynamic>>>>{}.obs;
   
-  /// Holds the complete list of menu items.
+  /// Complete catalog list of menu items
   var menu = <Map<String, dynamic>>[].obs;
   
-  /// Indicates if the menu is currently loading from Firestore.
+  /// Loading state indicator
   var isLoading = false.obs;
   
-  /// The currently selected tab filter ('All', 'Tables', 'Take Away').
+  /// The active UI tab filter ('All', 'Tables', 'Take Away')
   var selectedTab = 'All'.obs;
 
-  StreamSubscription<QuerySnapshot>? tablesSubscription;
+  StreamSubscription<QuerySnapshot>? _tablesSubscription;
   final user = FirebaseAuth.instance.currentUser;
   
-  /// Tracks the number of take-away orders to auto-generate names.
+  /// Counter tracking number of take-away orders to auto-generate names
   var tableNo = 0.obs;
 
-  /// Runs automatically when the controller starts.
   @override
   void onInit() {
     super.onInit();
@@ -39,25 +42,24 @@ class DashboardController extends GetxController {
     }
   }
 
-  /// Runs when the controller is destroyed.
   @override
   void onClose() {
-    tablesSubscription?.cancel();
+    _tablesSubscription?.cancel();
     super.onClose();
   }
 
-  /// Signs the user out and navigates back to the Login Screen.
+  /// Signs the active user session out and navigates back to the Login Screen.
   Future<void> signOut() async {
     await FirebaseAuth.instance.signOut();
     Get.offAll(() => const LoginPage());
   }
 
-  /// Changes the active tab filter.
+  /// Updates the active tab selection filter.
   void selectTab(String tab) {
     selectedTab.value = tab;
   }
 
-  /// Returns a filtered list of table names based on the selected tab.
+  /// Retrieves filtered table keys matching the currently selected tab.
   List<String> get filteredTableKeys {
     if (selectedTab.value == 'Take Away') {
       return tables.keys.where((key) => !key.contains('Table')).toList();
@@ -68,13 +70,9 @@ class DashboardController extends GetxController {
     }
   }
 
-  /// Listens to real-time changes in the 'tables' Firestore collection.
+  /// Listens to real-time changes in tables collection from Firebase via the OrderRepository.
   void listenToTables() {
-    tablesSubscription = FirebaseFirestore.instance
-        .collection('tables')
-        .orderBy('createdAt', descending: false)
-        .snapshots()
-        .listen((querySnapshot) {
+    _tablesSubscription = _orderRepository.listenToTables().listen((querySnapshot) {
       Map<String, List<List<Map<String, dynamic>>>> updatedTables = {};
 
       for (var doc in querySnapshot.docs) {
@@ -127,10 +125,9 @@ class DashboardController extends GetxController {
         updatedTables[tableName] = groupedItems;
       }
       
-      // Update the reactive variable
       tables.value = updatedTables;
       
-      // Update tableNo count based on take away keys for the floating action button
+      // Compute correct monotonically increasing take away numbering base
       final takeAways = updatedTables.keys.where((k) => !k.contains('Table')).toList();
       int maxTakeAwayNum = 0;
       for (String k in takeAways) {
@@ -146,35 +143,11 @@ class DashboardController extends GetxController {
     });
   }
 
-  /// Loads the entire menu from Firestore.
+  /// Loads menu catalogs from database using the OrderRepository.
   Future<void> loadMenu() async {
     isLoading.value = true;
     try {
-      List<Map<String, dynamic>> loadedMenu = [];
-      final menuSnapshot = await FirebaseFirestore.instance.collection('menus').get();
-
-      for (var categoryDoc in menuSnapshot.docs) {
-        final categoryId = categoryDoc.id;
-        final categoryName = categoryDoc['name'];
-
-        final itemsSnapshot = await FirebaseFirestore.instance
-            .collection('menus')
-            .doc(categoryId)
-            .collection('items')
-            .get();
-
-        for (var itemDoc in itemsSnapshot.docs) {
-          loadedMenu.add({
-            "category": categoryName,
-            "name": itemDoc['name'],
-            "price": itemDoc['price'],
-            "categoryId": categoryId,
-            "itemId": itemDoc.id,
-            "qty": 1,
-          });
-        }
-      }
-      
+      final loadedMenu = await _orderRepository.loadMenu();
       menu.assignAll(loadedMenu);
     } catch (e) {
       debugPrint("Error loading menu: $e");
@@ -183,15 +156,7 @@ class DashboardController extends GetxController {
     }
   }
 
-  /// When the user is on the Dashboard Page and clicks on a Table or Take Away, they will be redirected to the Menu Page. There, the user can select items and proceed to the Cart Page.
-  /// 
-  /// On the Cart Page:
-  /// - If the user presses the SEND TO KITCHEN button, all selected items will be displayed on the respective table in the Dashboard View Page.
-  /// - If the user presses the Billing button and then clicks CONFIRM & PROCEED, the transaction will be saved, and all items will be displayed on the table in the Dashboard View Page with a Paid tag.
-  /// 
-  /// In the Dashboard View Page:
-  /// - If items are available on a table and the user double-clicks on that table, they will be redirected to the Final Billing View Page.
-  /// - On the Final Billing View Page, if the user presses the Confirm & Billing button, the transaction will be saved and the table will be cleared from the Dashboard View Page.
+  /// Updates existing table active items. Direct delegate to Repository.
   Future<void> updateTableItemsInFirestore(
     String tableName,
     List<List<Map<String, dynamic>>> groups,
@@ -199,52 +164,18 @@ class DashboardController extends GetxController {
     String overallRemarks = '',
   ]) async {
     try {
-      final tableQuery = await FirebaseFirestore.instance
-          .collection('tables')
-          .where('name', isEqualTo: tableName)
-          .limit(1)
-          .get();
-
-      if (tableQuery.docs.isEmpty) return;
-
-      final docId = tableQuery.docs.first.id;
-      List<Map<String, dynamic>> flattenedItems = [];
-
-      for (int groupIndex = 0; groupIndex < groups.length; groupIndex++) {
-        var group = groups[groupIndex];
-        Timestamp groupTimestamp;
-        
-        if (group.isNotEmpty && group[0].containsKey('addedAt')) {
-          groupTimestamp = group[0]['addedAt'];
-        } else {
-          groupTimestamp = Timestamp.now();
-        }
-
-        for (var item in group) {
-          final itemWithMeta = Map<String, dynamic>.from(item);
-          itemWithMeta['groupIndex'] = groupIndex;
-          itemWithMeta['addedAt'] = groupTimestamp;
-          flattenedItems.add(itemWithMeta);
-        }
-      }
-
-      final updateData = {
-        'items': flattenedItems,
-        "isPaid": isBillPaid,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (overallRemarks.isNotEmpty) {
-        updateData['remarks'] = overallRemarks;
-      }
-
-      await FirebaseFirestore.instance.collection('tables').doc(docId).update(updateData);
+      await _orderRepository.updateTableItems(
+        tableName: tableName,
+        groups: groups,
+        isPaid: isBillPaid,
+        overallRemarks: overallRemarks,
+      );
     } catch (e) {
       debugPrint("Failed to update Firestore: $e");
     }
   }
 
-  /// Adds a new table (typically for take away) and its selected items to Firestore.
+  /// Adds a new table order. Appends to existing one if a duplicate name collision occurs.
   Future<void> addTableAndUpdateItems(
     String tableName,
     List<Map<String, dynamic>> selectedItems,
@@ -252,54 +183,37 @@ class DashboardController extends GetxController {
     String overallRemarks = '',
   ]) async {
     try {
-      final existing = await FirebaseFirestore.instance
-          .collection('tables')
-          .where('name', isEqualTo: tableName)
-          .limit(1)
-          .get();
+      final exists = await _orderRepository.checkTableExists(tableName);
 
-      if (existing.docs.isNotEmpty) {
-        // Fallback: append as a new group to the existing table to prevent data loss
+      if (exists) {
+        // Safe collision fallback: append new items as a group to prevent data loss
         final existingGroups = tables[tableName] ?? [];
         existingGroups.add(selectedItems);
         await updateTableItemsInFirestore(tableName, existingGroups, isBillPaid, overallRemarks);
         return;
       }
 
-      List<Map<String, dynamic>> flattenedItems = [];
-      final Timestamp groupTimestamp = Timestamp.now();
-
-      for (int i = 0; i < selectedItems.length; i++) {
-        final item = Map<String, dynamic>.from(selectedItems[i]);
-        item['groupIndex'] = 0;
-        item['addedAt'] = groupTimestamp;
-        flattenedItems.add(item);
-      }
-
-      final tableData = {
-        'name': tableName,
-        'items': flattenedItems,
-        "isPaid": isBillPaid,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (overallRemarks.isNotEmpty) {
-        tableData['remarks'] = overallRemarks;
-      }
-
-      await FirebaseFirestore.instance.collection('tables').add(tableData);
+      await _orderRepository.addNewTable(
+        tableName: tableName,
+        selectedItems: selectedItems,
+        isPaid: isBillPaid,
+        overallRemarks: overallRemarks,
+      );
     } catch (e) {
       debugPrint("Failed to add table: $e");
     }
   }
 
-  /// Deletes a table entirely from Firestore.
+  /// Deletes a table document (typically takeaway) entirely. Direct delegate to Repository.
   Future<void> deleteTable(String docId) async {
-    await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
+    try {
+      await _orderRepository.deleteTable(docId);
+    } catch (e) {
+      debugPrint("Failed to delete table: $e");
+    }
   }
   
-  /// Helper method to merge items with identical name and category to combine their quantities.
+  /// Combines duplicates items matching name & category into one summed item entry.
   List<Map<String, dynamic>> mergeItemsByNameAndCategory(List<Map<String, dynamic>> items) {
     final Map<String, Map<String, dynamic>> itemMap = {};
     for (var item in items) {
@@ -312,5 +226,4 @@ class DashboardController extends GetxController {
     }
     return itemMap.values.toList();
   }
-  }
-
+}
