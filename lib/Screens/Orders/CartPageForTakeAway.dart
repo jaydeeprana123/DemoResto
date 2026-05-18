@@ -6,8 +6,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 
-import 'Styles/my_colors.dart';
-import 'Styles/my_font.dart';
+import 'package:demo/Styles/my_colors.dart';
+import 'package:demo/Styles/my_font.dart';
 
 /// Cart Page
 class CartPageForTakeAway extends StatefulWidget {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'Styles/my_font.dart';
+import 'package:demo/Styles/my_font.dart';
 
 class AddMenuItemPage extends StatefulWidget {
   @override

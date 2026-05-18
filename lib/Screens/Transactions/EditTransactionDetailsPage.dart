@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/AddCategoryPage.dart' hide AddTablePage;
-import 'package:demo/AddMenuItemPage.dart';
+import 'package:demo/Screens/Menu/AddCategoryPage.dart' hide AddTablePage;
+import 'package:demo/Screens/Menu/AddMenuItemPage.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../Styles/my_font.dart';
+import 'package:demo/Styles/my_font.dart';
 
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 

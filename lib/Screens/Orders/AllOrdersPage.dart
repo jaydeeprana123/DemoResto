@@ -1,27 +1,69 @@
-import 'dart:async';
+import 'package:demo/Screens/Menu/AddMenuItemPage.dart';
+import 'package:demo/Styles/my_colors.dart';
+import 'package:demo/Styles/my_icons.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:demo/Screens/Menu/MenuPageView.dart';
+import 'package:demo/Styles/my_font.dart';
+import 'package:demo/models/GroupOrder.dart';
+
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dotted_line/dotted_line.dart';
+
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dotted_line/dotted_line.dart';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:dotted_line/dotted_line.dart';
+
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+import 'package:dotted_line/dotted_line.dart';
+
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:intl/intl.dart';
+import 'package:dotted_line/dotted_line.dart';
+import 'dart:async';
 
-import 'package:demo/Styles/my_colors.dart';
-import 'package:demo/Styles/my_icons.dart';
-import 'Styles/my_font.dart';
-import 'models/GroupOrder.dart';
-import 'MenuPage.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:intl/intl.dart';
+import 'package:dotted_line/dotted_line.dart';
+import 'dart:async';
 
-class KitchenOrdersListView extends StatefulWidget {
-  const KitchenOrdersListView({super.key});
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:intl/intl.dart';
+import 'package:dotted_line/dotted_line.dart';
+
+class OrdersGroupedListPage extends StatefulWidget {
+  const OrdersGroupedListPage({super.key});
 
   @override
-  State<KitchenOrdersListView> createState() => _KitchenOrdersListViewState();
+  State<OrdersGroupedListPage> createState() => _OrdersGroupedListPageState();
 }
 
-class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
+class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   final AudioPlayer audioPlayer = AudioPlayer();
   Set<String> previousKeys = {};
   int? blinkingGroupKey;
@@ -35,25 +77,17 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     try {
       await audioPlayer.play(AssetSource('sounds/phone_bell.mp3'));
     } catch (e) {
-      // ignore audio errors
-    }
-  }
-
-  void _playDeleteSound() async {
-    try {
-      // Re-using phone_bell.mp3 or a different one if available.
-      await audioPlayer.play(AssetSource('sounds/phone_bell.mp3'));
-    } catch (e) {
-      // ignore audio errors
+      // ignore audio errors in production or print for debug:
+      // print('Audio play failed: $e');
     }
   }
 
   List<TableGroup> _reconstructGroups(
-      String tableName,
-      List<dynamic>? itemsFromDb, {
-        required bool isPaid,
-        required String docId,
-      }) {
+    String tableName,
+    List<dynamic>? itemsFromDb, {
+    required bool isPaid,
+    required String docId,
+  }) {
     List<TableGroup> groups = [];
     if (itemsFromDb == null) return groups;
 
@@ -113,26 +147,29 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       return groups;
     }
 
-    return groups.map((group) {
-      // Filter items in this group by selected categories
-      final filteredItems = group.items.where((item) {
-        final itemCategory = item['category']?.toString() ?? '';
-        return selectedCategories.contains(itemCategory);
-      }).toList();
+    return groups
+        .map((group) {
+          // Filter items in this group by selected categories
+          final filteredItems = group.items.where((item) {
+            final itemCategory = item['category']?.toString() ?? '';
+            return selectedCategories.contains(itemCategory);
+          }).toList();
 
-      // If no items match, return null (will be filtered out)
-      if (filteredItems.isEmpty) return null;
+          // If no items match, return null (will be filtered out)
+          if (filteredItems.isEmpty) return null;
 
-      // Return new group with filtered items
-      return TableGroup(
-        group.tableName,
-        filteredItems,
-        group.groupTime,
-        key: group.key,
-        docId: group.docId,
-        isPaid: group.isPaid,
-      );
-    }).whereType<TableGroup>().toList(); // Remove nulls
+          // Return new group with filtered items
+          return TableGroup(
+            group.tableName,
+            filteredItems,
+            group.groupTime,
+            key: group.key,
+            docId: group.docId,
+            isPaid: group.isPaid,
+          );
+        })
+        .whereType<TableGroup>()
+        .toList(); // Remove nulls
   }
 
   // Check if the group contains items from selected categories
@@ -165,9 +202,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const AlertDialog(
-                content: Center(
-                  child: CircularProgressIndicator(),
-                ),
+                content: Center(child: CircularProgressIndicator()),
               );
             }
 
@@ -244,7 +279,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                             itemBuilder: (context, index) {
                               final category = categories[index];
                               final categoryName = category['name'] as String;
-                              final isSelected = selectedCategories.contains(categoryName);
+                              final isSelected = selectedCategories.contains(
+                                categoryName,
+                              );
 
                               return CheckboxListTile(
                                 title: Text(
@@ -260,14 +297,18 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                                 onChanged: showAllCategories
                                     ? null
                                     : (bool? value) {
-                                  setDialogState(() {
-                                    if (value == true) {
-                                      selectedCategories.add(categoryName);
-                                    } else {
-                                      selectedCategories.remove(categoryName);
-                                    }
-                                  });
-                                },
+                                        setDialogState(() {
+                                          if (value == true) {
+                                            selectedCategories.add(
+                                              categoryName,
+                                            );
+                                          } else {
+                                            selectedCategories.remove(
+                                              categoryName,
+                                            );
+                                          }
+                                        });
+                                      },
                                 contentPadding: EdgeInsets.zero,
                                 dense: true,
                               );
@@ -330,10 +371,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       appBar: AppBar(
         title: const Text(
           "All Orders",
-          style: TextStyle(
-            fontFamily: fontMulishSemiBold,
-            fontSize: 16,
-          ),
+          style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 16),
         ),
         actions: [
           // Filter button with badge showing count
@@ -399,16 +437,20 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           for (var doc in snapshot.data!.docs) {
             final data = doc.data();
             final tableName = (data['name'] ?? 'Unknown Table') as String;
-            final isPaid = (data.containsKey('isPaid')) ? (data['isPaid'] as bool) : false;
+            final isPaid = (data.containsKey('isPaid'))
+                ? (data['isPaid'] as bool)
+                : false;
             final itemsFromDb = (data.containsKey('items'))
                 ? (data['items'] as List<dynamic>?)
                 : null;
-            updatedGroups.addAll(_reconstructGroups(
-              tableName,
-              itemsFromDb,
-              isPaid: isPaid,
-              docId: doc.id,
-            ));
+            updatedGroups.addAll(
+              _reconstructGroups(
+                tableName,
+                itemsFromDb,
+                isPaid: isPaid,
+                docId: doc.id,
+              ),
+            );
           }
 
           // Sort by time
@@ -429,7 +471,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
               // Check if the new order contains items from selected categories
               final newGroup = updatedGroups.firstWhere(
-                    (g) => g.key == firstKey,
+                (g) => g.key == firstKey,
                 orElse: () => updatedGroups.last,
               );
               final shouldPlaySound = _shouldPlaySoundForGroup(newGroup);
@@ -461,7 +503,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
                 // Check if the new order contains items from selected categories
                 final newGroup = updatedGroups.firstWhere(
-                      (g) => g.key == newKey,
+                  (g) => g.key == newKey,
                   orElse: () => updatedGroups.last,
                 );
                 final shouldPlaySound = _shouldPlaySoundForGroup(newGroup);
@@ -497,7 +539,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.filter_list_off, size: 64, color: Colors.grey),
+                  const Icon(
+                    Icons.filter_list_off,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     showAllCategories
@@ -526,26 +572,27 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             );
           }
 
-          final screenW = MediaQuery.of(context).size.width;
-          final crossCols = screenW > 1200 ? 5
-              : screenW > 900  ? 4
-              : screenW > 600  ? 3
-              : screenW > 400  ? 2
-              : 1;
-
-          return MasonryGridView.count(
-            crossAxisCount: crossCols,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
+          return ListView.separated(
             padding: const EdgeInsets.all(12),
             itemCount: filteredGroups.length,
+            separatorBuilder: (_, __) => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: DottedLine(
+                dashLength: 6,
+                dashGapLength: 4,
+                lineThickness: 1,
+                dashColor: Colors.grey,
+              ),
+            ),
             itemBuilder: (context, index) {
               final group = filteredGroups[index];
               final time = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
               final isBlinking = blinkingGroupKey == group.key.hashCode;
               final isOld = DateTime.now().difference(time).inMinutes > 5;
 
-              if (group.tableName.contains("Take Away") && isOld && group.isPaid) {
+              if (group.tableName.contains("Take Away") &&
+                  isOld &&
+                  group.isPaid) {
                 deleteTable(group.docId);
               }
 
@@ -553,7 +600,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                 onDoubleTap: () {
                   if (group.isPaid && selectedCategories.isEmpty) {
                     showServedDialog(context, group.tableName, () async {
-                      _playDeleteSound();
                       if (group.tableName.contains("Take Away")) {
                         await FirebaseFirestore.instance
                             .collection('tables')
@@ -562,7 +608,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                         setState(() {});
                       } else {
                         await _updateTableItemsInFirestore(
-                            group.tableName, [], false);
+                          group.tableName,
+                          [],
+                          false,
+                        );
                       }
                     });
                   }
@@ -570,171 +619,117 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeInOut,
-                  decoration: BoxDecoration(
-                    color: isBlinking ? Colors.lightGreenAccent.shade100 : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isOld ? Colors.red.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                    border: isOld ? Border.all(color: Colors.red, width: 2) : Border.all(color: Colors.grey.shade200),
+                  color: isBlinking
+                      ? Colors.lightGreenAccent
+                      : isOld
+                      ? Colors.red.shade100
+                      : Colors.transparent,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 6,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A3A5C), // Brand Navy
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  SvgPicture.asset(
-                                    (group.tableName).contains("Take Away")
-                                        ? icon_packing
-                                        : icon_table,
-                                    colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                                    width: (group.tableName).contains("Take Away") ? 18 : 22,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      group.tableName,
-                                      style: TextStyle(
-                                        fontFamily: (group.tableName).contains("Take Away")
-                                            ? fontMulishBold
-                                            : fontMulishSemiBold,
-                                        fontSize: 16,
-                                        color: Colors.white,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (group.isPaid)
-                              Container(
-                                margin: const EdgeInsets.only(left: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.green,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Text(
-                                  "PAID",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontFamily: fontMulishBold,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      // Time indicator
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        color: isOld ? Colors.red.shade50 : const Color(0xFFF5F6FA),
-                        child: Row(
-                          children: [
-                            Icon(Icons.access_time, size: 14, color: isOld ? Colors.red : Colors.grey.shade700),
-                            const SizedBox(width: 6),
-                            Text(
-                              formatRelativeTime(time),
-                              style: TextStyle(
-                                fontFamily: fontMulishSemiBold,
-                                fontSize: 13,
-                                color: isOld ? Colors.red : Colors.grey.shade800,
-                              ),
-                            ),
-                            if (isOld) ...[
-                              const Spacer(),
-                              const Text(
-                                "DELAYED",
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 10,
-                                  fontFamily: fontMulishBold,
-                                ),
-                              )
-                            ]
-                          ],
-                        ),
-                      ),
-                      // Items List
                       Padding(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: SvgPicture.asset(
+                          (group.tableName).contains("Take Away")
+                              ? icon_packing
+                              : icon_table,
+                          color: Colors.black87,
+                          width: (group.tableName).contains("Take Away")
+                              ? 18
+                              : 24,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: group.items.map((item) {
-                            final qty = item['qty'] ?? 1;
-                            final remarks = item['remarks']?.toString() ?? '';
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFf57c35).withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(color: const Color(0xFFf57c35).withValues(alpha: 0.3)),
-                                    ),
-                                    child: Text(
-                                      "${qty}x",
-                                      style: const TextStyle(
-                                        color: Color(0xFFf57c35), // Brand Orange
-                                        fontFamily: fontMulishBold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item['name']?.toString() ?? '',
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.black87,
-                                            fontFamily: fontMulishSemiBold,
-                                            height: 1.2,
-                                          ),
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        "${group.tableName} ",
+                                        style: TextStyle(
+                                          fontFamily:
+                                              (group.tableName).contains(
+                                                "Take Away",
+                                              )
+                                              ? fontMulishBold
+                                              : fontMulishSemiBold,
+                                          fontSize: 15,
+                                          color: Colors.black,
                                         ),
-                                        if (remarks.isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 2),
-                                            child: Text(
-                                              "* $remarks",
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.red.shade400,
-                                                fontFamily: fontMulishSemiBold,
-                                                fontStyle: FontStyle.italic,
-                                              ),
+                                      ),
+                                      if (group.isPaid)
+                                        Container(
+                                          color: Colors.red,
+                                          margin: const EdgeInsets.symmetric(
+                                            vertical: 3,
+                                            horizontal: 8,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 3,
+                                          ),
+                                          child: const Text(
+                                            "PAID",
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontFamily: fontMulishBold,
                                             ),
                                           ),
-                                      ],
-                                    ),
+                                        ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  formatRelativeTime(time),
+                                  style: const TextStyle(
+                                    fontFamily: fontMulishSemiBold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            ...group.items.map((item) {
+                              final qty = item['qty'] ?? 1;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: item['name']?.toString() ?? '',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.black,
+                                          fontFamily: fontMulishRegular,
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: "  x$qty",
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          color: Colors.red,
+                                          fontFamily: fontMulishSemiBold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
                         ),
                       ),
                     ],
@@ -779,10 +774,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   }
 
   void showServedDialog(
-      BuildContext context,
-      String tableName,
-      VoidCallback onServed,
-      ) {
+    BuildContext context,
+    String tableName,
+    VoidCallback onServed,
+  ) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -792,11 +787,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
-           tableName.contains("Take Away")?"Mark as Delivered?": "Mark as Served?",
+            tableName.contains("Take Away")
+                ? "Mark as Delivered?"
+                : "Mark as Served?",
             style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
           ),
           content: Text(
-            tableName.contains("Take Away")? "Are you sure you want to mark table '$tableName' as delivered?":"Are you sure you want to mark table '$tableName' as served?",
+            tableName.contains("Take Away")
+                ? "Are you sure you want to mark table '$tableName' as delivered?"
+                : "Are you sure you want to mark table '$tableName' as served?",
             style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 15),
           ),
           actions: [
@@ -821,8 +820,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                 Navigator.pop(context);
                 onServed();
               },
-              child:  Text(
-                tableName.contains("Take Away")? "Delivered":"Served",
+              child: Text(
+                tableName.contains("Take Away") ? "Delivered" : "Served",
                 style: TextStyle(
                   fontFamily: fontMulishSemiBold,
                   color: Colors.white,
@@ -836,10 +835,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   }
 
   Future<void> _updateTableItemsInFirestore(
-      String tableName,
-      List<List<Map<String, dynamic>>> groups,
-      bool isBillPaid,
-      ) async {
+    String tableName,
+    List<List<Map<String, dynamic>>> groups,
+    bool isBillPaid,
+  ) async {
     try {
       print("=== UPDATING FIREBASE ===");
       print("Table name: $tableName");
@@ -913,14 +912,11 @@ class TableGroup {
   final bool isPaid;
 
   TableGroup(
-      this.tableName,
-      this.items,
-      this.groupTime, {
-        required this.key,
-        required this.docId,
-        required this.isPaid,
-      });
+    this.tableName,
+    this.items,
+    this.groupTime, {
+    required this.key,
+    required this.docId,
+    required this.isPaid,
+  });
 }
-
-
-

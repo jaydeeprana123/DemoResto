@@ -1,30 +1,31 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/Screens/Authentication/SignupScreenView.dart';
-import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:demo/Screens/Authentication/screens/SignupScreenView.dart';
+import 'package:demo/Screens/Authentication/controllers/auth_controller.dart';
+import 'package:demo/Styles/my_font.dart';
 
-import '../../Styles/my_font.dart';
-
-// Brand colours extracted from the Flavor Flow logo
+// Brand colors matching the Flavor Flow identity
 const _navy   = Color(0xFF1A3A5C);
 const _navyDk = Color(0xFF0D2137);
-const _orange = Color(0xFFf57c35);  // matches existing primary_color
+const _orange = Color(0xFFf57c35); // primary color
 const _green  = Color(0xFF4CAF50);
 
+/// LoginPage
+/// 
+/// A beautifully animated responsive authentication screen.
+/// Implemented using the GetX Repository Pattern.
+/// It delegates business operations and state storage to [AuthController].
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
+
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage>
-    with SingleTickerProviderStateMixin {
-  final _emailCtrl    = TextEditingController();
-  final _passCtrl     = TextEditingController();
-  bool _loading       = false;
-  bool _obscurePass   = true;
-  bool _rememberMe    = false;
+class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
+  // Inject the GetX controller to handle all reactive state and auth methods
+  final AuthController _authCtrl = Get.put(AuthController());
+
   late AnimationController _animCtrl;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
@@ -32,6 +33,7 @@ class _LoginPageState extends State<LoginPage>
   @override
   void initState() {
     super.initState();
+    // UI Animations for loading widgets smoothly on startup
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -47,67 +49,9 @@ class _LoginPageState extends State<LoginPage>
   @override
   void dispose() {
     _animCtrl.dispose();
-    _emailCtrl.dispose();
-    _passCtrl.dispose();
+    // Note: We DO NOT dispose text controllers here because they are handled
+    // inside the AuthController onClose method.
     super.dispose();
-  }
-
-  Future<void> _login() async {
-    if (_emailCtrl.text.trim().isEmpty || _passCtrl.text.trim().isEmpty) {
-      _snack('Please enter email and password.');
-      return;
-    }
-    setState(() => _loading = true);
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailCtrl.text.trim(),
-        password: _passCtrl.text.trim(),
-      );
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const BottomNavigationView()),
-      );
-    } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Login failed');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _register() async {
-    setState(() => _loading = true);
-    try {
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailCtrl.text.trim(),
-        password: _passCtrl.text.trim(),
-      );
-      final user = cred.user;
-      if (user != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({
-          'email': user.email,
-          'role': 'Staff',
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const BottomNavigationView()),
-      );
-    } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Signup failed');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  void _snack(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
@@ -121,24 +65,24 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  // ─────────────────────────── Wide / Tablet layout ────────────────────────
+  // ─────────────────────────── Wide Layout (Web / Desktop) ────────────────────────
   Widget _wideLayout() {
     return Row(
       children: [
-        // Left panel — navy illustration
+        // Left panel featuring the interactive PageView illustration and slides
         Expanded(flex: 5, child: _leftPanel()),
-        // Right panel — form
+        // Right panel rendering the form
         Expanded(flex: 6, child: _formPanel()),
       ],
     );
   }
 
-  // ─────────────────────────── Narrow / Phone layout ───────────────────────
+  // ─────────────────────────── Narrow Layout (Mobile Devices) ───────────────────────
   Widget _narrowLayout() {
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Top banner (compact version of left panel)
+          // Top banner (compact illustration banner for mobile)
           _topBanner(),
           // Form
           _formPanel(),
@@ -147,7 +91,7 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  // ─────────────────────────── Left / Top panel ────────────────────────────
+  // ─────────────────────────── Interactive Left Panel (PageView) ────────────────────────────
   Widget _leftPanel() {
     return Container(
       decoration: const BoxDecoration(
@@ -159,46 +103,56 @@ class _LoginPageState extends State<LoginPage>
       ),
       child: Stack(
         children: [
-          // Decorative circles
+          // Background decorative ambient circles
           ..._decorCircles(),
-          // Content
+          
           Padding(
             padding: const EdgeInsets.all(40),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Spacer(),
-                // Big illustration icon cluster
-                Center(
-                  child: _restaurantIllustration(),
+                
+                // Proper PageView container to support sliding features
+                Expanded(
+                  flex: 14,
+                  child: PageView(
+                    controller: _authCtrl.pageController,
+                    onPageChanged: _authCtrl.onPageChanged,
+                    children: [
+                      // Slide 1: General Smart Management
+                      _pageSlide(
+                        title: 'Smart Restaurant\nManagement',
+                        subtitle: 'Manage orders, tables, kitchen & billing all from one powerful unified dashboard.',
+                        illustration: _restaurantIllustration(size: 140),
+                      ),
+                      // Slide 2: Real-time Kitchen Synchronization
+                      _pageSlide(
+                        title: 'Real-Time Kitchen\nCoordination',
+                        subtitle: 'Instantly synchronize orders between tables and the kitchen queue for swift preparation.',
+                        illustration: _featureIllustration(Icons.soup_kitchen_outlined, size: 140),
+                      ),
+                      // Slide 3: Voice-assisted AI features
+                      _pageSlide(
+                        title: 'Voice-Based AI\nOrdering',
+                        subtitle: 'Supercharge order capture and table mapping with our advanced voice-to-order engine.',
+                        illustration: _featureIllustration(Icons.mic_none_rounded, size: 140),
+                      ),
+                    ],
+                  ),
                 ),
+                
                 const Spacer(),
-                // Tag line
-                Text(
-                  'Smart Restaurant\nManagement',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontFamily: fontMulishBold,
-                    color: Colors.white,
-                    height: 1.3,
+                
+                // Reactive Dot Indicators
+                Obx(() => Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: List.generate(
+                    _authCtrl.totalPages, 
+                    (i) => _dot(i == _authCtrl.pageViewIndex.value, index: i),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Manage orders, tables, kitchen & billing\n'
-                  'all from one powerful dashboard.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontFamily: fontMulishRegular,
-                    color: Colors.white70,
-                    height: 1.6,
-                  ),
-                ),
-                const SizedBox(height: 40),
-                // Dot indicators
-                Row(
-                  children: List.generate(3, (i) => _dot(i == 0)),
-                ),
+                )),
+                
                 const SizedBox(height: 32),
               ],
             ),
@@ -208,6 +162,42 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
+  /// Helper widget to build a specific PageView slide
+  Widget _pageSlide({
+    required String title,
+    required String subtitle,
+    required Widget illustration,
+  }) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(child: illustration),
+        const SizedBox(height: 48),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 28,
+            fontFamily: fontMulishBold,
+            color: Colors.white,
+            height: 1.3,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 14,
+            fontFamily: fontMulishRegular,
+            color: Colors.white70,
+            height: 1.6,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────── Top Banner (Mobile Compact Layout) ──────────────────────
   Widget _topBanner() {
     return Container(
       width: double.infinity,
@@ -245,7 +235,7 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  // ─────────────────────────── Form panel ─────────────────────────────────
+  // ─────────────────────────── Form Panel (Reactive) ─────────────────────────────────
   Widget _formPanel() {
     return FadeTransition(
       opacity: _fadeAnim,
@@ -259,11 +249,7 @@ class _LoginPageState extends State<LoginPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Logo + brand
-                  // Center(child: _logoWidget()),
-                  // const SizedBox(height: 28),
-
-                  // Welcome text
+                  // Welcome message
                   Text(
                     'Welcome Back 👋',
                     style: TextStyle(
@@ -283,88 +269,96 @@ class _LoginPageState extends State<LoginPage>
                   ),
                   const SizedBox(height: 32),
 
-                  // Email field
+                  // Email Input Field
                   _label('Email Address'),
                   const SizedBox(height: 8),
                   _inputField(
-                    controller: _emailCtrl,
+                    controller: _authCtrl.emailCtrl,
                     hint: 'your@email.com',
                     icon: Icons.mail_outline_rounded,
                     keyboardType: TextInputType.emailAddress,
                   ),
                   const SizedBox(height: 18),
 
-                  // Password field
+                  // Password Input Field with Obx for reactive visibility toggling
                   _label('Password'),
                   const SizedBox(height: 8),
-                  _inputField(
-                    controller: _passCtrl,
+                  Obx(() => _inputField(
+                    controller: _authCtrl.passCtrl,
                     hint: '••••••••',
                     icon: Icons.lock_outline_rounded,
-                    obscure: _obscurePass,
+                    obscure: _authCtrl.obscurePass.value,
                     suffix: IconButton(
                       icon: Icon(
-                        _obscurePass
+                        _authCtrl.obscurePass.value
                             ? Icons.visibility_off_outlined
                             : Icons.visibility_outlined,
                         size: 20,
                         color: Colors.grey.shade500,
                       ),
-                      onPressed: () =>
-                          setState(() => _obscurePass = !_obscurePass),
+                      onPressed: () => _authCtrl.obscurePass.toggle(),
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 14),
 
-                  // Remember me + Forgot
+                  // Remember me + Forgot Password row
                   Row(
                     children: [
-                      GestureDetector(
-                        onTap: () =>
-                            setState(() => _rememberMe = !_rememberMe),
-                        child: Row(
-                          children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: 20, height: 20,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(5),
-                                border: Border.all(
-                                  color: _rememberMe
+                      Obx(() => GestureDetector(
+                        onTap: () => _authCtrl.rememberMe.toggle(),
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Row(
+                            children: [
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(5),
+                                  border: Border.all(
+                                    color: _authCtrl.rememberMe.value
+                                        ? _orange
+                                        : Colors.grey.shade400,
+                                    width: 1.5,
+                                  ),
+                                  color: _authCtrl.rememberMe.value
                                       ? _orange
-                                      : Colors.grey.shade400,
-                                  width: 1.5,
+                                      : Colors.transparent,
                                 ),
-                                color: _rememberMe
-                                    ? _orange
-                                    : Colors.transparent,
+                                child: _authCtrl.rememberMe.value
+                                    ? const Icon(Icons.check,
+                                        size: 13, color: Colors.white)
+                                    : null,
                               ),
-                              child: _rememberMe
-                                  ? const Icon(Icons.check,
-                                      size: 13, color: Colors.white)
-                                  : null,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Remember me',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontFamily: fontMulishRegular,
-                                color: Colors.grey.shade700,
+                              const SizedBox(width: 8),
+                              Text(
+                                'Remember me',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontFamily: fontMulishRegular,
+                                  color: Colors.grey.shade700,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
+                      )),
                       const Spacer(),
                       GestureDetector(
-                        onTap: () => _snack('Reset email sent (if exists).'),
-                        child: Text(
-                          'Forgot Password?',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontFamily: fontMulishSemiBold,
-                            color: _orange,
+                        onTap: () => _authCtrl.showSnackbar(
+                          'Forgot Password',
+                          'Password reset feature is undergoing maintenance. Contact Admin.',
+                        ),
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Text(
+                            'Forgot Password?',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontFamily: fontMulishSemiBold,
+                              color: _orange,
+                            ),
                           ),
                         ),
                       ),
@@ -372,15 +366,15 @@ class _LoginPageState extends State<LoginPage>
                   ),
                   const SizedBox(height: 28),
 
-                  // Sign In button
-                  _loading
+                  // Sign In Action Button wrapped in reactive Obx for loader state
+                  Obx(() => _authCtrl.isLoading.value
                       ? const Center(
                           child: CircularProgressIndicator(color: _orange))
                       : _primaryButton(
                           label: 'Sign In',
                           icon: Icons.login_rounded,
-                          onTap: _login,
-                        ),
+                          onTap: _authCtrl.loginUser,
+                        )),
                   const SizedBox(height: 16),
 
                   // Divider
@@ -403,19 +397,15 @@ class _LoginPageState extends State<LoginPage>
                   ),
                   const SizedBox(height: 16),
 
-                  // Sign Up button
+                  // Sign Up Redirect Button
                   _outlineButton(
                     label: "Don't have an account? Sign Up",
-                    onTap: () => Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => SignupScreenView()),
-                    ),
+                    onTap: () => Get.off(() => const SignupScreenView()),
                   ),
 
                   const SizedBox(height: 32),
 
-                  // Footer
+                  // Footer Copyright
                   Center(
                     child: Text(
                       'Flavor Flow © ${DateTime.now().year}',
@@ -435,32 +425,51 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  // ─────────────────────────── Logo widget ────────────────────────────────
-  Widget _logoWidget() {
+  // ─────────────────────────── Feature Illustration Generator ────────────────────────
+  Widget _featureIllustration(IconData icon, {double size = 140}) {
     return Container(
-      width: 80,
-      height: 80,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.white.withOpacity(0.08),
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withOpacity(0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
-      child: ClipOval(
-        child: Image.asset(
-          'assets/images/logo.png',
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => const Icon(
-            Icons.restaurant,
-            size: 40,
-            color: _orange,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withOpacity(0.15),
+                width: 1.5,
+              ),
+            ),
           ),
-        ),
+          Icon(
+            icon,
+            color: Colors.white,
+            size: size * 0.45,
+          ),
+          Positioned(
+            bottom: size * 0.12,
+            right: size * 0.12,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: const BoxDecoration(
+                color: _orange,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.check,
+                color: Colors.white,
+                size: size * 0.15,
+              ),
+            ),
+          )
+        ],
       ),
     );
   }
@@ -503,7 +512,7 @@ class _LoginPageState extends State<LoginPage>
                   Container(
                     width: size * 0.18,
                     height: size * 0.18,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: _orange,
                       shape: BoxShape.circle,
                     ),
@@ -521,7 +530,7 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  // ─────────────────────────── Decorative circles ─────────────────────────
+  // ─────────────────────────── Decorative Ambient Circles ─────────────────────────
   List<Widget> _decorCircles() {
     return [
       _circle(top: -30, right: -30, size: 140,
@@ -551,18 +560,25 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  Widget _dot(bool active) => AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        margin: const EdgeInsets.only(right: 6),
-        width: active ? 24 : 8,
-        height: 8,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(4),
-          color: active ? _orange : Colors.white38,
+  // Clickable interactive dot indicators
+  Widget _dot(bool active, {required int index}) => GestureDetector(
+        onTap: () => _authCtrl.animateToPage(index),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            margin: const EdgeInsets.only(right: 6),
+            width: active ? 24 : 8,
+            height: 8,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              color: active ? _orange : Colors.white38,
+            ),
+          ),
         ),
       );
 
-  // ─────────────────────────── Form helpers ────────────────────────────────
+  // ─────────────────────────── Form Helper Widgets ────────────────────────────────
   Widget _label(String text) => Text(
         text,
         style: TextStyle(

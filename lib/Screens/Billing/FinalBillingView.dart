@@ -11,25 +11,21 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 
-import 'Screens/BottomNavigation/bottom_navigation_view.dart';
-import 'MenuPage.dart';
-import 'Styles/my_colors.dart';
-import 'Styles/my_font.dart';
-import 'Styles/my_icons.dart';
+import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
+import 'package:demo/Screens/Menu/MenuPageView.dart';
+import 'package:demo/Styles/my_colors.dart';
+import 'package:demo/Styles/my_font.dart';
+import 'package:demo/Styles/my_icons.dart';
 
 /// Cart Page
 class FinalBillingView extends StatefulWidget {
   final String tableName;
   final List<Map<String, dynamic>> menuData;
   final List<Map<String, dynamic>> totalMenuList; // Passed from previous page
-  final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
-
-
 
   FinalBillingView({
     required this.menuData,
     required this.totalMenuList,
-    required this.onConfirm,
     required this.tableName,
     Key? key,
   }) : super(key: key);
@@ -39,9 +35,9 @@ class FinalBillingView extends StatefulWidget {
 }
 
 class _FinalBillingViewState extends State<FinalBillingView> {
-  static const _navy   = Color(0xFF1A3A5C);
+  static const _navy = Color(0xFF1A3A5C);
   static const _orange = Color(0xFFf57c35);
-  static const _bg     = Color(0xFFF5F6FA);
+  static const _bg = Color(0xFFF5F6FA);
 
   late List<Map<String, dynamic>> cartItems;
 
@@ -142,7 +138,11 @@ class _FinalBillingViewState extends State<FinalBillingView> {
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
           "Cart - ${widget.tableName}",
-          style: const TextStyle(fontSize: 16, fontFamily: fontMulishBold, color: Colors.white),
+          style: const TextStyle(
+            fontSize: 16,
+            fontFamily: fontMulishBold,
+            color: Colors.white,
+          ),
         ),
         actions: [
           IconButton(
@@ -151,7 +151,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => MenuPage(
+                  builder: (_) => MenuPageView(
                     menuList: widget.totalMenuList,
                     tableName: widget.tableName,
                     tableNameEditable: false,
@@ -230,8 +230,14 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                             incrementQty(index);
                           },
                           child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 6,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
@@ -397,7 +403,6 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                     ),
                                   ],
                                 ),
-
                               ],
                             ),
                           ),
@@ -409,7 +414,9 @@ class _FinalBillingViewState extends State<FinalBillingView> {
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.06),
@@ -428,12 +435,305 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                        // Payment Mode Selection
+                            // Payment Mode Selection
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    "Payment By",
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: secondary_text_color,
+                                      fontFamily: fontMulishSemiBold,
+                                    ),
+                                  ),
+                                ),
+
+                                Row(
+                                  children: [
+                                    Radio<String>(
+                                      value: 'Cash',
+                                      groupValue: paymentMode,
+                                      visualDensity: VisualDensity(
+                                        horizontal: -4,
+                                        vertical: -4,
+                                      ),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          paymentMode = value!;
+                                          _updatePaymentAmounts();
+                                        });
+                                      },
+                                    ),
+                                    const Text(
+                                      'Cash',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: text_color,
+                                        fontFamily: fontMulishSemiBold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                SizedBox(width: 12),
+                                Row(
+                                  children: [
+                                    Radio<String>(
+                                      value: 'Online',
+                                      groupValue: paymentMode,
+                                      visualDensity: VisualDensity(
+                                        horizontal: -4,
+                                        vertical: -4,
+                                      ),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          paymentMode = value!;
+                                          _updatePaymentAmounts();
+                                        });
+                                      },
+                                    ),
+                                    const Text(
+                                      'Online',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: text_color,
+                                        fontFamily: fontMulishSemiBold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(width: 12),
+                                Row(
+                                  children: [
+                                    Radio<String>(
+                                      value: 'Both',
+                                      groupValue: paymentMode,
+                                      visualDensity: VisualDensity(
+                                        horizontal: -4,
+                                        vertical: -4,
+                                      ),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          paymentMode = value!;
+                                          _updatePaymentAmounts();
+                                        });
+                                      },
+                                    ),
+                                    const Text(
+                                      'Both',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: text_color,
+                                        fontFamily: fontMulishSemiBold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 4),
+
+                            // Cash + Online Inputs (only if Both selected)
+                            if (paymentMode == 'Both')
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: 12.0,
+                                  top: 8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    // Cash Amount Field
+                                    Expanded(child: SizedBox()),
+
+                                    Expanded(
+                                      child: TextField(
+                                        controller: cashController,
+                                        keyboardType: TextInputType.number,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: secondary_text_color,
+                                          fontFamily: fontMulishSemiBold,
+                                        ),
+                                        decoration: InputDecoration(
+                                          labelText: "Cash Amount",
+                                          labelStyle: const TextStyle(
+                                            fontSize: 13,
+                                            color: secondary_text_color,
+                                            fontFamily: fontMulishMedium,
+                                          ),
+                                          isDense: true,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                vertical: 10,
+                                                horizontal: 12,
+                                              ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            borderSide: const BorderSide(
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            borderSide: const BorderSide(
+                                              color: Colors.blue,
+                                            ),
+                                          ),
+                                        ),
+                                        onChanged: (value) {
+                                          setState(() {
+                                            int cashVal =
+                                                int.tryParse(value) ?? 0;
+                                            if (cashVal > total)
+                                              cashVal = total;
+                                            cashController.text = cashVal
+                                                .toString();
+                                            onlineController.text =
+                                                (total - cashVal).toString();
+                                            cashController.selection =
+                                                TextSelection.fromPosition(
+                                                  TextPosition(
+                                                    offset: cashController
+                                                        .text
+                                                        .length,
+                                                  ),
+                                                );
+                                          });
+                                        },
+                                      ),
+                                    ),
+
+                                    const SizedBox(width: 8),
+
+                                    // Online Amount Field
+                                    Expanded(
+                                      child: TextField(
+                                        controller: onlineController,
+                                        keyboardType: TextInputType.number,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: secondary_text_color,
+                                          fontFamily: fontMulishSemiBold,
+                                        ),
+                                        decoration: InputDecoration(
+                                          labelText: "Online Amount",
+                                          labelStyle: const TextStyle(
+                                            fontSize: 13,
+                                            color: secondary_text_color,
+                                            fontFamily: fontMulishMedium,
+                                          ),
+                                          isDense: true,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                vertical: 10,
+                                                horizontal: 12,
+                                              ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            borderSide: const BorderSide(
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            borderSide: const BorderSide(
+                                              color: Colors.blue,
+                                            ),
+                                          ),
+                                        ),
+                                        onChanged: (value) {
+                                          setState(() {
+                                            int onlineVal =
+                                                int.tryParse(value) ?? 0;
+                                            if (onlineVal > total)
+                                              onlineVal = total;
+                                            onlineController.text = onlineVal
+                                                .toString();
+                                            cashController.text =
+                                                (total - onlineVal).toString();
+                                            onlineController.selection =
+                                                TextSelection.fromPosition(
+                                                  TextPosition(
+                                                    offset: onlineController
+                                                        .text
+                                                        .length,
+                                                  ),
+                                                );
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "Subtotal",
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: secondary_text_color,
+                                fontFamily: fontMulishSemiBold,
+                              ),
+                            ),
+                            Text(
+                              "₹${subtotal.toStringAsFixed(0)}",
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: text_color,
+                                fontFamily: fontMulishSemiBold,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        SizedBox(height: 8),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Tax (8.5%)",
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: secondary_text_color,
+                                fontFamily: fontMulishSemiBold,
+                              ),
+                            ),
+                            Text(
+                              "₹$tax",
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: text_color,
+                                fontFamily: fontMulishSemiBold,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        SizedBox(height: 6),
+
                         Row(
                           children: [
+                            // Discount Percentage
                             Expanded(
+                              flex: 2,
                               child: Text(
-                                "Payment By",
+                                "Discount",
                                 style: const TextStyle(
                                   fontSize: 14,
                                   color: secondary_text_color,
@@ -442,540 +742,269 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                               ),
                             ),
 
-                            Row(
-                              children: [
-                                Radio<String>(
-                                  value: 'Cash',
-                                  groupValue: paymentMode,
-                                  visualDensity: VisualDensity(
-                                    horizontal: -4,
-                                    vertical: -4,
-                                  ),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      paymentMode = value!;
-                                      _updatePaymentAmounts();
-                                    });
-                                  },
+                            Expanded(
+                              child: TextField(
+                                controller: discountPercentController,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: secondary_text_color,
+                                  fontFamily: fontMulishSemiBold,
                                 ),
-                                const Text(
-                                  'Cash',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: text_color,
-                                    fontFamily: fontMulishSemiBold,
+                                decoration: InputDecoration(
+                                  labelText: "Disc %",
+                                  labelStyle: const TextStyle(
+                                    fontSize: 10,
+                                    color: secondary_text_color,
+                                    fontFamily: fontMulishMedium,
+                                  ),
+                                  hintText: "Enter %",
+                                  hintStyle: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey,
+                                    fontFamily: fontMulishRegular,
+                                  ),
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 12,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade100,
+                                      width: 0.25,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: primary_color,
+                                      width: 0.5,
+                                    ),
                                   ),
                                 ),
-                              ],
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                onChanged: (value) {
+                                  setState(() {
+                                    discountPercent =
+                                        double.tryParse(value) ?? 0;
+                                    _updateDiscountFromPercent();
+                                  });
+                                },
+                              ),
                             ),
-
-                            SizedBox(width: 12),
-                            Row(
-                              children: [
-                                Radio<String>(
-                                  value: 'Online',
-                                  groupValue: paymentMode,
-                                  visualDensity: VisualDensity(
-                                    horizontal: -4,
-                                    vertical: -4,
-                                  ),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      paymentMode = value!;
-                                      _updatePaymentAmounts();
-                                    });
-                                  },
+                            SizedBox(width: 8),
+                            // Discount Amount
+                            Expanded(
+                              child: TextField(
+                                controller: discountAmountController,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: secondary_text_color,
+                                  fontFamily: fontMulishSemiBold,
                                 ),
-                                const Text(
-                                  'Online',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: text_color,
-                                    fontFamily: fontMulishSemiBold,
+                                decoration: InputDecoration(
+                                  labelText: "Discount ₹",
+                                  labelStyle: const TextStyle(
+                                    fontSize: 10,
+                                    color: secondary_text_color,
+                                    fontFamily: fontMulishMedium,
                                   ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(width: 12),
-                            Row(
-                              children: [
-                                Radio<String>(
-                                  value: 'Both',
-                                  groupValue: paymentMode,
-                                  visualDensity: VisualDensity(
-                                    horizontal: -4,
-                                    vertical: -4,
+                                  hintText: "Enter ₹",
+                                  hintStyle: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey,
+                                    fontFamily: fontMulishRegular,
                                   ),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      paymentMode = value!;
-                                      _updatePaymentAmounts();
-                                    });
-                                  },
-                                ),
-                                const Text(
-                                  'Both',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: text_color,
-                                    fontFamily: fontMulishSemiBold,
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 12,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: primary_color,
+                                    ),
                                   ),
                                 ),
-                              ],
+                                keyboardType: TextInputType.number,
+                                onChanged: (value) {
+                                  setState(() {
+                                    discountAmount =
+                                        double.tryParse(value) ?? 0;
+                                    _updateDiscountFromAmount();
+                                  });
+                                },
+                              ),
                             ),
                           ],
                         ),
 
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 12),
 
-                        // Cash + Online Inputs (only if Both selected)
-                        if (paymentMode == 'Both')
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: 12.0,
-                              top: 8,
+                        // Payment Mode Radio
+                        DottedLine(
+                          dashLength: 2,
+                          dashGapLength: 6,
+                          lineThickness: 1,
+                          dashColor: Colors.black87,
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "Total",
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            child: Row(
-                              children: [
-                                // Cash Amount Field
-                                Expanded(child: SizedBox()),
-
-                                Expanded(
-                                  child: TextField(
-                                    controller: cashController,
-                                    keyboardType: TextInputType.number,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: secondary_text_color,
-                                      fontFamily: fontMulishSemiBold,
-                                    ),
-                                    decoration: InputDecoration(
-                                      labelText: "Cash Amount",
-                                      labelStyle: const TextStyle(
-                                        fontSize: 13,
-                                        color: secondary_text_color,
-                                        fontFamily: fontMulishMedium,
-                                      ),
-                                      isDense: true,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            vertical: 10,
-                                            horizontal: 12,
-                                          ),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Colors.blue,
-                                        ),
-                                      ),
-                                    ),
-                                    onChanged: (value) {
-                                      setState(() {
-                                        int cashVal = int.tryParse(value) ?? 0;
-                                        if (cashVal > total) cashVal = total;
-                                        cashController.text = cashVal
-                                            .toString();
-                                        onlineController.text =
-                                            (total - cashVal).toString();
-                                        cashController.selection =
-                                            TextSelection.fromPosition(
-                                              TextPosition(
-                                                offset:
-                                                    cashController.text.length,
-                                              ),
-                                            );
-                                      });
-                                    },
-                                  ),
-                                ),
-
-                                const SizedBox(width: 8),
-
-                                // Online Amount Field
-                                Expanded(
-                                  child: TextField(
-                                    controller: onlineController,
-                                    keyboardType: TextInputType.number,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: secondary_text_color,
-                                      fontFamily: fontMulishSemiBold,
-                                    ),
-                                    decoration: InputDecoration(
-                                      labelText: "Online Amount",
-                                      labelStyle: const TextStyle(
-                                        fontSize: 13,
-                                        color: secondary_text_color,
-                                        fontFamily: fontMulishMedium,
-                                      ),
-                                      isDense: true,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            vertical: 10,
-                                            horizontal: 12,
-                                          ),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Colors.blue,
-                                        ),
-                                      ),
-                                    ),
-                                    onChanged: (value) {
-                                      setState(() {
-                                        int onlineVal =
-                                            int.tryParse(value) ?? 0;
-                                        if (onlineVal > total)
-                                          onlineVal = total;
-                                        onlineController.text = onlineVal
-                                            .toString();
-                                        cashController.text =
-                                            (total - onlineVal).toString();
-                                        onlineController.selection =
-                                            TextSelection.fromPosition(
-                                              TextPosition(
-                                                offset: onlineController
-                                                    .text
-                                                    .length,
-                                              ),
-                                            );
-                                      });
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          "Subtotal",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: secondary_text_color,
-                            fontFamily: fontMulishSemiBold,
-                          ),
-                        ),
-                        Text(
-                          "₹${subtotal.toStringAsFixed(0)}",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: text_color,
-                            fontFamily: fontMulishSemiBold,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: 8),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "Tax (8.5%)",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: secondary_text_color,
-                            fontFamily: fontMulishSemiBold,
-                          ),
-                        ),
-                        Text(
-                          "₹$tax",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: text_color,
-                            fontFamily: fontMulishSemiBold,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: 6),
-
-                    Row(
-                      children: [
-                        // Discount Percentage
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            "Discount",
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: secondary_text_color,
-                              fontFamily: fontMulishSemiBold,
-                            ),
-                          ),
-                        ),
-
-                        Expanded(
-                          child: TextField(
-                            controller: discountPercentController,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: secondary_text_color,
-                              fontFamily: fontMulishSemiBold,
-                            ),
-                            decoration: InputDecoration(
-                              labelText: "Disc %",
-                              labelStyle: const TextStyle(
-                                fontSize: 10,
-                                color: secondary_text_color,
-                                fontFamily: fontMulishMedium,
-                              ),
-                              hintText: "Enter %",
-                              hintStyle: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey,
-                                fontFamily: fontMulishRegular,
-                              ),
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 10,
-                                horizontal: 12,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade100,
-                                  width: 0.25,
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(
-                                  color: primary_color,
-                                  width: 0.5,
-                                ),
+                            Text(
+                              "₹$total",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            onChanged: (value) {
-                              setState(() {
-                                discountPercent = double.tryParse(value) ?? 0;
-                                _updateDiscountFromPercent();
-                              });
-                            },
-                          ),
+                          ],
                         ),
-                        SizedBox(width: 8),
-                        // Discount Amount
-                        Expanded(
-                          child: TextField(
-                            controller: discountAmountController,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: secondary_text_color,
-                              fontFamily: fontMulishSemiBold,
-                            ),
-                            decoration: InputDecoration(
-                              labelText: "Discount ₹",
-                              labelStyle: const TextStyle(
-                                fontSize: 10,
-                                color: secondary_text_color,
-                                fontFamily: fontMulishMedium,
-                              ),
-                              hintText: "Enter ₹",
-                              hintStyle: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey,
-                                fontFamily: fontMulishRegular,
-                              ),
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 10,
-                                horizontal: 12,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(
-                                  color: primary_color,
-                                ),
-                              ),
-                            ),
-                            keyboardType: TextInputType.number,
-                            onChanged: (value) {
-                              setState(() {
-                                discountAmount = double.tryParse(value) ?? 0;
-                                _updateDiscountFromAmount();
-                              });
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Payment Mode Radio
-                    DottedLine(
-                      dashLength: 2,
-                      dashGapLength: 6,
-                      lineThickness: 1,
-                      dashColor: Colors.black87,
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          "Total",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          "₹$total",
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    // const SizedBox(height: 8),
-                  ],
-                ),
-              ),
-
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: InkWell(
-                  onTap: () async {
-                    final cash = int.tryParse(cashController.text) ?? 0;
-                    final online = int.tryParse(onlineController.text) ?? 0;
-
-                    await addTransactionToFirestore(
-                      items: cartItems,
-                      tableName: widget.tableName,
-                      subtotal: subtotal.round(),
-                      tax: (subtotal * 0.085).round(),
-                      discount: discountAmount.round(),
-                      total: total,
-                      cashAmount: cash,
-                      onlineAmount: online,
-                    );
-
-                    // ✅ Generate PDF
-                    final pdfBytes = await generateInvoicePdf(
-                      tableName: widget.tableName,
-                      items: cartItems,
-                      subtotal: subtotal,
-                      tax: subtotal * 0.085,
-                      discount: discountAmount,
-                      total: total,
-                      cashAmount: cash,
-                      onlineAmount: online,
-                    );
-
-                    // ✅ Show PDF preview and allow print
-                    await Printing.layoutPdf(
-                      onLayout: (format) async => pdfBytes,
-                    );
-
-                    // ✅ CLEAR TABLE IN FIRESTORE
-                    final query = await FirebaseFirestore.instance
-                        .collection('tables')
-                        .where('name', isEqualTo: widget.tableName)
-                        .get();
-                    
-                    for (var doc in query.docs) {
-                      if (widget.tableName.contains("Take Away")) {
-                        await doc.reference.delete();
-                      } else {
-                        await doc.reference.update({
-                          'items': [],
-                          'isPaid': false,
-                          'remarks': FieldValue.delete(),
-                        });
-                      }
-                    }
-
-                    // ✅ Return to dashboard
-                    if (context.mounted) {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const BottomNavigationView(),
-                        ),
-                        (route) => false,
-                      );
-                    }
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      color: _orange,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _orange.withOpacity(0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(width: 24), // balance out the icon on the right
-                        Expanded(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SvgPicture.asset(
-                                icon_bill,
-                                width: 22,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                "Confirm & Billing",
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.white,
-                                  fontFamily: fontMulishBold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
-                        const SizedBox(width: 24),
+                        // const SizedBox(height: 8),
                       ],
                     ),
                   ),
-                ),
+
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: InkWell(
+                      onTap: () async {
+                        final cash = int.tryParse(cashController.text) ?? 0;
+                        final online = int.tryParse(onlineController.text) ?? 0;
+
+                        await addTransactionToFirestore(
+                          items: cartItems,
+                          tableName: widget.tableName,
+                          subtotal: subtotal.round(),
+                          tax: (subtotal * 0.085).round(),
+                          discount: discountAmount.round(),
+                          total: total,
+                          cashAmount: cash,
+                          onlineAmount: online,
+                        );
+
+                        // ✅ Generate PDF
+                        // final pdfBytes = await generateInvoicePdf(
+                        //   tableName: widget.tableName,
+                        //   items: cartItems,
+                        //   subtotal: subtotal,
+                        //   tax: subtotal * 0.085,
+                        //   discount: discountAmount,
+                        //   total: total,
+                        //   cashAmount: cash,
+                        //   onlineAmount: online,
+                        // );
+                        //
+                        // // ✅ Show PDF preview and allow print
+                        // await Printing.layoutPdf(
+                        //   onLayout: (format) async => pdfBytes,
+                        // );
+
+                        // ✅ CLEAR TABLE IN FIRESTORE
+                        final query = await FirebaseFirestore.instance
+                            .collection('tables')
+                            .where('name', isEqualTo: widget.tableName)
+                            .get();
+
+                        for (var doc in query.docs) {
+                          if (!widget.tableName.contains("Table")) {
+                            await doc.reference.delete();
+                          } else {
+                            await doc.reference.update({
+                              'items': [],
+                              'isPaid': false,
+                              'remarks': FieldValue.delete(),
+                            });
+                          }
+                        }
+
+                        // ✅ Return to dashboard
+                        if (context.mounted) {
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const BottomNavigationView(),
+                            ),
+                            (route) => false,
+                          );
+                        }
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color: _orange,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _orange.withOpacity(0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(
+                              width: 24,
+                            ), // balance out the icon on the right
+                            Expanded(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SvgPicture.asset(
+                                    icon_bill,
+                                    width: 22,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    "Confirm & Billing",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                      fontFamily: fontMulishBold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.arrow_forward_ios,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 24),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
-    ],
-  ),
-);
+    );
   }
 
   Future<void> addTransactionToFirestore({
@@ -1105,10 +1134,14 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                   ),
                 ),
                 pw.SizedBox(height: 16),
-                
+
                 pw.Text(
                   "Table / Order: $tableName",
-                  style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold, fontSize: 14),
+                  style: pw.TextStyle(
+                    font: ttf,
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
 
                 pw.Divider(),

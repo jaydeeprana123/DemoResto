@@ -1,25 +1,25 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/AddCategoryPage.dart' hide AddTablePage;
-import 'package:demo/AddMenuItemPage.dart';
+import 'package:demo/Screens/Menu/AddCategoryPage.dart' hide AddTablePage;
+import 'package:demo/Screens/Menu/AddMenuItemPage.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
-import 'AddTablePage.dart';
-import 'KitchenOrdersListView.dart';
-import 'CartPage.dart';
-import 'FinalCartPage.dart';
-import 'MenuPage.dart';
+import 'package:demo/Screens/Dashboard/AddTablePage.dart';
+import 'package:demo/Screens/Kitchen/KitchenOrdersListView.dart';
+import 'package:demo/Screens/Orders/CartPage.dart';
+import 'package:demo/Screens/Orders/FinalCartPage.dart';
+import 'package:demo/Screens/Menu/MenuPageView.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import 'package:flutter/material.dart';
-import 'MenuPage.dart';
+import 'package:demo/Screens/Menu/MenuPageView.dart';
 import 'package:get/get.dart';
 
 import 'package:flutter/material.dart';
-import 'MenuPage.dart';
+import 'package:demo/Screens/Menu/MenuPageView.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import 'package:flutter/material.dart';
@@ -47,8 +47,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
-import 'Styles/my_colors.dart';
-import 'TransactionDetailsPage.dart';
+import 'package:demo/Styles/my_colors.dart';
+import 'package:demo/Screens/Transactions/TransactionDetailsPage.dart';
 
 class TransactionsPage extends StatefulWidget {
   const TransactionsPage({super.key});

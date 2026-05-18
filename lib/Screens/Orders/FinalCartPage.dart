@@ -14,8 +14,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 
-import 'Styles/my_colors.dart';
-import 'Styles/my_font.dart'; // <-- for formatting
+import 'package:demo/Styles/my_colors.dart';
+import 'package:demo/Styles/my_font.dart'; // <-- for formatting
 
 /// Cart Page
 class FinalCartPage extends StatelessWidget {

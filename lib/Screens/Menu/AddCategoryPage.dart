@@ -1,10 +1,10 @@
-import 'package:demo/AddMenuItemPage.dart';
-import 'package:demo/MenuSeederPage.dart';
+import 'package:demo/Screens/Menu/AddMenuItemPage.dart';
+import 'package:demo/Screens/Menu/MenuSeederPage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 
-import 'Styles/my_font.dart';
+import 'package:demo/Styles/my_font.dart';
 
 class AddCategoryPage extends StatefulWidget {
   @override

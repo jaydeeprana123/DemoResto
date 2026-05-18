@@ -3,9 +3,9 @@ import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import 'Screens/Transactions/EditTransactionDetailsPage.dart';
-import 'Styles/my_colors.dart';
-import 'Styles/my_font.dart';
+import 'package:demo/Screens/Transactions/EditTransactionDetailsPage.dart';
+import 'package:demo/Styles/my_colors.dart';
+import 'package:demo/Styles/my_font.dart';
 
 class TransactionDetailsPage extends StatelessWidget {
   final Map<String, dynamic> transaction;

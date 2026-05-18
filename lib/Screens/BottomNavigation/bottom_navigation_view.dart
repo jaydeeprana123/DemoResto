@@ -1,17 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/AddCategoryPage.dart';
-import 'package:demo/AddTablePage.dart';
+import 'package:demo/Screens/Menu/AddCategoryPage.dart';
+import 'package:demo/Screens/Dashboard/AddTablePage.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
-import 'package:demo/TransactionsPage.dart';
+import 'package:demo/Screens/Transactions/TransactionsPage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 
-import '../../KitchenOrdersListView.dart';
-import '../../DragDropTables.dart';
-import '../../Styles/my_icons.dart';
+import 'package:demo/Screens/Kitchen/KitchenOrdersListView.dart';
+import 'package:demo/Screens/Dashboard/DashboardView.dart';
+import 'package:demo/Styles/my_icons.dart';
 
 class BottomNavigationView extends StatefulWidget {
   const BottomNavigationView({Key? key}) : super(key: key);
@@ -26,7 +26,7 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
   String? userRole;
 
   final tabsForAdmin = [
-    DragListBetweenTables(),
+    DashboardView(),
     AddTablePage(),
     AddCategoryPage(),
     KitchenOrdersListView(),
@@ -34,7 +34,7 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
   ];
 
   final tabsForStaff = [
-    DragListBetweenTables(),
+    DashboardView(),
     AddTablePage(),
     KitchenOrdersListView(),
   ];
@@ -63,13 +63,13 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
   }
 
   // ── Brand colours ────────────────────────────────────────────────────────
-  static const _navy   = Color(0xFF1A3A5C);
+  static const _navy = Color(0xFF1A3A5C);
   static const _orange = Color(0xFFf57c35);
 
   @override
   Widget build(BuildContext context) {
     final isAdmin = userRole == "Admin";
-    final tabs   = isAdmin ? tabsForAdmin : tabsForStaff;
+    final tabs = isAdmin ? tabsForAdmin : tabsForStaff;
 
     return SafeArea(
       child: Scaffold(

@@ -11,12 +11,12 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 
-import 'MyWidgets/EditableTextField.dart';
-import 'Styles/my_colors.dart';
-import 'Styles/my_font.dart';
-import 'services/ai_order_service.dart';
-import 'services/restaurant_agent_service.dart';
-import 'models/agent_response.dart';
+import 'package:demo/MyWidgets/EditableTextField.dart';
+import 'package:demo/Styles/my_colors.dart';
+import 'package:demo/Styles/my_font.dart';
+import 'package:demo/services/ai_order_service.dart';
+import 'package:demo/services/restaurant_agent_service.dart';
+import 'package:demo/models/agent_response.dart';
 
 /// Cart Page
 class CartPage extends StatefulWidget {

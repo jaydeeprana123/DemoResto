@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'Styles/my_font.dart';
+import 'package:demo/Styles/my_font.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Al-Haadi Diwalipura — Full menu scraped from Zomato menu images
