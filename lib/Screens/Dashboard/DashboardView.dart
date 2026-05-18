@@ -502,7 +502,7 @@ class DashboardView extends StatelessWidget {
                     );
 
                     if (isTakeAway && groups.isEmpty) {
-                      await controller.deleteTable(docId);
+                      await controller.deleteTableByName(tName);
                     }
                   },
             ),
@@ -516,7 +516,7 @@ class DashboardView extends StatelessWidget {
             controller.tables.refresh();
             
             if (isTakeAway) {
-              await controller.deleteTable(docId);
+              await controller.deleteTableByName(tableName);
             } else {
               await controller.updateTableItemsInFirestore(
                 tableName,
@@ -554,7 +554,7 @@ class DashboardView extends StatelessWidget {
                     );
 
                     if (isTakeAway && groups.isEmpty) {
-                      await controller.deleteTable(docId);
+                      await controller.deleteTableByName(tName);
                     }
                   },
             ),
@@ -577,7 +577,7 @@ class DashboardView extends StatelessWidget {
               controller.tables.refresh();
 
               if (isTakeAway) {
-                await controller.deleteTable(docId);
+                await controller.deleteTableByName(tableName);
               } else {
                 await controller.updateTableItemsInFirestore(
                   tableName,
@@ -667,7 +667,7 @@ class DashboardView extends StatelessWidget {
                                   overallRemarks,
                                 );
                                 if (isTakeAway && groups.isEmpty) {
-                                  await controller.deleteTable(docId);
+                                  await controller.deleteTableByName(tName);
                                 }
                               },
                         ),
@@ -699,7 +699,7 @@ class DashboardView extends StatelessWidget {
                                   overallRemarks,
                                 );
                                 if (isTakeAway && groups.isEmpty) {
-                                  await controller.deleteTable(docId);
+                                  await controller.deleteTableByName(tName);
                                 }
                               },
                         ),

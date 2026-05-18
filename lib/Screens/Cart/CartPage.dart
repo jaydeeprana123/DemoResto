@@ -496,7 +496,10 @@ class CartPage extends StatelessWidget {
                                       controller.isBilling.value = true;
                                     } else {
                                       await onConfirm(
-                                        controller.cartItems,
+                                        controller.cartItems
+                                            .map((item) =>
+                                                Map<String, dynamic>.from(item))
+                                            .toList(),
                                         false,
                                         controller.tableNameController.text
                                             .trim(),
@@ -895,7 +898,10 @@ class CartPage extends StatelessWidget {
                               }
 
                               await onConfirm(
-                                controller.cartItems,
+                                controller.cartItems
+                                    .map((item) =>
+                                        Map<String, dynamic>.from(item))
+                                    .toList(),
                                 true,
                                 controller.tableNameController.text.trim(),
                                 controller.overallRemarksController.text.trim(),
@@ -953,7 +959,9 @@ class CartPage extends StatelessWidget {
                     ),
                     onPressed: () async {
                       await onConfirm(
-                        controller.cartItems,
+                        controller.cartItems
+                            .map((item) => Map<String, dynamic>.from(item))
+                            .toList(),
                         false,
                         controller.tableNameController.text.trim(),
                         controller.overallRemarksController.text.trim(),

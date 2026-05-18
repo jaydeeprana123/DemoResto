@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'Styles/my_font.dart';
 
 // Same brand colours as login screen
-const _navy   = Color(0xFF1A3A5C);
+const _navy = Color(0xFF1A3A5C);
 const _navyDk = Color(0xFF0D2137);
 const _orange = Color(0xFFf57c35);
 const _cardBg = Color(0xFF1E4570);
@@ -29,8 +29,9 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
           content: const Text("Please fill all fields and select a category"),
           backgroundColor: Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
       return;
@@ -41,10 +42,10 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
         .doc(_selectedCategoryId)
         .collection('items')
         .add({
-      'name': _nameController.text.trim(),
-      'price': double.tryParse(_priceController.text.trim()) ?? 0.0,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+          'name': _nameController.text.trim(),
+          'price': double.tryParse(_priceController.text.trim()) ?? 0.0,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
 
     _nameController.clear();
     _priceController.clear();
@@ -53,13 +54,16 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
         content: Text("Item added to '$_selectedCategoryName'"),
         backgroundColor: _orange,
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
 
-  Future<void> _deleteMenuItem(String categoryId, String itemId, String name) async {
+  Future<void> _deleteMenuItem(
+    String categoryId,
+    String itemId,
+    String name,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -72,23 +76,35 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
         ),
         content: Text(
           "Are you sure you want to delete '$name'?",
-          style: TextStyle(color: Colors.black87, fontFamily: fontMulishRegular),
+          style: TextStyle(
+            color: Colors.black87,
+            fontFamily: fontMulishRegular,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text("Cancel",
-                style: TextStyle(color: Colors.grey.shade600, fontFamily: fontMulishSemiBold)),
+            child: Text(
+              "Cancel",
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontFamily: fontMulishSemiBold,
+              ),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red.shade700,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text("Delete",
-                style: TextStyle(fontFamily: fontMulishSemiBold)),
+            child: Text(
+              "Delete",
+              style: TextStyle(fontFamily: fontMulishSemiBold),
+            ),
           ),
         ],
       ),
@@ -106,7 +122,9 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
           content: Text("Item '$name' deleted"),
           backgroundColor: Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
     }
@@ -140,8 +158,10 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
         prefixIcon: Icon(icon, color: Colors.grey.shade400, size: 20),
         filled: true,
         fillColor: Colors.grey.shade50,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade200),
@@ -217,8 +237,8 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) {
                         return const Center(
-                            child:
-                                CircularProgressIndicator(color: _orange));
+                          child: CircularProgressIndicator(color: _orange),
+                        );
                       }
 
                       final categories = snapshot.data!.docs;
@@ -247,7 +267,9 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                           filled: true,
                           fillColor: Colors.grey.shade50,
                           contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 16),
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(color: Colors.grey.shade200),
@@ -259,23 +281,22 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: const BorderSide(
-                                color: _orange, width: 1.5),
+                              color: _orange,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                         value: _selectedCategoryId,
                         items: categories.map((doc) {
                           return DropdownMenuItem<String>(
                             value: doc.id,
-                            child: Text(
-                              doc['name'],
-                            ),
+                            child: Text(doc['name']),
                           );
                         }).toList(),
                         onChanged: (value) {
                           setState(() {
                             _selectedCategoryId = value;
-                            _selectedCategoryName =
-                                categories.firstWhere(
+                            _selectedCategoryName = categories.firstWhere(
                               (doc) => doc.id == value,
                             )['name'];
                           });
@@ -372,7 +393,8 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
                     return const Center(
-                        child: CircularProgressIndicator(color: _orange));
+                      child: CircularProgressIndicator(color: _orange),
+                    );
                   }
 
                   final categories = snapshot.data!.docs;
@@ -410,12 +432,14 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                           ],
                         ),
                         child: Theme(
-                          data: Theme.of(context).copyWith(
-                            dividerColor: Colors.transparent,
-                          ),
+                          data: Theme.of(
+                            context,
+                          ).copyWith(dividerColor: Colors.transparent),
                           child: ExpansionTile(
-                            tilePadding:
-                                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            tilePadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
                             leading: Container(
                               width: 40,
                               height: 40,
@@ -423,8 +447,11 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                                 color: _navy.withOpacity(0.05),
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: const Icon(Icons.folder_open_rounded,
-                                  color: _navy, size: 20),
+                              child: const Icon(
+                                Icons.folder_open_rounded,
+                                color: _navy,
+                                size: 20,
+                              ),
                             ),
                             title: Text(
                               category['name'],
@@ -450,7 +477,8 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                                       padding: EdgeInsets.all(12),
                                       child: Center(
                                         child: CircularProgressIndicator(
-                                            color: _orange),
+                                          color: _orange,
+                                        ),
                                       ),
                                     );
                                   }
@@ -476,16 +504,22 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                                       final itemName = item['name'] ?? '';
                                       return Container(
                                         margin: const EdgeInsets.only(
-                                            left: 16,
-                                            right: 16,
-                                            bottom: 8),
+                                          left: 16,
+                                          right: 16,
+                                          bottom: 8,
+                                        ),
                                         padding: const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 12),
+                                          horizontal: 12,
+                                          vertical: 12,
+                                        ),
                                         decoration: BoxDecoration(
                                           color: Colors.grey.shade50,
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                          border: Border.all(color: Colors.grey.shade100),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.grey.shade100,
+                                          ),
                                         ),
                                         child: Row(
                                           children: [
@@ -519,11 +553,16 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                                             ),
                                             const SizedBox(width: 12),
                                             GestureDetector(
-                                              onTap: () => _deleteMenuItem(category.id, item.id, itemName),
+                                              onTap: () => _deleteMenuItem(
+                                                category.id,
+                                                item.id,
+                                                itemName,
+                                              ),
                                               child: Icon(
-                                                  Icons.delete_outline_rounded,
-                                                  color: Colors.red.shade300,
-                                                  size: 20),
+                                                Icons.delete_outline_rounded,
+                                                color: Colors.red.shade300,
+                                                size: 20,
+                                              ),
                                             ),
                                           ],
                                         ),
@@ -548,4 +587,3 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
     );
   }
 }
-

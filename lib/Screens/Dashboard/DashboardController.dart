@@ -70,12 +70,39 @@ class DashboardController extends GetxController {
     }
   }
 
+  /// Extracts the trailing/internal numeric digits from a table name string.
+  int _extractTableNumber(String tableName) {
+    final numeric = tableName.replaceAll(RegExp(r'[^0-9]'), '');
+    return int.tryParse(numeric) ?? 0;
+  }
+
   /// Listens to real-time changes in tables collection from Firebase via the OrderRepository.
   void listenToTables() {
     _tablesSubscription = _orderRepository.listenToTables().listen((querySnapshot) {
+      // Sort docs: Dine-In tables naturally ordered by number first, then Take Away naturally ordered by number
+      final docs = List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(querySnapshot.docs);
+      docs.sort((a, b) {
+        final nameA = (a.data()['name'] ?? '').toString();
+        final nameB = (b.data()['name'] ?? '').toString();
+        
+        final isTableA = nameA.toLowerCase().contains('table');
+        final isTableB = nameB.toLowerCase().contains('table');
+        
+        if (isTableA && !isTableB) return -1;
+        if (!isTableA && isTableB) return 1;
+        
+        final numA = _extractTableNumber(nameA);
+        final numB = _extractTableNumber(nameB);
+        
+        if (numA != numB) {
+          return numA.compareTo(numB);
+        }
+        return nameA.compareTo(nameB);
+      });
+
       Map<String, List<List<Map<String, dynamic>>>> updatedTables = {};
 
-      for (var doc in querySnapshot.docs) {
+      for (var doc in docs) {
         final tableName = doc['name'] as String;
         final List<dynamic>? itemsFromDb = doc.data().containsKey('items') ? doc['items'] : null;
 
@@ -188,6 +215,9 @@ class DashboardController extends GetxController {
       if (exists) {
         // Safe collision fallback: append new items as a group to prevent data loss
         final existingGroups = tables[tableName] ?? [];
+        if (isBillPaid) {
+          existingGroups.clear();
+        }
         existingGroups.add(selectedItems);
         await updateTableItemsInFirestore(tableName, existingGroups, isBillPaid, overallRemarks);
         return;
@@ -210,6 +240,15 @@ class DashboardController extends GetxController {
       await _orderRepository.deleteTable(docId);
     } catch (e) {
       debugPrint("Failed to delete table: $e");
+    }
+  }
+
+  /// Deletes a table document by its name.
+  Future<void> deleteTableByName(String tableName) async {
+    try {
+      await _orderRepository.deleteTableByName(tableName);
+    } catch (e) {
+      debugPrint("Failed to delete table by name: $e");
     }
   }
   

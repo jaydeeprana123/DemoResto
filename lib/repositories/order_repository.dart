@@ -10,7 +10,6 @@ class OrderRepository {
   Stream<QuerySnapshot<Map<String, dynamic>>> listenToTables() {
     return _firestore
         .collection('tables')
-        .orderBy('createdAt', descending: false)
         .snapshots();
   }
 
@@ -133,6 +132,18 @@ class OrderRepository {
   /// Deletes a table document (typically used for take aways after delivery).
   Future<void> deleteTable(String docId) async {
     await _firestore.collection('tables').doc(docId).delete();
+  }
+
+  /// Deletes a table document by its name.
+  Future<void> deleteTableByName(String tableName) async {
+    final query = await _firestore
+        .collection('tables')
+        .where('name', isEqualTo: tableName)
+        .limit(1)
+        .get();
+    if (query.docs.isNotEmpty) {
+      await query.docs.first.reference.delete();
+    }
   }
 
   /// Saves the final billing transaction to database and updates revenue stats.
