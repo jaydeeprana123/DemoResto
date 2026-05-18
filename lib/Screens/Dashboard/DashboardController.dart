@@ -132,7 +132,17 @@ class DashboardController extends GetxController {
       
       // Update tableNo count based on take away keys for the floating action button
       final takeAways = updatedTables.keys.where((k) => !k.contains('Table')).toList();
-      tableNo.value = takeAways.length;
+      int maxTakeAwayNum = 0;
+      for (String k in takeAways) {
+        if (k.toLowerCase().startsWith('take away')) {
+          final digits = k.replaceAll(RegExp(r'[^0-9]'), '');
+          if (digits.isNotEmpty) {
+            int num = int.parse(digits);
+            if (num > maxTakeAwayNum) maxTakeAwayNum = num;
+          }
+        }
+      }
+      tableNo.value = maxTakeAwayNum;
     });
   }
 
@@ -173,7 +183,15 @@ class DashboardController extends GetxController {
     }
   }
 
-  /// Updates existing table items in Firestore.
+  /// When the user is on the Dashboard Page and clicks on a Table or Take Away, they will be redirected to the Menu Page. There, the user can select items and proceed to the Cart Page.
+  /// 
+  /// On the Cart Page:
+  /// - If the user presses the SEND TO KITCHEN button, all selected items will be displayed on the respective table in the Dashboard View Page.
+  /// - If the user presses the Billing button and then clicks CONFIRM & PROCEED, the transaction will be saved, and all items will be displayed on the table in the Dashboard View Page with a Paid tag.
+  /// 
+  /// In the Dashboard View Page:
+  /// - If items are available on a table and the user double-clicks on that table, they will be redirected to the Final Billing View Page.
+  /// - On the Final Billing View Page, if the user presses the Confirm & Billing button, the transaction will be saved and the table will be cleared from the Dashboard View Page.
   Future<void> updateTableItemsInFirestore(
     String tableName,
     List<List<Map<String, dynamic>>> groups,
@@ -240,7 +258,13 @@ class DashboardController extends GetxController {
           .limit(1)
           .get();
 
-      if (existing.docs.isNotEmpty) return;
+      if (existing.docs.isNotEmpty) {
+        // Fallback: append as a new group to the existing table to prevent data loss
+        final existingGroups = tables[tableName] ?? [];
+        existingGroups.add(selectedItems);
+        await updateTableItemsInFirestore(tableName, existingGroups, isBillPaid, overallRemarks);
+        return;
+      }
 
       List<Map<String, dynamic>> flattenedItems = [];
       final Timestamp groupTimestamp = Timestamp.now();

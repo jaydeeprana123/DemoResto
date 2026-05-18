@@ -24,125 +24,11 @@ import 'DashboardController.dart';
 
 /// The Dashboard view that displays all restaurant tables.
 /// It is Stateless because the DashboardController handles all state.
-class DragListBetweenTables extends StatelessWidget {
-  DragListBetweenTables({Key? key}) : super(key: key);
+class DashboardView extends StatelessWidget {
+  DashboardView({Key? key}) : super(key: key);
 
   // Get.put() injects the controller into memory
   final controller = Get.put(DashboardController());
-
-  // Merge items by name and category to combine quantities
-  List<Map<String, dynamic>> _mergeItemsByNameAndCategory(
-    List<Map<String, dynamic>> items,
-  ) {
-    final Map<String, Map<String, dynamic>> itemMap = {};
-
-    for (var item in items) {
-      final key = "${item['name']}_${item['categoryId']}";
-      if (itemMap.containsKey(key)) {
-        itemMap[key]!['qty'] = (itemMap[key]!['qty'] ?? 1) + (item['qty'] ?? 1);
-      } else {
-        itemMap[key] = Map<String, dynamic>.from(item);
-      }
-    }
-
-    return itemMap.values.toList();
-  }
-
-  // Add a new table with empty items list
-  Future<void> _addTable(String tableName) async {
-    try {
-      final existing = await FirebaseFirestore.instance
-          .collection('tables')
-          .where('name', isEqualTo: tableName)
-          .limit(1)
-          .get();
-
-      if (existing.docs.isNotEmpty) {
-        print("Table already exists");
-        return;
-      }
-
-      await FirebaseFirestore.instance.collection('tables').add({
-        'name': tableName,
-        'items': [],
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      print("Table $tableName added.");
-    } catch (e) {
-      print("Error adding table: $e");
-    }
-  }
-
-  // Add a new table with items list
-  Future<void> _addTableAndUpdateItems(
-    String tableName,
-    List<Map<String, dynamic>> selectedItems,
-    bool isBillPaid, [
-    String overallRemarks = '',
-  ]) async {
-    try {
-      print("=== ADDING NEW TABLE ===");
-      print("Table name: $tableName");
-      print("Selected items count: ${selectedItems.length}");
-
-      final existing = await FirebaseFirestore.instance
-          .collection('tables')
-          .where('name', isEqualTo: tableName)
-          .limit(1)
-          .get();
-
-      if (existing.docs.isNotEmpty) {
-        print("Table already exists: $tableName");
-        return;
-      }
-
-      // Step 1: Build grouped structure similar to update method
-      // For a new table, you can assume all items belong to one group (index = 0)
-      List<Map<String, dynamic>> flattenedItems = [];
-
-      final Timestamp groupTimestamp = Timestamp.now(); // one timestamp for all
-
-      for (int i = 0; i < selectedItems.length; i++) {
-        final item = Map<String, dynamic>.from(selectedItems[i]);
-
-        // Add same meta fields as update method
-        item['groupIndex'] = 0; // single group for new table
-        item['addedAt'] = groupTimestamp;
-
-        flattenedItems.add(item);
-      }
-
-      final tableData = {
-        'name': tableName,
-        'items': flattenedItems,
-        "isPaid": isBillPaid,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (overallRemarks.isNotEmpty) {
-        tableData['remarks'] = overallRemarks;
-      }
-
-      // Step 2: Add the document to Firestore
-      final docRef = await FirebaseFirestore.instance
-          .collection('tables')
-          .add(tableData);
-
-      print(
-        "SUCCESS: Table $tableName added with ${flattenedItems.length} items",
-      );
-      print("Document ID: ${docRef.id}");
-      print("=== END ADD ===");
-    } catch (e) {
-      print("ERROR: Failed to add table: $e");
-      if (e is FirebaseException) {
-        print("Firebase error code: ${e.code}");
-        print("Firebase error message: ${e.message}");
-      }
-    }
-  }
 
   // ── Brand colours (matches login/signup) ────────────────────────────────
   static const _navy = Color(0xFF1A3A5C);
@@ -410,7 +296,6 @@ class DragListBetweenTables extends StatelessWidget {
                   String tableName,
                   String overallRemarks,
                 ) async {
-
                   await controller.addTableAndUpdateItems(
                     tableName.trim(),
                     selectedItems,
@@ -551,6 +436,16 @@ class DragListBetweenTables extends StatelessWidget {
   }
 
   // ── Redesigned table card ────────────────────────────────────────────────
+  /// When the user is on the Dashboard Page and clicks on a Table or Take Away, they will be redirected to the Menu Page. There, the user can select items and proceed to the Cart Page.
+  ///
+  /// On the Cart Page:
+  /// - If the user presses the SEND TO KITCHEN button, all selected items will be displayed on the respective table in the Dashboard View Page.
+  /// - If the user presses the Billing button and then clicks CONFIRM & PROCEED, the transaction will be saved, and all items will be displayed on the table in the Dashboard View Page with a Paid tag.
+  ///
+  /// In the Dashboard View Page:
+  /// - If items are available on a table and the user double-clicks on that table, they will be redirected to the Final Billing View Page.
+  /// - On the Final Billing View Page, if the user presses the Confirm & Billing button, the transaction will be saved and the table will be cleared from the Dashboard View Page.
+  ///
   /// Inner component rendering the contents and buttons for a single table card.
   Widget _buildTableCardWithContent(
     BuildContext context,
@@ -582,6 +477,9 @@ class DragListBetweenTables extends StatelessWidget {
       onDoubleTap: () async {
         if (isPaid) {
           showServedDialog(context, tableName, () async {
+            groups.clear();
+            controller.tables.refresh();
+            
             if (isTakeAway) {
               await controller.deleteTable(docId);
             } else {
@@ -603,26 +501,27 @@ class DragListBetweenTables extends StatelessWidget {
               initialItems: const [],
               showBilling: true,
               isFromFinalBilling: false,
-              onConfirm: (selectedItems, isBillPaid, tName, overallRemarks) async {
-                if (isBillPaid) {
-                  groups.clear();
-                  groups.add(selectedItems);
-                } else {
-                  // If it's a new group of items
-                  groups.add(selectedItems);
-                }
-                controller.tables.refresh();
-                await controller.updateTableItemsInFirestore(
-                  tName,
-                  groups,
-                  isBillPaid,
-                  overallRemarks,
-                );
+              onConfirm:
+                  (selectedItems, isBillPaid, tName, overallRemarks) async {
+                    if (isBillPaid) {
+                      groups.clear();
+                      groups.add(selectedItems);
+                    } else {
+                      // If it's a new group of items
+                      groups.add(selectedItems);
+                    }
+                    controller.tables.refresh();
+                    await controller.updateTableItemsInFirestore(
+                      tName,
+                      groups,
+                      isBillPaid,
+                      overallRemarks,
+                    );
 
-                if (isTakeAway && groups.isEmpty) {
-                  await controller.deleteTable(docId);
-                }
-              },
+                    if (isTakeAway && groups.isEmpty) {
+                      await controller.deleteTable(docId);
+                    }
+                  },
             ),
           );
           return;
@@ -639,9 +538,9 @@ class DragListBetweenTables extends StatelessWidget {
             tableName: tableName,
             onConfirm: (confirmedItems) async {
               groups.clear();
-              
+
               controller.tables.refresh();
-              
+
               if (isTakeAway) {
                 await controller.deleteTable(docId);
               } else {
@@ -717,24 +616,25 @@ class DragListBetweenTables extends StatelessWidget {
                           ),
                           showBilling: groups.length == 1,
                           isFromFinalBilling: false,
-                          onConfirm: (items, isBillPaid, tName, overallRemarks) async {
-                            if (isBillPaid) {
-                              groups.clear();
-                              groups.add(items);
-                            } else {
-                              groups[groups.length - 1] = items;
-                            }
-                            controller.tables.refresh();
-                            await controller.updateTableItemsInFirestore(
-                              tName,
-                              groups,
-                              isBillPaid,
-                              overallRemarks,
-                            );
-                            if (isTakeAway && groups.isEmpty) {
-                              await controller.deleteTable(docId);
-                            }
-                          },
+                          onConfirm:
+                              (items, isBillPaid, tName, overallRemarks) async {
+                                if (isBillPaid) {
+                                  groups.clear();
+                                  groups.add(items);
+                                } else {
+                                  groups[groups.length - 1] = items;
+                                }
+                                controller.tables.refresh();
+                                await controller.updateTableItemsInFirestore(
+                                  tName,
+                                  groups,
+                                  isBillPaid,
+                                  overallRemarks,
+                                );
+                                if (isTakeAway && groups.isEmpty) {
+                                  await controller.deleteTable(docId);
+                                }
+                              },
                         ),
                       );
                     }),
@@ -748,24 +648,25 @@ class DragListBetweenTables extends StatelessWidget {
                           initialItems: const [],
                           showBilling: !hasItems,
                           isFromFinalBilling: false,
-                          onConfirm: (items, isBillPaid, tName, overallRemarks) async {
-                            if (isBillPaid) {
-                              groups.clear();
-                              groups.add(items);
-                            } else {
-                              groups.add(items);
-                            }
-                            controller.tables.refresh();
-                            await controller.updateTableItemsInFirestore(
-                              tName,
-                              groups,
-                              isBillPaid,
-                              overallRemarks,
-                            );
-                            if (isTakeAway && groups.isEmpty) {
-                              await controller.deleteTable(docId);
-                            }
-                          },
+                          onConfirm:
+                              (items, isBillPaid, tName, overallRemarks) async {
+                                if (isBillPaid) {
+                                  groups.clear();
+                                  groups.add(items);
+                                } else {
+                                  groups.add(items);
+                                }
+                                controller.tables.refresh();
+                                await controller.updateTableItemsInFirestore(
+                                  tName,
+                                  groups,
+                                  isBillPaid,
+                                  overallRemarks,
+                                );
+                                if (isTakeAway && groups.isEmpty) {
+                                  await controller.deleteTable(docId);
+                                }
+                              },
                         ),
                       );
                     }),

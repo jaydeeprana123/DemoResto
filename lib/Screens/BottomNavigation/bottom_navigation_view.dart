@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 
 import '../../KitchenOrdersListView.dart';
-import '../../Screens/Dashboard/DragDropTables.dart';
+import '../../Screens/Dashboard/DashboardView.dart';
 import '../../Styles/my_icons.dart';
 
 class BottomNavigationView extends StatefulWidget {
@@ -26,7 +26,7 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
   String? userRole;
 
   final tabsForAdmin = [
-    DragListBetweenTables(),
+    DashboardView(),
     AddTablePage(),
     AddCategoryPage(),
     KitchenOrdersListView(),
@@ -34,7 +34,7 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
   ];
 
   final tabsForStaff = [
-    DragListBetweenTables(),
+    DashboardView(),
     AddTablePage(),
     KitchenOrdersListView(),
   ];
@@ -63,13 +63,13 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
   }
 
   // ── Brand colours ────────────────────────────────────────────────────────
-  static const _navy   = Color(0xFF1A3A5C);
+  static const _navy = Color(0xFF1A3A5C);
   static const _orange = Color(0xFFf57c35);
 
   @override
   Widget build(BuildContext context) {
     final isAdmin = userRole == "Admin";
-    final tabs   = isAdmin ? tabsForAdmin : tabsForStaff;
+    final tabs = isAdmin ? tabsForAdmin : tabsForStaff;
 
     return SafeArea(
       child: Scaffold(
@@ -144,4 +144,3 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
     );
   }
 }
-

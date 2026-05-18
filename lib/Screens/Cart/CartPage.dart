@@ -498,7 +498,8 @@ class CartPage extends StatelessWidget {
                                       await onConfirm(
                                         controller.cartItems,
                                         false,
-                                        controller.tableNameController.text.trim(),
+                                        controller.tableNameController.text
+                                            .trim(),
                                         controller.overallRemarksController.text
                                             .trim(),
                                       );
@@ -817,8 +818,10 @@ class CartPage extends StatelessWidget {
                               );
 
                               // ✅ Check Setting for Print
-                              final prefs = await SharedPreferences.getInstance();
-                              final bool showPrintSetting = prefs.getBool('show_print_dialog') ?? true;
+                              final prefs =
+                                  await SharedPreferences.getInstance();
+                              final bool showPrintSetting =
+                                  prefs.getBool('show_print_dialog') ?? true;
 
                               if (showPrintSetting) {
                                 // ✅ Ask for Print
@@ -877,7 +880,8 @@ class CartPage extends StatelessWidget {
                                         items: controller.cartItems,
                                         subtotal: controller.subtotal,
                                         tax: controller.subtotal * 0.085,
-                                        discount: controller.discountAmount.value,
+                                        discount:
+                                            controller.discountAmount.value,
                                         total: controller.total,
                                         cashAmount: cash,
                                         onlineAmount: online,
@@ -896,7 +900,8 @@ class CartPage extends StatelessWidget {
                                 controller.tableNameController.text.trim(),
                                 controller.overallRemarksController.text.trim(),
                               );
-                              controller.cartItems.clear(); // Clear local state after billing
+                              controller.cartItems
+                                  .clear(); // Clear local state after billing
 
                               Navigator.pop(context);
                               Navigator.pop(context);
@@ -1080,189 +1085,6 @@ class CartPage extends StatelessWidget {
         ),
       );
     });
-  }
-
-  void _showBillingBottomSheet(
-    BuildContext context,
-    CartController controller,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Obx(() {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-            left: 20,
-            right: 20,
-            top: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    "Checkout",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontFamily: fontMulishBold,
-                      color: Color(0xFF1A3A5C),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _billingSmallText(
-                    "Subtotal",
-                    "₹${controller.subtotal.toStringAsFixed(0)}",
-                  ),
-                  _billingSmallText("Tax", "₹${controller.tax.round()}"),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              const Text(
-                "Select Payment Method",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontFamily: fontMulishBold,
-                  color: Color(0xFF1A3A5C),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _paymentRadio(controller, 'Cash'),
-                  _paymentRadio(controller, 'Online'),
-                  _paymentRadio(controller, 'Both'),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              if (controller.paymentMode.value == 'Both')
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _billingField(
-                          controller: controller.cashController,
-                          label: "Cash ₹",
-                          icon: Icons.money,
-                          onChanged: (v) {
-                            int cashVal = int.tryParse(v) ?? 0;
-                            if (cashVal > controller.total)
-                              cashVal = controller.total;
-                            controller.cashController.text = cashVal.toString();
-                            controller.onlineController.text =
-                                (controller.total - cashVal).toString();
-                            controller
-                                .cashController
-                                .selection = TextSelection.fromPosition(
-                              TextPosition(
-                                offset: controller.cashController.text.length,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _billingField(
-                          controller: controller.onlineController,
-                          label: "Online ₹",
-                          icon: Icons.phone_android,
-                          onChanged: (v) {
-                            int onlineVal = int.tryParse(v) ?? 0;
-                            if (onlineVal > controller.total)
-                              onlineVal = controller.total;
-                            controller.onlineController.text = onlineVal
-                                .toString();
-                            controller.cashController.text =
-                                (controller.total - onlineVal).toString();
-                            controller
-                                .onlineController
-                                .selection = TextSelection.fromPosition(
-                              TextPosition(
-                                offset: controller.onlineController.text.length,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF5F6FA),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      "Total Amount",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontFamily: fontMulishSemiBold,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    Text(
-                      "₹${controller.total}",
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontFamily: fontMulishBold,
-                        color: Color(0xFF1A3A5C),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFf57c35),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 54),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 0,
-                ),
-                onPressed: () {
-                  controller.isBilling.value = true;
-                  Navigator.pop(ctx);
-                },
-                child: const Text(
-                  "CONFIRM & PROCEED",
-                  style: TextStyle(fontFamily: fontMulishBold, fontSize: 16),
-                ),
-              ),
-            ],
-          ),
-        );
-      }),
-    );
   }
 
   Widget _buildStepper({
