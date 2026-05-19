@@ -182,7 +182,12 @@ class _CartPageViewState extends State<CartPageView> {
                             isRecording = false;
                             isTranscribing = true;
                           });
-                          final text = await controller.sttService.stopAndTranscribe();
+                          final List<String> allNames = [];
+                          for (var item in widget.fullMenu) {
+                            allNames.add(item['name'] as String);
+                          }
+                          final spellingHint = allNames.join(', ');
+                          final text = await controller.sttService.stopAndTranscribe(prompt: spellingHint);
                           setSheetState(() {
                             isTranscribing = false;
                             recognizedText = text ?? '';

@@ -583,4 +583,191 @@ User input:
 
     return (overlap + positional) / 1.0; // Max possible ~2.0
   }
+
+  // ── Dashboard Parser ──────────────────────────────────────────────────────
+
+  Future<DashboardParsedOrder?> parseDashboardOrder(
+    String text,
+    List<Map<String, dynamic>> menuItems,
+  ) async {
+    if (text.trim().isEmpty) return null;
+    debugPrint('[AiOrderService] ── parseDashboardOrder called ──────────────────');
+    debugPrint('[AiOrderService] Input text: "$text"');
+
+    try {
+      final result = await _callGeminiForDashboard(text, menuItems);
+      if (result != null) return result;
+    } catch (e) {
+      debugPrint('[AiOrderService] ❌ Gemini parseDashboardOrder FAILED: $e');
+    }
+
+    return _parseDashboardLocally(text, menuItems);
+  }
+
+  Future<DashboardParsedOrder?> _callGeminiForDashboard(
+    String userText,
+    List<Map<String, dynamic>> menuItems,
+  ) async {
+    final menuStr = menuItems.map((m) {
+      final cat = (m['category'] as String? ?? '').trim();
+      final name = (m['name'] as String? ?? '').trim();
+      return cat.isNotEmpty ? '- [$cat] $name' : '- $name';
+    }).join('\n');
+
+    final prompt = '''
+You are an intelligent restaurant order assistant.
+
+Your job is to convert user speech text into a structured JSON order containing a table identifier and a list of ordered menu items.
+
+The user speech may contain:
+- Table identifier: e.g., "Table 1", "table number five", "table 12", "Take Away"
+- Items, quantities, and optional remarks or modifiers
+- Mixed language (Hindi, Gujarati, English)
+
+You must:
+1. Extract the Table Identifier (e.g., "Table 1", "Table 5", "Take Away"). If not mentioned, default to "Table 1". Format it as "Table X" where X is the table number, or "Take Away".
+2. Match items ONLY from the provided menu.
+3. Detect quantity for each item (default to 1 if not mentioned).
+4. Extract any remarks/modifiers (like "less spicy", "extra butter") verbatim.
+
+Number words translation: ek/one=1, be/do/two=2, tran/teen/three=3, chaar/char/four=4, paanch/panch/five=5, chha/chhe/six=6, saat/sat/seven=7, aath/eight=8, nav/nine=9, das/ten=10.
+
+STRICT RULES:
+- Return ONLY valid JSON object with keys "table" and "items". No markdown formatting, no explanations, no backticks.
+- "table" must be a string, formatted like "Table X" where X is the table number, or "Take Away".
+- "items" must be an array of objects, each containing:
+  - "name": must exactly match one of the provided menu names.
+  - "quantity": integer.
+  - "remarks": modifier or empty string.
+
+MENU (match ONLY from these exact names):
+$menuStr
+
+Return format (strict JSON):
+{
+  "table": "Table X",
+  "items": [
+    {"name": "EXACT_MENU_NAME", "quantity": 2, "remarks": "less spicy"}
+  ]
+}
+
+User input:
+"$userText"''';
+
+    final body = jsonEncode({
+      'contents': [
+        {
+          'parts': [
+            {'text': prompt}
+          ]
+        }
+      ],
+      'generationConfig': {
+        'temperature': 0.1,
+        'maxOutputTokens': 1024,
+        'topP': 0.9,
+      },
+    });
+
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 15);
+
+    try {
+      final request = await client.postUrl(Uri.parse(_url));
+      request.headers
+        ..set(HttpHeaders.contentTypeHeader, 'application/json; charset=utf-8')
+        ..set(HttpHeaders.acceptHeader, 'application/json');
+      request.add(utf8.encode(body));
+
+      final response = await request.close();
+      final responseBody = await response.transform(utf8.decoder).join();
+
+      debugPrint('[AiOrderService] Gemini Dashboard HTTP ${response.statusCode}');
+      
+      if (response.statusCode != 200) {
+        throw Exception('Gemini HTTP ${response.statusCode}: $responseBody');
+      }
+
+      final json = jsonDecode(responseBody) as Map<String, dynamic>;
+      final raw = (json['candidates'] as List?)
+              ?.firstOrNull?['content']?['parts']
+              ?.firstOrNull?['text'] as String? ??
+          '';
+      debugPrint('[AiOrderService] 📦 Gemini Dashboard raw response: "$raw"');
+
+      return _parseGeminiDashboardJson(raw.trim(), menuItems);
+    } finally {
+      client.close();
+    }
+  }
+
+  DashboardParsedOrder? _parseGeminiDashboardJson(
+    String raw,
+    List<Map<String, dynamic>> menuItems,
+  ) {
+    String cleaned = raw
+        .replaceAll(RegExp(r'```json\s*'), '')
+        .replaceAll(RegExp(r'```\s*'), '')
+        .trim();
+
+    final objectMatch = RegExp(r'\{.*\}', dotAll: true).firstMatch(cleaned);
+    if (objectMatch == null) return null;
+    cleaned = objectMatch.group(0)!;
+
+    try {
+      final json = jsonDecode(cleaned) as Map<String, dynamic>;
+      var table = (json['table'] as String? ?? 'Table 1').trim();
+      if (table.isNotEmpty) {
+        table = table[0].toUpperCase() + table.substring(1);
+      }
+      final itemsList = json['items'] as List<dynamic>? ?? [];
+      
+      final results = <OrderResult>[];
+      for (final entry in itemsList) {
+        final rawName = (entry['name'] as String? ?? '').trim();
+        final qty = ((entry['quantity'] as num?) ?? 1).toInt().clamp(1, 99);
+        final remarks = (entry['remarks'] as String? ?? '').trim();
+
+        Map<String, dynamic>? matched = _exactMatch(rawName, menuItems);
+        matched ??= _fuzzyMatch(rawName, menuItems);
+
+        if (matched != null) {
+          results.add(OrderResult(item: matched, quantity: qty, remarks: remarks));
+        }
+      }
+      return DashboardParsedOrder(tableNumber: table, items: results);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  DashboardParsedOrder _parseDashboardLocally(
+    String text,
+    List<Map<String, dynamic>> menuItems,
+  ) {
+    final lower = text.toLowerCase();
+    String tableNum = 'Table 1';
+    final match = RegExp(r'\btable\s*(\d+)').firstMatch(lower);
+    if (match != null) {
+      tableNum = 'Table ${match.group(1)}';
+    } else {
+      final wordMatch = RegExp(r'\btable\s*([a-z]+)').firstMatch(lower);
+      if (wordMatch != null) {
+        final val = wordMatch.group(1);
+        final numVal = _nums[val];
+        if (numVal != null) {
+          tableNum = 'Table $numVal';
+        }
+      }
+    }
+    
+    final items = _parseLocally(text, menuItems);
+    return DashboardParsedOrder(tableNumber: tableNum, items: items);
+  }
+}
+
+class DashboardParsedOrder {
+  final String tableNumber;
+  final List<OrderResult> items;
+  DashboardParsedOrder({required this.tableNumber, required this.items});
 }

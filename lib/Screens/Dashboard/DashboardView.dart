@@ -11,6 +11,7 @@ import 'package:demo/Styles/my_icons.dart';
 import 'package:demo/Screens/Dashboard/controllers/dashboard_controller.dart';
 import 'package:demo/Screens/Menu/MenuPageView.dart';
 import 'package:demo/Screens/Billing/FinalBillingView.dart';
+import 'package:demo/services/ai_order_service.dart';
 
 /// DashboardView
 ///
@@ -157,6 +158,11 @@ class DashboardView extends StatelessWidget {
             ),
           );
         }),
+        IconButton(
+          icon: const Icon(Icons.mic, color: Colors.redAccent),
+          tooltip: 'Voice Order (Mic)',
+          onPressed: () => _startVoiceOrder(context),
+        ),
         IconButton(
           icon: const Icon(Icons.logout_rounded, color: Colors.white70),
           tooltip: 'Sign Out',
@@ -727,6 +733,645 @@ class DashboardView extends StatelessWidget {
                 ),
               ),
             ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ── Voice Order STT / AI Bottom Sheet & Confirmation Dialog ───────────────
+
+  String _formatDuration(int seconds) {
+    final m = (seconds ~/ 60).toString().padLeft(2, '0');
+    final s = (seconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  void _startVoiceOrder(BuildContext context) async {
+    final hasPerms = await controller.hasMicrophonePermission();
+    if (!hasPerms) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Microphone permission denied.')),
+        );
+      }
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (BuildContext sheetContext) {
+        return Obx(() {
+          return Container(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    if (controller.isRecording.value)
+                      Container(
+                        width: 56 + (controller.currentAmplitude.value * 20),
+                        height: 56 + (controller.currentAmplitude.value * 20),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.red.withOpacity(
+                            0.15 + controller.currentAmplitude.value * 0.15,
+                          ),
+                        ),
+                      ),
+                    Icon(
+                      controller.isRecording.value ? Icons.mic : Icons.mic_none,
+                      size: 40,
+                      color: controller.isRecording.value
+                          ? Colors.red
+                          : Colors.grey.shade400,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Dashboard Voice Order',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontFamily: fontMulishBold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  controller.isRecording.value
+                      ? '🔴 Recording ${_formatDuration(controller.recordingSeconds.value)} — speak order naturally'
+                      : controller.isTranscribing.value
+                      ? '⏳ Transcribing with Deepgram…'
+                      : controller.isProcessing.value
+                      ? '🤖 Processing order details…'
+                      : 'Tap Start, then specify table & order items',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: controller.isRecording.value
+                        ? Colors.red.shade700
+                        : controller.isTranscribing.value
+                        ? Colors.blue.shade700
+                        : controller.isProcessing.value
+                        ? Colors.orange.shade700
+                        : Colors.grey.shade600,
+                    fontFamily: fontMulishRegular,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Mention table (e.g. "Table 1") & items/quantities',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey.shade400,
+                    fontFamily: fontMulishRegular,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(
+                    minHeight: 64,
+                    maxHeight: 120,
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: controller.isRecording.value
+                        ? Colors.red.shade50
+                        : (controller.isTranscribing.value || controller.isProcessing.value)
+                        ? Colors.blue.shade50
+                        : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: controller.isRecording.value
+                          ? Colors.red.shade200
+                          : (controller.isTranscribing.value || controller.isProcessing.value)
+                          ? Colors.blue.shade200
+                          : Colors.grey.shade300,
+                      width:
+                          controller.isRecording.value ||
+                          controller.isTranscribing.value ||
+                          controller.isProcessing.value
+                          ? 1.5
+                          : 1,
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    reverse: true,
+                    child: controller.isRecording.value
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: List.generate(7, (i) {
+                                    final barHeight =
+                                        8.0 +
+                                        (controller.currentAmplitude.value *
+                                            24 *
+                                            (i.isEven ? 1.0 : 0.6));
+                                    return Container(
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 3,
+                                      ),
+                                      width: 4,
+                                      height: barHeight,
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.shade400,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    );
+                                  }),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Speak items, quantities & remarks…',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.red.shade300,
+                                    fontFamily: fontMulishRegular,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : (controller.isTranscribing.value || controller.isProcessing.value)
+                        ? Center(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.blue.shade600,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  controller.isTranscribing.value
+                                      ? 'Recognising speech…'
+                                      : 'Extracting order details…',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.blue.shade600,
+                                    fontFamily: fontMulishRegular,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : Text(
+                            controller.recognizedText.value.isEmpty
+                                ? 'e.g. "Table 1 do chicken tikka aur teen malai tikka"'
+                                : controller.recognizedText.value,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: controller.recognizedText.value.isEmpty
+                                  ? Colors.grey.shade400
+                                  : Colors.black87,
+                              fontFamily: fontMulishRegular,
+                              fontStyle: controller.recognizedText.value.isEmpty
+                                  ? FontStyle.italic
+                                  : FontStyle.normal,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed:
+                            (controller.isProcessing.value ||
+                                controller.isTranscribing.value)
+                            ? null
+                            : () async {
+                                await controller.cancelVoiceRecording();
+                                if (sheetContext.mounted) {
+                                  Navigator.pop(sheetContext);
+                                }
+                              },
+                        icon: const Icon(Icons.close, size: 18),
+                        label: const Text('Cancel'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey.shade700,
+                          side: BorderSide(color: Colors.grey.shade400),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child:
+                          (controller.isProcessing.value ||
+                              controller.isTranscribing.value)
+                          ? ElevatedButton.icon(
+                              onPressed: null,
+                              icon: const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              label: Text(
+                                controller.isTranscribing.value
+                                    ? 'Transcribing…'
+                                    : 'Processing…',
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: controller.isTranscribing.value
+                                    ? Colors.blue.shade600
+                                    : Colors.orange.shade700,
+                                foregroundColor: Colors.white,
+                                elevation: 3,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 13,
+                                ),
+                              ),
+                            )
+                          : controller.isRecording.value
+                          ? ElevatedButton.icon(
+                              onPressed: () async {
+                                final text = await controller.stopVoiceRecording();
+                                if (text != null && text.trim().isNotEmpty) {
+                                  final response = await controller.processInputAgent(text);
+                                  if (sheetContext.mounted) {
+                                    Navigator.pop(sheetContext);
+                                  }
+                                  if (response != null) {
+                                    _showOrderConfirmationDialog(context, response, text);
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Failed to parse order details.'),
+                                      ),
+                                    );
+                                  }
+                                } else {
+                                  if (sheetContext.mounted) {
+                                    Navigator.pop(sheetContext);
+                                  }
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Could not recognise speech. Please try again.',
+                                      ),
+                                      backgroundColor: Colors.orange,
+                                    ),
+                                  );
+                                }
+                              },
+                              icon: const Icon(
+                                Icons.stop_circle_outlined,
+                                size: 20,
+                              ),
+                              label: const Text('Stop & Process'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green.shade700,
+                                foregroundColor: Colors.white,
+                                elevation: 3,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 13,
+                                ),
+                              ),
+                            )
+                          : ElevatedButton.icon(
+                              onPressed: () async {
+                                await controller.startVoiceRecording();
+                              },
+                              icon: const Icon(Icons.mic, size: 20),
+                              label: Text(
+                                controller.recognizedText.value.isEmpty
+                                    ? 'Start'
+                                    : 'Retry',
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                                elevation: 3,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 13,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  void _showOrderConfirmationDialog(
+    BuildContext context,
+    DashboardParsedOrder parsedOrder,
+    String rawText,
+  ) {
+    final tableController = TextEditingController(text: parsedOrder.tableNumber);
+    final items = List<OrderResult>.from(parsedOrder.items).obs;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              const Icon(Icons.check_circle_outline, color: Colors.green),
+              const SizedBox(width: 10),
+              const Text(
+                'Confirm Voice Order',
+                style: TextStyle(
+                  fontFamily: fontMulishBold,
+                  fontSize: 18,
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Spoken text: "$rawText"',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                      fontStyle: FontStyle.italic,
+                      fontFamily: fontMulishRegular,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: tableController,
+                    decoration: InputDecoration(
+                      labelText: 'Table Number / Name',
+                      labelStyle: const TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 14,
+                      ),
+                      hintText: 'e.g. Table 1, Take Away 5',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                    style: const TextStyle(
+                      fontFamily: fontMulishBold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Items Detected:',
+                    style: TextStyle(
+                      fontFamily: fontMulishBold,
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Obx(() {
+                    if (items.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: Center(
+                          child: Text(
+                            'No menu items matched.',
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontFamily: fontMulishRegular,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        final name = item.item['name'] as String;
+                        final price = (item.item['price'] as num).toDouble();
+                        final qty = item.quantity;
+                        final remarks = item.remarks;
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: const TextStyle(
+                                        fontFamily: fontMulishSemiBold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    if (remarks.isNotEmpty)
+                                      Text(
+                                        'Remarks: $remarks',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.orange.shade700,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    Text(
+                                      '₹${(price * qty).toStringAsFixed(0)}',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade600,
+                                        fontFamily: fontMulishRegular,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.remove_circle_outline, size: 20),
+                                    color: Colors.grey,
+                                    onPressed: () {
+                                      if (qty > 1) {
+                                        items[index] = OrderResult(
+                                          item: item.item,
+                                          quantity: qty - 1,
+                                          remarks: remarks,
+                                        );
+                                      } else {
+                                        items.removeAt(index);
+                                      }
+                                    },
+                                  ),
+                                  Text(
+                                    '$qty',
+                                    style: const TextStyle(
+                                      fontFamily: fontMulishBold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.add_circle_outline, size: 20),
+                                    color: Colors.orange,
+                                    onPressed: () {
+                                      items[index] = OrderResult(
+                                        item: item.item,
+                                        quantity: qty + 1,
+                                        remarks: remarks,
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            Obx(() {
+              return ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1A3A5C),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                onPressed: items.isEmpty
+                    ? null
+                    : () async {
+                        final selectedTable = tableController.text.trim();
+                        if (selectedTable.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please enter a table name')),
+                          );
+                          return;
+                        }
+
+                        final List<Map<String, dynamic>> orderItems = items.map((res) {
+                          return {
+                            'name': res.item['name'],
+                            'price': res.item['price'],
+                            'categoryId': res.item['categoryId'],
+                            'itemId': res.item['itemId'],
+                            'category': res.item['category'],
+                            'qty': res.quantity,
+                            'remarks': res.remarks,
+                          };
+                        }).toList();
+
+                        Navigator.pop(dialogContext);
+
+                        controller.isLoading.value = true;
+                        try {
+                          String finalTable = selectedTable;
+                          if (selectedTable.toLowerCase().contains('take away') ||
+                              selectedTable.toLowerCase() == 'takeaway') {
+                            final nextNum = controller.tableNo + 1;
+                            finalTable = "Take Away $nextNum";
+                          }
+
+                          await controller.addItemsToTable(
+                            tableName: finalTable,
+                            newItems: orderItems,
+                          );
+
+                          Get.snackbar(
+                            'Order Added',
+                            'Successfully added voice order to $finalTable.',
+                            backgroundColor: Colors.green,
+                            colorText: Colors.white,
+                          );
+                        } catch (e) {
+                          Get.snackbar(
+                            'Error',
+                            'Failed to add order: $e',
+                            backgroundColor: Colors.red,
+                            colorText: Colors.white,
+                          );
+                        } finally {
+                          controller.isLoading.value = false;
+                        }
+                      },
+                child: const Text('Add Order'),
+              );
+            }),
           ],
         );
       },

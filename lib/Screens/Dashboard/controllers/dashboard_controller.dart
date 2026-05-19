@@ -5,6 +5,8 @@ import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:demo/Screens/Dashboard/repositories/dashboard_repository.dart';
 import 'package:demo/Screens/Authentication/screens/LoginScreenView.dart';
+import 'package:demo/services/sarvam_stt_service.dart';
+import 'package:demo/services/ai_order_service.dart';
 
 /// DashboardController
 /// 
@@ -19,6 +21,20 @@ class DashboardController extends GetxController {
   final RxList<Map<String, dynamic>> menu = <Map<String, dynamic>>[].obs;
   final RxBool isLoading = false.obs;
   final RxString selectedTab = 'All'.obs;
+
+  // ── Voice Order STT / AI Observables ──────────────────────────────
+  final SarvamSttService _sttService = SarvamSttService();
+  final AiOrderService _aiService = AiOrderService();
+
+  final RxString recognizedText = ''.obs;
+  final RxBool isRecording = false.obs;
+  final RxBool isTranscribing = false.obs;
+  final RxBool isProcessing = false.obs;
+  final RxInt recordingSeconds = 0.obs;
+  final RxDouble currentAmplitude = 0.0.obs;
+
+  Timer? _recordingTimer;
+  Timer? _amplitudeTimer;
 
   StreamSubscription<QuerySnapshot>? _tablesSubscription;
   final user = FirebaseAuth.instance.currentUser;
@@ -294,5 +310,117 @@ class DashboardController extends GetxController {
     } catch (e) {
       debugPrint("Error merging tables $sourceTable -> $destTable: $e");
     }
+  }
+
+  // ── Dashboard Voice Order Operations ──────────────────────────────────────
+
+  Future<bool> hasMicrophonePermission() async {
+    return await _sttService.hasPermission();
+  }
+
+  Future<bool> startVoiceRecording() async {
+    recognizedText.value = '';
+    isRecording.value = false;
+    isTranscribing.value = false;
+    isProcessing.value = false;
+    recordingSeconds.value = 0;
+    currentAmplitude.value = 0.0;
+    _recordingTimer?.cancel();
+    _amplitudeTimer?.cancel();
+
+    final started = await _sttService.startRecording();
+    if (started) {
+      isRecording.value = true;
+      _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        recordingSeconds.value++;
+      });
+      _startAmplitudePolling();
+    }
+    return started;
+  }
+
+  void _startAmplitudePolling() {
+    _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 100), (_) async {
+      if (!isRecording.value) return;
+      final dbfs = await _sttService.getAmplitude();
+      final norm = (dbfs + 160.0) / 160.0;
+      currentAmplitude.value = norm.clamp(0.0, 1.0);
+    });
+  }
+
+  Future<String?> stopVoiceRecording() async {
+    _recordingTimer?.cancel();
+    _amplitudeTimer?.cancel();
+
+    isRecording.value = false;
+    isTranscribing.value = true;
+
+    final List<String> allNames = menu.map((item) => item['name'] as String).toList();
+    final spellingHint = allNames.join(', ');
+
+    final transcript = await _sttService.stopAndTranscribe(prompt: spellingHint);
+    isTranscribing.value = false;
+
+    if (transcript == null || transcript.trim().isEmpty) {
+      return null;
+    }
+
+    recognizedText.value = transcript;
+    isProcessing.value = true;
+    return transcript;
+  }
+
+  Future<void> cancelVoiceRecording() async {
+    _recordingTimer?.cancel();
+    _amplitudeTimer?.cancel();
+    await _sttService.cancelRecording();
+    isRecording.value = false;
+    isTranscribing.value = false;
+    isProcessing.value = false;
+    recognizedText.value = '';
+  }
+
+  Future<DashboardParsedOrder?> processInputAgent(String text) async {
+    isProcessing.value = true;
+    try {
+      final parsed = await _aiService.parseDashboardOrder(text, menu);
+      return parsed;
+    } finally {
+      isProcessing.value = false;
+    }
+  }
+
+  Future<void> addItemsToTable({
+    required String tableName,
+    required List<Map<String, dynamic>> newItems,
+    String remarks = '',
+  }) async {
+    final existingTables = tables.keys;
+    if (!existingTables.contains(tableName)) {
+      await addTable(tableName);
+    }
+
+    final existingGroups = tables[tableName] ?? [];
+
+    final List<Map<String, dynamic>> newGroup = newItems.map((item) {
+      return {
+        'name': item['name'],
+        'price': item['price'],
+        'categoryId': item['categoryId'],
+        'itemId': item['itemId'],
+        'category': item['category'],
+        'qty': item['qty'],
+        'remarks': item['remarks'] ?? remarks,
+      };
+    }).toList();
+
+    final List<List<Map<String, dynamic>>> updatedGroups = List.from(existingGroups)..add(newGroup);
+
+    await updateTableItemsInFirestore(
+      tableName: tableName,
+      groups: updatedGroups,
+      isBillPaid: false,
+      overallRemarks: remarks,
+    );
   }
 }

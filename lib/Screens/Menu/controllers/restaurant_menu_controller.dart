@@ -176,7 +176,16 @@ class RestaurantMenuController extends GetxController {
     isRecording.value = false;
     isTranscribing.value = true;
 
-    final transcript = await _sttService.stopAndTranscribe();
+    // Compile list of menu items for spelling boost context
+    final List<String> allNames = [];
+    menuData.forEach((_, items) {
+      for (var item in items) {
+        allNames.add(item['name'] as String);
+      }
+    });
+    final spellingHint = allNames.join(', ');
+
+    final transcript = await _sttService.stopAndTranscribe(prompt: spellingHint);
     isTranscribing.value = false;
 
     if (transcript == null || transcript.trim().isEmpty) {
