@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/Screens/Menu/AddCategoryPage.dart';
+import 'package:demo/Screens/Catalog/AddCategoryPageView.dart';
 import 'package:demo/Screens/Dashboard/AddTablePage.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
-import 'package:demo/Screens/Transactions/TransactionsPage.dart';
+import 'package:demo/Screens/Transactions/TransactionsView.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,9 +28,9 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
   final tabsForAdmin = [
     DashboardView(),
     AddTablePage(),
-    AddCategoryPage(),
+    AddCategoryPageView(),
     KitchenOrdersListView(),
-    TransactionsPage(),
+    TransactionsView(),
   ];
 
   final tabsForStaff = [

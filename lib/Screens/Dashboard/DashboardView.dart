@@ -276,20 +276,7 @@ class DashboardView extends StatelessWidget {
               initialItems: [],
               showBilling: true,
               isFromFinalBilling: false,
-              onConfirm:
-                  (
-                    List<Map<String, dynamic>> selectedItems,
-                    bool isBillPaid,
-                    String tableName,
-                    String overallRemarks,
-                  ) async {
-                    await controller.addTableAndUpdateItems(
-                      tableName: tableName,
-                      selectedItems: selectedItems,
-                      isBillPaid: isBillPaid,
-                      overallRemarks: overallRemarks,
-                    );
-                  },
+              isEditMode: false,
             ),
           ),
         );
@@ -433,15 +420,7 @@ class DashboardView extends StatelessWidget {
                 initialItems: [],
                 showBilling: true,
                 isFromFinalBilling: false,
-                onConfirm:
-                    (selectedItems, isBillPaid, tName, overallRemarks) async {
-                      await controller.updateTableItemsInFirestore(
-                        tableName: tName,
-                        groups: [selectedItems],
-                        isBillPaid: isBillPaid,
-                        overallRemarks: overallRemarks,
-                      );
-                    },
+                isEditMode: false,
               ),
             ),
           );
@@ -521,23 +500,7 @@ class DashboardView extends StatelessWidget {
                             ),
                             showBilling: groups.length == 1,
                             isFromFinalBilling: false,
-                            onConfirm:
-                                (
-                                  items,
-                                  isBillPaid,
-                                  tName,
-                                  overallRemarks,
-                                ) async {
-                                  final List<List<Map<String, dynamic>>>
-                                  newGroups = List.from(groups);
-                                  newGroups[newGroups.length - 1] = items;
-                                  await controller.updateTableItemsInFirestore(
-                                    tableName: tName,
-                                    groups: newGroups,
-                                    isBillPaid: isBillPaid,
-                                    overallRemarks: overallRemarks,
-                                  );
-                                },
+                            isEditMode: true,
                           ),
                         ),
                       );
@@ -554,22 +517,7 @@ class DashboardView extends StatelessWidget {
                             initialItems: [],
                             showBilling: !hasItems,
                             isFromFinalBilling: false,
-                            onConfirm:
-                                (
-                                  items,
-                                  isBillPaid,
-                                  tName,
-                                  overallRemarks,
-                                ) async {
-                                  final List<List<Map<String, dynamic>>>
-                                  newGroups = List.from(groups)..add(items);
-                                  await controller.updateTableItemsInFirestore(
-                                    tableName: tName,
-                                    groups: newGroups,
-                                    isBillPaid: isBillPaid,
-                                    overallRemarks: overallRemarks,
-                                  );
-                                },
+                            isEditMode: false,
                           ),
                         ),
                       );
