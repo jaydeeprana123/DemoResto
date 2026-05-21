@@ -355,10 +355,10 @@ class DashboardController extends GetxController {
     isRecording.value = false;
     isTranscribing.value = true;
 
-    final List<String> allNames = menu.map((item) => item['name'] as String).toList();
-    final spellingHint = allNames.join(', ');
+    final List<String> allNames =
+        menu.map((item) => item['name'] as String).toList();
 
-    final transcript = await _sttService.stopAndTranscribe(prompt: spellingHint);
+    final transcript = await _sttService.stopAndTranscribe(menuNames: allNames);
     isTranscribing.value = false;
 
     if (transcript == null || transcript.trim().isEmpty) {

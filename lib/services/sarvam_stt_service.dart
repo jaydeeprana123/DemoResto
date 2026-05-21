@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:demo/services/menu_transcript_aligner.dart';
+import 'package:demo/services/transcript_normalizer.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -10,10 +12,11 @@ import 'dart:convert';
 // SarvamSttService
 //
 // Records audio via the `record` package (WAV, 16 kHz, mono) and sends it to
-// Sarvam AI's saaras:v3 speech-to-text REST API for transcription.
+// Sarvam AI saaras:v3 speech-to-text REST API.
 //
-// Designed for Indian multilingual speech: Hindi, Gujarati, English,
-// code-mixed, and 19 other Indian languages — auto-detected.
+// Uses `translit` mode (roman script) — better for mixed Hindi/Gujarati/English
+// while keeping menu names phonetically close (NOT `translate`, which rewrites
+// dish names like "Alfaham Tukda Rice" into generic English).
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SarvamSttService {
@@ -21,36 +24,31 @@ class SarvamSttService {
   factory SarvamSttService() => _instance;
   SarvamSttService._internal();
 
-  // ── Configuration ─────────────────────────────────────────────────────────
-  // Deepgram Configuration
+  static const String _sarvamApiKey =
+      'sk_jm9xxf0p_09FKG715K2n9hXMGKjmIlAIS';
+  static const String _sarvamUrl = 'https://api.sarvam.ai/speech-to-text';
+
+  // Optional fallback if Sarvam is unavailable
   static const String _deepgramApiKey =
       'dbf90eaa050406496ad89b19e6ea7fb8a2741985';
   static const String _deepgramUrl =
       'https://api.deepgram.com/v1/listen?smart_format=true&model=nova-2';
 
-  // Gemini Configuration (Fallback)
   static const String _geminiApiKey = 'AIzaSyBz_YVM6SrTCL-HFA3FG6SkHZ3T5h6VgBc';
   static const String _geminiUrl =
       'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=$_geminiApiKey';
 
-  // ── State ─────────────────────────────────────────────────────────────────
   final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
   String? _currentPath;
 
   bool get isRecording => _isRecording;
 
-  // ── Record ────────────────────────────────────────────────────────────────
-
-  /// Check and request microphone permission.
   Future<bool> hasPermission() async {
     return await _recorder.hasPermission();
   }
 
-  /// Start recording audio to a temporary WAV file.
-  /// Returns `true` if recording started successfully.
   Future<bool> startRecording() async {
-    // path_provider / record are not supported on web
     if (kIsWeb) {
       debugPrint('[SarvamSTT] Voice recording not supported on web platform.');
       return false;
@@ -64,12 +62,10 @@ class SarvamSttService {
         return false;
       }
 
-      // Temp directory for the WAV file
       final dir = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       _currentPath = '${dir.path}/sarvam_recording_$timestamp.wav';
 
-      // Record WAV at 16kHz mono — optimal for Sarvam AI
       await _recorder.start(
         const RecordConfig(
           encoder: AudioEncoder.wav,
@@ -90,8 +86,6 @@ class SarvamSttService {
     }
   }
 
-  /// Get current audio amplitude (for visual feedback).
-  /// Returns amplitude in dBFS (typically -160 to 0).
   Future<double> getAmplitude() async {
     if (!_isRecording) return -160.0;
     try {
@@ -102,7 +96,6 @@ class SarvamSttService {
     }
   }
 
-  /// Stop recording and return the file path (or null on failure).
   Future<String?> stopRecording() async {
     if (!_isRecording) return _currentPath;
 
@@ -118,7 +111,6 @@ class SarvamSttService {
     }
   }
 
-  /// Cancel recording and delete the temp file.
   Future<void> cancelRecording() async {
     try {
       await _recorder.cancel();
@@ -127,95 +119,158 @@ class SarvamSttService {
     _cleanupFile();
   }
 
-  // ── Transcribe via Deepgram / Gemini ──────────────────────────────────────
-
-  /// Transcribes the audio file at [filePath] using Deepgram (primary) or Gemini API (fallback).
+  /// Transcribes audio using Sarvam AI (primary), Deepgram, then Gemini fallback.
   ///
-  /// Returns the transcribed text, or `null` if both fail.
-  Future<String?> transcribe(String filePath, {String? prompt}) async {
-    if (kIsWeb) return null; // File I/O not available on web
+  /// [menuNames] — when provided, fuzzy-aligns spoken dish names to exact menu
+  /// spellings so downstream parsing matches Firebase items reliably.
+  Future<String?> transcribe(
+    String filePath, {
+    List<String>? menuNames,
+  }) async {
+    if (kIsWeb) return null;
+
     final file = File(filePath);
     if (!await file.exists()) {
-      debugPrint('[STTService] File not found: $filePath');
+      debugPrint('[SarvamSTT] File not found: $filePath');
       return null;
     }
 
     final fileSize = await file.length();
     if (fileSize < 1000) {
-      // Too small — likely less than 0.1s of audio
-      debugPrint(
-        '[STTService] Audio file too small ($fileSize bytes), skipping',
-      );
+      debugPrint('[SarvamSTT] Audio too small ($fileSize bytes), skipping');
       return null;
     }
 
-    // Try Deepgram first if API key is provided
-    if (_deepgramApiKey.isNotEmpty) {
-      debugPrint(
-        '[STTService] Transcribing ${fileSize ~/ 1024}KB audio file via Deepgram...',
-      );
-      try {
-        final bytes = await file.readAsBytes();
+    String? transcript;
 
-        var uriString = _deepgramUrl;
-        if (prompt != null && prompt.isNotEmpty) {
-          final items = prompt
-              .split(',')
-              .map((e) => e.trim())
-              .where((e) => e.isNotEmpty);
-          for (final item in items) {
-            uriString += '&keywords=${Uri.encodeComponent(item)}';
-          }
-        }
+    transcript = await _transcribeSarvam(filePath, fileSize);
+    transcript ??= await _transcribeDeepgram(filePath, fileSize, menuNames);
+    transcript ??= await _transcribeGemini(filePath, fileSize, menuNames);
 
-        final response = await http
-            .post(
-              Uri.parse(uriString),
-              headers: {
-                'Authorization': 'Token $_deepgramApiKey',
-                'Content-Type': 'audio/wav',
-              },
-              body: bytes,
-            )
-            .timeout(const Duration(seconds: 30));
+    _cleanupFile(path: filePath);
 
-        debugPrint(
-          '[STTService] Deepgram response status: ${response.statusCode}',
-        );
-        if (response.statusCode == 200) {
-          final json = jsonDecode(response.body) as Map<String, dynamic>;
-          final transcript =
-              json['results']?['channels']?[0]?['alternatives']?[0]?['transcript']
-                  as String? ??
-              '';
-          debugPrint('[STTService] ✅ Deepgram Transcript: "$transcript"');
-          if (transcript.trim().isNotEmpty) {
-            _cleanupFile(path: filePath);
-            return transcript.trim();
-          }
-        } else {
-          debugPrint(
-            '[STTService] ❌ Deepgram API error ${response.statusCode}: ${response.body}',
-          );
-        }
-      } catch (e) {
-        debugPrint(
-          '[STTService] Deepgram transcription failed: $e. Falling back to Gemini...',
-        );
-      }
+    if (transcript == null || transcript.trim().isEmpty) return null;
+
+    var result = TranscriptNormalizer.normalize(transcript.trim());
+    debugPrint('[SarvamSTT] Normalized transcript: "$result"');
+
+    if (menuNames != null && menuNames.isNotEmpty) {
+      result = MenuTranscriptAligner.align(result, menuNames);
+      debugPrint('[SarvamSTT] Menu-aligned transcript: "$result"');
     }
 
-    // Gemini fallback:
+    return result;
+  }
+
+  /// Sarvam saaras:v3 — translit keeps dish names phonetic, not translated.
+  Future<String?> _transcribeSarvam(String filePath, int fileSize) async {
+    if (_sarvamApiKey.isEmpty) return null;
+
     debugPrint(
-      '[STTService] Transcribing ${fileSize ~/ 1024}KB audio file via Gemini fallback...',
+      '[SarvamSTT] Transcribing ${fileSize ~/ 1024}KB via Sarvam AI (translit)…',
     );
+
     try {
-      final bytes = await file.readAsBytes();
+      final request = http.MultipartRequest('POST', Uri.parse(_sarvamUrl));
+      request.headers['api-subscription-key'] = _sarvamApiKey;
+      request.fields['model'] = 'saaras:v3';
+      // translit: roman script — preserves "alfaham tukda rice" instead of translating
+      request.fields['mode'] = 'translit';
+      request.fields['language_code'] = 'unknown';
+      request.files.add(await http.MultipartFile.fromPath('file', filePath));
+
+      final streamed = await request.send().timeout(const Duration(seconds: 45));
+      final response = await http.Response.fromStream(streamed);
+
+      debugPrint('[SarvamSTT] Sarvam response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final transcript = (json['transcript'] as String? ?? '').trim();
+        debugPrint('[SarvamSTT] ✅ Sarvam transcript: "$transcript"');
+        if (transcript.isNotEmpty) return transcript;
+      } else {
+        debugPrint(
+          '[SarvamSTT] ❌ Sarvam error ${response.statusCode}: ${response.body}',
+        );
+      }
+    } catch (e) {
+      debugPrint('[SarvamSTT] Sarvam transcription failed: $e');
+    }
+    return null;
+  }
+
+  Future<String?> _transcribeDeepgram(
+    String filePath,
+    int fileSize,
+    List<String>? menuNames,
+  ) async {
+    if (_deepgramApiKey.isEmpty) return null;
+
+    debugPrint(
+      '[SarvamSTT] Fallback: Deepgram ${fileSize ~/ 1024}KB…',
+    );
+
+    try {
+      final bytes = await File(filePath).readAsBytes();
+      var uriString = _deepgramUrl;
+      if (menuNames != null) {
+        for (final item in menuNames.where((e) => e.trim().isNotEmpty)) {
+          uriString += '&keywords=${Uri.encodeComponent(item.trim())}';
+        }
+      }
+
+      final response = await http
+          .post(
+            Uri.parse(uriString),
+            headers: {
+              'Authorization': 'Token $_deepgramApiKey',
+              'Content-Type': 'audio/wav',
+            },
+            body: bytes,
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final transcript =
+            json['results']?['channels']?[0]?['alternatives']?[0]?['transcript']
+                as String? ??
+            '';
+        if (transcript.trim().isNotEmpty) {
+          debugPrint('[SarvamSTT] ✅ Deepgram transcript: "$transcript"');
+          return transcript.trim();
+        }
+      }
+    } catch (e) {
+      debugPrint('[SarvamSTT] Deepgram fallback failed: $e');
+    }
+    return null;
+  }
+
+  Future<String?> _transcribeGemini(
+    String filePath,
+    int fileSize,
+    List<String>? menuNames,
+  ) async {
+    debugPrint('[SarvamSTT] Fallback: Gemini ${fileSize ~/ 1024}KB…');
+
+    try {
+      final bytes = await File(filePath).readAsBytes();
       final base64Audio = base64Encode(bytes);
 
-      final geminiPrompt = prompt != null && prompt.isNotEmpty
-          ? 'Transcribe the audio file exactly as spoken (verbatim), in the language it was spoken (Hindi, Gujarati, English, or code-mixed Hinglish/Gujlish). Do not translate it. Only return the transcribed text. Do not add any notes, markdown, or explanation. Hint for menu items/spelling context: $prompt'
-          : 'Transcribe the audio file exactly as spoken (verbatim), in the language it was spoken (Hindi, Gujarati, English, or code-mixed Hinglish/Gujlish). Do not translate it. Only return the transcribed text. Do not add any notes, markdown, or explanation.';
+      final menuHint = menuNames != null && menuNames.isNotEmpty
+          ? menuNames.take(80).join(', ')
+          : '';
+
+      final geminiPrompt = menuHint.isNotEmpty
+          ? 'Transcribe the audio exactly as spoken. Use Roman/English letters. '
+              'Do NOT translate dish names — keep them phonetically as spoken '
+              '(e.g. "Alfaham Tukda Rice", "Char Bag Rice", "Crispy Makhni Popcorn"). '
+              'Menu items for spelling reference: $menuHint. '
+              'Return only the transcript, no explanation.'
+          : 'Transcribe the audio exactly as spoken in Roman script. '
+              'Return only the transcript.';
 
       final body = jsonEncode({
         'contents': [
@@ -239,10 +294,6 @@ class SarvamSttService {
           )
           .timeout(const Duration(seconds: 30));
 
-      debugPrint(
-        '[STTService] Gemini fallback response status: ${response.statusCode}',
-      );
-
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
         final transcript =
@@ -251,34 +302,22 @@ class SarvamSttService {
                     ?.firstOrNull?['text']
                 as String? ??
             '';
-        debugPrint('[STTService] ✅ Gemini Transcript: "$transcript"');
         if (transcript.trim().isNotEmpty) {
+          debugPrint('[SarvamSTT] ✅ Gemini transcript: "$transcript"');
           return transcript.trim();
         }
-      } else {
-        debugPrint(
-          '[STTService] ❌ Gemini API error ${response.statusCode}: ${response.body}',
-        );
       }
     } catch (e) {
-      debugPrint('[STTService] Gemini fallback transcription failed: $e');
-    } finally {
-      _cleanupFile(path: filePath);
+      debugPrint('[SarvamSTT] Gemini fallback failed: $e');
     }
     return null;
   }
 
-  // ── Convenience: Record → Transcribe ──────────────────────────────────────
-
-  /// Stops recording and immediately transcribes the result.
-  /// Returns the transcript text or `null`.
-  Future<String?> stopAndTranscribe({String? prompt}) async {
+  Future<String?> stopAndTranscribe({List<String>? menuNames}) async {
     final path = await stopRecording();
     if (path == null) return null;
-    return transcribe(path, prompt: prompt);
+    return transcribe(path, menuNames: menuNames);
   }
-
-  // ── Cleanup ───────────────────────────────────────────────────────────────
 
   void _cleanupFile({String? path}) {
     final filePath = path ?? _currentPath;
@@ -290,7 +329,6 @@ class SarvamSttService {
     if (path == null || path == _currentPath) _currentPath = null;
   }
 
-  /// Call when the service is no longer needed.
   void dispose() {
     _recorder.dispose();
   }

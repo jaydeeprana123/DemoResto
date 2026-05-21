@@ -158,10 +158,14 @@ class DashboardView extends StatelessWidget {
             ),
           );
         }),
-        IconButton(
-          icon: const Icon(Icons.mic, color: Colors.redAccent),
-          tooltip: 'Voice Order (Mic)',
-          onPressed: () => _startVoiceOrder(context),
+        GestureDetector(
+          onLongPressStart: (_) => _holdVoiceRecordStart(context),
+          onLongPressEnd: (_) => _holdVoiceRecordStop(context),
+          child: IconButton(
+            icon: const Icon(Icons.mic, color: Colors.redAccent),
+            tooltip: 'Voice Order — tap for dialog, hold to speak',
+            onPressed: () => _startVoiceOrder(context, autoStart: true),
+          ),
         ),
         IconButton(
           icon: const Icon(Icons.logout_rounded, color: Colors.white70),
@@ -741,13 +745,72 @@ class DashboardView extends StatelessWidget {
 
   // ── Voice Order STT / AI Bottom Sheet & Confirmation Dialog ───────────────
 
+  /// Hold mic on app bar: record while pressed, process on release.
+  Future<void> _holdVoiceRecordStart(BuildContext context) async {
+    final hasPerms = await controller.hasMicrophonePermission();
+    if (!hasPerms) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Microphone permission denied.')),
+        );
+      }
+      return;
+    }
+    if (controller.isRecording.value) return;
+    await controller.startVoiceRecording();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.mic, color: Colors.red.shade200),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('Recording… release mic to process order'),
+              ),
+            ],
+          ),
+          duration: const Duration(minutes: 5),
+          backgroundColor: Colors.red.shade800,
+        ),
+      );
+    }
+  }
+
+  Future<void> _holdVoiceRecordStop(BuildContext context) async {
+    if (!controller.isRecording.value) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    final text = await controller.stopVoiceRecording();
+    if (text == null || text.trim().isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not recognise speech. Please try again.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    final response = await controller.processInputAgent(text);
+    if (response != null && context.mounted) {
+      _showOrderConfirmationDialog(context, response, text);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to parse order details.')),
+      );
+    }
+  }
+
   String _formatDuration(int seconds) {
     final m = (seconds ~/ 60).toString().padLeft(2, '0');
     final s = (seconds % 60).toString().padLeft(2, '0');
     return '$m:$s';
   }
 
-  void _startVoiceOrder(BuildContext context) async {
+  void _startVoiceOrder(BuildContext context, {bool autoStart = false}) async {
     final hasPerms = await controller.hasMicrophonePermission();
     if (!hasPerms) {
       if (context.mounted) {
@@ -758,6 +821,8 @@ class DashboardView extends StatelessWidget {
       return;
     }
 
+    var didAutoStart = false;
+
     showModalBottomSheet(
       context: context,
       isDismissible: false,
@@ -766,6 +831,16 @@ class DashboardView extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (BuildContext sheetContext) {
+        if (autoStart && !didAutoStart) {
+          didAutoStart = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
+            if (!controller.isRecording.value &&
+                !controller.isTranscribing.value) {
+              await controller.startVoiceRecording();
+            }
+          });
+        }
+
         return Obx(() {
           return Container(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
@@ -822,10 +897,10 @@ class DashboardView extends StatelessWidget {
                   controller.isRecording.value
                       ? '🔴 Recording ${_formatDuration(controller.recordingSeconds.value)} — speak order naturally'
                       : controller.isTranscribing.value
-                      ? '⏳ Transcribing with Deepgram…'
+                      ? '⏳ Transcribing with Sarvam AI…'
                       : controller.isProcessing.value
                       ? '🤖 Processing order details…'
-                      : 'Tap Start, then specify table & order items',
+                      : 'Listening… say table number, qty & items',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 12,
@@ -841,7 +916,7 @@ class DashboardView extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Mention table (e.g. "Table 1") & items/quantities',
+                  'Sarvam AI • Hindi, Gujarati, English • Hold mic on dashboard',
                   style: TextStyle(
                     fontSize: 10,
                     color: Colors.grey.shade400,

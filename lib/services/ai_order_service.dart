@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:demo/services/menu_first_parser.dart';
+import 'package:demo/services/transcript_normalizer.dart';
 import 'package:flutter/foundation.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,13 +33,24 @@ class AiOrderService {
     List<Map<String, dynamic>> menuItems,
   ) async {
     if (text.trim().isEmpty) return [];
+    final normalizedText = TranscriptNormalizer.normalize(text);
     debugPrint('[AiOrderService] ── parseOrder called ──────────────────');
-    debugPrint('[AiOrderService] Input text: "$text"');
+    debugPrint('[AiOrderService] Input text: "$normalizedText"');
     debugPrint('[AiOrderService] Menu size: ${menuItems.length} items');
+
+    final menuFirst = _menuFirstToResults(
+      MenuFirstParser.extract(normalizedText, menuItems),
+    );
+    if (menuFirst.isNotEmpty) {
+      debugPrint(
+        '[AiOrderService] ✅ Menu-first parser: ${menuFirst.length} item(s)',
+      );
+      return menuFirst;
+    }
 
     try {
       debugPrint('[AiOrderService] Trying Gemini API...');
-      final aiResults = await _callGemini(text, menuItems);
+      final aiResults = await _callGemini(normalizedText, menuItems);
       if (aiResults.isNotEmpty) {
         debugPrint('[AiOrderService] ✅ Gemini succeeded with ${aiResults.length} items.');
         return aiResults;
@@ -47,7 +60,7 @@ class AiOrderService {
       debugPrint('[AiOrderService] ❌ Gemini FAILED: $e');
       debugPrint('[AiOrderService] Falling back to local parser...');
     }
-    final localResults = _parseLocally(text, menuItems);
+    final localResults = _parseLocally(normalizedText, menuItems);
     debugPrint('[AiOrderService] Local parser returned ${localResults.length} items.');
     return localResults;
   }
@@ -116,6 +129,8 @@ CORRECTIONS & OVERRIDES:
 - QUANTITY RULE: If a quantity is mentioned for one item, do NOT apply it to other items unless explicitly stated.
 - DEFAULT RULE: If no quantity is mentioned for an item, the quantity is ALWAYS 1.
 - DO NOT multiply or sum quantities unless the user explicitly says "plus" or "more".
+- CRITICAL: In Hindi/Gujarati speech, "do/be" usually means quantity 2. Do NOT interpret "do/be" as the word "double".
+- Only select items like "Double Patty Burger" when user clearly says "double", "patty", or "burger".
 
 STRICT RULES:
 - Return ONLY valid JSON array, no markdown, no explanation
@@ -176,7 +191,7 @@ User input:
           '';
       debugPrint('[AiOrderService] 📦 Gemini raw response: "$raw"');
 
-      return _parseGeminiJson(raw.trim(), menuItems);
+      return _parseGeminiJson(raw.trim(), menuItems, userText);
     } finally {
       client.close();
     }
@@ -186,6 +201,7 @@ User input:
   List<OrderResult> _parseGeminiJson(
     String raw,
     List<Map<String, dynamic>> menuItems,
+    String sourceText,
   ) {
     // Strip markdown fences if present
     String cleaned = raw
@@ -205,6 +221,7 @@ User input:
     }
 
     final results = <OrderResult>[];
+    final spokenTokens = _spokenTokenSet(sourceText);
     for (final entry in parsed) {
       final rawName = (entry['name'] as String? ?? '').trim();
       final qty = ((entry['quantity'] as num?) ?? 1).toInt().clamp(1, 99);
@@ -219,6 +236,16 @@ User input:
       matched ??= _fuzzyMatch(rawName, menuItems);
 
       if (matched != null) {
+        if (!_passesItemGrounding(
+          sourceText: sourceText,
+          spokenTokens: spokenTokens,
+          matchedName: matched['name'].toString(),
+        )) {
+          debugPrint(
+            '[AiOrderService]   ⚠️ Rejected hallucinated item "${matched['name']}" for speech "$sourceText"',
+          );
+          continue;
+        }
         debugPrint('[AiOrderService]   ✅ Matched to menu item: "${matched['name']}"');
         results.add(OrderResult(item: matched, quantity: qty, remarks: remarks));
       } else {
@@ -250,36 +277,50 @@ User input:
   Map<String, dynamic>? _fuzzyMatch(
       String name, List<Map<String, dynamic>> items) {
     // Normalise the query: strip parens + & so "(Bun)" etc. don't hurt score
-    final lower = _normalizeAmp(_stripParens(name)).toLowerCase();
+    final lower = _normalizeForMatch(_normalizeAmp(_stripParens(name)).toLowerCase());
 
-    // 1. Contains match (normalised both sides)
-    try {
-      return items.firstWhere((m) {
-        final mNorm = _normalizeAmp(_stripParens(m['name'].toString())).toLowerCase();
-        return mNorm.contains(lower) || lower.contains(mNorm);
-      });
-    } catch (_) {}
+    // 1. Contains match (normalised both sides) — skip weak "rice-only" matches
+    if (!_isWeakQuery(lower)) {
+      try {
+        return items.firstWhere((m) {
+          final mNorm = _normalizeForMatch(
+            _normalizeAmp(_stripParens(m['name'].toString())).toLowerCase(),
+          );
+          if (_isWeakRiceMatch(lower, mNorm)) return false;
+          return mNorm.contains(lower) || lower.contains(mNorm);
+        });
+      } catch (_) {}
+    }
 
     // 2. Word-overlap scoring
-    final qWords = lower.split(' ').where((w) => w.length > 2).toSet();
+    final qWords = lower
+        .split(' ')
+        .where((w) => w.length > 2)
+        .toSet();
+    final qStrong = qWords.where((w) => !_genericWords.contains(w)).toSet();
     Map<String, dynamic>? best;
     int bestScore = 0;
+    int bestStrongOverlap = 0;
 
     for (final item in items) {
-      final iName =
-          _normalizeAmp(_stripParens(item['name'].toString())).toLowerCase();
+      final iName = _normalizeForMatch(
+        _normalizeAmp(_stripParens(item['name'].toString())).toLowerCase(),
+      );
       final iWords =
           iName.split(RegExp(r'\s+')).where((w) => w.length > 1).toSet();
+      final iStrong = iWords.where((w) => !_genericWords.contains(w)).toSet();
 
       int score = 0;
+      int strongOverlap = 0;
       for (final qw in qWords) {
         for (final iw in iWords) {
           if (qw == iw) {
-            score += 10; // exact word match
+            score += _genericWords.contains(qw) ? 4 : 10;
+            if (!_genericWords.contains(qw)) strongOverlap++;
           } else if (qw.startsWith(iw) || iw.startsWith(qw)) {
-            score += 5;  // stem / prefix match
+            score += _genericWords.contains(qw) ? 2 : 5;
           } else if (qw.contains(iw) || iw.contains(qw)) {
-            score += 2;  // partial match
+            score += _genericWords.contains(qw) ? 1 : 2;
           }
         }
       }
@@ -287,14 +328,116 @@ User input:
       // Bonus when one string fully contains the other
       if (iName.contains(lower) || lower.contains(iName)) score += 15;
 
-      if (score > bestScore) {
+      // Guardrail: when query includes distinctive words, enforce at least one.
+      if (qStrong.isNotEmpty && iStrong.intersection(qStrong).isEmpty) {
+        continue;
+      }
+
+      if (score > bestScore || (score == bestScore && strongOverlap > bestStrongOverlap)) {
         bestScore = score;
         best = item;
+        bestStrongOverlap = strongOverlap;
       }
     }
     // Only return if we have a reasonably good match
-    return bestScore > 5 ? best : null;
+    return bestScore > 8 ? best : null;
   }
+
+  static String _normalizeForMatch(String text) {
+    var normalized = text;
+    _fix.forEach((w, r) {
+      normalized = normalized.replaceAll(RegExp('\\b$w\\b'), r);
+    });
+    return normalized;
+  }
+
+  static Set<String> _spokenTokenSet(String sourceText) {
+    final normalized = _normalizeForMatch(
+      _normalizeAmp(sourceText.toLowerCase()),
+    ).replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
+    return normalized
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty && !_nums.containsKey(w))
+        .map(_canonicalToken)
+        .toSet();
+  }
+
+  static bool _passesItemGrounding({
+    required String sourceText,
+    required Set<String> spokenTokens,
+    required String matchedName,
+  }) {
+    final lowerName = matchedName.toLowerCase();
+
+    // Block Double Patty Burger unless burger/patty was spoken (not qty "two/double")
+    if (lowerName.contains('double') && lowerName.contains('patty')) {
+      return spokenTokens.contains('patty') || spokenTokens.contains('burger');
+    }
+
+    // Rice items need a distinctive word (alfaham, garden, tukda, char, bag…)
+    if (lowerName.contains('rice')) {
+      final normSource = _normalizeForMatch(
+        _normalizeAmp(sourceText.toLowerCase()),
+      );
+      final itemTokens = _normalizeForMatch(
+        _normalizeAmp(lowerName),
+      ).split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toSet();
+      final distinctive =
+          itemTokens.where((w) => !_genericWords.contains(w) && w != 'rice').toSet();
+
+      if (distinctive.isEmpty) {
+        return _isLikelyMentionedInSpeech(
+          spokenTokens: spokenTokens,
+          matchedName: matchedName,
+        );
+      }
+
+      for (final d in distinctive) {
+        if (spokenTokens.contains(d)) return true;
+        if (normSource.contains(d)) return true;
+      }
+      return false;
+    }
+
+    return _isLikelyMentionedInSpeech(
+      spokenTokens: spokenTokens,
+      matchedName: matchedName,
+    );
+  }
+
+  static bool _isWeakQuery(String lower) {
+    final words = lower.split(' ').where((w) => w.length > 2).toSet();
+    final strong = words.where((w) => !_genericWords.contains(w)).toSet();
+    return strong.isEmpty && words.contains('rice');
+  }
+
+  static bool _isWeakRiceMatch(String query, String menuNorm) {
+    if (!menuNorm.contains('rice')) return false;
+    final qWords = query.split(' ').where((w) => w.length > 2).toSet();
+    final qStrong = qWords.where((w) => !_genericWords.contains(w)).toSet();
+    if (qStrong.isNotEmpty) return false;
+    return qWords.contains('rice');
+  }
+
+  static bool _isLikelyMentionedInSpeech({
+    required Set<String> spokenTokens,
+    required String matchedName,
+  }) {
+    final itemTokens = _normalizeForMatch(
+      _normalizeAmp(matchedName.toLowerCase()),
+    ).replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .map(_canonicalToken)
+        .toSet();
+
+    final strong = itemTokens.where((w) => !_genericWords.contains(w)).toSet();
+    if (strong.isEmpty) return true;
+
+    return strong.intersection(spokenTokens).isNotEmpty;
+  }
+
+  static String _canonicalToken(String token) => _mentionAlias[token] ?? token;
 
   // ════════════════════════════════════════════════════════════════════════
   // LOCAL FALLBACK PARSER (works offline, no API needed)
@@ -433,6 +576,30 @@ User input:
     'shower': 'shawarma', 'morning': 'shawarma', 'shavarma': 'shawarma', 'shwarma': 'shawarma',
   };
 
+  static const Set<String> _genericWords = {
+    'rice',
+    'chicken',
+    'fried',
+    'noodle',
+    'noodles',
+    'burger',
+    'soup',
+    'tikka',
+    'crispy',
+    'grill',
+    'special',
+  };
+
+  static const Map<String, String> _mentionAlias = {
+    'chapati': 'lebnani',
+    'roti': 'lebnani',
+    'bun': 'samoli',
+    'pita': 'khaboos',
+    'shawrama': 'shawarma',
+    'shavarma': 'shawarma',
+    'shwarma': 'shawarma',
+  };
+
   List<OrderResult> _parseLocally(
       String raw, List<Map<String, dynamic>> menu) {
     // Normalise ampersand before tokenising so "Hot & Sour" doesn't split wrong
@@ -461,6 +628,15 @@ User input:
 
       final matched = _bestMatch(cleanWords, menu, used);
       if (matched == null) continue;
+
+      if (!_passesItemGrounding(
+        sourceText: raw,
+        spokenTokens: _spokenTokenSet(raw),
+        matchedName: matched['name'].toString(),
+      )) {
+        continue;
+      }
+
       used.add(matched['name'].toString());
 
       // Get words that make up the item name to filter them out
@@ -559,6 +735,25 @@ User input:
       final norm = sc / q.length;
       if (norm > bestScore) { bestScore = norm; best = item; }
     }
+
+    if (best != null) {
+      final name = best['name'].toString().toLowerCase();
+      if (name.contains('rice')) {
+        final qStrong = q
+            .where((w) => !_genericWords.contains(w) && w != 'rice')
+            .toSet();
+        final iStrong = best['name']
+            .toString()
+            .toLowerCase()
+            .split(' ')
+            .where((w) => !_genericWords.contains(w) && w != 'rice' && w.length > 2)
+            .toSet();
+        if (iStrong.isNotEmpty && qStrong.intersection(iStrong).isEmpty) {
+          return null;
+        }
+      }
+    }
+
     return bestScore >= 0.55 ? best : null;
   }
 
@@ -591,17 +786,50 @@ User input:
     List<Map<String, dynamic>> menuItems,
   ) async {
     if (text.trim().isEmpty) return null;
+    final normalizedText = TranscriptNormalizer.normalize(text);
     debugPrint('[AiOrderService] ── parseDashboardOrder called ──────────────────');
-    debugPrint('[AiOrderService] Input text: "$text"');
+    debugPrint('[AiOrderService] Input text: "$normalizedText"');
+
+    final table = _extractTable(normalizedText);
+    final menuFirst = _menuFirstToResults(
+      MenuFirstParser.extract(normalizedText, menuItems),
+    );
+    if (menuFirst.isNotEmpty) {
+      debugPrint(
+        '[AiOrderService] ✅ Dashboard menu-first: ${menuFirst.length} item(s)',
+      );
+      return DashboardParsedOrder(tableNumber: table, items: menuFirst);
+    }
 
     try {
-      final result = await _callGeminiForDashboard(text, menuItems);
-      if (result != null) return result;
+      final result = await _callGeminiForDashboard(normalizedText, menuItems);
+      if (result != null && result.items.isNotEmpty) return result;
     } catch (e) {
       debugPrint('[AiOrderService] ❌ Gemini parseDashboardOrder FAILED: $e');
     }
 
-    return _parseDashboardLocally(text, menuItems);
+    return _parseDashboardLocally(normalizedText, menuItems);
+  }
+
+  List<OrderResult> _menuFirstToResults(List<MenuFirstHit> hits) {
+    return hits
+        .map((h) => OrderResult(item: h.item, quantity: h.quantity))
+        .toList();
+  }
+
+  String _extractTable(String text) {
+    final lower = text.toLowerCase();
+    if (RegExp(r'\btake\s*away\b').hasMatch(lower)) return 'Take Away';
+
+    final match = RegExp(r'\btable\s*(\d+)').firstMatch(lower);
+    if (match != null) return 'Table ${match.group(1)}';
+
+    final wordMatch = RegExp(r'\btable\s*([a-z]+)').firstMatch(lower);
+    if (wordMatch != null) {
+      final numVal = _nums[wordMatch.group(1)];
+      if (numVal != null) return 'Table $numVal';
+    }
+    return 'Table 1';
   }
 
   Future<DashboardParsedOrder?> _callGeminiForDashboard(
@@ -622,7 +850,9 @@ Your job is to convert user speech text into a structured JSON order containing 
 The user speech may contain:
 - Table identifier: e.g., "Table 1", "table number five", "table 12", "Take Away"
 - Items, quantities, and optional remarks or modifiers
-- Mixed language (Hindi, Gujarati, English)
+- Mixed language (Hindi, Gujarati, English) often in Roman/translit script from STT
+- STT may write "alfaham tukda rice", "char bag rice", "crispy makhni popcorn" — match to exact menu names
+- Do NOT invent English translations of dish names; use the closest menu name only
 
 You must:
 1. Extract the Table Identifier (e.g., "Table 1", "Table 5", "Take Away"). If not mentioned, default to "Table 1". Format it as "Table X" where X is the table number, or "Take Away".
@@ -695,7 +925,7 @@ User input:
           '';
       debugPrint('[AiOrderService] 📦 Gemini Dashboard raw response: "$raw"');
 
-      return _parseGeminiDashboardJson(raw.trim(), menuItems);
+      return _parseGeminiDashboardJson(raw.trim(), menuItems, userText);
     } finally {
       client.close();
     }
@@ -704,6 +934,7 @@ User input:
   DashboardParsedOrder? _parseGeminiDashboardJson(
     String raw,
     List<Map<String, dynamic>> menuItems,
+    String sourceText,
   ) {
     String cleaned = raw
         .replaceAll(RegExp(r'```json\s*'), '')
@@ -723,6 +954,7 @@ User input:
       final itemsList = json['items'] as List<dynamic>? ?? [];
       
       final results = <OrderResult>[];
+      final spokenTokens = _spokenTokenSet(sourceText);
       for (final entry in itemsList) {
         final rawName = (entry['name'] as String? ?? '').trim();
         final qty = ((entry['quantity'] as num?) ?? 1).toInt().clamp(1, 99);
@@ -731,7 +963,12 @@ User input:
         Map<String, dynamic>? matched = _exactMatch(rawName, menuItems);
         matched ??= _fuzzyMatch(rawName, menuItems);
 
-        if (matched != null) {
+        if (matched != null &&
+            _passesItemGrounding(
+              sourceText: sourceText,
+              spokenTokens: spokenTokens,
+              matchedName: matched['name'].toString(),
+            )) {
           results.add(OrderResult(item: matched, quantity: qty, remarks: remarks));
         }
       }
@@ -745,24 +982,8 @@ User input:
     String text,
     List<Map<String, dynamic>> menuItems,
   ) {
-    final lower = text.toLowerCase();
-    String tableNum = 'Table 1';
-    final match = RegExp(r'\btable\s*(\d+)').firstMatch(lower);
-    if (match != null) {
-      tableNum = 'Table ${match.group(1)}';
-    } else {
-      final wordMatch = RegExp(r'\btable\s*([a-z]+)').firstMatch(lower);
-      if (wordMatch != null) {
-        final val = wordMatch.group(1);
-        final numVal = _nums[val];
-        if (numVal != null) {
-          tableNum = 'Table $numVal';
-        }
-      }
-    }
-    
     final items = _parseLocally(text, menuItems);
-    return DashboardParsedOrder(tableNumber: tableNum, items: items);
+    return DashboardParsedOrder(tableNumber: _extractTable(text), items: items);
   }
 }
 

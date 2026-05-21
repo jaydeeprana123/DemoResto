@@ -183,9 +183,7 @@ class RestaurantMenuController extends GetxController {
         allNames.add(item['name'] as String);
       }
     });
-    final spellingHint = allNames.join(', ');
-
-    final transcript = await _sttService.stopAndTranscribe(prompt: spellingHint);
+    final transcript = await _sttService.stopAndTranscribe(menuNames: allNames);
     isTranscribing.value = false;
 
     if (transcript == null || transcript.trim().isEmpty) {
