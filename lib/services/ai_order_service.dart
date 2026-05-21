@@ -783,32 +783,402 @@ User input:
 
   Future<DashboardParsedOrder?> parseDashboardOrder(
     String text,
-    List<Map<String, dynamic>> menuItems,
-  ) async {
+    List<Map<String, dynamic>> menuItems, {
+    List<String> knownTableNames = const [],
+  }) async {
     if (text.trim().isEmpty) return null;
     final normalizedText = TranscriptNormalizer.normalize(text);
     debugPrint('[AiOrderService] ── parseDashboardOrder called ──────────────────');
     debugPrint('[AiOrderService] Input text: "$normalizedText"');
+    debugPrint('[AiOrderService] Known tables: $knownTableNames');
 
-    final table = _extractTable(normalizedText);
-    final menuFirst = _menuFirstToResults(
-      MenuFirstParser.extract(normalizedText, menuItems),
+    final parsed = _parseDashboardWithSuggestions(
+      normalizedText,
+      menuItems,
+      knownTableNames: knownTableNames,
     );
-    if (menuFirst.isNotEmpty) {
-      debugPrint(
-        '[AiOrderService] ✅ Dashboard menu-first: ${menuFirst.length} item(s)',
-      );
-      return DashboardParsedOrder(tableNumber: table, items: menuFirst);
-    }
+    if (parsed != null && parsed.hasContent) return parsed;
 
     try {
-      final result = await _callGeminiForDashboard(normalizedText, menuItems);
-      if (result != null && result.items.isNotEmpty) return result;
+      final result = await _callGeminiForDashboard(
+        normalizedText,
+        menuItems,
+        knownTableNames: knownTableNames,
+      );
+      if (result != null && result.hasContent) return result;
     } catch (e) {
       debugPrint('[AiOrderService] ❌ Gemini parseDashboardOrder FAILED: $e');
     }
 
-    return _parseDashboardLocally(normalizedText, menuItems);
+    final fallback = _parseDashboardLocally(
+      normalizedText,
+      menuItems,
+      knownTableNames: knownTableNames,
+    );
+    if (!fallback.hasContent) return null;
+    return fallback;
+  }
+
+  static const Set<String> _tableNoiseWords = {
+    'table', 'no', 'number', 'nambar', 'num', 'no.',
+  };
+
+  /// Splits speech into qty+phrase segments; confident → items, ambiguous → suggestions.
+  DashboardParsedOrder? _parseDashboardWithSuggestions(
+    String text,
+    List<Map<String, dynamic>> menuItems, {
+    List<String> knownTableNames = const [],
+  }) {
+    final tableMentioned = _tableWasMentioned(text);
+    final table = _resolveTableName(text, knownTableNames);
+    final body = _stripTablePhrase(text);
+    final segments = _segmentsFromText(body);
+
+    if (segments.isEmpty) {
+      if (!tableMentioned) return null;
+      return DashboardParsedOrder(
+        tableNumber: table,
+        items: const [],
+        suggestions: const [],
+        tableMatchedFromDb: _tableExistsInDb(table, knownTableNames),
+      );
+    }
+
+    final confirmed = <OrderResult>[];
+    final suggestions = <OrderSuggestionGroup>[];
+    final usedNames = <String>{};
+
+    for (final seg in segments) {
+      if (_segmentIsNoise(seg.words)) continue;
+
+      final phrase = seg.words.join(' ').trim();
+      if (phrase.isEmpty) continue;
+
+      // Generic phrase ("burger", "fried noodles") → show all matching menu items
+      final genericMatches =
+          _itemsMatchingSpokenPhrase(seg.words, menuItems, usedNames);
+      if (genericMatches.length >= 2) {
+        suggestions.add(OrderSuggestionGroup(
+          spokenPhrase: phrase,
+          quantity: seg.qty,
+          candidates: genericMatches.take(12).toList(),
+        ));
+        debugPrint(
+          '[AiOrderService] 💡 Generic pick-list "$phrase" x${seg.qty}: '
+          '${genericMatches.length} options',
+        );
+        continue;
+      }
+      if (genericMatches.length == 1) {
+        final name = genericMatches.first['name'].toString();
+        usedNames.add(name);
+        confirmed.add(
+          OrderResult(item: genericMatches.first, quantity: seg.qty),
+        );
+        continue;
+      }
+
+      final menuHits = MenuFirstParser.extract(phrase, menuItems);
+      if (menuHits.length == 1) {
+        final name = menuHits.first.item['name'].toString();
+        if (!usedNames.contains(name)) {
+          usedNames.add(name);
+          confirmed.add(
+            OrderResult(item: menuHits.first.item, quantity: seg.qty),
+          );
+          continue;
+        }
+      }
+
+      final ranked = _rankCandidates(seg.words, menuItems, usedNames);
+      if (ranked.isEmpty) continue;
+
+      final best = ranked.first;
+      final secondScore = ranked.length > 1 ? ranked[1].score : 0.0;
+      final clearWinner = !_isGenericOnlyPhrase(seg.words) &&
+          best.score >= 0.88 &&
+          (ranked.length == 1 || best.score - secondScore >= 0.18);
+
+      if (clearWinner) {
+        final name = best.item['name'].toString();
+        usedNames.add(name);
+        confirmed.add(OrderResult(item: best.item, quantity: seg.qty));
+        debugPrint('[AiOrderService] ✅ Confident: $name x${seg.qty}');
+        continue;
+      }
+
+      final candidates = ranked
+          .where((r) => r.score >= 0.28)
+          .take(12)
+          .map((r) => r.item)
+          .toList();
+
+      if (candidates.isEmpty) continue;
+
+      suggestions.add(OrderSuggestionGroup(
+        spokenPhrase: phrase,
+        quantity: seg.qty,
+        candidates: candidates,
+      ));
+      debugPrint(
+        '[AiOrderService] 💡 Suggestions for "$phrase" x${seg.qty}: '
+        '${candidates.length} options',
+      );
+    }
+
+    if (confirmed.isEmpty && suggestions.isEmpty && !tableMentioned) {
+      return null;
+    }
+
+    return DashboardParsedOrder(
+      tableNumber: table,
+      items: confirmed,
+      suggestions: suggestions,
+      tableMatchedFromDb: _tableExistsInDb(table, knownTableNames),
+    );
+  }
+
+  bool _tableWasMentioned(String text) {
+    final lower = text.toLowerCase();
+    if (RegExp(r'\btake\s*away\b').hasMatch(lower)) return true;
+    return RegExp(
+      r'\btable\s*(?:no\.?|number|#|nambar)?\s*(\d+|[a-z]+)\b',
+      caseSensitive: false,
+    ).hasMatch(lower);
+  }
+
+  bool _tableExistsInDb(String table, List<String> knownTableNames) {
+    if (knownTableNames.isEmpty) return false;
+    return knownTableNames.any(
+      (t) => t.toLowerCase() == table.toLowerCase(),
+    );
+  }
+
+  String _resolveTableName(String text, List<String> knownTableNames) {
+    final extracted = _extractTableLabel(text);
+
+    if (knownTableNames.isEmpty) return extracted;
+
+    for (final name in knownTableNames) {
+      if (name.toLowerCase() == extracted.toLowerCase()) return name;
+    }
+
+    final numMatch = RegExp(r'(\d+)').firstMatch(extracted);
+    if (numMatch != null) {
+      final n = numMatch.group(1)!;
+      final tableNumRe = RegExp('\\b$n\\b');
+      for (final name in knownTableNames) {
+        if (name.toLowerCase().contains('table') &&
+            tableNumRe.hasMatch(name)) {
+          return name;
+        }
+      }
+    }
+
+    if (extracted.toLowerCase().contains('take away')) {
+      for (final name in knownTableNames) {
+        if (name.toLowerCase().contains('take away')) return name;
+      }
+    }
+
+    return extracted;
+  }
+
+  String _extractTableLabel(String text) {
+    final lower = text.toLowerCase();
+    if (RegExp(r'\btake\s*away\b').hasMatch(lower)) return 'Take Away';
+
+    final digitMatch = RegExp(
+      r'\btable\s*(?:no\.?|number|#|nambar)?\s*(\d+)\b',
+      caseSensitive: false,
+    ).firstMatch(lower);
+    if (digitMatch != null) return 'Table ${digitMatch.group(1)}';
+
+    final wordMatch = RegExp(
+      r'\btable\s*(?:no\.?|number|#|nambar)?\s*([a-z]+)\b',
+      caseSensitive: false,
+    ).firstMatch(lower);
+    if (wordMatch != null) {
+      final val = wordMatch.group(1)!;
+      final numVal = _nums[val];
+      if (numVal != null) return 'Table $numVal';
+    }
+
+    return 'Table 1';
+  }
+
+  /// Menu items whose names contain every spoken token (e.g. "burger", "fried"+"noodles").
+  List<Map<String, dynamic>> _itemsMatchingSpokenPhrase(
+    List<String> words,
+    List<Map<String, dynamic>> menu,
+    Set<String> usedNames,
+  ) {
+    final tokens = words
+        .where((w) =>
+            w.length > 1 &&
+            !_nums.containsKey(w) &&
+            !_seps.contains(w) &&
+            !_tableNoiseWords.contains(w))
+        .map((w) => _normalizeForMatch(w))
+        .where((w) => w.isNotEmpty)
+        .toList();
+
+    if (tokens.isEmpty) return [];
+
+    final matches = <Map<String, dynamic>>[];
+    for (final item in menu) {
+      final name = item['name'].toString();
+      if (usedNames.contains(name)) continue;
+
+      final nameNorm = _normalizeForMatch(
+        _normalizeAmp(_stripParens(name).toLowerCase()),
+      );
+
+      final allPresent = tokens.every((t) => nameNorm.contains(t));
+      if (allPresent) matches.add(item);
+    }
+
+    return matches;
+  }
+
+  bool _isGenericOnlyPhrase(List<String> words) {
+    final tokens = words
+        .where((w) =>
+            w.length > 1 &&
+            !_nums.containsKey(w) &&
+            !_seps.contains(w) &&
+            !_tableNoiseWords.contains(w))
+        .toList();
+    if (tokens.isEmpty) return false;
+    return tokens.every((w) => _genericWords.contains(w));
+  }
+
+  String _stripTablePhrase(String text) {
+    var t = _normalizeForMatch(_normalizeAmp(text.toLowerCase()));
+    t = t.replaceAll(
+      RegExp(
+        r'\btable\s*(?:no\.?|number|#|nambar)?\s*\d+\b',
+        caseSensitive: false,
+      ),
+      ' ',
+    );
+    t = t.replaceAll(
+      RegExp(
+        r'\btable\s*(?:no\.?|number|#|nambar)?\s*(one|two|three|four|five|six|seven|eight|nine|ten|ek|do|teen|char|paanch)\b',
+        caseSensitive: false,
+      ),
+      ' ',
+    );
+    t = t.replaceAll(RegExp(r'\btake\s*away\b'), ' ');
+    for (final w in _tableNoiseWords) {
+      t = t.replaceAll(RegExp('\\b$w\\b'), ' ');
+    }
+    return t.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  List<({int qty, List<String> words})> _segmentsFromText(String text) {
+    if (text.trim().isEmpty) return [];
+
+    var normalized = _normalizeAmp(text).toLowerCase().trim();
+    _fix.forEach((w, r) => normalized = normalized.replaceAll(RegExp('\\b$w\\b'), r));
+
+    final tokens = normalized
+        .replaceAll(',', ' , ')
+        .replaceAll('.', ' . ')
+        .split(RegExp(r'\s+'))
+        .where((t) => t.isNotEmpty)
+        .toList();
+
+    final segments = _buildSegments(tokens);
+    if (segments.isEmpty && tokens.isNotEmpty) {
+      segments.add((
+        qty: 1,
+        words: tokens
+            .where((t) => !_nums.containsKey(t) && !_tableNoiseWords.contains(t))
+            .toList(),
+      ));
+    }
+    return segments;
+  }
+
+  bool _segmentIsNoise(List<String> words) {
+    final meaningful = words
+        .where((w) =>
+            w.length > 1 &&
+            !_nums.containsKey(w) &&
+            !_seps.contains(w) &&
+            !_tableNoiseWords.contains(w))
+        .toList();
+    return meaningful.isEmpty;
+  }
+
+  List<({Map<String, dynamic> item, double score})> _rankCandidates(
+    List<String> words,
+    List<Map<String, dynamic>> menu,
+    Set<String> usedNames,
+  ) {
+    final q = words
+        .where((w) =>
+            w.length > 1 &&
+            _nums[w] == null &&
+            !_seps.contains(w) &&
+            !_tableNoiseWords.contains(w))
+        .toList();
+    if (q.isEmpty) return [];
+
+    final scores = <({Map<String, dynamic> item, double score})>[];
+
+    for (final item in menu) {
+      final name = item['name'].toString();
+      if (usedNames.contains(name)) continue;
+
+      final sc = _scoreItemAgainstWords(q, item);
+      if (sc >= 0.28) {
+        scores.add((item: item, score: sc));
+      }
+    }
+
+    scores.sort((a, b) => b.score.compareTo(a.score));
+    return scores;
+  }
+
+  double _scoreItemAgainstWords(
+    List<String> qWords,
+    Map<String, dynamic> item,
+  ) {
+    final iw = _normalizeForMatch(
+      _normalizeAmp(_stripParens(item['name'].toString()).toLowerCase()),
+    ).split(RegExp(r'\s+')).where((w) => w.length > 1).toList();
+
+    if (iw.isEmpty) return 0;
+
+    var total = 0.0;
+    for (final qw in qWords) {
+      var best = 0.0;
+      for (final w in iw) {
+        final s = _wSim(qw, w) / 2.0;
+        if (s > best) best = s;
+      }
+      total += best;
+    }
+
+    var score = total / qWords.length;
+
+    final qStr = qWords.join(' ');
+    final iStr = iw.join(' ');
+    if (iStr.contains(qStr) || qStr.contains(iStr)) score += 0.25;
+
+    for (final qw in qWords) {
+      if (iStr.contains(qw)) score += 0.2;
+    }
+
+    final qStrong = qWords.where((w) => !_genericWords.contains(w)).toSet();
+    final iStrong = iw.where((w) => !_genericWords.contains(w)).toSet();
+    if (qStrong.isNotEmpty && qStrong.intersection(iStrong).isNotEmpty) {
+      score += 0.15;
+    }
+
+    return score.clamp(0.0, 1.0);
   }
 
   List<OrderResult> _menuFirstToResults(List<MenuFirstHit> hits) {
@@ -817,25 +1187,11 @@ User input:
         .toList();
   }
 
-  String _extractTable(String text) {
-    final lower = text.toLowerCase();
-    if (RegExp(r'\btake\s*away\b').hasMatch(lower)) return 'Take Away';
-
-    final match = RegExp(r'\btable\s*(\d+)').firstMatch(lower);
-    if (match != null) return 'Table ${match.group(1)}';
-
-    final wordMatch = RegExp(r'\btable\s*([a-z]+)').firstMatch(lower);
-    if (wordMatch != null) {
-      final numVal = _nums[wordMatch.group(1)];
-      if (numVal != null) return 'Table $numVal';
-    }
-    return 'Table 1';
-  }
-
   Future<DashboardParsedOrder?> _callGeminiForDashboard(
     String userText,
-    List<Map<String, dynamic>> menuItems,
-  ) async {
+    List<Map<String, dynamic>> menuItems, {
+    List<String> knownTableNames = const [],
+  }) async {
     final menuStr = menuItems.map((m) {
       final cat = (m['category'] as String? ?? '').trim();
       final name = (m['name'] as String? ?? '').trim();
@@ -925,7 +1281,12 @@ User input:
           '';
       debugPrint('[AiOrderService] 📦 Gemini Dashboard raw response: "$raw"');
 
-      return _parseGeminiDashboardJson(raw.trim(), menuItems, userText);
+      return _parseGeminiDashboardJson(
+        raw.trim(),
+        menuItems,
+        userText,
+        knownTableNames: knownTableNames,
+      );
     } finally {
       client.close();
     }
@@ -934,8 +1295,9 @@ User input:
   DashboardParsedOrder? _parseGeminiDashboardJson(
     String raw,
     List<Map<String, dynamic>> menuItems,
-    String sourceText,
-  ) {
+    String sourceText, {
+    List<String> knownTableNames = const [],
+  }) {
     String cleaned = raw
         .replaceAll(RegExp(r'```json\s*'), '')
         .replaceAll(RegExp(r'```\s*'), '')
@@ -951,6 +1313,7 @@ User input:
       if (table.isNotEmpty) {
         table = table[0].toUpperCase() + table.substring(1);
       }
+      table = _resolveTableName(table, knownTableNames);
       final itemsList = json['items'] as List<dynamic>? ?? [];
       
       final results = <OrderResult>[];
@@ -972,7 +1335,12 @@ User input:
           results.add(OrderResult(item: matched, quantity: qty, remarks: remarks));
         }
       }
-      return DashboardParsedOrder(tableNumber: table, items: results);
+      return DashboardParsedOrder(
+        tableNumber: table,
+        items: results,
+        suggestions: const [],
+        tableMatchedFromDb: _tableExistsInDb(table, knownTableNames),
+      );
     } catch (_) {
       return null;
     }
@@ -980,15 +1348,46 @@ User input:
 
   DashboardParsedOrder _parseDashboardLocally(
     String text,
-    List<Map<String, dynamic>> menuItems,
-  ) {
+    List<Map<String, dynamic>> menuItems, {
+    List<String> knownTableNames = const [],
+  }) {
     final items = _parseLocally(text, menuItems);
-    return DashboardParsedOrder(tableNumber: _extractTable(text), items: items);
+    final table = _resolveTableName(text, knownTableNames);
+    return DashboardParsedOrder(
+      tableNumber: table,
+      items: items,
+      suggestions: const [],
+      tableMatchedFromDb: _tableExistsInDb(table, knownTableNames),
+    );
   }
+}
+
+/// Ambiguous spoken phrase with nearest menu options for user to pick.
+class OrderSuggestionGroup {
+  final String spokenPhrase;
+  final int quantity;
+  final List<Map<String, dynamic>> candidates;
+
+  const OrderSuggestionGroup({
+    required this.spokenPhrase,
+    required this.quantity,
+    required this.candidates,
+  });
 }
 
 class DashboardParsedOrder {
   final String tableNumber;
   final List<OrderResult> items;
-  DashboardParsedOrder({required this.tableNumber, required this.items});
+  final List<OrderSuggestionGroup> suggestions;
+  final bool tableMatchedFromDb;
+
+  DashboardParsedOrder({
+    required this.tableNumber,
+    required this.items,
+    this.suggestions = const [],
+    this.tableMatchedFromDb = false,
+  });
+
+  bool get hasContent =>
+      items.isNotEmpty || suggestions.isNotEmpty || tableMatchedFromDb;
 }

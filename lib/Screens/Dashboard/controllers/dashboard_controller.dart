@@ -383,7 +383,12 @@ class DashboardController extends GetxController {
   Future<DashboardParsedOrder?> processInputAgent(String text) async {
     isProcessing.value = true;
     try {
-      final parsed = await _aiService.parseDashboardOrder(text, menu);
+      final tableNames = tables.keys.toList();
+      final parsed = await _aiService.parseDashboardOrder(
+        text,
+        menu,
+        knownTableNames: tableNames,
+      );
       return parsed;
     } finally {
       isProcessing.value = false;

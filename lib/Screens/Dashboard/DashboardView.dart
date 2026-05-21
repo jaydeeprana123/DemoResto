@@ -12,6 +12,7 @@ import 'package:demo/Screens/Dashboard/controllers/dashboard_controller.dart';
 import 'package:demo/Screens/Menu/MenuPageView.dart';
 import 'package:demo/Screens/Billing/FinalBillingView.dart';
 import 'package:demo/services/ai_order_service.dart';
+import 'package:demo/Screens/Dashboard/widgets/voice_order_confirm_dialog.dart';
 
 /// DashboardView
 ///
@@ -795,7 +796,7 @@ class DashboardView extends StatelessWidget {
     }
 
     final response = await controller.processInputAgent(text);
-    if (response != null && context.mounted) {
+    if (response != null && response.hasContent && context.mounted) {
       _showOrderConfirmationDialog(context, response, text);
     } else if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1108,7 +1109,7 @@ class DashboardView extends StatelessWidget {
                                   if (sheetContext.mounted) {
                                     Navigator.pop(sheetContext);
                                   }
-                                  if (response != null) {
+                                  if (response != null && response.hasContent) {
                                     _showOrderConfirmationDialog(context, response, text);
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -1186,270 +1187,14 @@ class DashboardView extends StatelessWidget {
     DashboardParsedOrder parsedOrder,
     String rawText,
   ) {
-    final tableController = TextEditingController(text: parsedOrder.tableNumber);
-    final items = List<OrderResult>.from(parsedOrder.items).obs;
-
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Row(
-            children: [
-              const Icon(Icons.check_circle_outline, color: Colors.green),
-              const SizedBox(width: 10),
-              const Text(
-                'Confirm Voice Order',
-                style: TextStyle(
-                  fontFamily: fontMulishBold,
-                  fontSize: 18,
-                ),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Spoken text: "$rawText"',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                      fontStyle: FontStyle.italic,
-                      fontFamily: fontMulishRegular,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: tableController,
-                    decoration: InputDecoration(
-                      labelText: 'Table Number / Name',
-                      labelStyle: const TextStyle(
-                        fontFamily: fontMulishSemiBold,
-                        fontSize: 14,
-                      ),
-                      hintText: 'e.g. Table 1, Take Away 5',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                    ),
-                    style: const TextStyle(
-                      fontFamily: fontMulishBold,
-                      fontSize: 15,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Items Detected:',
-                    style: TextStyle(
-                      fontFamily: fontMulishBold,
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Obx(() {
-                    if (items.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                        child: Center(
-                          child: Text(
-                            'No menu items matched.',
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontFamily: fontMulishRegular,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                    return ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: items.length,
-                      itemBuilder: (context, index) {
-                        final item = items[index];
-                        final name = item.item['name'] as String;
-                        final price = (item.item['price'] as num).toDouble();
-                        final qty = item.quantity;
-                        final remarks = item.remarks;
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.grey.shade200),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      name,
-                                      style: const TextStyle(
-                                        fontFamily: fontMulishSemiBold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    if (remarks.isNotEmpty)
-                                      Text(
-                                        'Remarks: $remarks',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.orange.shade700,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                    Text(
-                                      '₹${(price * qty).toStringAsFixed(0)}',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.grey.shade600,
-                                        fontFamily: fontMulishRegular,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.remove_circle_outline, size: 20),
-                                    color: Colors.grey,
-                                    onPressed: () {
-                                      if (qty > 1) {
-                                        items[index] = OrderResult(
-                                          item: item.item,
-                                          quantity: qty - 1,
-                                          remarks: remarks,
-                                        );
-                                      } else {
-                                        items.removeAt(index);
-                                      }
-                                    },
-                                  ),
-                                  Text(
-                                    '$qty',
-                                    style: const TextStyle(
-                                      fontFamily: fontMulishBold,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.add_circle_outline, size: 20),
-                                    color: Colors.orange,
-                                    onPressed: () {
-                                      items[index] = OrderResult(
-                                        item: item.item,
-                                        quantity: qty + 1,
-                                        remarks: remarks,
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            Obx(() {
-              return ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1A3A5C),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-                onPressed: items.isEmpty
-                    ? null
-                    : () async {
-                        final selectedTable = tableController.text.trim();
-                        if (selectedTable.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Please enter a table name')),
-                          );
-                          return;
-                        }
-
-                        final List<Map<String, dynamic>> orderItems = items.map((res) {
-                          return {
-                            'name': res.item['name'],
-                            'price': res.item['price'],
-                            'categoryId': res.item['categoryId'],
-                            'itemId': res.item['itemId'],
-                            'category': res.item['category'],
-                            'qty': res.quantity,
-                            'remarks': res.remarks,
-                          };
-                        }).toList();
-
-                        Navigator.pop(dialogContext);
-
-                        controller.isLoading.value = true;
-                        try {
-                          String finalTable = selectedTable;
-                          if (selectedTable.toLowerCase().contains('take away') ||
-                              selectedTable.toLowerCase() == 'takeaway') {
-                            final nextNum = controller.tableNo + 1;
-                            finalTable = "Take Away $nextNum";
-                          }
-
-                          await controller.addItemsToTable(
-                            tableName: finalTable,
-                            newItems: orderItems,
-                          );
-
-                          Get.snackbar(
-                            'Order Added',
-                            'Successfully added voice order to $finalTable.',
-                            backgroundColor: Colors.green,
-                            colorText: Colors.white,
-                          );
-                        } catch (e) {
-                          Get.snackbar(
-                            'Error',
-                            'Failed to add order: $e',
-                            backgroundColor: Colors.red,
-                            colorText: Colors.white,
-                          );
-                        } finally {
-                          controller.isLoading.value = false;
-                        }
-                      },
-                child: const Text('Add Order'),
-              );
-            }),
-          ],
-        );
-      },
+      builder: (_) => VoiceOrderConfirmDialog(
+        parsedOrder: parsedOrder,
+        rawText: rawText,
+        controller: controller,
+      ),
     );
   }
 }
