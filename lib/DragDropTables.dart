@@ -62,16 +62,22 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   @override
   bool get wantKeepAlive => true;
   Map<String, List<List<Map<String, dynamic>>>> tables = {};
+  final Map<String, Timestamp?> tableCreatedAt = {};
   final List<Map<String, dynamic>> menu = [];
   bool isLoading = false;
   final user = FirebaseAuth.instance.currentUser;
   int tableNo = 0;
   String selectedTab = 'All'; // 👈 Add this variable at class level
   StreamSubscription<QuerySnapshot>? tablesSubscription;
+  Timer? _timeRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+
+    _timeRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
 
     if (user != null) {
       _listenToTables();
@@ -89,8 +95,54 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
   @override
   void dispose() {
+    _timeRefreshTimer?.cancel();
     tablesSubscription?.cancel();
     super.dispose();
+  }
+
+  DateTime? _parseAddedAt(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return null;
+  }
+
+  String _formatTimeAgo(DateTime dateTime) {
+    final diff = DateTime.now().difference(dateTime);
+    if (diff.inSeconds < 60) return 'Just now';
+    if (diff.inMinutes < 60) {
+      final mins = diff.inMinutes;
+      return mins == 1 ? '1 min ago' : '$mins mins ago';
+    }
+    if (diff.inHours < 24) {
+      final hours = diff.inHours;
+      return hours == 1 ? '1 hour ago' : '$hours hours ago';
+    }
+    if (diff.inDays < 7) {
+      final days = diff.inDays;
+      return days == 1 ? '1 day ago' : '$days days ago';
+    }
+    return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+  }
+
+  String? _groupTimeLabel(List<Map<String, dynamic>> group) {
+    if (group.isEmpty) return null;
+    final addedAt = _parseAddedAt(group.first['addedAt']);
+    if (addedAt == null) return null;
+    return _formatTimeAgo(addedAt);
+  }
+
+  List<Map<String, dynamic>> _stampGroupAddedAt(
+    List<Map<String, dynamic>> items, {
+    dynamic preserveAddedAt,
+  }) {
+    final ts = preserveAddedAt ?? Timestamp.now();
+    return items
+        .map((item) {
+          final copy = Map<String, dynamic>.from(item);
+          copy['addedAt'] = ts;
+          return copy;
+        })
+        .toList();
   }
 
   // Listen to Firestore tables collection changes - UPDATED for flattened structure
@@ -102,8 +154,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         .listen((querySnapshot) {
           Map<String, List<List<Map<String, dynamic>>>> updatedTables = {};
 
+          final Map<String, Timestamp?> updatedCreatedAt = {};
+
           for (var doc in querySnapshot.docs) {
             final tableName = doc['name'] as String;
+            updatedCreatedAt[tableName] = doc.data()['createdAt'] as Timestamp?;
             final List<dynamic>? itemsFromDb = doc.data().containsKey('items')
                 ? doc['items']
                 : null;
@@ -184,6 +239,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
           setState(() {
             tables = updatedTables;
+            tableCreatedAt
+              ..clear()
+              ..addAll(updatedCreatedAt);
           });
         });
   }
@@ -469,7 +527,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                             final tableName =
                                 _filteredTableKeys().elementAt(index);
                             final groups = tables[tableName]!;
-                            return _buildTableCard(tableName, groups);
+                            final queuePos = _takeAwayQueuePosition(tableName);
+                            return _buildTableCard(
+                              tableName,
+                              groups,
+                              queuePosition: queuePos,
+                            );
                           },
                         ),
                       ),
@@ -531,7 +594,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
-            '${_filteredTableKeys().length} tables',
+            '${_filteredTableKeys().length} ${selectedTab == 'Take Away' ? 'orders' : 'tables'}',
             style: const TextStyle(
               color: Colors.white70, fontSize: 12, fontFamily: fontMulishSemiBold,
             ),
@@ -673,10 +736,48 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   }
 
 
+  bool _isTakeAway(String name) => !name.contains('Table');
+
+  String _shortDisplayName(String tableName) {
+    if (tableName.startsWith('Table ')) {
+      final num = tableName.substring('Table '.length).trim();
+      return 'T$num';
+    }
+    if (tableName.startsWith('Take Away ')) {
+      final num = tableName.substring('Take Away '.length).trim();
+      return 'Away $num';
+    }
+    return tableName;
+  }
+
+  int _compareByCreatedAt(String a, String b) {
+    final aTs = tableCreatedAt[a];
+    final bTs = tableCreatedAt[b];
+    if (aTs == null && bTs == null) return a.compareTo(b);
+    if (aTs == null) return 1;
+    if (bTs == null) return -1;
+    return aTs.compareTo(bTs);
+  }
+
+  int _compareTableNumber(String a, String b) {
+    final aNum = int.tryParse(a.substring('Table '.length).trim()) ?? 999;
+    final bNum = int.tryParse(b.substring('Table '.length).trim()) ?? 999;
+    return aNum.compareTo(bNum);
+  }
+
+  int? _takeAwayQueuePosition(String tableName) {
+    if (!_isTakeAway(tableName)) return null;
+    final sorted = tables.keys.where(_isTakeAway).toList()
+      ..sort(_compareByCreatedAt);
+    final index = sorted.indexOf(tableName);
+    return index >= 0 ? index + 1 : null;
+  }
+
   Widget _buildTableCard(
     String tableName,
-    List<List<Map<String, dynamic>>> groups,
-  ) {
+    List<List<Map<String, dynamic>>> groups, {
+    int? queuePosition,
+  }) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('tables')
@@ -762,7 +863,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    tableName,
+                    _shortDisplayName(tableName),
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -777,6 +878,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                   groups,
                   isPaid,
                   docId,
+                  queuePosition: queuePosition,
                 ),
               ),
               child: _buildTableCardWithContent(
@@ -784,6 +886,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 groups,
                 isPaid,
                 docId,
+                queuePosition: queuePosition,
               ),
             );
           },
@@ -797,10 +900,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     String tableName,
     List<List<Map<String, dynamic>>> groups,
     bool isPaid,
-    String docId,
-  ) {
+    String docId, {
+    int? queuePosition,
+  }) {
     final hasItems   = groups.isNotEmpty;
-    final isTakeAway = !tableName.contains('Table');
+    final isTakeAway = _isTakeAway(tableName);
+    final displayName = _shortDisplayName(tableName);
     // Header colour: green=has items, orange=empty dine-in, blue=empty takeaway
     final headerColor = isPaid
         ? Colors.red.shade700
@@ -843,7 +948,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               showBilling: !hasItems,
               isFromFinalBilling: false,
               onConfirm: (items, isBillPaid, tName, overallRemarks) async {
-                setState(() => groups.add(items));
+                setState(() => groups.add(_stampGroupAddedAt(items)));
                 await _updateTableItemsInFirestore(
                     tName, groups, isBillPaid, overallRemarks);
               },
@@ -886,10 +991,30 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                     size: 17,
                   ),
                   const SizedBox(width: 6),
-                  // Table name
+                  if (isTakeAway && queuePosition != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.22),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '#$queuePosition',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontFamily: fontMulishBold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
                   Expanded(
                     child: Text(
-                      tableName,
+                      displayName,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
@@ -913,7 +1038,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                             showBilling: groups.length == 1,
                             isFromFinalBilling: false,
                             onConfirm: (items, isBillPaid, tName, overallRemarks) async {
-                              setState(() => groups[groups.length - 1] = items);
+                              final existingAddedAt = groups.isNotEmpty
+                                  ? groups.last.first['addedAt']
+                                  : null;
+                              setState(() => groups[groups.length - 1] =
+                                  _stampGroupAddedAt(
+                                    items,
+                                    preserveAddedAt: existingAddedAt,
+                                  ));
                               await _updateTableItemsInFirestore(
                                   tName, groups, isBillPaid, overallRemarks);
                             },
@@ -1036,6 +1168,22 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                               ),
                             );
                           }),
+                          if (_groupTimeLabel(group) != null)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 2, bottom: 2),
+                                child: Text(
+                                  _groupTimeLabel(group)!,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontFamily: fontMulishRegular,
+                                    color: Colors.grey.shade500,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
+                            ),
                           if (gi < groups.length - 1)
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1091,45 +1239,28 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
   // Filter the tables based on current selectedTab
   List<String> _filteredTableKeys() {
-    List<String> keys;
     if (selectedTab == 'Take Away') {
-      keys = tables.keys.where((key) => !key.contains('Table')).toList();
-    } else if (selectedTab == 'Tables') {
-      keys = tables.keys.where((key) => key.contains('Table')).toList();
-    } else {
-      keys = tables.keys.toList();
+      final keys = tables.keys.where(_isTakeAway).toList()
+        ..sort(_compareByCreatedAt);
+      return keys;
     }
 
-    // Sort: "Table X" first (numerically), then "Take Away X" (numerically), then others alphabetically
-    keys.sort((a, b) {
-      final aIsTable = a.startsWith('Table ');
-      final bIsTable = b.startsWith('Table ');
-      final aIsTakeAway = a.startsWith('Take Away ');
-      final bIsTakeAway = b.startsWith('Take Away ');
+    if (selectedTab == 'Tables') {
+      final keys = tables.keys.where((key) => key.startsWith('Table ')).toList()
+        ..sort(_compareTableNumber);
+      return keys;
+    }
 
-      // Both are regular tables → sort by number
-      if (aIsTable && bIsTable) {
-        final aNum = int.tryParse(a.substring('Table '.length).trim()) ?? 999;
-        final bNum = int.tryParse(b.substring('Table '.length).trim()) ?? 999;
-        return aNum.compareTo(bNum);
-      }
-      // Both are take away → sort by number
-      if (aIsTakeAway && bIsTakeAway) {
-        final aNum = int.tryParse(a.substring('Take Away '.length).trim()) ?? 999;
-        final bNum = int.tryParse(b.substring('Take Away '.length).trim()) ?? 999;
-        return aNum.compareTo(bNum);
-      }
-      // Regular tables come first
-      if (aIsTable) return -1;
-      if (bIsTable) return 1;
-      // Take Away comes next
-      if (aIsTakeAway) return -1;
-      if (bIsTakeAway) return 1;
-      // Everything else alphabetically
-      return a.compareTo(b);
-    });
+    final tableKeys = tables.keys.where((key) => key.startsWith('Table ')).toList()
+      ..sort(_compareTableNumber);
+    final takeAwayKeys = tables.keys.where(_isTakeAway).toList()
+      ..sort(_compareByCreatedAt);
+    final otherKeys = tables.keys
+        .where((key) => !key.startsWith('Table ') && !_isTakeAway(key))
+        .toList()
+      ..sort();
 
-    return keys;
+    return [...tableKeys, ...takeAwayKeys, ...otherKeys];
   }
 
   Future<void> _deleteTable(String docId, String name) async {

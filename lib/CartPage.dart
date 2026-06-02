@@ -392,6 +392,8 @@ class _CartPageState extends State<CartPage> {
     }
   }
 
+  static const _orange = Color(0xFFf57c35);
+
   @override
   Widget build(BuildContext context) {
     final tax = (subtotal * 0.085).round();
@@ -473,27 +475,47 @@ class _CartPageState extends State<CartPage> {
                                   Row(
                                     children: [
                                       Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              item['name'],
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                fontFamily: fontMulishBold,
-                                                color: Color(0xFF1A3A5C),
+                                        child: InkWell(
+                                          onTap: (){
+                                            incrementQty(index);
+                                          }
+                                          ,child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item['name'],
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontFamily: fontMulishBold,
+                                                  color: Color(0xFF1A3A5C),
+                                                ),
                                               ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              '₹${(item['price'] as num).toStringAsFixed(0)}',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.grey.shade500,
-                                                fontFamily: fontMulishRegular,
+                                              const SizedBox(height: 2),
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    '₹${(item['price'] as num).toStringAsFixed(0)}',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: Colors.grey.shade500,
+                                                      fontFamily: fontMulishRegular,
+                                                    ),
+                                                  ),
+
+                                                  SizedBox(width: 8,),
+
+                                                  if(item['qty'] > 0)Text(
+                                                    ' x${(item['qty'] as int)}',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: _orange,
+                                                      fontFamily: fontMulishRegular,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
                                       ),
                                       // ── Stepper ─────────────────────────
@@ -542,76 +564,76 @@ class _CartPageState extends State<CartPage> {
                                     ],
                                   ),
                                   // ── Remarks (collapsible) ─────────────────
-                                  const SizedBox(height: 8),
-                                  if (_remarkExpanded[index]) ...[
-                                    TextField(
-                                      controller: _remarkControllers[index],
-                                      autofocus: false,
-                                      decoration: InputDecoration(
-                                        hintText: 'e.g. less spicy, no onion, kam tel…',
-                                        hintStyle: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade400,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                        isDense: true,
-                                        prefixIcon: Icon(Icons.notes_outlined,
-                                            size: 16, color: Colors.orange.shade600),
-                                        suffixIcon: GestureDetector(
-                                          onTap: () => setState(() {
-                                            if (_remarkControllers[index].text.isEmpty) {
-                                              _remarkExpanded[index] = false;
-                                            }
-                                          }),
-                                          child: Icon(Icons.keyboard_arrow_up,
-                                              size: 18, color: Colors.grey.shade400),
-                                        ),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: BorderSide(color: Colors.grey.shade300),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: BorderSide(
-                                              color: Colors.orange.shade400, width: 1.5),
-                                        ),
-                                        contentPadding: const EdgeInsets.symmetric(
-                                            horizontal: 10, vertical: 8),
-                                        filled: true,
-                                        fillColor: Colors.orange.shade50,
-                                      ),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.orange.shade800,
-                                        fontFamily: fontMulishRegular,
-                                      ),
-                                      maxLines: 1,
-                                      onChanged: (val) {
-                                        cartItems[index]['remarks'] = val;
-                                      },
-                                    ),
-                                  ] else ...[
-                                    GestureDetector(
-                                      onTap: () => setState(
-                                          () => _remarkExpanded[index] = true),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.add_comment_outlined,
-                                              size: 14, color: Colors.orange.shade400),
-                                          const SizedBox(width: 5),
-                                          Text(
-                                            'Add Remark',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.orange.shade500,
-                                              fontFamily: fontMulishSemiBold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                                  // const SizedBox(height: 8),
+                                  // if (_remarkExpanded[index]) ...[
+                                  //   TextField(
+                                  //     controller: _remarkControllers[index],
+                                  //     autofocus: false,
+                                  //     decoration: InputDecoration(
+                                  //       hintText: 'e.g. less spicy, no onion, kam tel…',
+                                  //       hintStyle: TextStyle(
+                                  //         fontSize: 12,
+                                  //         color: Colors.grey.shade400,
+                                  //         fontStyle: FontStyle.italic,
+                                  //       ),
+                                  //       isDense: true,
+                                  //       prefixIcon: Icon(Icons.notes_outlined,
+                                  //           size: 16, color: Colors.orange.shade600),
+                                  //       suffixIcon: GestureDetector(
+                                  //         onTap: () => setState(() {
+                                  //           if (_remarkControllers[index].text.isEmpty) {
+                                  //             _remarkExpanded[index] = false;
+                                  //           }
+                                  //         }),
+                                  //         child: Icon(Icons.keyboard_arrow_up,
+                                  //             size: 18, color: Colors.grey.shade400),
+                                  //       ),
+                                  //       border: OutlineInputBorder(
+                                  //         borderRadius: BorderRadius.circular(8),
+                                  //         borderSide: BorderSide(color: Colors.grey.shade300),
+                                  //       ),
+                                  //       focusedBorder: OutlineInputBorder(
+                                  //         borderRadius: BorderRadius.circular(8),
+                                  //         borderSide: BorderSide(
+                                  //             color: Colors.orange.shade400, width: 1.5),
+                                  //       ),
+                                  //       contentPadding: const EdgeInsets.symmetric(
+                                  //           horizontal: 10, vertical: 8),
+                                  //       filled: true,
+                                  //       fillColor: Colors.orange.shade50,
+                                  //     ),
+                                  //     style: TextStyle(
+                                  //       fontSize: 12,
+                                  //       color: Colors.orange.shade800,
+                                  //       fontFamily: fontMulishRegular,
+                                  //     ),
+                                  //     maxLines: 1,
+                                  //     onChanged: (val) {
+                                  //       cartItems[index]['remarks'] = val;
+                                  //     },
+                                  //   ),
+                                  // ] else ...[
+                                  //   GestureDetector(
+                                  //     onTap: () => setState(
+                                  //         () => _remarkExpanded[index] = true),
+                                  //     child: Row(
+                                  //       mainAxisSize: MainAxisSize.min,
+                                  //       children: [
+                                  //         Icon(Icons.add_comment_outlined,
+                                  //             size: 14, color: Colors.orange.shade400),
+                                  //         const SizedBox(width: 5),
+                                  //         Text(
+                                  //           'Add Remark',
+                                  //           style: TextStyle(
+                                  //             fontSize: 12,
+                                  //             color: Colors.orange.shade500,
+                                  //             fontFamily: fontMulishSemiBold,
+                                  //           ),
+                                  //         ),
+                                  //       ],
+                                  //     ),
+                                  //   ),
+                                  // ],
                                 ],
                               ),
                             );
@@ -620,7 +642,7 @@ class _CartPageState extends State<CartPage> {
                           },
                         ),
 
-                        Align(
+                       if(widget.showBilling) Align(
                           alignment: Alignment.bottomRight,
                           child: Container(
                             margin: const EdgeInsets.all(22),
@@ -648,62 +670,62 @@ class _CartPageState extends State<CartPage> {
             ),
             
             // Overall Remarks Field
-            if (cartItems.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: TextField(
-                  controller: overallRemarksController,
-                  maxLines: 12,
-                  minLines: 5,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF1A3A5C),
-                    fontFamily: fontMulishSemiBold,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: "Overall Order Remarks",
-                    labelStyle: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                      fontFamily: fontMulishMedium,
-                    ),
-                    hintText: "e.g. Keep it less spicy, add extra parcel boxes...",
-                    hintStyle: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade400,
-                      fontFamily: fontMulishRegular,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFf57c35)),
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    prefixIcon: Icon(Icons.speaker_notes, color: Colors.grey.shade400, size: 20),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(Icons.mic, color: Colors.red.shade400),
-                          tooltip: 'Speak more instructions/items',
-                          onPressed: _startVoiceOrderCart,
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.auto_awesome, color: Color(0xFFf57c35)),
-                          tooltip: 'Detect items from remarks',
-                          onPressed: _extractItemsFromRemarks,
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+            // if (cartItems.isNotEmpty)
+            //   Container(
+            //     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            //     child: TextField(
+            //       controller: overallRemarksController,
+            //       maxLines: 12,
+            //       minLines: 5,
+            //       style: const TextStyle(
+            //         fontSize: 14,
+            //         color: Color(0xFF1A3A5C),
+            //         fontFamily: fontMulishSemiBold,
+            //       ),
+            //       decoration: InputDecoration(
+            //         labelText: "Overall Order Remarks",
+            //         labelStyle: const TextStyle(
+            //           fontSize: 12,
+            //           color: Colors.grey,
+            //           fontFamily: fontMulishMedium,
+            //         ),
+            //         hintText: "e.g. Keep it less spicy, add extra parcel boxes...",
+            //         hintStyle: TextStyle(
+            //           fontSize: 13,
+            //           color: Colors.grey.shade400,
+            //           fontFamily: fontMulishRegular,
+            //         ),
+            //         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            //         border: OutlineInputBorder(
+            //           borderRadius: BorderRadius.circular(12),
+            //           borderSide: BorderSide(color: Colors.grey.shade300),
+            //         ),
+            //         focusedBorder: OutlineInputBorder(
+            //           borderRadius: BorderRadius.circular(12),
+            //           borderSide: const BorderSide(color: Color(0xFFf57c35)),
+            //         ),
+            //         filled: true,
+            //         fillColor: Colors.white,
+            //         prefixIcon: Icon(Icons.speaker_notes, color: Colors.grey.shade400, size: 20),
+            //         suffixIcon: Row(
+            //           mainAxisSize: MainAxisSize.min,
+            //           children: [
+            //             IconButton(
+            //               icon: Icon(Icons.mic, color: Colors.red.shade400),
+            //               tooltip: 'Speak more instructions/items',
+            //               onPressed: _startVoiceOrderCart,
+            //             ),
+            //             IconButton(
+            //               icon: const Icon(Icons.auto_awesome, color: Color(0xFFf57c35)),
+            //               tooltip: 'Detect items from remarks',
+            //               onPressed: _extractItemsFromRemarks,
+            //             ),
+            //             const SizedBox(width: 8),
+            //           ],
+            //         ),
+            //       ),
+            //     ),
+            //   ),
 
             isBilling
                 ? Column(
