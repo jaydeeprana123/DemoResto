@@ -1056,13 +1056,29 @@ class _MenuPageState extends State<MenuPage>
                     ),
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    '₹${(item['price'] as num).toStringAsFixed(0)}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade500,
-                      fontFamily: fontMulishRegular,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        '₹${(item['price'] as num).toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade500,
+                          fontFamily: fontMulishRegular,
+                        ),
+                      ),
+
+                      SizedBox(width: 8,),
+
+                      if(item['qty'] > 0)Text(
+                        ' x${(item['qty'] as int)}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: _orange,
+                          fontFamily: fontMulishRegular,
+                        ),
+                      ),
+
+                    ],
                   ),
                 ],
               ),
@@ -1248,6 +1264,11 @@ class _MenuPageState extends State<MenuPage>
     });
     return total;
   }
+
+  static const _navy   = Color(0xFF1A3A5C);
+  static const _orange = Color(0xFFf57c35);
+  static const _green  = Color(0xFF4CAF50);
+  static const _bg     = Color(0xFFF5F6FA);
 
   @override
   Widget build(BuildContext context) {

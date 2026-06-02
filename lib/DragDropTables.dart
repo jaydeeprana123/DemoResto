@@ -814,7 +814,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         .fold<int>(0, (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 1));
 
     return GestureDetector(
-      onDoubleTap: () async {
+      onTap: () async {
         if (isPaid) {
           showServedDialog(context, tableName, () async {
             if (isTakeAway) {
@@ -829,45 +829,21 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           });
           return;
         }
-        if (!hasItems) {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => MenuPage(
-                menuList: menu,
-                tableName: tableName,
-                tableNameEditable: false,
-                initialItems: [],
-                showBilling: true,
-                isFromFinalBilling: false,
-                onConfirm: (selectedItems, isBillPaid, tName, overallRemarks) async {
-                  setState(() => groups.add(selectedItems));
-                  await _updateTableItemsInFirestore(tName, groups, isBillPaid, overallRemarks);
-                },
-              ),
-            ),
-          );
-          return;
-        }
-        final merged = _mergeItemsByNameAndCategory(
-            groups.expand((g) => g).toList());
+        // Double-tap always opens MenuPage to add items
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => FinalBillingView(
-              menuData: merged,
-              totalMenuList: menu,
+            builder: (_) => MenuPage(
+              menuList: menu,
               tableName: tableName,
-              onConfirm: (confirmedItems) async {
-                setState(() => tables[tableName] = [confirmedItems]);
+              tableNameEditable: false,
+              initialItems: [],
+              showBilling: !hasItems,
+              isFromFinalBilling: false,
+              onConfirm: (items, isBillPaid, tName, overallRemarks) async {
+                setState(() => groups.add(items));
                 await _updateTableItemsInFirestore(
-                    tableName, [confirmedItems], false);
-                if (isTakeAway && confirmedItems.isEmpty) {
-                  await FirebaseFirestore.instance
-                      .collection('tables')
-                      .doc(docId)
-                      .delete();
-                }
+                    tName, groups, isBillPaid, overallRemarks);
               },
             ),
           ),
@@ -943,22 +919,28 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         ),
                       );
                     }),
-                  if (!isPaid)
-                    _cardIconBtn(Icons.add_circle_outline, () async {
+                  // Billing icon — only when items exist and not paid
+                  if (hasItems && !isPaid)
+                    _cardIconBtn(Icons.receipt_long_outlined, () async {
+                      final merged = _mergeItemsByNameAndCategory(
+                          groups.expand((g) => g).toList());
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => MenuPage(
-                            menuList: menu,
+                          builder: (_) => FinalBillingView(
+                            menuData: merged,
+                            totalMenuList: menu,
                             tableName: tableName,
-                            tableNameEditable: false,
-                            initialItems: [],
-                            showBilling: !hasItems,
-                            isFromFinalBilling: false,
-                            onConfirm: (items, isBillPaid, tName, overallRemarks) async {
-                              setState(() => groups.add(items));
+                            onConfirm: (confirmedItems) async {
+                              setState(() => tables[tableName] = [confirmedItems]);
                               await _updateTableItemsInFirestore(
-                                  tName, groups, isBillPaid, overallRemarks);
+                                  tableName, [confirmedItems], false);
+                              if (isTakeAway && confirmedItems.isEmpty) {
+                                await FirebaseFirestore.instance
+                                    .collection('tables')
+                                    .doc(docId)
+                                    .delete();
+                              }
                             },
                           ),
                         ),
@@ -994,7 +976,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                       Icon(Icons.touch_app_outlined,
                           color: Colors.grey.shade300, size: 28),
                       const SizedBox(height: 6),
-                      Text('Double-tap to order',
+                      Text('Tap to order',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey.shade400,
@@ -1107,13 +1089,45 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
   // Filter the tables based on current selectedTab
   List<String> _filteredTableKeys() {
+    List<String> keys;
     if (selectedTab == 'Take Away') {
-      return tables.keys.where((key) => !key.contains('Table')).toList();
+      keys = tables.keys.where((key) => !key.contains('Table')).toList();
     } else if (selectedTab == 'Tables') {
-      return tables.keys.where((key) => key.contains('Table')).toList();
+      keys = tables.keys.where((key) => key.contains('Table')).toList();
     } else {
-      return tables.keys.toList();
+      keys = tables.keys.toList();
     }
+
+    // Sort: "Table X" first (numerically), then "Take Away X" (numerically), then others alphabetically
+    keys.sort((a, b) {
+      final aIsTable = a.startsWith('Table ');
+      final bIsTable = b.startsWith('Table ');
+      final aIsTakeAway = a.startsWith('Take Away ');
+      final bIsTakeAway = b.startsWith('Take Away ');
+
+      // Both are regular tables → sort by number
+      if (aIsTable && bIsTable) {
+        final aNum = int.tryParse(a.substring('Table '.length).trim()) ?? 999;
+        final bNum = int.tryParse(b.substring('Table '.length).trim()) ?? 999;
+        return aNum.compareTo(bNum);
+      }
+      // Both are take away → sort by number
+      if (aIsTakeAway && bIsTakeAway) {
+        final aNum = int.tryParse(a.substring('Take Away '.length).trim()) ?? 999;
+        final bNum = int.tryParse(b.substring('Take Away '.length).trim()) ?? 999;
+        return aNum.compareTo(bNum);
+      }
+      // Regular tables come first
+      if (aIsTable) return -1;
+      if (bIsTable) return 1;
+      // Take Away comes next
+      if (aIsTakeAway) return -1;
+      if (bIsTakeAway) return 1;
+      // Everything else alphabetically
+      return a.compareTo(b);
+    });
+
+    return keys;
   }
 
   Future<void> _deleteTable(String docId, String name) async {
