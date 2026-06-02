@@ -19,12 +19,14 @@ const _kOrange = Color(0xFFf57c35);
 
 
 class MenuPage extends StatefulWidget {
-  final void Function(
+  final Future<void> Function(
     List<Map<String, dynamic>> selectedItems,
     bool isBillPaid,
     String tableName,
-    String overallRemarks,
-  ) onConfirm;
+    String overallRemarks, {
+    bool fromBilling,
+    bool fromFinalBilling,
+  }) onConfirm;
   final List<Map<String, dynamic>> menuList; // Passed from previous page
   final List<Map<String, dynamic>> initialItems;
   /// Items already on the table (previous rounds) — shown read-only in cart/billing.
@@ -1315,7 +1317,8 @@ class _MenuPageState extends State<MenuPage>
     return _mergeItemLists([..._pastItems, ..._getSelectedItems()]);
   }
 
-  bool get _hasOrderItems => _pastItems.isNotEmpty;
+  bool get _hasOrderItems =>
+      _pastItems.isNotEmpty || _getSelectedItems().isNotEmpty;
 
   Future<void> _openFinalBilling() async {
     final merged = _mergeAllForBilling();
@@ -1326,23 +1329,26 @@ class _MenuPageState extends State<MenuPage>
       return;
     }
 
-    await Navigator.push(
+    final confirmedItems = await Navigator.push<List<Map<String, dynamic>>>(
       context,
       MaterialPageRoute(
         builder: (_) => FinalBillingView(
           menuData: merged,
           totalMenuList: widget.menuList,
           tableName: tableNameController.text.trim(),
-          onConfirm: (confirmedItems) async {
-            widget.onConfirm(
-              confirmedItems,
-              true,
-              tableNameController.text.trim(),
-              _overallRemarks,
-            );
-          },
+          onConfirm: (_) {},
         ),
       ),
+    );
+
+    if (!mounted || confirmedItems == null) return;
+
+    await widget.onConfirm(
+      confirmedItems,
+      false,
+      tableNameController.text.trim(),
+      _overallRemarks,
+      fromFinalBilling: true,
     );
 
     if (mounted) Navigator.pop(context);
@@ -1551,7 +1557,7 @@ class _MenuPageState extends State<MenuPage>
                 ),
 
           actions: [
-            if (!isNameEdit && _hasOrderItems && !widget.isFromFinalBilling)
+            if (!isNameEdit && _hasOrderItems && !widget.showBilling && !widget.isFromFinalBilling)
               IconButton(
                 icon: const Icon(Icons.receipt_long_outlined, color: Colors.white),
                 onPressed: _openFinalBilling,

@@ -163,8 +163,10 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                           List<Map<String, dynamic>> selectedItems,
                           bool isBillPaid,
                           String tableName,
-                          String overallRemarks,
-                        ) async {
+                          String overallRemarks, {
+                          bool fromBilling = false,
+                          bool fromFinalBilling = false,
+                        }) async {
                           setState(() {
                             cartItems = selectedItems
                                 .map((item) => Map<String, dynamic>.from(item))
@@ -866,8 +868,12 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                     final cash = int.tryParse(cashController.text) ?? 0;
                     final online = int.tryParse(onlineController.text) ?? 0;
 
+                    final confirmedItems = cartItems
+                        .map((e) => Map<String, dynamic>.from(e))
+                        .toList();
+
                     await addTransactionToFirestore(
-                      items: cartItems,
+                      items: confirmedItems,
                       tableName: widget.tableName,
                       subtotal: subtotal.round(),
                       tax: (subtotal * 0.085).round(),
@@ -877,58 +883,10 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                       onlineAmount: online,
                     );
 
-                    widget.onConfirm(
-                      cartItems
-                          .map((e) => Map<String, dynamic>.from(e))
-                          .toList(),
-                    );
+                    widget.onConfirm(confirmedItems);
 
-                    // ✅ Generate PDF
-                    // final pdfBytes = await generateInvoicePdf(
-                    //   tableName: widget.tableName,
-                    //   items: cartItems,
-                    //   subtotal: subtotal,
-                    //   tax: subtotal * 0.085,
-                    //   discount: discountAmount,
-                    //   total: total,
-                    //   cashAmount: cash,
-                    //   onlineAmount: online,
-                    // );
-                    //
-                    // // ✅ Show PDF preview and allow print
-                    // await Printing.layoutPdf(
-                    //   onLayout: (format) async => pdfBytes,
-                    // );
-
-                    // ✅ CLEAR TABLE IN FIRESTORE
-                    final query = await FirebaseFirestore.instance
-                        .collection('tables')
-                        .where('name', isEqualTo: widget.tableName)
-                        .get();
-                    
-                    for (var doc in query.docs) {
-                      if (!widget.tableName.contains("Table")) {
-                        await doc.reference.delete();
-                      } else {
-                        await doc.reference.update({
-                          'items': [],
-                          'isPaid': false,
-                          'remarks': FieldValue.delete(),
-                        });
-                      }
-                    }
-
-                    // ✅ Return to dashboard
-                    Navigator.pop(context);
-                    // if (context.mounted) {
-                    //   Navigator.pushAndRemoveUntil(
-                    //     context,
-                    //     MaterialPageRoute(
-                    //       builder: (_) => const BottomNavigationView(),
-                    //     ),
-                    //     (route) => false,
-                    //   );
-                    // }
+                    if (!context.mounted) return;
+                    Navigator.pop(context, confirmedItems);
                   },
                   child: Container(
                     margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),

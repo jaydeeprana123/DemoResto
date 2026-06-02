@@ -63,6 +63,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   bool get wantKeepAlive => true;
   Map<String, List<List<Map<String, dynamic>>>> tables = {};
   final Map<String, Timestamp?> tableCreatedAt = {};
+  final Map<String, bool> tableIsPaid = {};
+  final Map<String, String> tableDocIds = {};
   final List<Map<String, dynamic>> menu = [];
   bool isLoading = false;
   final user = FirebaseAuth.instance.currentUser;
@@ -155,10 +157,15 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           Map<String, List<List<Map<String, dynamic>>>> updatedTables = {};
 
           final Map<String, Timestamp?> updatedCreatedAt = {};
+          final Map<String, bool> updatedIsPaid = {};
+          final Map<String, String> updatedDocIds = {};
 
           for (var doc in querySnapshot.docs) {
             final tableName = doc['name'] as String;
-            updatedCreatedAt[tableName] = doc.data()['createdAt'] as Timestamp?;
+            final data = doc.data();
+            updatedCreatedAt[tableName] = data['createdAt'] as Timestamp?;
+            updatedIsPaid[tableName] = data['isPaid'] == true;
+            updatedDocIds[tableName] = doc.id;
             final List<dynamic>? itemsFromDb = doc.data().containsKey('items')
                 ? doc['items']
                 : null;
@@ -242,6 +249,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             tableCreatedAt
               ..clear()
               ..addAll(updatedCreatedAt);
+            tableIsPaid
+              ..clear()
+              ..addAll(updatedIsPaid);
+            tableDocIds
+              ..clear()
+              ..addAll(updatedDocIds);
           });
         });
   }
@@ -369,6 +382,105 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         print("Firebase error message: ${e.message}");
       }
     }
+  }
+
+  /// Cart billing: keep items visible and mark table paid.
+  Future<void> _applyBillingToTable(
+    String tableName,
+    List<Map<String, dynamic>> confirmedItems, [
+    String overallRemarks = '',
+  ]) async {
+    if (confirmedItems.isEmpty) return;
+
+    final stampedGroup = _stampGroupAddedAt(
+      confirmedItems.map((e) => Map<String, dynamic>.from(e)).toList(),
+    );
+
+    setState(() {
+      tables[tableName] = [stampedGroup];
+      tableIsPaid[tableName] = true;
+    });
+    await _updateTableItemsInFirestore(
+      tableName,
+      [stampedGroup],
+      true,
+      overallRemarks,
+    );
+  }
+
+  /// FinalBillingView billing on dine-in tables: clear items, not paid.
+  Future<void> _clearTableAfterFinalBilling(
+    String tableName, {
+    String overallRemarks = '',
+  }) async {
+    setState(() {
+      tables[tableName] = [];
+      tableIsPaid[tableName] = false;
+    });
+    await _updateTableItemsInFirestore(
+      tableName,
+      [],
+      false,
+      overallRemarks,
+    );
+  }
+
+  /// Take Away billing: keep table visible, show items with PAID tag.
+  Future<void> _billTakeAwayOrder(
+    String tableName,
+    List<Map<String, dynamic>> items, [
+    String overallRemarks = '',
+  ]) async {
+    if (items.isEmpty) return;
+
+    final existing = await FirebaseFirestore.instance
+        .collection('tables')
+        .where('name', isEqualTo: tableName)
+        .limit(1)
+        .get();
+
+    if (existing.docs.isEmpty) {
+      await _addTableAndUpdateItems(tableName, items, true, overallRemarks);
+    } else {
+      await _applyBillingToTable(tableName, items, overallRemarks);
+    }
+
+    final stampedGroup = _stampGroupAddedAt(
+      items.map((e) => Map<String, dynamic>.from(e)).toList(),
+    );
+    setState(() {
+      tables[tableName] = [stampedGroup];
+      tableIsPaid[tableName] = true;
+      if (existing.docs.isNotEmpty) {
+        tableDocIds[tableName] = existing.docs.first.id;
+      }
+    });
+  }
+
+  /// Existing Take Away table billed via FinalBillingView — remove from dashboard.
+  Future<void> _deleteTakeAwayAfterFinalBilling(
+    String tableName,
+    String docId,
+  ) async {
+    if (docId.isNotEmpty) {
+      await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
+    } else {
+      final query = await FirebaseFirestore.instance
+          .collection('tables')
+          .where('name', isEqualTo: tableName)
+          .limit(1)
+          .get();
+      if (query.docs.isNotEmpty) {
+        await query.docs.first.reference.delete();
+      }
+    }
+
+    setState(() {
+      tables.remove(tableName);
+      tableIsPaid.remove(tableName);
+      tableDocIds.remove(tableName);
+      tableCreatedAt.remove(tableName);
+    });
   }
 
   // Merge items by name and category to combine quantities
@@ -723,8 +835,18 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 List<Map<String, dynamic>> selectedItems,
                 bool isBillPaid,
                 String tableName,
-                String overallRemarks,
-              ) async {
+                String overallRemarks, {
+                bool fromBilling = false,
+                bool fromFinalBilling = false,
+              }) async {
+                if (fromBilling || fromFinalBilling) {
+                  await _billTakeAwayOrder(
+                    tableName,
+                    selectedItems,
+                    overallRemarks,
+                  );
+                  return;
+                }
                 await _addTableAndUpdateItems(tableName, selectedItems, isBillPaid, overallRemarks);
                 setState(() {});
               },
@@ -778,118 +900,85 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     List<List<Map<String, dynamic>>> groups, {
     int? queuePosition,
   }) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('tables')
-          .where('name', isEqualTo: tableName)
-          .limit(1)
-          .snapshots(),
-      builder: (context, snapshot) {
-        bool isPaid = false;
-        String docId = "";
+    final isPaid = tableIsPaid[tableName] == true;
+    final docId = tableDocIds[tableName] ?? '';
 
-        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-          final doc = snapshot.data!.docs.first;
-          final data = doc.data();
-          isPaid = (data['isPaid'] == true);
-          docId = doc.id;
+    return DragTarget<String>(
+      onAccept: (sourceTable) async {
+        if (sourceTable != tableName) {
+          final sourcePaidStatus = tableIsPaid[sourceTable] == true;
+
+          final sourceGroups = tables[sourceTable]!;
+          final destGroups = tables[tableName]!;
+
+          setState(() {
+            // Append deep copy of source groups to destination
+            final copiedGroups = sourceGroups.map((group) {
+              return group
+                  .map((item) => Map<String, dynamic>.from(item))
+                  .toList();
+            }).toList();
+
+            destGroups.addAll(copiedGroups);
+            sourceGroups.clear();
+          });
+
+          // Update destination with source's paid status
+          await _updateTableItemsInFirestore(
+            tableName,
+            tables[tableName]!,
+            sourcePaidStatus,
+          );
+          await _updateTableItemsInFirestore(sourceTable, [], false);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Moved all items from $sourceTable to $tableName',
+              ),
+            ),
+          );
         }
-
-        // Wrap with DragTarget to accept drops from other tables
-        return DragTarget<String>(
-          onAccept: (sourceTable) async {
-            if (sourceTable != tableName) {
-              // Get the isPaid status of source table
-              bool sourcePaidStatus = false;
-              try {
-                final sourceQuery = await FirebaseFirestore.instance
-                    .collection('tables')
-                    .where('name', isEqualTo: sourceTable)
-                    .limit(1)
-                    .get();
-
-                if (sourceQuery.docs.isNotEmpty) {
-                  sourcePaidStatus =
-                      sourceQuery.docs.first.data()['isPaid'] == true;
-                }
-              } catch (e) {
-                print("Error getting source paid status: $e");
-              }
-
-              final sourceGroups = tables[sourceTable]!;
-              final destGroups = tables[tableName]!;
-
-              setState(() {
-                // Append deep copy of source groups to destination
-                final copiedGroups = sourceGroups.map((group) {
-                  return group
-                      .map((item) => Map<String, dynamic>.from(item))
-                      .toList();
-                }).toList();
-
-                destGroups.addAll(copiedGroups);
-                sourceGroups.clear();
-              });
-
-              // Update destination with source's paid status
-              await _updateTableItemsInFirestore(
-                tableName,
-                tables[tableName]!,
-                sourcePaidStatus,
-              );
-              await _updateTableItemsInFirestore(sourceTable, [], false);
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Moved all items from $sourceTable to $tableName',
-                  ),
-                ),
-              );
-            }
-          },
-          builder: (context, candidateData, rejectedData) {
-            // Wrap with LongPressDraggable to make table draggable (even if paid)
-            return LongPressDraggable<String>(
-              data: tableName,
-              feedback: Material(
-                elevation: 4,
-                color: Colors.transparent,
-                child: Container(
-                  width: 160,
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isPaid ? Colors.red : Colors.blueAccent,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    _shortDisplayName(tableName),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+      },
+      builder: (context, candidateData, rejectedData) {
+        return LongPressDraggable<String>(
+          data: tableName,
+          feedback: Material(
+            elevation: 4,
+            color: Colors.transparent,
+            child: Container(
+              width: 160,
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isPaid ? Colors.red : Colors.blueAccent,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                _shortDisplayName(tableName),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              childWhenDragging: Opacity(
-                opacity: 0.4,
-                child: _buildTableCardWithContent(
-                  tableName,
-                  groups,
-                  isPaid,
-                  docId,
-                  queuePosition: queuePosition,
-                ),
-              ),
-              child: _buildTableCardWithContent(
-                tableName,
-                groups,
-                isPaid,
-                docId,
-                queuePosition: queuePosition,
-              ),
-            );
-          },
+            ),
+          ),
+          childWhenDragging: Opacity(
+            opacity: 0.4,
+            child: _buildTableCardWithContent(
+              tableName,
+              groups,
+              isPaid,
+              docId,
+              queuePosition: queuePosition,
+            ),
+          ),
+          child: _buildTableCardWithContent(
+            tableName,
+            groups,
+            isPaid,
+            docId,
+            queuePosition: queuePosition,
+          ),
         );
       },
     );
@@ -903,11 +992,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     String docId, {
     int? queuePosition,
   }) {
-    final hasItems   = groups.isNotEmpty;
+    final paid = isPaid == true;
+    final hasItems = groups.isNotEmpty;
     final isTakeAway = _isTakeAway(tableName);
     final displayName = _shortDisplayName(tableName);
     // Header colour: green=has items, orange=empty dine-in, blue=empty takeaway
-    final headerColor = isPaid
+    final headerColor = paid
         ? Colors.red.shade700
         : hasItems
             ? _green
@@ -922,7 +1012,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
     return GestureDetector(
       onTap: () async {
-        if (isPaid) {
+        if (paid) {
           showServedDialog(context, tableName, () async {
             if (isTakeAway) {
               await FirebaseFirestore.instance
@@ -953,10 +1043,29 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               pastItems: pastItems,
               showBilling: !hasItems,
               isFromFinalBilling: false,
-              onConfirm: (items, isBillPaid, tName, overallRemarks) async {
+              onConfirm: (items, isBillPaid, tName, overallRemarks, {
+                  bool fromBilling = false,
+                  bool fromFinalBilling = false,
+                }) async {
+                if (fromFinalBilling) {
+                  if (isTakeAway) {
+                    await _deleteTakeAwayAfterFinalBilling(tName, docId);
+                  } else {
+                    await _clearTableAfterFinalBilling(
+                      tName,
+                      overallRemarks: overallRemarks,
+                    );
+                  }
+                  return;
+                }
+                if (fromBilling) {
+                  await _applyBillingToTable(tName, items, overallRemarks);
+                  return;
+                }
                 setState(() {
                   if (isBillPaid) {
                     groups.clear();
+                    tableIsPaid[tName] = true;
                   } else {
                     groups.add(_stampGroupAddedAt(items));
                   }
@@ -1040,7 +1149,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                     ),
                   ),
                   // Action icons
-                  if (hasItems && !isPaid)
+                  if (hasItems && !paid)
                     _cardIconBtn(Icons.edit_outlined, () async {
                       final lastGroup = groups.last;
                       final pastForEdit = groups.length > 1
@@ -1062,9 +1171,34 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                             pastItems: pastForEdit,
                             showBilling: groups.length == 1,
                             isFromFinalBilling: false,
-                            onConfirm: (items, isBillPaid, tName, overallRemarks) async {
+                            onConfirm: (items, isBillPaid, tName, overallRemarks, {
+                                bool fromBilling = false,
+                                bool fromFinalBilling = false,
+                              }) async {
+                              if (fromFinalBilling) {
+                                if (isTakeAway) {
+                                  await _deleteTakeAwayAfterFinalBilling(
+                                    tName, docId,
+                                  );
+                                } else {
+                                  await _clearTableAfterFinalBilling(
+                                    tName,
+                                    overallRemarks: overallRemarks,
+                                  );
+                                }
+                                return;
+                              }
+                              if (fromBilling) {
+                                await _applyBillingToTable(
+                                  tName, items, overallRemarks,
+                                );
+                                return;
+                              }
                               if (isBillPaid) {
-                                setState(() => groups.clear());
+                                setState(() {
+                                  groups.clear();
+                                  tableIsPaid[tName] = true;
+                                });
                                 await _updateTableItemsInFirestore(
                                   tName, [], true, overallRemarks,
                                 );
@@ -1086,34 +1220,33 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                       );
                     }),
                   // Billing icon — only when items exist and not paid
-                  if (hasItems && !isPaid)
+                  if (hasItems && !paid)
                     _cardIconBtn(Icons.receipt_long_outlined, () async {
                       final merged = _mergeItemsByNameAndCategory(
                           groups.expand((g) => g).toList());
-                      await Navigator.push(
+                      final confirmedItems =
+                          await Navigator.push<List<Map<String, dynamic>>>(
                         context,
                         MaterialPageRoute(
                           builder: (_) => FinalBillingView(
                             menuData: merged,
                             totalMenuList: menu,
                             tableName: tableName,
-                            onConfirm: (confirmedItems) async {
-                              setState(() => tables[tableName] = [confirmedItems]);
-                              await _updateTableItemsInFirestore(
-                                  tableName, [confirmedItems], false);
-                              if (isTakeAway && confirmedItems.isEmpty) {
-                                await FirebaseFirestore.instance
-                                    .collection('tables')
-                                    .doc(docId)
-                                    .delete();
-                              }
-                            },
+                            onConfirm: (_) {},
                           ),
                         ),
                       );
+                      if (confirmedItems == null) return;
+                      if (isTakeAway) {
+                        await _deleteTakeAwayAfterFinalBilling(
+                          tableName, docId,
+                        );
+                      } else {
+                        await _clearTableAfterFinalBilling(tableName);
+                      }
                     }),
                   // PAID pill
-                  if (isPaid)
+                  if (paid)
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 3),

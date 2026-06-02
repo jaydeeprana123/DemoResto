@@ -10,6 +10,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_icons.dart';
+import 'package:demo/services/kitchen_settings.dart';
 import 'Styles/my_font.dart';
 import 'models/GroupOrder.dart';
 import 'MenuPage.dart';
@@ -30,6 +31,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   // Multiple category selection
   Set<String> selectedCategories = {};
   bool showAllCategories = true; // Track if "All" is selected
+  bool _showTableAllOrders = false;
+
+  void _onKitchenSettingsChanged() {
+    if (!mounted) return;
+    setState(() {
+      _showTableAllOrders = KitchenSettings.showTableAllOrders.value == true;
+    });
+  }
 
   void _playNotificationSound() async {
     try {
@@ -101,9 +110,43 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   @override
   void initState() {
     super.initState();
+    KitchenSettings.load().then((_) {
+      if (mounted) {
+        setState(() {
+          _showTableAllOrders = KitchenSettings.showTableAllOrders.value == true;
+        });
+      }
+    });
+    KitchenSettings.showTableAllOrders.addListener(_onKitchenSettingsChanged);
     _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
       if (mounted) setState(() {});
     });
+  }
+
+  List<KitchenTableCard> _mergeGroupsByTable(List<TableGroup> groups) {
+    final Map<String, KitchenTableCard> map = {};
+
+    for (final group in groups) {
+      if (!map.containsKey(group.docId)) {
+        map[group.docId] = KitchenTableCard(
+          tableName: group.tableName,
+          docId: group.docId,
+          isPaid: group.isPaid,
+          batches: [group],
+        );
+      } else {
+        map[group.docId]!.batches.add(group);
+        if (group.isPaid) map[group.docId]!.isPaid = true;
+      }
+    }
+
+    for (final card in map.values) {
+      card.batches.sort((a, b) => a.groupTime.compareTo(b.groupTime));
+    }
+
+    final cards = map.values.toList()
+      ..sort((a, b) => a.batches.first.groupTime.compareTo(b.batches.first.groupTime));
+    return cards;
   }
 
   // Filter groups by selected categories
@@ -399,7 +442,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           for (var doc in snapshot.data!.docs) {
             final data = doc.data();
             final tableName = (data['name'] ?? 'Unknown Table') as String;
-            final isPaid = (data.containsKey('isPaid')) ? (data['isPaid'] as bool) : false;
+            final isPaid = data['isPaid'] == true;
             final itemsFromDb = (data.containsKey('items'))
                 ? (data['items'] as List<dynamic>?)
                 : null;
@@ -533,217 +576,339 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               : screenW > 400  ? 2
               : 1;
 
+          if (_showTableAllOrders == true) {
+            final tableCards = _mergeGroupsByTable(filteredGroups);
+            return MasonryGridView.count(
+              crossAxisCount: crossCols,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              padding: const EdgeInsets.all(12),
+              itemCount: tableCards.length,
+              itemBuilder: (context, index) =>
+                  _buildTableBatchCard(tableCards[index]),
+            );
+          }
+
           return MasonryGridView.count(
             crossAxisCount: crossCols,
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
             padding: const EdgeInsets.all(12),
             itemCount: filteredGroups.length,
-            itemBuilder: (context, index) {
-              final group = filteredGroups[index];
-              final time = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
-              final isBlinking = blinkingGroupKey == group.key.hashCode;
-              final isOld = DateTime.now().difference(time).inMinutes > 5;
-
-              if (group.tableName.contains("Take Away") && isOld && group.isPaid) {
-                deleteTable(group.docId);
-              }
-
-              return GestureDetector(
-                onDoubleTap: () {
-                  if (group.isPaid && selectedCategories.isEmpty) {
-                    showServedDialog(context, group.tableName, () async {
-                      _playDeleteSound();
-                      if (group.tableName.contains("Take Away")) {
-                        await FirebaseFirestore.instance
-                            .collection('tables')
-                            .doc(group.docId)
-                            .delete();
-                        setState(() {});
-                      } else {
-                        await _updateTableItemsInFirestore(
-                            group.tableName, [], false);
-                      }
-                    });
-                  }
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeInOut,
-                  decoration: BoxDecoration(
-                    color: isBlinking ? Colors.lightGreenAccent.shade100 : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isOld ? Colors.red.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                    border: isOld ? Border.all(color: Colors.red, width: 2) : Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Header
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A3A5C), // Brand Navy
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  SvgPicture.asset(
-                                    (group.tableName).contains("Take Away")
-                                        ? icon_packing
-                                        : icon_table,
-                                    colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                                    width: (group.tableName).contains("Take Away") ? 18 : 22,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      group.tableName,
-                                      style: TextStyle(
-                                        fontFamily: (group.tableName).contains("Take Away")
-                                            ? fontMulishBold
-                                            : fontMulishSemiBold,
-                                        fontSize: 16,
-                                        color: Colors.white,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (group.isPaid)
-                              Container(
-                                margin: const EdgeInsets.only(left: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.green,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Text(
-                                  "PAID",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontFamily: fontMulishBold,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      // Time indicator
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        color: isOld ? Colors.red.shade50 : const Color(0xFFF5F6FA),
-                        child: Row(
-                          children: [
-                            Icon(Icons.access_time, size: 14, color: isOld ? Colors.red : Colors.grey.shade700),
-                            const SizedBox(width: 6),
-                            Text(
-                              formatRelativeTime(time),
-                              style: TextStyle(
-                                fontFamily: fontMulishSemiBold,
-                                fontSize: 13,
-                                color: isOld ? Colors.red : Colors.grey.shade800,
-                              ),
-                            ),
-                            if (isOld) ...[
-                              const Spacer(),
-                              const Text(
-                                "DELAYED",
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 10,
-                                  fontFamily: fontMulishBold,
-                                ),
-                              )
-                            ]
-                          ],
-                        ),
-                      ),
-                      // Items List
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: group.items.map((item) {
-                            final qty = item['qty'] ?? 1;
-                            final remarks = item['remarks']?.toString() ?? '';
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFf57c35).withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(color: const Color(0xFFf57c35).withValues(alpha: 0.3)),
-                                    ),
-                                    child: Text(
-                                      "${qty}x",
-                                      style: const TextStyle(
-                                        color: Color(0xFFf57c35), // Brand Orange
-                                        fontFamily: fontMulishBold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item['name']?.toString() ?? '',
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.black87,
-                                            fontFamily: fontMulishSemiBold,
-                                            height: 1.2,
-                                          ),
-                                        ),
-                                        if (remarks.isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 2),
-                                            child: Text(
-                                              "* $remarks",
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.red.shade400,
-                                                fontFamily: fontMulishSemiBold,
-                                                fontStyle: FontStyle.italic,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
+            itemBuilder: (context, index) =>
+                _buildGroupCard(filteredGroups[index]),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildGroupCard(TableGroup group) {
+    final time = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
+    final isBlinking = blinkingGroupKey == group.key.hashCode;
+    final isOld = DateTime.now().difference(time).inMinutes > 5;
+
+    if (group.tableName.contains("Take Away") && isOld && group.isPaid) {
+      deleteTable(group.docId);
+    }
+
+    return GestureDetector(
+      onDoubleTap: () {
+        if (group.isPaid && selectedCategories.isEmpty) {
+          showServedDialog(context, group.tableName, () async {
+            _playDeleteSound();
+            if (group.tableName.contains("Take Away")) {
+              await FirebaseFirestore.instance
+                  .collection('tables')
+                  .doc(group.docId)
+                  .delete();
+              setState(() {});
+            } else {
+              await _updateTableItemsInFirestore(group.tableName, [], false);
+            }
+          });
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+        decoration: _orderCardDecoration(isBlinking, isOld),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildOrderHeader(group.tableName, group.isPaid),
+            _buildTimeBar(time, isOld),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: group.items.map(_buildItemRow).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTableBatchCard(KitchenTableCard tableCard) {
+    final isBlinking = tableCard.batches
+        .any((g) => blinkingGroupKey == g.key.hashCode);
+
+    for (final batch in tableCard.batches) {
+      final time = DateTime.fromMillisecondsSinceEpoch(batch.groupTime);
+      final isOld = DateTime.now().difference(time).inMinutes > 5;
+      if (tableCard.tableName.contains("Take Away") &&
+          isOld &&
+          tableCard.isPaid) {
+        deleteTable(tableCard.docId);
+        break;
+      }
+    }
+
+    final isOld = tableCard.batches.any((batch) {
+      final time = DateTime.fromMillisecondsSinceEpoch(batch.groupTime);
+      return DateTime.now().difference(time).inMinutes > 5;
+    });
+
+    return GestureDetector(
+      onDoubleTap: () {
+        if (tableCard.isPaid && selectedCategories.isEmpty) {
+          showServedDialog(context, tableCard.tableName, () async {
+            _playDeleteSound();
+            if (tableCard.tableName.contains("Take Away")) {
+              await FirebaseFirestore.instance
+                  .collection('tables')
+                  .doc(tableCard.docId)
+                  .delete();
+              setState(() {});
+            } else {
+              await _updateTableItemsInFirestore(tableCard.tableName, [], false);
+            }
+          });
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+        decoration: _orderCardDecoration(isBlinking, isOld),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildOrderHeader(tableCard.tableName, tableCard.isPaid),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < tableCard.batches.length; i++) ...[
+                    if (i > 0) ...[
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: DottedLine(
+                          dashColor: Colors.grey.shade300,
+                          lineThickness: 1,
+                          dashLength: 4,
+                          dashGapLength: 4,
+                        ),
+                      ),
+                    ],
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        formatRelativeTime(
+                          DateTime.fromMillisecondsSinceEpoch(
+                            tableCard.batches[i].groupTime,
+                          ),
+                        ),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontFamily: fontMulishRegular,
+                          color: Colors.grey.shade500,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    ...tableCard.batches[i].items.map(_buildItemRow),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  BoxDecoration _orderCardDecoration(bool isBlinking, bool isOld) {
+    return BoxDecoration(
+      color: isBlinking ? Colors.lightGreenAccent.shade100 : Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: [
+        BoxShadow(
+          color: isOld
+              ? Colors.red.withValues(alpha: 0.3)
+              : Colors.black.withValues(alpha: 0.05),
+          blurRadius: 8,
+          offset: const Offset(0, 4),
+        ),
+      ],
+      border: isOld
+          ? Border.all(color: Colors.red, width: 2)
+          : Border.all(color: Colors.grey.shade200),
+    );
+  }
+
+  Widget _buildOrderHeader(String tableName, bool isPaid) {
+    final paid = isPaid == true;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A3A5C),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                SvgPicture.asset(
+                  tableName.contains("Take Away") ? icon_packing : icon_table,
+                  colorFilter:
+                      const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                  width: tableName.contains("Take Away") ? 18 : 22,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    tableName,
+                    style: TextStyle(
+                      fontFamily: tableName.contains("Take Away")
+                          ? fontMulishBold
+                          : fontMulishSemiBold,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (paid)
+            Container(
+              margin: const EdgeInsets.only(left: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.green,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                "PAID",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontFamily: fontMulishBold,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimeBar(DateTime time, bool isOld) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      color: isOld ? Colors.red.shade50 : const Color(0xFFF5F6FA),
+      child: Row(
+        children: [
+          Icon(Icons.access_time,
+              size: 14, color: isOld ? Colors.red : Colors.grey.shade700),
+          const SizedBox(width: 6),
+          Text(
+            formatRelativeTime(time),
+            style: TextStyle(
+              fontFamily: fontMulishSemiBold,
+              fontSize: 13,
+              color: isOld ? Colors.red : Colors.grey.shade800,
+            ),
+          ),
+          if (isOld) ...[
+            const Spacer(),
+            const Text(
+              "DELAYED",
+              style: TextStyle(
+                color: Colors.red,
+                fontSize: 10,
+                fontFamily: fontMulishBold,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemRow(Map<String, dynamic> item) {
+    final qty = item['qty'] ?? 1;
+    final remarks = item['remarks']?.toString() ?? '';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFf57c35).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                  color: const Color(0xFFf57c35).withValues(alpha: 0.3)),
+            ),
+            child: Text(
+              "${qty}x",
+              style: const TextStyle(
+                color: Color(0xFFf57c35),
+                fontFamily: fontMulishBold,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item['name']?.toString() ?? '',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    fontFamily: fontMulishSemiBold,
+                    height: 1.2,
+                  ),
+                ),
+                if (remarks.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      "* $remarks",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.red.shade400,
+                        fontFamily: fontMulishSemiBold,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -769,6 +934,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
   @override
   void dispose() {
+    KitchenSettings.showTableAllOrders.removeListener(_onKitchenSettingsChanged);
     _timer?.cancel();
     super.dispose();
   }
@@ -913,13 +1079,27 @@ class TableGroup {
   final bool isPaid;
 
   TableGroup(
-      this.tableName,
-      this.items,
-      this.groupTime, {
-        required this.key,
-        required this.docId,
-        required this.isPaid,
-      });
+    this.tableName,
+    this.items,
+    this.groupTime, {
+    required this.key,
+    required this.docId,
+    required this.isPaid,
+  });
+}
+
+class KitchenTableCard {
+  final String tableName;
+  final String docId;
+  bool isPaid;
+  final List<TableGroup> batches;
+
+  KitchenTableCard({
+    required this.tableName,
+    required this.docId,
+    required this.isPaid,
+    required this.batches,
+  });
 }
 
 

@@ -29,12 +29,14 @@ class CartPage extends StatefulWidget {
 
   final String? overallRemarks;
 
-  final void Function(
+  final Future<void> Function(
     List<Map<String, dynamic>> selectedItems,
     bool isBillPaid,
     String tableName,
-    String overallRemarks,
-  )
+    String overallRemarks, {
+    bool fromBilling ,
+    bool fromFinalBilling,
+  })
   onConfirm;
 
   /// Side panel on web inside [MenuPage] — no extra route on the stack.
@@ -165,8 +167,56 @@ class _CartPageState extends State<CartPage> {
       return;
     }
     for (var i = 0; i < routePops; i++) {
+      if (!mounted) return;
       if (Navigator.canPop(context)) Navigator.pop(context);
     }
+  }
+
+  Future<void> _completeBilling({BuildContext? sheetContext}) async {
+    final billItems = _allBillableItems
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    if (billItems.isEmpty) {
+      Get.snackbar('Empty cart', 'Add items before billing.');
+      return;
+    }
+
+    final cash = int.tryParse(cashController.text) ?? 0;
+    final online = int.tryParse(onlineController.text) ?? 0;
+
+    await addTransactionToFirestore(
+      items: billItems,
+      tableName: widget.tableName,
+      subtotal: subtotal.round(),
+      tax: (subtotal * 0.085).round(),
+      discount: discountAmount.round(),
+      total: total,
+      cashAmount: cash,
+      onlineAmount: online,
+    );
+
+    await widget.onConfirm(
+      billItems,
+      true,
+      tableNameController.text.trim(),
+      overallRemarksController.text.trim(),
+      fromBilling: true,
+    );
+
+    if (!mounted) return;
+
+    if (sheetContext != null && Navigator.canPop(sheetContext)) {
+      Navigator.of(sheetContext).pop();
+    }
+
+    if (widget.embedded) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    if (Navigator.canPop(context)) Navigator.of(context).pop();
+    if (!mounted) return;
+    if (Navigator.canPop(context)) Navigator.of(context).pop();
   }
 
   double _lineTotal(Map<String, dynamic> item) {
@@ -1412,29 +1462,7 @@ class _CartPageState extends State<CartPage> {
                         alignment: Alignment.bottomCenter,
                         child: InkWell(
                           onTap: () async {
-                            final cash = int.tryParse(cashController.text) ?? 0;
-                            final online =
-                                int.tryParse(onlineController.text) ?? 0;
-
-                            await addTransactionToFirestore(
-                              items: _allBillableItems,
-                              tableName: tableNameController.text,
-                              subtotal: subtotal.round(),
-                              tax: (subtotal * 0.085).round(),
-                              discount: discountAmount.round(),
-                              total: total,
-                              cashAmount: cash,
-                              onlineAmount: online,
-                            );
-
-                            widget.onConfirm(
-                              cartItems,
-                              true,
-                              tableNameController.text,
-                              overallRemarksController.text.trim(),
-                            );
-
-                            _closeAfterOrder(routePops: 2);
+                            await _completeBilling();
                           },
                           child: Container(
                             padding: const EdgeInsets.all(16),
@@ -2214,28 +2242,7 @@ class _CartPageState extends State<CartPage> {
                       // Confirm & Billing Button
                       InkWell(
                         onTap: () async {
-                          final cash = int.tryParse(cashController.text) ?? 0;
-                          final online =
-                              int.tryParse(onlineController.text) ?? 0;
-
-                          await addTransactionToFirestore(
-                            items: _allBillableItems,
-                            tableName: widget.tableName,
-                            subtotal: subtotal.round(),
-                            tax: (subtotal * 0.085).round(),
-                            discount: discountAmount.round(),
-                            total: total,
-                            cashAmount: cash,
-                            onlineAmount: online,
-                          );
-
-                          widget.onConfirm(
-                            cartItems,
-                            true,
-                            tableNameController.text,
-                            overallRemarksController.text.trim(),
-                          );
-                          _closeAfterOrder(routePops: 3);
+                          await _completeBilling(sheetContext: context);
                         },
                         child: Container(
                           width: double.infinity,

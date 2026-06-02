@@ -5,6 +5,7 @@ import 'package:demo/Screens/Authentication/LoginScreenView.dart';
 import 'package:demo/Screens/Settings/ExpensesPage.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/TransactionsPage.dart';
+import 'package:demo/services/kitchen_settings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -22,11 +23,18 @@ class _SettingsPageState extends State<SettingsPage> {
 
   String? userRole;
   bool _loadingRole = true;
+  bool _kitchenShowTableAllOrders = false;
 
   @override
   void initState() {
     super.initState();
     _loadUserRole();
+    _loadKitchenSettings();
+  }
+
+  Future<void> _loadKitchenSettings() async {
+    final value = await KitchenSettings.getShowTableAllOrders();
+    if (mounted) setState(() => _kitchenShowTableAllOrders = value);
   }
 
   Future<void> _loadUserRole() async {
@@ -127,6 +135,52 @@ class _SettingsPageState extends State<SettingsPage> {
                     subtitle: 'Categories and menu items',
                     onTap: () => Get.to(() => AddCategoryPage()),
                   ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Kitchen',
+                  style: TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SwitchListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    secondary: CircleAvatar(
+                      backgroundColor: _orange.withOpacity(0.12),
+                      child: const Icon(Icons.soup_kitchen_rounded, color: _orange),
+                    ),
+                    title: const Text(
+                      'Show all table orders',
+                      style: TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 15,
+                        color: _navy,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Group items by table with time for each round',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    value: _kitchenShowTableAllOrders,
+                    activeColor: _orange,
+                    onChanged: (value) async {
+                      final enabled = value == true;
+                      await KitchenSettings.setShowTableAllOrders(enabled);
+                      if (mounted) {
+                        setState(() => _kitchenShowTableAllOrders = enabled);
+                      }
+                    },
+                  ),
+                ),
                 const SizedBox(height: 20),
                 const Text(
                   'Account',

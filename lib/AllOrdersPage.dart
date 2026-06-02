@@ -433,7 +433,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
           for (var doc in snapshot.data!.docs) {
             final data = doc.data();
             final tableName = (data['name'] ?? 'Unknown Table') as String;
-            final isPaid = (data.containsKey('isPaid')) ? (data['isPaid'] as bool) : false;
+            final isPaid = data['isPaid'] == true;
             final itemsFromDb = (data.containsKey('items'))
                 ? (data['items'] as List<dynamic>?)
                 : null;
