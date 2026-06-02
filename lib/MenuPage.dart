@@ -8,6 +8,7 @@ import 'package:demo/services/restaurant_agent_service.dart';
 import 'package:demo/models/agent_response.dart';
 
 import 'CartPage.dart';
+import 'FinalBillingView.dart';
 import 'MyWidgets/EditableTextField.dart';
 import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
@@ -26,6 +27,8 @@ class MenuPage extends StatefulWidget {
   ) onConfirm;
   final List<Map<String, dynamic>> menuList; // Passed from previous page
   final List<Map<String, dynamic>> initialItems;
+  /// Items already on the table (previous rounds) — shown read-only in cart/billing.
+  final List<Map<String, dynamic>> pastItems;
   final String tableName;
   final bool tableNameEditable;
   final bool showBilling;
@@ -39,6 +42,7 @@ class MenuPage extends StatefulWidget {
     required this.showBilling,
     required this.isFromFinalBilling,
     this.initialItems = const [],
+    this.pastItems = const [],
     Key? key,
   }) : super(key: key);
 
@@ -49,6 +53,7 @@ class MenuPage extends StatefulWidget {
 class _MenuPageState extends State<MenuPage>
     with SingleTickerProviderStateMixin {
   late Map<String, List<Map<String, dynamic>>> menuData;
+  late List<Map<String, dynamic>> _pastItems;
   late TextEditingController tableNameController;
 
   ///Serach
@@ -81,6 +86,9 @@ class _MenuPageState extends State<MenuPage>
   void initState() {
     super.initState();
     tableNameController = TextEditingController(text: widget.tableName);
+    _pastItems = widget.pastItems
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
     // Group menuList by category and initialize qty = 0
     menuData = {};
 
@@ -1036,12 +1044,9 @@ class _MenuPageState extends State<MenuPage>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-
-
-          // ── Name + price ────────────────────────────────────────────
           Expanded(
             child: InkWell(
-              onTap: (){
+              onTap: () {
                 incrementQty(category, index);
               },
               child: Column(
@@ -1066,18 +1071,16 @@ class _MenuPageState extends State<MenuPage>
                           fontFamily: fontMulishRegular,
                         ),
                       ),
-
-                      SizedBox(width: 8,),
-
-                      if(item['qty'] > 0)Text(
-                        ' x${(item['qty'] as int)}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: _orange,
-                          fontFamily: fontMulishRegular,
+                      const SizedBox(width: 8),
+                      if (item['qty'] > 0)
+                        Text(
+                          ' x${(item['qty'] as int)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: _kOrange,
+                            fontFamily: fontMulishRegular,
+                          ),
                         ),
-                      ),
-
                     ],
                   ),
                 ],
@@ -1085,7 +1088,6 @@ class _MenuPageState extends State<MenuPage>
             ),
           ),
           const SizedBox(width: 12),
-          // ── ADD button or stepper ────────────────────────────────────
           qty == 0
               ? _addButton(onTap: () => incrementQty(category, index))
               : _stepper(
@@ -1098,7 +1100,6 @@ class _MenuPageState extends State<MenuPage>
     );
   }
 
-  // Orange outlined ADD pill (original brand design)
   Widget _addButton({required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
@@ -1106,7 +1107,7 @@ class _MenuPageState extends State<MenuPage>
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border.all(color: const Color(0xFFf57c35), width: 1.5),
+          border: Border.all(color: _kOrange, width: 1.5),
           borderRadius: BorderRadius.circular(20),
         ),
         child: const Text(
@@ -1114,7 +1115,7 @@ class _MenuPageState extends State<MenuPage>
           style: TextStyle(
             fontSize: 13,
             fontFamily: fontMulishBold,
-            color: Color(0xFFf57c35),
+            color: _kOrange,
             letterSpacing: 0.5,
           ),
         ),
@@ -1122,7 +1123,6 @@ class _MenuPageState extends State<MenuPage>
     );
   }
 
-  // Navy − qty − orange + pill stepper (original brand design)
   Widget _stepper({
     required int qty,
     required VoidCallback onDecrement,
@@ -1130,7 +1130,7 @@ class _MenuPageState extends State<MenuPage>
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1A3A5C),
+        color: _kNavy,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -1142,10 +1142,6 @@ class _MenuPageState extends State<MenuPage>
               width: 45,
               height: 32,
               alignment: Alignment.center,
-              // decoration: const BoxDecoration(
-              //   color: Color(0xFFf57c35),
-              //   borderRadius: BorderRadius.horizontal(left: Radius.circular(20)),
-              // ),
               child: const Icon(Icons.remove, color: Colors.white, size: 16),
             ),
           ),
@@ -1167,7 +1163,7 @@ class _MenuPageState extends State<MenuPage>
               height: 32,
               alignment: Alignment.center,
               decoration: const BoxDecoration(
-                color: Color(0xFFf57c35),
+                color: _kOrange,
                 borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
               ),
               child: const Icon(Icons.add, color: Colors.white, size: 16),
@@ -1297,6 +1293,61 @@ class _MenuPageState extends State<MenuPage>
     setState(() {});
   }
 
+  List<Map<String, dynamic>> _mergeItemLists(
+    List<Map<String, dynamic>> lists,
+  ) {
+    final Map<String, Map<String, dynamic>> itemMap = {};
+
+    for (final item in lists) {
+      final key = '${item['name']}_${item['categoryId']}';
+      if (itemMap.containsKey(key)) {
+        itemMap[key]!['qty'] =
+            (itemMap[key]!['qty'] as int) + (item['qty'] as int);
+      } else {
+        itemMap[key] = Map<String, dynamic>.from(item);
+      }
+    }
+
+    return itemMap.values.toList();
+  }
+
+  List<Map<String, dynamic>> _mergeAllForBilling() {
+    return _mergeItemLists([..._pastItems, ..._getSelectedItems()]);
+  }
+
+  bool get _hasOrderItems => _pastItems.isNotEmpty;
+
+  Future<void> _openFinalBilling() async {
+    final merged = _mergeAllForBilling();
+    if (merged.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add items before billing')),
+      );
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FinalBillingView(
+          menuData: merged,
+          totalMenuList: widget.menuList,
+          tableName: tableNameController.text.trim(),
+          onConfirm: (confirmedItems) async {
+            widget.onConfirm(
+              confirmedItems,
+              true,
+              tableNameController.text.trim(),
+              _overallRemarks,
+            );
+          },
+        ),
+      ),
+    );
+
+    if (mounted) Navigator.pop(context);
+  }
+
   void _openCartPage() {
     final selectedItems = _getSelectedItems();
 
@@ -1312,6 +1363,7 @@ class _MenuPageState extends State<MenuPage>
           tableName: tableNameController.text,
           tableNameEditable: widget.tableNameEditable,
           menuData: selectedItems,
+          pastItems: _pastItems,
           fullMenu: widget.menuList,
           overallRemarks: _overallRemarks,
           onConfirm: widget.onConfirm,
@@ -1361,13 +1413,16 @@ class _MenuPageState extends State<MenuPage>
 
   Widget _buildWebSideCart() {
     final selectedItems = _getSelectedItems();
-    if (selectedItems.isEmpty) return _buildWebCartPlaceholder();
+    if (selectedItems.isEmpty && _pastItems.isEmpty) {
+      return _buildWebCartPlaceholder();
+    }
 
     return CartPage(
       embedded: true,
       tableName: tableNameController.text,
       tableNameEditable: widget.tableNameEditable,
       menuData: selectedItems,
+      pastItems: _pastItems,
       fullMenu: widget.menuList,
       overallRemarks: _overallRemarks,
       onConfirm: widget.onConfirm,
@@ -1408,7 +1463,7 @@ class _MenuPageState extends State<MenuPage>
                       }).toList(),
                     ),
         ),
-        if (!_useWebSideCart && totalItems > 0)
+        if (!_useWebSideCart && _hasOrderItems)
           InkWell(
             onTap: _openCartPage,
             child: Container(
@@ -1496,6 +1551,12 @@ class _MenuPageState extends State<MenuPage>
                 ),
 
           actions: [
+            if (!isNameEdit && _hasOrderItems && !widget.isFromFinalBilling)
+              IconButton(
+                icon: const Icon(Icons.receipt_long_outlined, color: Colors.white),
+                onPressed: _openFinalBilling,
+                tooltip: 'Billing',
+              ),
             if (!isNameEdit)
               IconButton(
                 icon: const Icon(Icons.mic, color: Colors.redAccent),
@@ -1587,6 +1648,23 @@ class _MenuPageState extends State<MenuPage>
                 ],
               )
             : _buildMenuBodyContent(),
+        floatingActionButton: !kIsWeb &&
+                !widget.isFromFinalBilling &&
+                _hasOrderItems
+            ? FloatingActionButton.extended(
+                backgroundColor: _kNavy,
+                foregroundColor: Colors.white,
+                icon: const Icon(Icons.receipt_long_outlined, size: 22),
+                label: const Text(
+                  'Billing',
+                  style: TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 14,
+                  ),
+                ),
+                onPressed: _openFinalBilling,
+              )
+            : null,
       ),
     );
   }
@@ -1868,7 +1946,7 @@ class _MenuPageState extends State<MenuPage>
                   )
                 : GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () {}, // Absorb stray taps so parent InkWell doesn't trigger
+                    onTap: () {},
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

@@ -877,6 +877,12 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                       onlineAmount: online,
                     );
 
+                    widget.onConfirm(
+                      cartItems
+                          .map((e) => Map<String, dynamic>.from(e))
+                          .toList(),
+                    );
+
                     // ✅ Generate PDF
                     // final pdfBytes = await generateInvoicePdf(
                     //   tableName: widget.tableName,

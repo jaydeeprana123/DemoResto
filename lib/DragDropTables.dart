@@ -937,6 +937,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           return;
         }
         // Double-tap always opens MenuPage to add items
+        final pastItems = hasItems
+            ? _mergeItemsByNameAndCategory(
+                groups.expand((g) => g).toList(),
+              )
+            : <Map<String, dynamic>>[];
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -945,12 +950,23 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               tableName: tableName,
               tableNameEditable: false,
               initialItems: [],
+              pastItems: pastItems,
               showBilling: !hasItems,
               isFromFinalBilling: false,
               onConfirm: (items, isBillPaid, tName, overallRemarks) async {
-                setState(() => groups.add(_stampGroupAddedAt(items)));
+                setState(() {
+                  if (isBillPaid) {
+                    groups.clear();
+                  } else {
+                    groups.add(_stampGroupAddedAt(items));
+                  }
+                });
                 await _updateTableItemsInFirestore(
-                    tName, groups, isBillPaid, overallRemarks);
+                  tName,
+                  isBillPaid ? [] : groups,
+                  isBillPaid,
+                  overallRemarks,
+                );
               },
             ),
           ),
@@ -1027,6 +1043,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                   if (hasItems && !isPaid)
                     _cardIconBtn(Icons.edit_outlined, () async {
                       final lastGroup = groups.last;
+                      final pastForEdit = groups.length > 1
+                          ? _mergeItemsByNameAndCategory(
+                              groups
+                                  .sublist(0, groups.length - 1)
+                                  .expand((g) => g)
+                                  .toList(),
+                            )
+                          : <Map<String, dynamic>>[];
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -1035,9 +1059,17 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                             tableName: tableName,
                             tableNameEditable: false,
                             initialItems: List<Map<String, dynamic>>.from(lastGroup),
+                            pastItems: pastForEdit,
                             showBilling: groups.length == 1,
                             isFromFinalBilling: false,
                             onConfirm: (items, isBillPaid, tName, overallRemarks) async {
+                              if (isBillPaid) {
+                                setState(() => groups.clear());
+                                await _updateTableItemsInFirestore(
+                                  tName, [], true, overallRemarks,
+                                );
+                                return;
+                              }
                               final existingAddedAt = groups.isNotEmpty
                                   ? groups.last.first['addedAt']
                                   : null;
@@ -1047,7 +1079,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                                     preserveAddedAt: existingAddedAt,
                                   ));
                               await _updateTableItemsInFirestore(
-                                  tName, groups, isBillPaid, overallRemarks);
+                                  tName, groups, false, overallRemarks);
                             },
                           ),
                         ),

@@ -22,7 +22,8 @@ import 'models/agent_response.dart';
 class CartPage extends StatefulWidget {
   final String tableName;
   final bool tableNameEditable;
-  final List<Map<String, dynamic>> menuData; // selected items
+  final List<Map<String, dynamic>> menuData; // new items only
+  final List<Map<String, dynamic>> pastItems; // previous rounds — read-only
   final List<Map<String, dynamic>> fullMenu; // all items for AI detection
   final bool showBilling;
 
@@ -44,6 +45,7 @@ class CartPage extends StatefulWidget {
 
   const CartPage({
     required this.menuData,
+    this.pastItems = const [],
     required this.fullMenu,
     required this.onConfirm,
     required this.tableName,
@@ -60,6 +62,7 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
+  late List<Map<String, dynamic>> pastItems;
   late List<Map<String, dynamic>> cartItems;
   late TextEditingController tableNameController;
   late TextEditingController overallRemarksController;
@@ -77,6 +80,7 @@ class _CartPageState extends State<CartPage> {
   double discountAmount = 0.0;
 
   bool isBilling = false;
+  bool _pastItemsExpanded = false;
 
   String paymentMode = 'Cash'; // Cash, Online, Both
 
@@ -85,6 +89,9 @@ class _CartPageState extends State<CartPage> {
     super.initState();
     tableNameController = TextEditingController(text: widget.tableName);
     overallRemarksController = TextEditingController(text: widget.overallRemarks ?? '');
+    pastItems = widget.pastItems
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
     cartItems = widget.menuData
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
@@ -162,10 +169,31 @@ class _CartPageState extends State<CartPage> {
     }
   }
 
-  double get subtotal => cartItems.fold(
-    0,
-    (sum, item) => sum + (item['qty'] as int) * (item['price']),
-  );
+  double _lineTotal(Map<String, dynamic> item) {
+    final qty = (item['qty'] as num?)?.toInt() ?? 0;
+    final price = (item['price'] as num?)?.toDouble() ?? 0;
+    return qty * price;
+  }
+
+  List<Map<String, dynamic>> get _allBillableItems {
+    final Map<String, Map<String, dynamic>> itemMap = {};
+    for (final item in [...pastItems, ...cartItems]) {
+      final key = '${item['name']}_${item['categoryId']}';
+      if (itemMap.containsKey(key)) {
+        itemMap[key]!['qty'] =
+            ((itemMap[key]!['qty'] as num?)?.toInt() ?? 0) +
+            ((item['qty'] as num?)?.toInt() ?? 0);
+      } else {
+        itemMap[key] = Map<String, dynamic>.from(item);
+      }
+    }
+    return itemMap.values.toList();
+  }
+
+  double get subtotal => [...pastItems, ...cartItems].fold(
+        0.0,
+        (sum, item) => sum + _lineTotal(item),
+      );
 
   Future<void> _extractItemsFromRemarks() async {
     final text = overallRemarksController.text.trim();
@@ -456,6 +484,336 @@ class _CartPageState extends State<CartPage> {
   }
 
   static const _orange = Color(0xFFf57c35);
+  static const _navy = Color(0xFF1A3A5C);
+
+  Widget _sectionLabel(String title, {bool isPast = false}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              fontFamily: fontMulishBold,
+              color: isPast ? Colors.grey.shade700 : _navy,
+            ),
+          ),
+          if (isPast) ...[
+            const SizedBox(width: 8),
+            Text(
+              '(non editable)',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPastItemRow(Map<String, dynamic> item) {
+    final qty = (item['qty'] as num?)?.toInt() ?? 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              item['name'] ?? '',
+              style: TextStyle(
+                fontSize: 13,
+                fontFamily: fontMulishRegular,
+                color: Colors.grey.shade800,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            '×$qty',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade600,
+              fontFamily: fontMulishSemiBold,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '₹${_lineTotal(item).toStringAsFixed(0)}',
+            style: TextStyle(
+              fontSize: 13,
+              fontFamily: fontMulishSemiBold,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  double get _pastItemsSubtotal =>
+      pastItems.fold(0.0, (sum, item) => sum + _lineTotal(item));
+
+  int get _pastItemsQty =>
+      pastItems.fold(0, (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 0));
+
+  Widget _buildPastItemsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => setState(() => _pastItemsExpanded = !_pastItemsExpanded),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(10, 6, 10, 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Past Items',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontFamily: fontMulishBold,
+                            color: _navy,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${pastItems.length} item${pastItems.length == 1 ? '' : 's'} · $_pastItemsQty qty · ₹${_pastItemsSubtotal.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                            fontFamily: fontMulishRegular,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    'non editable',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  ),
+                  const SizedBox(width: 4),
+                  AnimatedRotation(
+                    turns: _pastItemsExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      Icons.keyboard_arrow_down,
+                      color: Colors.grey.shade700,
+                      size: 24,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstCurve: Curves.easeOut,
+          secondCurve: Curves.easeIn,
+          sizeCurve: Curves.easeInOut,
+          crossFadeState: _pastItemsExpanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 200),
+          firstChild: const SizedBox.shrink(),
+          secondChild: Container(
+            margin: const EdgeInsets.fromLTRB(10, 0, 10, 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              children: [
+                ...pastItems.map(_buildPastItemRow),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Past subtotal',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                          fontFamily: fontMulishSemiBold,
+                        ),
+                      ),
+                      Text(
+                        '₹${_pastItemsSubtotal.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontFamily: fontMulishBold,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Divider(height: 1),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNewItemRow(int index) {
+    final item = cartItems[index];
+    final qty = (item['qty'] as num?)?.toInt() ?? 0;
+    final price = (item['price'] as num?)?.toDouble() ?? 0;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () => incrementQty(index),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item['name'] ?? '',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontFamily: fontMulishBold,
+                        color: _navy,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          '₹${price.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                            fontFamily: fontMulishRegular,
+                          ),
+                        ),
+                        if (qty > 0) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            '×$qty',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: _orange,
+                              fontFamily: fontMulishSemiBold,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: _navy,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: () => decrementQty(index),
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.remove, color: Colors.white, size: 18),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Text(
+                    '$qty',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontFamily: fontMulishBold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => incrementQty(index),
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: _orange,
+                      borderRadius: BorderRadius.horizontal(
+                        right: Radius.circular(20),
+                      ),
+                    ),
+                    child: const Icon(Icons.add, color: Colors.white, size: 18),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCartList() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(0, 4, 0, 100),
+      children: [
+        if (pastItems.isNotEmpty) _buildPastItemsSection(),
+        if (cartItems.isNotEmpty) ...[
+          _sectionLabel('New Items'),
+          ...List.generate(cartItems.length, _buildNewItemRow),
+        ] else if (pastItems.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Text(
+              'Add more items from the menu',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade500,
+                fontFamily: fontMulishRegular,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -502,202 +860,11 @@ class _CartPageState extends State<CartPage> {
         body: Column(
           children: [
             Expanded(
-              child: cartItems.isEmpty
-                  ? Center(child: Text("No items in cart"))
+              child: (pastItems.isEmpty && cartItems.isEmpty)
+                  ? const Center(child: Text('No items in cart'))
                   : Stack(
                       children: [
-                        ListView.builder(
-                          padding: EdgeInsets.only(bottom: 100),
-                          itemCount: cartItems.length,
-                          itemBuilder: (context, index) {
-                            final item = cartItems[index];
-                            final qty = item['qty'] as int;
-                            return Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.05),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: InkWell(
-                                          onTap: (){
-                                            incrementQty(index);
-                                          }
-                                          ,child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                item['name'],
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  fontFamily: fontMulishBold,
-                                                  color: Color(0xFF1A3A5C),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Row(
-                                                children: [
-                                                  Text(
-                                                    '₹${(item['price'] as num).toStringAsFixed(0)}',
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: Colors.grey.shade500,
-                                                      fontFamily: fontMulishRegular,
-                                                    ),
-                                                  ),
-
-                                                  SizedBox(width: 8,),
-
-                                                  if(item['qty'] > 0)Text(
-                                                    ' x${(item['qty'] as int)}',
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: _orange,
-                                                      fontFamily: fontMulishRegular,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      // ── Stepper ─────────────────────────
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF1A3A5C),
-                                          borderRadius: BorderRadius.circular(20),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            GestureDetector(
-                                              onTap: () => decrementQty(index),
-                                              child: Container(
-                                                width: 32, height: 32,
-                                                alignment: Alignment.center,
-                                                child: const Icon(Icons.remove, color: Colors.white, size: 16),
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                                              child: Text(
-                                                '$qty',
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  fontFamily: fontMulishBold,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                            ),
-                                            GestureDetector(
-                                              onTap: () => incrementQty(index),
-                                              child: Container(
-                                                width: 32, height: 32,
-                                                alignment: Alignment.center,
-                                                decoration: const BoxDecoration(
-                                                  color: Color(0xFFf57c35),
-                                                  borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
-                                                ),
-                                                child: const Icon(Icons.add, color: Colors.white, size: 16),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  // ── Remarks (collapsible) ─────────────────
-                                  // const SizedBox(height: 8),
-                                  // if (_remarkExpanded[index]) ...[
-                                  //   TextField(
-                                  //     controller: _remarkControllers[index],
-                                  //     autofocus: false,
-                                  //     decoration: InputDecoration(
-                                  //       hintText: 'e.g. less spicy, no onion, kam tel…',
-                                  //       hintStyle: TextStyle(
-                                  //         fontSize: 12,
-                                  //         color: Colors.grey.shade400,
-                                  //         fontStyle: FontStyle.italic,
-                                  //       ),
-                                  //       isDense: true,
-                                  //       prefixIcon: Icon(Icons.notes_outlined,
-                                  //           size: 16, color: Colors.orange.shade600),
-                                  //       suffixIcon: GestureDetector(
-                                  //         onTap: () => setState(() {
-                                  //           if (_remarkControllers[index].text.isEmpty) {
-                                  //             _remarkExpanded[index] = false;
-                                  //           }
-                                  //         }),
-                                  //         child: Icon(Icons.keyboard_arrow_up,
-                                  //             size: 18, color: Colors.grey.shade400),
-                                  //       ),
-                                  //       border: OutlineInputBorder(
-                                  //         borderRadius: BorderRadius.circular(8),
-                                  //         borderSide: BorderSide(color: Colors.grey.shade300),
-                                  //       ),
-                                  //       focusedBorder: OutlineInputBorder(
-                                  //         borderRadius: BorderRadius.circular(8),
-                                  //         borderSide: BorderSide(
-                                  //             color: Colors.orange.shade400, width: 1.5),
-                                  //       ),
-                                  //       contentPadding: const EdgeInsets.symmetric(
-                                  //           horizontal: 10, vertical: 8),
-                                  //       filled: true,
-                                  //       fillColor: Colors.orange.shade50,
-                                  //     ),
-                                  //     style: TextStyle(
-                                  //       fontSize: 12,
-                                  //       color: Colors.orange.shade800,
-                                  //       fontFamily: fontMulishRegular,
-                                  //     ),
-                                  //     maxLines: 1,
-                                  //     onChanged: (val) {
-                                  //       cartItems[index]['remarks'] = val;
-                                  //     },
-                                  //   ),
-                                  // ] else ...[
-                                  //   GestureDetector(
-                                  //     onTap: () => setState(
-                                  //         () => _remarkExpanded[index] = true),
-                                  //     child: Row(
-                                  //       mainAxisSize: MainAxisSize.min,
-                                  //       children: [
-                                  //         Icon(Icons.add_comment_outlined,
-                                  //             size: 14, color: Colors.orange.shade400),
-                                  //         const SizedBox(width: 5),
-                                  //         Text(
-                                  //           'Add Remark',
-                                  //           style: TextStyle(
-                                  //             fontSize: 12,
-                                  //             color: Colors.orange.shade500,
-                                  //             fontFamily: fontMulishSemiBold,
-                                  //           ),
-                                  //         ),
-                                  //       ],
-                                  //     ),
-                                  //   ),
-                                  // ],
-                                ],
-                              ),
-                            );
-
-
-                          },
-                        ),
+                        _buildCartList(),
 
                        if(widget.showBilling) Align(
                           alignment: Alignment.bottomRight,
@@ -784,8 +951,8 @@ class _CartPageState extends State<CartPage> {
             //     ),
             //   ),
 
-            isBilling
-                ? Column(
+          isBilling
+                ?   (pastItems.isNotEmpty || cartItems.isNotEmpty)?Column(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -1250,7 +1417,7 @@ class _CartPageState extends State<CartPage> {
                                 int.tryParse(onlineController.text) ?? 0;
 
                             await addTransactionToFirestore(
-                              items: cartItems,
+                              items: _allBillableItems,
                               tableName: tableNameController.text,
                               subtotal: subtotal.round(),
                               tax: (subtotal * 0.085).round(),
@@ -1266,12 +1433,6 @@ class _CartPageState extends State<CartPage> {
                               tableNameController.text,
                               overallRemarksController.text.trim(),
                             );
-
-                            // if(widget.tableName.contains("Take Away")){
-                            //   widget.onConfirm(cartItems, true);
-                            // }else{
-                            //   widget.onConfirm([], true);
-                            // }
 
                             _closeAfterOrder(routePops: 2);
                           },
@@ -1355,8 +1516,8 @@ class _CartPageState extends State<CartPage> {
                         ),
                       ),
                     ],
-                  )
-                : Align(
+                  ):SizedBox()
+                : (cartItems.isNotEmpty)?Align(
                     alignment: Alignment.bottomCenter,
                     child: InkWell(
                       onTap: () {
@@ -1443,7 +1604,7 @@ class _CartPageState extends State<CartPage> {
                         ),
                       ),
                     ),
-                  ),
+                  ):SizedBox(),
           ],
         ),
       );
@@ -2058,7 +2219,7 @@ class _CartPageState extends State<CartPage> {
                               int.tryParse(onlineController.text) ?? 0;
 
                           await addTransactionToFirestore(
-                            items: cartItems,
+                            items: _allBillableItems,
                             tableName: widget.tableName,
                             subtotal: subtotal.round(),
                             tax: (subtotal * 0.085).round(),
