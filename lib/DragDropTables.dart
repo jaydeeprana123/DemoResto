@@ -53,7 +53,12 @@ class DragListBetweenTables extends StatefulWidget {
   State<DragListBetweenTables> createState() => _DragListBetweenTablesState();
 }
 
-class _DragListBetweenTablesState extends State<DragListBetweenTables> {
+
+class _DragListBetweenTablesState extends State<DragListBetweenTables>
+    with AutomaticKeepAliveClientMixin {
+
+  @override
+  bool get wantKeepAlive => true;
   Map<String, List<List<Map<String, dynamic>>>> tables = {};
   final List<Map<String, dynamic>> menu = [];
   bool isLoading = false;
@@ -426,6 +431,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     final screenW = MediaQuery.of(context).size.width;
     final crossCols = screenW > 1200 ? 5
         : screenW > 900  ? 4
@@ -614,6 +620,20 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
     );
   }
 
+  String _getNextTakeAwayName() {
+    int maxNum = 0;
+    for (var key in tables.keys) {
+      if (key.startsWith("Take Away ")) {
+        final suffix = key.substring("Take Away ".length).trim();
+        final num = int.tryParse(suffix);
+        if (num != null && num > maxNum) {
+          maxNum = num;
+        }
+      }
+    }
+    return "Take Away ${maxNum + 1}";
+  }
+
   Widget _buildFab() {
     return FloatingActionButton.extended(
       backgroundColor: _navy,
@@ -623,12 +643,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables> {
       label: const Text('Take Away',
           style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 14)),
       onPressed: () async {
+        final nextName = _getNextTakeAwayName();
         await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => MenuPage(
               menuList: menu,
-              tableName: "Take Away ${tableNo + 1}",
+              tableName: nextName,
               tableNameEditable: true,
               initialItems: [],
               showBilling: true,

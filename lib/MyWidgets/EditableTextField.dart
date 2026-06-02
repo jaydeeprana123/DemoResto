@@ -67,7 +67,7 @@ class _EditableTextFieldState extends State<EditableTextField> {
               )
             : Text(
                 widget.controller.text,
-                style: TextStyle(fontSize: 16, fontFamily: 'Mulish-Bold'),
+                style: TextStyle(fontSize: 16, fontFamily: 'Mulish-Bold', color: Colors.white),
               ),
         const SizedBox(width: 8),
         IconButton(

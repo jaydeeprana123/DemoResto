@@ -74,7 +74,10 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
     return SafeArea(
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F6FA),
-        body: tabs[_currentIndex],
+        body: IndexedStack(
+          index: _currentIndex,
+          children: tabs,
+        ),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
             color: _navy,

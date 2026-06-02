@@ -878,21 +878,21 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                     );
 
                     // ✅ Generate PDF
-                    final pdfBytes = await generateInvoicePdf(
-                      tableName: widget.tableName,
-                      items: cartItems,
-                      subtotal: subtotal,
-                      tax: subtotal * 0.085,
-                      discount: discountAmount,
-                      total: total,
-                      cashAmount: cash,
-                      onlineAmount: online,
-                    );
-
-                    // ✅ Show PDF preview and allow print
-                    await Printing.layoutPdf(
-                      onLayout: (format) async => pdfBytes,
-                    );
+                    // final pdfBytes = await generateInvoicePdf(
+                    //   tableName: widget.tableName,
+                    //   items: cartItems,
+                    //   subtotal: subtotal,
+                    //   tax: subtotal * 0.085,
+                    //   discount: discountAmount,
+                    //   total: total,
+                    //   cashAmount: cash,
+                    //   onlineAmount: online,
+                    // );
+                    //
+                    // // ✅ Show PDF preview and allow print
+                    // await Printing.layoutPdf(
+                    //   onLayout: (format) async => pdfBytes,
+                    // );
 
                     // ✅ CLEAR TABLE IN FIRESTORE
                     final query = await FirebaseFirestore.instance
@@ -901,7 +901,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                         .get();
                     
                     for (var doc in query.docs) {
-                      if (widget.tableName.contains("Take Away")) {
+                      if (!widget.tableName.contains("Table")) {
                         await doc.reference.delete();
                       } else {
                         await doc.reference.update({
@@ -913,15 +913,16 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                     }
 
                     // ✅ Return to dashboard
-                    if (context.mounted) {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const BottomNavigationView(),
-                        ),
-                        (route) => false,
-                      );
-                    }
+                    Navigator.pop(context);
+                    // if (context.mounted) {
+                    //   Navigator.pushAndRemoveUntil(
+                    //     context,
+                    //     MaterialPageRoute(
+                    //       builder: (_) => const BottomNavigationView(),
+                    //     ),
+                    //     (route) => false,
+                    //   );
+                    // }
                   },
                   child: Container(
                     margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
