@@ -36,6 +36,12 @@ class CartPage extends StatefulWidget {
   )
   onConfirm;
 
+  /// Side panel on web inside [MenuPage] — no extra route on the stack.
+  final bool embedded;
+
+  /// Keeps menu quantities in sync when cart changes on web.
+  final void Function(List<Map<String, dynamic>> items)? onCartUpdated;
+
   const CartPage({
     required this.menuData,
     required this.fullMenu,
@@ -44,6 +50,8 @@ class CartPage extends StatefulWidget {
     required this.tableNameEditable,
     required this.showBilling,
     this.overallRemarks,
+    this.embedded = false,
+    this.onCartUpdated,
     Key? key,
   }) : super(key: key);
 
@@ -100,6 +108,58 @@ class _CartPageState extends State<CartPage> {
     cashController.dispose();
     onlineController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(CartPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.embedded) return;
+    if (_cartSignature(widget.menuData) != _cartSignature(oldWidget.menuData)) {
+      _reloadCartFromMenuData();
+    }
+  }
+
+  String _cartSignature(List<Map<String, dynamic>> items) {
+    return items
+        .map((e) => '${e['name']}:${e['qty']}')
+        .join('|');
+  }
+
+  void _reloadCartFromMenuData() {
+    setState(() {
+      for (final c in _remarkControllers) {
+        c.dispose();
+      }
+      cartItems = widget.menuData
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      _remarkControllers = cartItems
+          .map((item) => TextEditingController(
+              text: (item['remarks'] ?? '').toString()))
+          .toList();
+      _remarkExpanded = cartItems
+          .map((item) => (item['remarks'] ?? '').toString().isNotEmpty)
+          .toList();
+      _updateDiscountFromPercent();
+      _updatePaymentAmounts();
+    });
+  }
+
+  void _notifyCartUpdated() {
+    if (!widget.embedded || widget.onCartUpdated == null) return;
+    widget.onCartUpdated!(
+      cartItems.map((e) => Map<String, dynamic>.from(e)).toList(),
+    );
+  }
+
+  void _closeAfterOrder({int routePops = 2}) {
+    if (widget.embedded) {
+      Navigator.of(context).pop();
+      return;
+    }
+    for (var i = 0; i < routePops; i++) {
+      if (Navigator.canPop(context)) Navigator.pop(context);
+    }
   }
 
   double get subtotal => cartItems.fold(
@@ -245,6 +305,7 @@ class _CartPageState extends State<CartPage> {
                 
                 _updatePaymentAmounts();
               });
+              _notifyCartUpdated();
               Navigator.pop(context);
               Get.snackbar('Success', 'Cart synced perfectly with remarks.');
             },
@@ -344,6 +405,7 @@ class _CartPageState extends State<CartPage> {
       _updateDiscountFromPercent();
       _updatePaymentAmounts();
     });
+    _notifyCartUpdated();
   }
 
   void decrementQty(int index) {
@@ -359,6 +421,7 @@ class _CartPageState extends State<CartPage> {
       _updateDiscountFromPercent();
       _updatePaymentAmounts();
     });
+    _notifyCartUpdated();
   }
 
   void _updateDiscountFromPercent() {
@@ -398,18 +461,12 @@ class _CartPageState extends State<CartPage> {
   Widget build(BuildContext context) {
     final tax = (subtotal * 0.085).round();
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) {
-          Navigator.pop(context, cartItems);
-        }
-      },
-      child: Scaffold(
+    final scaffold = Scaffold(
         backgroundColor: const Color(0xFFF5F6FA),
         appBar: AppBar(
           backgroundColor: const Color(0xFF1A3A5C),
           elevation: 0,
+          automaticallyImplyLeading: !widget.embedded,
           iconTheme: const IconThemeData(color: Colors.white),
           title: Row(
             children: [
@@ -1216,8 +1273,7 @@ class _CartPageState extends State<CartPage> {
                             //   widget.onConfirm([], true);
                             // }
 
-                            Navigator.pop(context);
-                            Navigator.pop(context);
+                            _closeAfterOrder(routePops: 2);
                           },
                           child: Container(
                             padding: const EdgeInsets.all(16),
@@ -1310,8 +1366,7 @@ class _CartPageState extends State<CartPage> {
                           tableNameController.text,
                           overallRemarksController.text.trim(),
                         );
-                        Navigator.pop(context);
-                        Navigator.pop(context);
+                        _closeAfterOrder(routePops: 2);
                       },
                       child: Container(
                         padding: const EdgeInsets.all(16),
@@ -1391,7 +1446,18 @@ class _CartPageState extends State<CartPage> {
                   ),
           ],
         ),
-      )
+      );
+
+    if (widget.embedded) return scaffold;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop) {
+          Navigator.pop(context, cartItems);
+        }
+      },
+      child: scaffold,
     );
   }
 
@@ -2008,9 +2074,7 @@ class _CartPageState extends State<CartPage> {
                             tableNameController.text,
                             overallRemarksController.text.trim(),
                           );
-                          Navigator.pop(context);
-                          Navigator.pop(context);
-                          Navigator.pop(context);
+                          _closeAfterOrder(routePops: 3);
                         },
                         child: Container(
                           width: double.infinity,

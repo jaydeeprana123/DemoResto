@@ -1265,6 +1265,175 @@ class _MenuPageState extends State<MenuPage>
     return total;
   }
 
+  bool get _useWebSideCart => kIsWeb && !widget.isFromFinalBilling;
+
+  List<Map<String, dynamic>> _getSelectedItems() {
+    final selectedItems = <Map<String, dynamic>>[];
+    menuData.forEach((category, items) {
+      for (final item in items) {
+        if ((item['qty'] as int? ?? 0) > 0) {
+          selectedItems.add(Map<String, dynamic>.from(item));
+        }
+      }
+    });
+    return selectedItems;
+  }
+
+  void _syncFromCart(List<Map<String, dynamic>> changedItems) {
+    for (var category in menuData.keys) {
+      for (var item in menuData[category]!) {
+        final existingItem = changedItems.firstWhere(
+          (e) => e['name'] == item['name'],
+          orElse: () => {},
+        );
+        if (existingItem.isNotEmpty) {
+          item['qty'] = existingItem['qty'];
+          item['remarks'] = existingItem['remarks'] ?? '';
+        } else {
+          item['qty'] = 0;
+        }
+      }
+    }
+    setState(() {});
+  }
+
+  void _openCartPage() {
+    final selectedItems = _getSelectedItems();
+
+    if (widget.isFromFinalBilling) {
+      Navigator.pop(context, selectedItems);
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CartPage(
+          tableName: tableNameController.text,
+          tableNameEditable: widget.tableNameEditable,
+          menuData: selectedItems,
+          fullMenu: widget.menuList,
+          overallRemarks: _overallRemarks,
+          onConfirm: widget.onConfirm,
+          showBilling: widget.showBilling,
+        ),
+      ),
+    ).then((onValue) {
+      if (onValue != null) {
+        _syncFromCart(List<Map<String, dynamic>>.from(onValue as List));
+      }
+    });
+  }
+
+  Widget _buildWebCartPlaceholder() {
+    return ColoredBox(
+      color: const Color(0xFFF5F6FA),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.shopping_cart_outlined,
+                size: 56, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            const Text(
+              'Cart',
+              style: TextStyle(
+                fontFamily: fontMulishBold,
+                fontSize: 18,
+                color: _kNavy,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Select items from the menu\nto see them here',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade500,
+                fontFamily: fontMulishRegular,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWebSideCart() {
+    final selectedItems = _getSelectedItems();
+    if (selectedItems.isEmpty) return _buildWebCartPlaceholder();
+
+    return CartPage(
+      embedded: true,
+      tableName: tableNameController.text,
+      tableNameEditable: widget.tableNameEditable,
+      menuData: selectedItems,
+      fullMenu: widget.menuList,
+      overallRemarks: _overallRemarks,
+      onConfirm: widget.onConfirm,
+      showBilling: widget.showBilling,
+      onCartUpdated: _syncFromCart,
+    );
+  }
+
+  Widget _buildMenuBodyContent() {
+    final categories = menuData.keys.toList();
+
+    return Column(
+      children: [
+        Expanded(
+          child: _showSearch
+              ? _buildGlobalSearchList()
+              : showAllCategories
+                  ? TabBarView(
+                      children: categories.map((category) {
+                        final items = menuData[category]!;
+                        return ListView.builder(
+                          itemCount: items.length,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemBuilder: (context, index) =>
+                              _buildMenuItem(category, index),
+                        );
+                      }).toList(),
+                    )
+                  : TabBarView(
+                      children: selectedCategories.map((category) {
+                        final items = menuData[category];
+                        return ListView.builder(
+                          itemCount: items?.length ?? 0,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemBuilder: (context, index) =>
+                              _buildMenuItem(category, index),
+                        );
+                      }).toList(),
+                    ),
+        ),
+        if (!_useWebSideCart && totalItems > 0)
+          InkWell(
+            onTap: _openCartPage,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              color: primary_color,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "$totalItems items | ₹${totalPrice.toStringAsFixed(2)}",
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: Colors.white,
+                      fontFamily: fontMulishSemiBold,
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios, color: Colors.white),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   static const _navy   = Color(0xFF1A3A5C);
   static const _orange = Color(0xFFf57c35);
   static const _green  = Color(0xFF4CAF50);
@@ -1399,155 +1568,25 @@ class _MenuPageState extends State<MenuPage>
                 )
               : null,
         ),
-        body: Column(
-          children: [
-            Expanded(
-              child: _showSearch
-                  ? _buildGlobalSearchList()
-                  : showAllCategories
-                  ? TabBarView(
-                      children: categories.map((category) {
-                        final items = menuData[category]!;
-
-                        return ListView.builder(
-                          itemCount: items.length,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemBuilder: (context, index) =>
-                              _buildMenuItem(category, index),
-                        );
-                      }).toList(),
-                    )
-                  : TabBarView(
-                      children: selectedCategories.map((category) {
-                        final items = menuData[category];
-
-                        return ListView.builder(
-                          itemCount: items?.length ?? 0,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemBuilder: (context, index) =>
-                              _buildMenuItem(category, index),
-                        );
-                      }).toList(),
+        body: _useWebSideCart
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(flex: 3, child: _buildMenuBodyContent()),
+                  Expanded(
+                    flex: 2,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      child: _buildWebSideCart(),
                     ),
-            ),
-
-            if (totalItems > 0)
-              InkWell(
-                onTap: () {
-                  final selectedItems = <Map<String, dynamic>>[];
-
-                  menuData.forEach((category, items) {
-                    selectedItems.addAll(
-                      items.where((item) => item['qty'] > 0),
-                    );
-                  });
-
-                  // Send selected items to cart or callback
-                  if (widget.isFromFinalBilling) {
-                    Navigator.pop(context, selectedItems);
-                  } else {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => CartPage(
-                          tableName: tableNameController.text,
-                          tableNameEditable: widget.tableNameEditable,
-                          menuData: selectedItems,
-                          fullMenu: widget.menuList,
-                          overallRemarks: _overallRemarks,
-                          onConfirm: widget.onConfirm,
-                          showBilling: widget.showBilling,
-                        ),
-                      ),
-                    ).then((onValue) {
-                      if (onValue != null) {
-                        List<Map<String, dynamic>> changedItems = onValue;
-
-                        // Sync qty + remarks back from cart → menu
-                        for (var category in menuData.keys) {
-                          for (var item in menuData[category]!) {
-                            final existingItem = changedItems.firstWhere(
-                              (e) => e['name'] == item['name'],
-                              orElse: () => {},
-                            );
-                            if (existingItem.isNotEmpty) {
-                              item['qty'] = existingItem['qty'];
-                              item['remarks'] = existingItem['remarks'] ?? '';
-                            } else {
-                              // Item was removed entirely from cart
-                              item['qty'] = 0;
-                            }
-                          }
-                        }
-
-                        setState(() {});
-                      }
-                    });
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  color: primary_color,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "$totalItems items | ₹${totalPrice.toStringAsFixed(2)}",
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: Colors.white,
-                          fontFamily: fontMulishSemiBold,
-                        ),
-                      ),
-
-                      Icon(Icons.arrow_forward_ios, color: Colors.white),
-
-                      // ElevatedButton(
-                      //   onPressed: () {
-                      //     final selectedItems = <Map<String, dynamic>>[];
-                      //     menuData.forEach((category, items) {
-                      //       selectedItems.addAll(
-                      //         items.where((item) => item['qty'] > 0),
-                      //       );
-                      //     });
-                      //
-                      //     // Send selected items to cart or callback
-                      //
-                      //
-                      //     if(widget.tableName == "Take Away"){
-                      //       Navigator.push(
-                      //         context,
-                      //         MaterialPageRoute(
-                      //           builder: (_) => CartPageForTakeAway(
-                      //             tableName: widget.tableName,
-                      //             menuData: selectedItems,
-                      //             onConfirm: widget.onConfirm,
-                      //           ),
-                      //         ),
-                      //       );
-                      //     }else{
-                      //       Navigator.push(
-                      //         context,
-                      //         MaterialPageRoute(
-                      //           builder: (_) => CartPage(
-                      //             tableName: widget.tableName,
-                      //             menuData: selectedItems,
-                      //             onConfirm: widget.onConfirm,
-                      //           ),
-                      //         ),
-                      //       );
-                      //     }
-                      //
-                      //
-                      //   },
-                      //   child: const Text("View Cart"),
-                      // ),
-                    ],
                   ),
-                ),
-              ),
-          ],
-        ),
+                ],
+              )
+            : _buildMenuBodyContent(),
       ),
     );
   }
