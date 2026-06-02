@@ -49,6 +49,8 @@ import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
 
 class DragListBetweenTables extends StatefulWidget {
+  const DragListBetweenTables({super.key});
+
   @override
   State<DragListBetweenTables> createState() => _DragListBetweenTablesState();
 }

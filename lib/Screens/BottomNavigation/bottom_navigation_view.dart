@@ -1,17 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/AddCategoryPage.dart';
-import 'package:demo/AddTablePage.dart';
-import 'package:demo/Styles/my_colors.dart';
+import 'package:demo/Screens/Settings/SettingsPage.dart';
 import 'package:demo/Styles/my_font.dart';
-import 'package:demo/TransactionsPage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_svg/svg.dart';
 
 import '../../KitchenOrdersListView.dart';
 import '../../DragDropTables.dart';
-import '../../Styles/my_icons.dart';
 
 class BottomNavigationView extends StatefulWidget {
   const BottomNavigationView({Key? key}) : super(key: key);
@@ -25,18 +19,10 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
 
   String? userRole;
 
-  final tabsForAdmin = [
-    DragListBetweenTables(),
-    AddTablePage(),
-    AddCategoryPage(),
-    KitchenOrdersListView(),
-    TransactionsPage(),
-  ];
-
-  final tabsForStaff = [
-    DragListBetweenTables(),
-    AddTablePage(),
-    KitchenOrdersListView(),
+  static final _tabs = <Widget>[
+    const DragListBetweenTables(),
+    const KitchenOrdersListView(),
+    const SettingsPage(),
   ];
 
   Future<void> _loadUserRole() async {
@@ -50,33 +36,27 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
 
     if (userDoc.exists) {
       userRole = userDoc.data()?['role'];
-      print('User role: $userRole');
-      setState(() {}); // Update UI
+      setState(() {});
     }
   }
 
   @override
   void initState() {
     super.initState();
-
     _loadUserRole();
   }
 
-  // ── Brand colours ────────────────────────────────────────────────────────
-  static const _navy   = Color(0xFF1A3A5C);
+  static const _navy = Color(0xFF1A3A5C);
   static const _orange = Color(0xFFf57c35);
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = userRole == "Admin";
-    final tabs   = isAdmin ? tabsForAdmin : tabsForStaff;
-
     return SafeArea(
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F6FA),
         body: IndexedStack(
           index: _currentIndex,
-          children: tabs,
+          children: _tabs,
         ),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
@@ -106,39 +86,22 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
             showUnselectedLabels: true,
             elevation: 0,
             type: BottomNavigationBarType.fixed,
-            items: [
-              // Dashboard — always shown
-              const BottomNavigationBarItem(
+            items: const [
+              BottomNavigationBarItem(
                 icon: Icon(Icons.grid_view_rounded, size: 24),
                 activeIcon: Icon(Icons.grid_view_rounded, size: 26),
-                label: "Dashboard",
+                label: 'Dashboard',
               ),
-              // Table — always shown
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.table_restaurant_rounded, size: 24),
-                activeIcon: Icon(Icons.table_restaurant_rounded, size: 26),
-                label: "Table",
-              ),
-              // Menu — Admin only
-              if (isAdmin)
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.menu_book_rounded, size: 24),
-                  activeIcon: Icon(Icons.menu_book_rounded, size: 26),
-                  label: "Menu",
-                ),
-              // Kitchen — always shown
-              const BottomNavigationBarItem(
+              BottomNavigationBarItem(
                 icon: Icon(Icons.soup_kitchen_rounded, size: 24),
                 activeIcon: Icon(Icons.soup_kitchen_rounded, size: 26),
-                label: "Kitchen",
+                label: 'Kitchen',
               ),
-              // Transactions — Admin only
-              if (isAdmin)
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.receipt_long_rounded, size: 24),
-                  activeIcon: Icon(Icons.receipt_long_rounded, size: 26),
-                  label: "Transactions",
-                ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.settings_rounded, size: 24),
+                activeIcon: Icon(Icons.settings_rounded, size: 26),
+                label: 'Settings',
+              ),
             ],
             onTap: (index) => setState(() => _currentIndex = index),
           ),

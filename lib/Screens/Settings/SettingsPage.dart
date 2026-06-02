@@ -1,0 +1,199 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/AddCategoryPage.dart';
+import 'package:demo/AddTablePage.dart';
+import 'package:demo/Screens/Authentication/LoginScreenView.dart';
+import 'package:demo/Screens/Settings/ExpensesPage.dart';
+import 'package:demo/Styles/my_font.dart';
+import 'package:demo/TransactionsPage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  static const _navy = Color(0xFF1A3A5C);
+  static const _orange = Color(0xFFf57c35);
+
+  String? userRole;
+  bool _loadingRole = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserRole();
+  }
+
+  Future<void> _loadUserRole() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() {
+        _loadingRole = false;
+        userRole = null;
+      });
+      return;
+    }
+
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+
+    if (mounted) {
+      setState(() {
+        userRole = userDoc.data()?['role'];
+        _loadingRole = false;
+      });
+    }
+  }
+
+  Future<void> _signOut() async {
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    Get.offAll(() => const LoginPage());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isAdmin = userRole == 'Admin';
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
+      appBar: AppBar(
+        backgroundColor: _navy,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        title: const Text(
+          'Settings',
+          style: TextStyle(
+            fontSize: 16,
+            fontFamily: fontMulishBold,
+            color: Colors.white,
+          ),
+        ),
+      ),
+      body: _loadingRole
+          ? const Center(child: CircularProgressIndicator(color: _orange))
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                const Text(
+                  'Business',
+                  style: TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (isAdmin)
+                  _SettingsTile(
+                    icon: Icons.receipt_long_rounded,
+                    title: 'Transactions',
+                    subtitle: 'View sales and payment history',
+                    onTap: () => Get.to(() => const TransactionsPage()),
+                  ),
+                _SettingsTile(
+                  icon: Icons.payments_outlined,
+                  title: 'Expenses',
+                  subtitle: 'Track and add business expenses',
+                  onTap: () => Get.to(() => const ExpensesPage()),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Restaurant setup',
+                  style: TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _SettingsTile(
+                  icon: Icons.table_restaurant_rounded,
+                  title: 'Tables',
+                  subtitle: 'Add or manage dining tables',
+                  onTap: () => Get.to(() => AddTablePage()),
+                ),
+                if (isAdmin)
+                  _SettingsTile(
+                    icon: Icons.menu_book_rounded,
+                    title: 'Menu',
+                    subtitle: 'Categories and menu items',
+                    onTap: () => Get.to(() => AddCategoryPage()),
+                  ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Account',
+                  style: TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _SettingsTile(
+                  icon: Icons.logout_rounded,
+                  title: 'Sign out',
+                  subtitle: 'Log out of your account',
+                  iconColor: Colors.red.shade400,
+                  onTap: _signOut,
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _SettingsTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final Color? iconColor;
+
+  const _SettingsTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.iconColor,
+  });
+
+  static const _navy = Color(0xFF1A3A5C);
+  static const _orange = Color(0xFFf57c35);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        leading: CircleAvatar(
+          backgroundColor: (iconColor ?? _orange).withOpacity(0.12),
+          child: Icon(icon, color: iconColor ?? _orange),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontFamily: fontMulishSemiBold,
+            fontSize: 15,
+            color: _navy,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+      ),
+    );
+  }
+}
