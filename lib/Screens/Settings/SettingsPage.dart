@@ -3,6 +3,7 @@ import 'package:demo/AddCategoryPage.dart';
 import 'package:demo/AddTablePage.dart';
 import 'package:demo/Screens/Authentication/LoginScreenView.dart';
 import 'package:demo/Screens/Settings/ExpensesPage.dart';
+import 'package:demo/Screens/Settings/ExportPage.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/TransactionsPage.dart';
 import 'package:demo/services/kitchen_settings.dart';
@@ -111,6 +112,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: 'Expenses',
                   subtitle: 'Track and add business expenses',
                   onTap: () => Get.to(() => const ExpensesPage()),
+                ),
+                _SettingsTile(
+                  icon: Icons.file_download_outlined,
+                  title: 'Export',
+                  subtitle: 'Download transactions & expenses to Excel',
+                  onTap: () => Get.to(() => ExportPage(isAdmin: isAdmin)),
                 ),
                 const SizedBox(height: 20),
                 const Text(
