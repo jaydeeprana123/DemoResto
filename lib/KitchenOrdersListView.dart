@@ -734,8 +734,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       deleteTable(group.docId);
     }
 
-    return GestureDetector(
-      onDoubleTap: () {
+    return InkWell(
+      onTap: () {
         if (group.isPaid && selectedCategories.isEmpty) {
           showServedDialog(context, group.tableName, () async {
             _playDeleteSound();
