@@ -24,9 +24,76 @@ class KitchenOrdersListView extends StatefulWidget {
 
 class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   final AudioPlayer audioPlayer = AudioPlayer();
+  // Separate player for the update tone so its faster double-ring pattern
+  // doesn't clash with the single new-order ring.
+  final AudioPlayer updateAudioPlayer = AudioPlayer();
   Set<String> previousKeys = {};
+  // Snapshot of each group's content (name + qty + remarks) so we can detect
+  // quantity changes / newly added items even when the group key stays the same.
+  Map<String, String> _previousSignatures = {};
+  // Doc ids that already existed last build, used to tell a brand-new table
+  // apart from an update to an already-available table.
+  Set<String> _previousDocIds = {};
   int? blinkingGroupKey;
+  // Color used for the currently blinking card: green for a new order,
+  // yellow for an update (quantity changed / item added on existing table).
+  Color _blinkColor = Colors.lightGreenAccent.shade100;
   Timer? _timer;
+
+  static final Color _newOrderBlinkColor = Colors.lightGreenAccent.shade100;
+  static final Color _updateBlinkColor = Colors.yellow.shade300;
+
+  String _groupSignature(TableGroup group) {
+    final parts = group.items
+        .map(
+          (it) =>
+              '${it['name']}~${it['qty'] ?? 1}~${it['remarks']?.toString() ?? ''}',
+        )
+        .toList()
+      ..sort();
+    return parts.join('|');
+  }
+
+  void _scheduleBlink({
+    required String key,
+    required Map<String, TableGroup> keyToGroup,
+    required Set<String> currentKeys,
+    required Map<String, String> currentSignatures,
+    required Set<String> currentDocIds,
+    required bool isUpdate,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      final group = keyToGroup[key];
+      final shouldPlaySound = group != null
+          ? _shouldPlaySoundForGroup(group)
+          : true;
+
+      setState(() {
+        previousKeys = currentKeys;
+        _previousSignatures = currentSignatures;
+        _previousDocIds = currentDocIds;
+        blinkingGroupKey = key.hashCode;
+        _blinkColor = isUpdate ? _updateBlinkColor : _newOrderBlinkColor;
+      });
+
+      if (shouldPlaySound) {
+        if (isUpdate) {
+          _playUpdateSound();
+        } else {
+          _playNotificationSound();
+        }
+      }
+
+      Timer(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        if (blinkingGroupKey == key.hashCode) {
+          setState(() => blinkingGroupKey = null);
+        }
+      });
+    });
+  }
 
   // Multiple category selection
   Set<String> selectedCategories = {};
@@ -52,6 +119,18 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     try {
       // Re-using phone_bell.mp3 or a different one if available.
       await audioPlayer.play(AssetSource('sounds/phone_bell.mp3'));
+    } catch (e) {
+      // ignore audio errors
+    }
+  }
+
+  // Distinct tone for order updates (quantity changed / item added on an
+  // already-available table) so kitchen staff can tell it apart from a
+  // brand-new order's ring.
+  void _playUpdateSound() async {
+    try {
+      await updateAudioPlayer.stop();
+      await updateAudioPlayer.play(AssetSource('sounds/update_bell.mp3'));
     } catch (e) {
       // ignore audio errors
     }
@@ -436,9 +515,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            if (previousKeys.isNotEmpty) {
+            if (previousKeys.isNotEmpty || _previousSignatures.isNotEmpty) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) setState(() => previousKeys = {});
+                if (mounted) {
+                  setState(() {
+                    previousKeys = {};
+                    _previousSignatures = {};
+                    _previousDocIds = {};
+                  });
+                }
               });
             }
             return const Center(child: Text("No orders found"));
@@ -470,76 +555,82 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           // Filter by selected categories
           final filteredGroups = _filterByCategories(updatedGroups);
 
-          // Compute keys
+          // Compute keys, content signatures and doc ids for this snapshot.
           final currentKeys = updatedGroups.map((g) => g.key).toSet();
+          final currentSignatures = <String, String>{};
+          final currentDocIds = <String>{};
+          final keyToGroup = <String, TableGroup>{};
+          for (final g in updatedGroups) {
+            currentSignatures[g.key] = _groupSignature(g);
+            currentDocIds.add(g.docId);
+            keyToGroup[g.key] = g;
+          }
 
-          // Handle blinking for new orders
-          if (previousKeys.isEmpty && currentKeys.isNotEmpty) {
+          if (_previousSignatures.isEmpty && currentKeys.isNotEmpty) {
+            // First load: just record the baseline, don't blink everything.
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
-
-              final String firstKey = currentKeys.last;
-
-              // Check if the new order contains items from selected categories
-              final newGroup = updatedGroups.firstWhere(
-                (g) => g.key == firstKey,
-                orElse: () => updatedGroups.last,
-              );
-              final shouldPlaySound = _shouldPlaySoundForGroup(newGroup);
-
               setState(() {
                 previousKeys = currentKeys;
-                blinkingGroupKey = firstKey.hashCode;
-              });
-
-              if (shouldPlaySound) {
-                _playNotificationSound();
-              }
-
-              Timer(const Duration(seconds: 3), () {
-                if (!mounted) return;
-                if (blinkingGroupKey == firstKey.hashCode) {
-                  setState(() => blinkingGroupKey = null);
-                }
+                _previousSignatures = currentSignatures;
+                _previousDocIds = currentDocIds;
               });
             });
           } else {
             final addedKeys = currentKeys.difference(previousKeys);
-            final removedKeys = previousKeys.difference(currentKeys);
 
-            if (addedKeys.isNotEmpty) {
+            // Existing key whose content changed => quantity changed or an
+            // item was added/removed within the same batch.
+            final changedKeys = currentKeys
+                .where(
+                  (k) =>
+                      previousKeys.contains(k) &&
+                      _previousSignatures[k] != currentSignatures[k],
+                )
+                .toList();
+
+            // A brand-new table = a new key on a doc id we hadn't seen before.
+            final newTableKeys = addedKeys
+                .where((k) => !_previousDocIds.contains(keyToGroup[k]?.docId))
+                .toList();
+
+            // An update = a new batch on an already-available table, or a
+            // content change on an existing batch.
+            final updateKeys = <String>[
+              ...addedKeys.where(
+                (k) => _previousDocIds.contains(keyToGroup[k]?.docId),
+              ),
+              ...changedKeys,
+            ];
+
+            if (newTableKeys.isNotEmpty) {
+              _scheduleBlink(
+                key: newTableKeys.last,
+                keyToGroup: keyToGroup,
+                currentKeys: currentKeys,
+                currentSignatures: currentSignatures,
+                currentDocIds: currentDocIds,
+                isUpdate: false,
+              );
+            } else if (updateKeys.isNotEmpty) {
+              _scheduleBlink(
+                key: updateKeys.last,
+                keyToGroup: keyToGroup,
+                currentKeys: currentKeys,
+                currentSignatures: currentSignatures,
+                currentDocIds: currentDocIds,
+                isUpdate: true,
+              );
+            } else if (currentKeys.length != previousKeys.length ||
+                currentDocIds.length != _previousDocIds.length) {
+              // Items/tables removed: just sync the baseline, no blink.
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
-                final String newKey = addedKeys.last;
-
-                // Check if the new order contains items from selected categories
-                final newGroup = updatedGroups.firstWhere(
-                  (g) => g.key == newKey,
-                  orElse: () => updatedGroups.last,
-                );
-                final shouldPlaySound = _shouldPlaySoundForGroup(newGroup);
-
                 setState(() {
                   previousKeys = currentKeys;
-                  blinkingGroupKey = newKey.hashCode;
+                  _previousSignatures = currentSignatures;
+                  _previousDocIds = currentDocIds;
                 });
-
-                if (shouldPlaySound) {
-                  _playNotificationSound();
-                }
-
-                Timer(const Duration(seconds: 3), () {
-                  if (!mounted) return;
-                  if (mounted && blinkingGroupKey == newKey.hashCode) {
-                    setState(() {
-                      blinkingGroupKey = null;
-                    });
-                  }
-                });
-              });
-            } else if (removedKeys.isNotEmpty) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) setState(() => previousKeys = currentKeys);
               });
             }
           }
@@ -648,7 +739,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
         }
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 400),
+        duration: const Duration(milliseconds: 800),
         curve: Curves.easeInOut,
         decoration: _orderCardDecoration(isBlinking, isOld),
         child: Column(
@@ -767,7 +858,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
   BoxDecoration _orderCardDecoration(bool isBlinking, bool isOld) {
     return BoxDecoration(
-      color: isBlinking ? Colors.lightGreenAccent.shade100 : Colors.white,
+      color: isBlinking ? _blinkColor : Colors.white,
       borderRadius: BorderRadius.circular(12),
       boxShadow: [
         BoxShadow(
@@ -967,6 +1058,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       _onKitchenSettingsChanged,
     );
     _timer?.cancel();
+    audioPlayer.dispose();
+    updateAudioPlayer.dispose();
     super.dispose();
   }
 

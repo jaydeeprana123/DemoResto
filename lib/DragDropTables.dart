@@ -1189,7 +1189,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        '#$takeAwayNum',
+                        '# $takeAwayNum',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 13,
