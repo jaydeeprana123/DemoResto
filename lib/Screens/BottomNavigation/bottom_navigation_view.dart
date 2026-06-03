@@ -19,11 +19,13 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
 
   String? userRole;
 
-  static final _tabs = <Widget>[
-    const DragListBetweenTables(),
-    const KitchenOrdersListView(),
-    const SettingsPage(),
-  ];
+  static const int _kitchenTabIndex = 1;
+
+  List<Widget> _buildTabs() => [
+        const DragListBetweenTables(),
+        KitchenOrdersListView(isTabActive: _currentIndex == _kitchenTabIndex),
+        const SettingsPage(),
+      ];
 
   Future<void> _loadUserRole() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -56,7 +58,7 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
         backgroundColor: const Color(0xFFF5F6FA),
         body: IndexedStack(
           index: _currentIndex,
-          children: _tabs,
+          children: _buildTabs(),
         ),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
