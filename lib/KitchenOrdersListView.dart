@@ -44,13 +44,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   static final Color _updateBlinkColor = Colors.yellow.shade300;
 
   String _groupSignature(TableGroup group) {
-    final parts = group.items
-        .map(
-          (it) =>
-              '${it['name']}~${it['qty'] ?? 1}~${it['remarks']?.toString() ?? ''}',
-        )
-        .toList()
-      ..sort();
+    final parts =
+        group.items
+            .map(
+              (it) =>
+                  '${it['name']}~${it['qty'] ?? 1}~${it['remarks']?.toString() ?? ''}',
+            )
+            .toList()
+          ..sort();
     return parts.join('|');
   }
 
@@ -687,32 +688,44 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
           if (_showTableAllOrders == true) {
             final tableCards = _mergeGroupsByTable(filteredGroups);
+            final firstUnpaidIndex = tableCards.indexWhere((c) => !c.isPaid);
             return MasonryGridView.count(
               crossAxisCount: crossCols,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
               padding: const EdgeInsets.all(12),
               itemCount: tableCards.length,
-              itemBuilder: (context, index) =>
-                  _buildTableBatchCard(tableCards[index]),
+              itemBuilder: (context, index) => _buildTableBatchCard(
+                tableCards[index],
+                index + 1,
+                isNext: index == firstUnpaidIndex && firstUnpaidIndex != -1,
+              ),
             );
           }
 
+          final firstUnpaidIndex = filteredGroups.indexWhere((g) => !g.isPaid);
           return MasonryGridView.count(
             crossAxisCount: crossCols,
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
             padding: const EdgeInsets.all(12),
             itemCount: filteredGroups.length,
-            itemBuilder: (context, index) =>
-                _buildGroupCard(filteredGroups[index]),
+            itemBuilder: (context, index) => _buildGroupCard(
+              filteredGroups[index],
+              index + 1,
+              isNext: index == firstUnpaidIndex && firstUnpaidIndex != -1,
+            ),
           );
         },
       ),
     );
   }
 
-  Widget _buildGroupCard(TableGroup group) {
+  Widget _buildGroupCard(
+    TableGroup group,
+    int queueNumber, {
+    bool isNext = false,
+  }) {
     final time = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
     final isBlinking = blinkingGroupKey == group.key.hashCode;
     final isOld = DateTime.now().difference(time).inMinutes > 5;
@@ -741,11 +754,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 800),
         curve: Curves.easeInOut,
-        decoration: _orderCardDecoration(isBlinking, isOld),
+        decoration: _orderCardDecoration(isBlinking, isOld, isNext),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildOrderHeader(group.tableName, group.isPaid),
+            _buildOrderHeader(
+              group.tableName,
+              group.isPaid,
+              queueNumber,
+              isNext: isNext,
+            ),
             _buildTimeBar(time, isOld),
             Padding(
               padding: const EdgeInsets.all(12),
@@ -760,7 +778,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     );
   }
 
-  Widget _buildTableBatchCard(KitchenTableCard tableCard) {
+  Widget _buildTableBatchCard(
+    KitchenTableCard tableCard,
+    int queueNumber, {
+    bool isNext = false,
+  }) {
     final isBlinking = tableCard.batches.any(
       (g) => blinkingGroupKey == g.key.hashCode,
     );
@@ -805,11 +827,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOut,
-        decoration: _orderCardDecoration(isBlinking, isOld),
+        decoration: _orderCardDecoration(isBlinking, isOld, isNext),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildOrderHeader(tableCard.tableName, tableCard.isPaid),
+            _buildOrderHeader(
+              tableCard.tableName,
+              tableCard.isPaid,
+              queueNumber,
+              isNext: isNext,
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 6, 12),
               child: Column(
@@ -856,26 +883,35 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     );
   }
 
-  BoxDecoration _orderCardDecoration(bool isBlinking, bool isOld) {
+  BoxDecoration _orderCardDecoration(bool isBlinking, bool isOld, bool isNext) {
     return BoxDecoration(
       color: isBlinking ? _blinkColor : Colors.white,
       borderRadius: BorderRadius.circular(12),
       boxShadow: [
         BoxShadow(
-          color: isOld
+          color: isNext
+              ? Colors.green.withValues(alpha: 0.35)
+              : isOld
               ? Colors.red.withValues(alpha: 0.3)
               : Colors.black.withValues(alpha: 0.05),
-          blurRadius: 8,
+          blurRadius: isNext ? 12 : 8,
           offset: const Offset(0, 4),
         ),
       ],
-      border: isOld
+      border: isNext
+          ? Border.all(color: Colors.green, width: 2.5)
+          : isOld
           ? Border.all(color: Colors.red, width: 2)
           : Border.all(color: Colors.grey.shade200),
     );
   }
 
-  Widget _buildOrderHeader(String tableName, bool isPaid) {
+  Widget _buildOrderHeader(
+    String tableName,
+    bool isPaid,
+    int queueNumber, {
+    bool isNext = false,
+  }) {
     final paid = isPaid == true;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -914,12 +950,49 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               ],
             ),
           ),
-          if (paid)
+
+          Container(
+            margin: const EdgeInsets.only(right: 0),
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: isNext ? Colors.green : const Color(0xFFf57c35),
+              borderRadius: BorderRadius.circular(36),
+            ),
+            child: Text(
+              '$queueNumber',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontFamily: fontMulishBold,
+              ),
+            ),
+          ),
+
+          if (isNext)
             Container(
               margin: const EdgeInsets.only(left: 8),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: Colors.green,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                "NEXT",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontFamily: fontMulishBold,
+                ),
+              ),
+            ),
+          if (paid)
+            Container(
+              margin: const EdgeInsets.only(left: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.green.shade700,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: const Text(
