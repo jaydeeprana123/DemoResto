@@ -255,6 +255,40 @@ class _TransactionsPageState extends State<TransactionsPage> {
     });
   }
 
+  Future<void> _reloadAfterTransactionEdit() async {
+    setState(() {
+      transactions.clear();
+      lastDoc = null;
+      hasMore = true;
+    });
+    if (isFilterApplied && fromDate != null) {
+      final now = DateTime.now();
+      final effectiveFrom = DateTime(
+        fromDate!.year,
+        fromDate!.month,
+        fromDate!.day,
+        0,
+        0,
+        0,
+      );
+      final effectiveTo = (toDate != null)
+          ? DateTime(toDate!.year, toDate!.month, toDate!.day, 23, 59, 59, 999)
+          : DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+      final result =
+          await getRevenueBetweenDates(effectiveFrom, effectiveTo);
+      if (!mounted) return;
+      setState(() {
+        grandTotal = result['totalRevenue'];
+        grandTotalOnline = result['totalOnline'];
+        grandTotalCash = result['totalCash'];
+        totalTransactionsData = result['totalTransactions'];
+      });
+    } else {
+      await getTotalRevenue();
+    }
+    await fetchTransactions();
+  }
+
   Future<void> fetchTransactions() async {
     if (isLoading || !hasMore) return;
 
@@ -325,6 +359,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
         backgroundColor: const Color(0xFF1A3A5C),
         elevation: 0,
         titleSpacing: 16,
+        iconTheme: const IconThemeData(color: Colors.white),
         title: Row(
           children: [
             Expanded(
@@ -548,15 +583,21 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                 ),
                               ),
                             InkWell(
-                              onTap: () {
-                                Navigator.push(
+                              onTap: () async {
+                                final doc = transactions[index];
+                                final result =
+                                    await Navigator.push<Map<String, dynamic>>(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => TransactionDetailsPage(
-                                      transaction: data,
+                                      transactionId: doc.id,
+                                      transaction: doc.data(),
                                     ),
                                   ),
                                 );
+                                if (result != null && mounted) {
+                                  await _reloadAfterTransactionEdit();
+                                }
                               },
                               child: Container(
                                 margin: const EdgeInsets.symmetric(

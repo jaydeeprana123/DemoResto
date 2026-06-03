@@ -4,32 +4,87 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'Screens/Transactions/EditTransactionDetailsPage.dart';
-import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
 
-class TransactionDetailsPage extends StatelessWidget {
+class TransactionDetailsPage extends StatefulWidget {
+  final String transactionId;
   final Map<String, dynamic> transaction;
 
-  const TransactionDetailsPage({super.key, required this.transaction});
+  const TransactionDetailsPage({
+    super.key,
+    required this.transactionId,
+    required this.transaction,
+  });
+
+  @override
+  State<TransactionDetailsPage> createState() => _TransactionDetailsPageState();
+}
+
+class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
+  late Map<String, dynamic> _transaction;
+  bool _wasEdited = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _transaction = Map<String, dynamic>.from(widget.transaction);
+  }
+
+  void _popWithResult() {
+    if (_wasEdited) {
+      Navigator.pop(context, {
+        'transactionId': widget.transactionId,
+        'transaction': _transaction,
+      });
+    } else {
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> _openEdit() async {
+    final updated = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditTransactionPage(
+          transactionId: widget.transactionId,
+          transaction: _transaction,
+        ),
+      ),
+    );
+    if (!mounted || updated == null) return;
+    setState(() {
+      _transaction = updated;
+      _wasEdited = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final items = (transaction['items'] as List<dynamic>? ?? []);
-    final subtotal = (transaction['subtotal'] as num?)?.toInt() ?? 0;
-    final tax = (transaction['tax'] as num?)?.toInt() ?? 0;
-    final discount = (transaction['discount'] as num?)?.toInt() ?? 0;
-    final total = (transaction['total'] as num?)?.toInt() ?? 0;
-    final cashAmount = (transaction['cashAmount'] as num?)?.toInt() ?? 0;
-    final onlineAmount = (transaction['onlineAmount'] as num?)?.toInt() ?? 0;
-    final tableName = transaction['table'] ?? 'Unknown';
-    final dateTime = (transaction['createdAt'] as Timestamp?)?.toDate();
+    final items = (_transaction['items'] as List<dynamic>? ?? []);
+    final subtotal = (_transaction['subtotal'] as num?)?.toInt() ?? 0;
+    final tax = (_transaction['tax'] as num?)?.toInt() ?? 0;
+    final discount = (_transaction['discount'] as num?)?.toInt() ?? 0;
+    final total = (_transaction['total'] as num?)?.toInt() ?? 0;
+    final cashAmount = (_transaction['cashAmount'] as num?)?.toInt() ?? 0;
+    final onlineAmount = (_transaction['onlineAmount'] as num?)?.toInt() ?? 0;
+    final tableName = _transaction['table'] ?? 'Unknown';
+    final dateTime = (_transaction['createdAt'] as Timestamp?)?.toDate();
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _popWithResult();
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1A3A5C),
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _popWithResult,
+        ),
         title: const Text(
           'Transaction Details',
           style: TextStyle(
@@ -41,23 +96,12 @@ class TransactionDetailsPage extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_outlined, color: Color(0xFFf57c35)),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EditTransactionPage(
-                    transaction: transaction,
-                    onSave: (updated) {},
-                  ),
-                ),
-              );
-            },
+            onPressed: _openEdit,
           ),
         ],
       ),
       body: Column(
         children: [
-          // ── Table + date header ───────────────────────────────────────
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -96,8 +140,6 @@ class TransactionDetailsPage extends StatelessWidget {
               ],
             ),
           ),
-
-          // ── Item list ────────────────────────────────────────────────
           Expanded(
             child: items.isEmpty
                 ? const Center(child: Text('No items in this transaction'))
@@ -106,7 +148,7 @@ class TransactionDetailsPage extends StatelessWidget {
                     itemCount: items.length,
                     itemBuilder: (context, i) {
                       final item = items[i];
-                      final qty = (item['qty'] as int?) ?? 0;
+                      final qty = (item['qty'] as num?)?.toInt() ?? 0;
                       final price = (item['price'] as num?)?.toDouble() ?? 0;
                       final lineTotal = (qty * price).round();
                       final remarks = (item['remarks'] ?? '').toString();
@@ -164,13 +206,14 @@ class TransactionDetailsPage extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            // qty badge
                             Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 10),
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 10),
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF1A3A5C).withOpacity(0.08),
+                                color:
+                                    const Color(0xFF1A3A5C).withOpacity(0.08),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -196,8 +239,6 @@ class TransactionDetailsPage extends StatelessWidget {
                     },
                   ),
           ),
-
-          // ── Summary card ─────────────────────────────────────────────
           Container(
             margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             padding: const EdgeInsets.all(16),
@@ -252,7 +293,6 @@ class TransactionDetailsPage extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                // Payment pills
                 Row(
                   children: [
                     if (cashAmount > 0)
@@ -261,8 +301,8 @@ class TransactionDetailsPage extends StatelessWidget {
                     if (cashAmount > 0 && onlineAmount > 0)
                       const SizedBox(width: 8),
                     if (onlineAmount > 0)
-                      _paymentPill(Icons.phone_android, 'Online ₹$onlineAmount',
-                          Colors.blue),
+                      _paymentPill(Icons.phone_android,
+                          'Online ₹$onlineAmount', Colors.blue),
                   ],
                 ),
               ],
@@ -270,6 +310,7 @@ class TransactionDetailsPage extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 

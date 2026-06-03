@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/Screens/Authentication/SignupScreenView.dart';
 import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../Styles/my_font.dart';
@@ -18,16 +19,57 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
+class _AboutInfoPage {
+  final String title;
+  final String body;
+  final IconData icon;
+
+  const _AboutInfoPage({
+    required this.title,
+    required this.body,
+    required this.icon,
+  });
+}
+
 class _LoginPageState extends State<LoginPage>
     with SingleTickerProviderStateMixin {
   final _emailCtrl    = TextEditingController();
   final _passCtrl     = TextEditingController();
+  final _infoPageCtrl = PageController();
   bool _loading       = false;
   bool _obscurePass   = true;
   bool _rememberMe    = false;
+  int _infoPageIndex  = 0;
   late AnimationController _animCtrl;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
+
+  static const _aboutPages = [
+    _AboutInfoPage(
+      title: 'Flavor Flow',
+      icon: Icons.restaurant_menu_rounded,
+      body:
+          'Flavor Flow is a restaurant management app built for busy kitchens '
+          'and front-of-house teams. Run dine-in tables, take-away orders, '
+          'kitchen display, billing, and expenses from one place.',
+    ),
+    _AboutInfoPage(
+      title: 'Orders & Tables',
+      icon: Icons.table_restaurant_rounded,
+      body:
+          'Drag-and-drop table layout, queue take-away orders, send items to '
+          'the kitchen, edit rounds, and bill from the menu or cart. Paid '
+          'orders stay visible until served or delivered.',
+    ),
+    _AboutInfoPage(
+      title: 'Kitchen & Insights',
+      icon: Icons.soup_kitchen_rounded,
+      body:
+          'Kitchen view with category filters and optional grouped table '
+          'orders. Track transactions, manage settings, and keep service '
+          'moving with real-time Firestore sync across devices.',
+    ),
+  ];
 
   @override
   void initState() {
@@ -47,6 +89,7 @@ class _LoginPageState extends State<LoginPage>
   @override
   void dispose() {
     _animCtrl.dispose();
+    _infoPageCtrl.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
@@ -128,22 +171,23 @@ class _LoginPageState extends State<LoginPage>
         // Left panel — navy illustration
         Expanded(flex: 5, child: _leftPanel()),
         // Right panel — form
-        Expanded(flex: 6, child: _formPanel()),
+        Expanded(flex: 6, child: _formPanel(scrollable: true)),
       ],
     );
   }
 
   // ─────────────────────────── Narrow / Phone layout ───────────────────────
   Widget _narrowLayout() {
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          // Top banner (compact version of left panel)
-          _topBanner(),
-          // Form
-          _formPanel(),
-        ],
-      ),
+    return Column(
+      children: [
+        _topBanner(),
+        Expanded(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: _formPanel(scrollable: false),
+          ),
+        ),
+      ],
     );
   }
 
@@ -159,47 +203,29 @@ class _LoginPageState extends State<LoginPage>
       ),
       child: Stack(
         children: [
-          // Decorative circles
           ..._decorCircles(),
-          // Content
           Padding(
             padding: const EdgeInsets.all(40),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Spacer(),
-                // Big illustration icon cluster
-                Center(
-                  child: _restaurantIllustration(),
-                ),
-                const Spacer(),
-                // Tag line
+                const SizedBox(height: 100),
+                Center(child: _restaurantIllustration()),
+                const SizedBox(height: 24),
+                Expanded(child: _aboutPageView(compact: false)),
+                const SizedBox(height: 16),
+                _aboutPageDots(),
+                const SizedBox(height: 8),
                 Text(
-                  'Smart Restaurant\nManagement',
+                  'Swipe or tap dots to explore',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 28,
-                    fontFamily: fontMulishBold,
-                    color: Colors.white,
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Manage orders, tables, kitchen & billing\n'
-                  'all from one powerful dashboard.',
-                  style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 11,
                     fontFamily: fontMulishRegular,
-                    color: Colors.white70,
-                    height: 1.6,
+                    color: Colors.white54,
                   ),
                 ),
-                const SizedBox(height: 40),
-                // Dot indicators
-                Row(
-                  children: List.generate(3, (i) => _dot(i == 0)),
-                ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
               ],
             ),
           ),
@@ -211,7 +237,7 @@ class _LoginPageState extends State<LoginPage>
   Widget _topBanner() {
     return Container(
       width: double.infinity,
-      height: 220,
+      height: 300,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -223,20 +249,15 @@ class _LoginPageState extends State<LoginPage>
       child: Stack(
         children: [
           ..._decorCircles(),
-          Center(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _restaurantIllustration(size: 80),
+                _restaurantIllustration(size: 72),
                 const SizedBox(height: 12),
-                Text(
-                  'Smart Restaurant Management',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontFamily: fontMulishBold,
-                    color: Colors.white,
-                  ),
-                ),
+                Expanded(child: _aboutPageView(compact: true)),
+                const SizedBox(height: 10),
+                _aboutPageDots(),
               ],
             ),
           ),
@@ -245,20 +266,112 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
+  ScrollBehavior get _pageScrollBehavior => ScrollConfiguration.of(context).copyWith(
+        dragDevices: {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.stylus,
+          PointerDeviceKind.trackpad,
+        },
+      );
+
+  Widget _aboutPageView({required bool compact}) {
+    return ScrollConfiguration(
+      behavior: _pageScrollBehavior,
+      child: PageView.builder(
+        controller: _infoPageCtrl,
+        physics: const PageScrollPhysics(),
+        onPageChanged: (index) => setState(() => _infoPageIndex = index),
+        itemCount: _aboutPages.length,
+        itemBuilder: (context, index) {
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight,
+                  ),
+                  child: _aboutInfoPageContent(
+                    _aboutPages[index],
+                    compact: compact,
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _aboutInfoPageContent(_AboutInfoPage page, {required bool compact}) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(page.icon, color: _orange, size: compact ? 22 : 28),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  page.title,
+                  style: TextStyle(
+                    fontSize: compact ? 18 : 26,
+                    fontFamily: fontMulishBold,
+                    color: Colors.white,
+                    height: 1.25,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: compact ? 10 : 14),
+          Text(
+            page.body,
+            style: TextStyle(
+              fontSize: compact ? 13 : 14,
+              fontFamily: fontMulishRegular,
+              color: Colors.white70,
+              height: 1.65,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _aboutPageDots() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(
+        _aboutPages.length,
+        (i) => GestureDetector(
+          onTap: () => _infoPageCtrl.animateToPage(
+            i,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeInOut,
+          ),
+          child: _dot(i == _infoPageIndex),
+        ),
+      ),
+    );
+  }
+
   // ─────────────────────────── Form panel ─────────────────────────────────
-  Widget _formPanel() {
-    return FadeTransition(
-      opacity: _fadeAnim,
-      child: SlideTransition(
-        position: _slideAnim,
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+  Widget _formPanel({bool scrollable = true}) {
+    final form = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
                   // Logo + brand
                   // Center(child: _logoWidget()),
                   // const SizedBox(height: 28),
@@ -429,7 +542,19 @@ class _LoginPageState extends State<LoginPage>
                 ],
               ),
             ),
-          ),
+          );
+
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: SlideTransition(
+        position: _slideAnim,
+        child: Center(
+          child: scrollable
+              ? SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: form,
+                )
+              : form,
         ),
       ),
     );
@@ -553,7 +678,7 @@ class _LoginPageState extends State<LoginPage>
 
   Widget _dot(bool active) => AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        margin: const EdgeInsets.only(right: 6),
+        margin: const EdgeInsets.symmetric(horizontal: 4),
         width: active ? 24 : 8,
         height: 8,
         decoration: BoxDecoration(

@@ -5,15 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../Styles/my_font.dart';
+import '../../utils/transaction_firestore.dart';
 
 class EditTransactionPage extends StatefulWidget {
+  final String transactionId;
   final Map<String, dynamic> transaction;
-  final void Function(Map<String, dynamic> updatedTransaction)? onSave;
 
   const EditTransactionPage({
     super.key,
+    required this.transactionId,
     required this.transaction,
-    this.onSave,
   });
 
   @override
@@ -28,6 +29,7 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
   late TextEditingController onlineController;
 
   late List<Map<String, dynamic>> items;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -49,7 +51,7 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     onlineController.text =
         widget.transaction['onlineAmount']?.toString() ?? '0';
 
-    _recalculateTotals();
+    _syncTotalsFromItems();
   }
 
   @override
@@ -62,32 +64,42 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     super.dispose();
   }
 
-  void _recalculateTotals() {
-    int subtotal = 0;
+  void _syncTotalsFromItems() {
+    var subtotal = 0;
     for (var item in items) {
-      final int qty = item['qty'] ?? 0;
-      final int price = item['price'] ?? 0;
+      final qty = transactionAsInt(item['qty']);
+      final price = transactionAsInt(item['price']);
       subtotal += qty * price;
     }
 
     const taxPercent = 8.5;
     final tax = (subtotal * taxPercent / 100).round();
 
-    setState(() {
-      subtotalController.text = subtotal.toString();
-      taxController.text = tax.toString();
-    });
+    subtotalController.text = subtotal.toString();
+    taxController.text = tax.toString();
+  }
+
+  void _recalculateTotals() {
+    setState(_syncTotalsFromItems);
   }
 
   void updateItemQty(int index, int change) {
     setState(() {
-      final newQty = (items[index]['qty'] ?? 0) + change;
+      final newQty = transactionAsInt(items[index]['qty']) + change;
       items[index]['qty'] = newQty < 0 ? 0 : newQty;
       _recalculateTotals();
     });
   }
 
-  void saveChanges() {
+  void _showMessage(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> saveChanges() async {
+    if (_saving) return;
+
+    _syncTotalsFromItems();
+
     final subtotal = int.tryParse(subtotalController.text) ?? 0;
     final tax = int.tryParse(taxController.text) ?? 0;
     final discount = int.tryParse(discountController.text) ?? 0;
@@ -95,9 +107,26 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     final cashAmount = int.tryParse(cashController.text) ?? 0;
     final onlineAmount = int.tryParse(onlineController.text) ?? 0;
 
+    if (total < 0) {
+      _showMessage('Total cannot be negative.');
+      return;
+    }
+    if (cashAmount + onlineAmount != total) {
+      _showMessage('Cash + Online must equal the total (₹$total).');
+      return;
+    }
+
+    final activeItems = items
+        .where((e) => transactionAsInt(e['qty']) > 0)
+        .toList();
+    if (activeItems.isEmpty) {
+      _showMessage('Keep at least one item with quantity greater than 0.');
+      return;
+    }
+
     final updatedTransaction = {
       ...widget.transaction,
-      'items': items,
+      'items': activeItems,
       'subtotal': subtotal,
       'tax': tax,
       'discount': discount,
@@ -106,8 +135,23 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
       'onlineAmount': onlineAmount,
     };
 
-    widget.onSave?.call(updatedTransaction);
-    Navigator.pop(context, updatedTransaction);
+    setState(() => _saving = true);
+    try {
+      await updateTransactionInFirestore(
+        transactionId: widget.transactionId,
+        previous: widget.transaction,
+        updated: updatedTransaction,
+      );
+      if (!mounted) return;
+      _showMessage('Transaction updated successfully.');
+      Navigator.pop(context, updatedTransaction);
+    } catch (e) {
+      if (mounted) {
+        _showMessage(e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   int get _total =>
@@ -143,7 +187,7 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
         ),
         actions: [
           TextButton.icon(
-            onPressed: saveChanges,
+            onPressed: _saving ? null : saveChanges,
             icon: const Icon(Icons.save_outlined, size: 18),
             label: const Text(
               'Save',
@@ -170,11 +214,18 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
                   const SizedBox(height: 16),
                   _buildSummaryCard(),
                   const SizedBox(height: 16),
-                  SetupPageStyle.primaryButton(
-                    label: 'Save Changes',
-                    icon: Icons.check_rounded,
-                    onTap: saveChanges,
-                  ),
+                  _saving
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(12),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      : SetupPageStyle.primaryButton(
+                          label: 'Save Changes',
+                          icon: Icons.check_rounded,
+                          onTap: saveChanges,
+                        ),
                 ],
               ),
             ),
@@ -259,8 +310,8 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
               ...items.asMap().entries.map((entry) {
                 final i = entry.key;
                 final item = entry.value;
-                final qty = item['qty'] ?? 0;
-                final price = item['price'] ?? 0;
+                final qty = transactionAsInt(item['qty']);
+                final price = transactionAsInt(item['price']);
                 final lineTotal = qty * price;
                 final remarks = item['remarks']?.toString() ?? '';
 
@@ -375,12 +426,20 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
             _buildEditableRow(
               'Discount',
               discountController,
-              onChanged: (_) => _recalculateTotals(),
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 10),
-            _buildEditableRow('Cash', cashController),
+            _buildEditableRow(
+              'Cash',
+              cashController,
+              onChanged: (_) => setState(() {}),
+            ),
             const SizedBox(height: 10),
-            _buildEditableRow('Online', onlineController),
+            _buildEditableRow(
+              'Online',
+              onlineController,
+              onChanged: (_) => setState(() {}),
+            ),
             const SizedBox(height: 14),
             DottedLine(
               dashLength: 4,
