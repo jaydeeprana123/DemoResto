@@ -56,6 +56,14 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
       _transaction = updated;
       _wasEdited = true;
     });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Transaction updated successfully.'),
+        backgroundColor: Color(0xFF2E7D32),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   @override

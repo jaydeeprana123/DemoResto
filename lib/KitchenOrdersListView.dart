@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -42,6 +43,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   // apart from an update to an already-available table.
   Set<String> _previousDocIds = {};
   Map<String, TableGroup> _previousKeyToGroup = {};
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _tablesSub;
+  final ValueNotifier<int> _minuteTick = ValueNotifier(0);
+  bool _kitchenStreamReady = false;
+  List<TableGroup> _lastUpdatedGroups = [];
+  List<TableGroup> _displayFilteredGroups = [];
+  List<KitchenTableCard> _displayTableCards = [];
   int? blinkingGroupKey;
   // Color used for the currently blinking card: green for a new order,
   // yellow for an update (quantity changed / item added on existing table).
@@ -116,6 +123,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     if (!mounted) return;
     setState(() {
       _showTableAllOrders = KitchenSettings.showTableAllOrders.value == true;
+      _rebuildDisplayFromCache();
     });
   }
 
@@ -303,9 +311,282 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       }
     });
     KitchenSettings.showTableAllOrders.addListener(_onKitchenSettingsChanged);
-    _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
-      if (mounted) setState(() {});
+    _tablesSub = FirebaseFirestore.instance
+        .collection('tables')
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .listen(_handleTablesSnapshot);
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _minuteTick.value++;
     });
+  }
+
+  void _rebuildDisplayFromCache() {
+    final filtered = _filterByCategories(_lastUpdatedGroups);
+    _displayFilteredGroups = filtered;
+    _displayTableCards = _mergeGroupsByTable(filtered);
+  }
+
+  bool _sameGroupList(List<TableGroup> a, List<TableGroup> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].key != b[i].key ||
+          a[i].isPaid != b[i].isPaid ||
+          _groupSignature(a[i]) != _groupSignature(b[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _sameTableCards(List<KitchenTableCard> a, List<KitchenTableCard> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].docId != b[i].docId || a[i].isPaid != b[i].isPaid) {
+        return false;
+      }
+      if (a[i].batches.length != b[i].batches.length) return false;
+      for (var j = 0; j < a[i].batches.length; j++) {
+        if (a[i].batches[j].key != b[i].batches[j].key ||
+            _groupSignature(a[i].batches[j]) !=
+                _groupSignature(b[i].batches[j])) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  void _handleTablesSnapshot(QuerySnapshot<Map<String, dynamic>> snapshot) {
+    if (!mounted) return;
+
+    if (snapshot.docs.isEmpty) {
+      if (previousKeys.isNotEmpty || _previousSignatures.isNotEmpty) {
+        previousKeys = {};
+        _previousSignatures = {};
+        _previousDocIds = {};
+        _previousKeyToGroup = {};
+      }
+      if (_displayFilteredGroups.isNotEmpty ||
+          _displayTableCards.isNotEmpty ||
+          !_kitchenStreamReady) {
+        setState(() {
+          _lastUpdatedGroups = [];
+          _displayFilteredGroups = [];
+          _displayTableCards = [];
+          _kitchenStreamReady = true;
+        });
+      }
+      return;
+    }
+
+    final updatedGroups = <TableGroup>[];
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      final tableName = (data['name'] ?? 'Unknown Table') as String;
+      final isPaid = data['isPaid'] == true;
+      final itemsFromDb =
+          data.containsKey('items') ? (data['items'] as List<dynamic>?) : null;
+      updatedGroups.addAll(
+        _reconstructGroups(
+          tableName,
+          itemsFromDb,
+          isPaid: isPaid,
+          docId: doc.id,
+        ),
+      );
+    }
+
+    updatedGroups.sort((a, b) => a.groupTime.compareTo(b.groupTime));
+    _lastUpdatedGroups = updatedGroups;
+
+    final filteredGroups = _filterByCategories(updatedGroups);
+    final tableCards = _mergeGroupsByTable(filteredGroups);
+
+    final currentKeys = updatedGroups.map((g) => g.key).toSet();
+    final currentSignatures = <String, String>{};
+    final currentDocIds = <String>{};
+    final keyToGroup = <String, TableGroup>{};
+    for (final g in updatedGroups) {
+      currentSignatures[g.key] = _groupSignature(g);
+      currentDocIds.add(g.docId);
+      keyToGroup[g.key] = g;
+    }
+
+    if (_previousSignatures.isEmpty && currentKeys.isNotEmpty) {
+      previousKeys = currentKeys;
+      _previousSignatures = currentSignatures;
+      _previousDocIds = currentDocIds;
+      _previousKeyToGroup = keyToGroup;
+    } else if (_previousSignatures.isNotEmpty) {
+      final addedKeys = currentKeys.difference(previousKeys);
+      final removedKeys = previousKeys.difference(currentKeys);
+      final removedDocIds = _previousDocIds.difference(currentDocIds);
+
+      final changedKeys = currentKeys
+          .where(
+            (k) =>
+                previousKeys.contains(k) &&
+                _previousSignatures[k] != currentSignatures[k],
+          )
+          .toList();
+
+      final newTableKeys = addedKeys
+          .where((k) => !_previousDocIds.contains(keyToGroup[k]?.docId))
+          .toList();
+
+      final updateKeys = <String>[
+        ...addedKeys.where(
+          (k) => _previousDocIds.contains(keyToGroup[k]?.docId),
+        ),
+        ...changedKeys,
+      ];
+
+      if (newTableKeys.isNotEmpty) {
+        _scheduleBlink(
+          key: newTableKeys.last,
+          keyToGroup: keyToGroup,
+          currentKeys: currentKeys,
+          currentSignatures: currentSignatures,
+          currentDocIds: currentDocIds,
+          isUpdate: false,
+        );
+      } else if (updateKeys.isNotEmpty) {
+        _scheduleBlink(
+          key: updateKeys.last,
+          keyToGroup: keyToGroup,
+          currentKeys: currentKeys,
+          currentSignatures: currentSignatures,
+          currentDocIds: currentDocIds,
+          isUpdate: true,
+        );
+      } else if (removedKeys.isNotEmpty || removedDocIds.isNotEmpty) {
+        _notifyOrderRemoved(
+          removedKeys: removedKeys,
+          removedDocIds: removedDocIds,
+          currentKeys: currentKeys,
+          currentSignatures: currentSignatures,
+          currentDocIds: currentDocIds,
+          keyToGroup: keyToGroup,
+        );
+      }
+    }
+
+    final displayChanged = _showTableAllOrders
+        ? !_sameTableCards(_displayTableCards, tableCards)
+        : !_sameGroupList(_displayFilteredGroups, filteredGroups);
+
+    if (displayChanged || !_kitchenStreamReady) {
+      setState(() {
+        _displayFilteredGroups = filteredGroups;
+        _displayTableCards = tableCards;
+        _kitchenStreamReady = true;
+      });
+    }
+  }
+
+  Widget _buildKitchenEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            !showAllCategories && selectedCategories.isNotEmpty
+                ? Icons.filter_list_off
+                : Icons.inbox_outlined,
+            size: 64,
+            color: Colors.grey,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            !showAllCategories && selectedCategories.isNotEmpty
+                ? "No orders in selected categories"
+                : "No orders found",
+            style: const TextStyle(
+              fontFamily: fontMulishSemiBold,
+              fontSize: 16,
+              color: Colors.grey,
+            ),
+          ),
+          if (!showAllCategories && selectedCategories.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              "Selected: ${selectedCategories.join(', ')}",
+              style: const TextStyle(
+                fontFamily: fontMulishRegular,
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKitchenOrdersGrid() {
+    final screenW = MediaQuery.of(context).size.width;
+    final crossCols = screenW > 1200
+        ? 5
+        : screenW > 900
+        ? 4
+        : screenW > 600
+        ? 3
+        : screenW > 400
+        ? 2
+        : 1;
+
+    if (_showTableAllOrders) {
+      final firstUnpaidIndex =
+          _displayTableCards.indexWhere((c) => !c.isPaid);
+      return MasonryGridView.count(
+        key: const ValueKey('kitchen_table_grid'),
+        crossAxisCount: crossCols,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        padding: const EdgeInsets.all(12),
+        itemCount: _displayTableCards.length,
+        itemBuilder: (context, index) => _buildTableBatchCard(
+          _displayTableCards[index],
+          index + 1,
+          isNext: index == firstUnpaidIndex && firstUnpaidIndex != -1,
+        ),
+      );
+    }
+
+    final firstUnpaidIndex =
+        _displayFilteredGroups.indexWhere((g) => !g.isPaid);
+    return MasonryGridView.count(
+      key: const ValueKey('kitchen_group_grid'),
+      crossAxisCount: crossCols,
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      padding: const EdgeInsets.all(12),
+      itemCount: _displayFilteredGroups.length,
+      itemBuilder: (context, index) => _buildGroupCard(
+        _displayFilteredGroups[index],
+        index + 1,
+        isNext: index == firstUnpaidIndex && firstUnpaidIndex != -1,
+      ),
+    );
+  }
+
+  Widget _orderCardShell({
+    required bool isBlinking,
+    required BoxDecoration decoration,
+    required Widget child,
+    Duration animationDuration = const Duration(milliseconds: 400),
+  }) {
+    if (isBlinking) {
+      return AnimatedContainer(
+        duration: animationDuration,
+        curve: Curves.easeInOut,
+        decoration: decoration,
+        child: child,
+      );
+    }
+    return Container(decoration: decoration, child: child);
   }
 
   List<KitchenTableCard> _mergeGroupsByTable(List<TableGroup> groups) {
@@ -539,9 +820,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                         ),
                       ),
                       onPressed: () {
-                        setState(() {
-                          // Update the main state
-                        });
+                        setState(_rebuildDisplayFromCache);
                         Navigator.pop(context);
                       },
                       child: const Text(
@@ -609,222 +888,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('tables')
-            .orderBy('createdAt', descending: false)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            if (previousKeys.isNotEmpty || _previousSignatures.isNotEmpty) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  setState(() {
-                    previousKeys = {};
-                    _previousSignatures = {};
-                    _previousDocIds = {};
-                    _previousKeyToGroup = {};
-                  });
-                }
-              });
-            }
-            return const Center(child: Text("No orders found"));
-          }
-
-          // Build fresh groups from snapshot
-          List<TableGroup> updatedGroups = [];
-
-          for (var doc in snapshot.data!.docs) {
-            final data = doc.data();
-            final tableName = (data['name'] ?? 'Unknown Table') as String;
-            final isPaid = data['isPaid'] == true;
-            final itemsFromDb = (data.containsKey('items'))
-                ? (data['items'] as List<dynamic>?)
-                : null;
-            updatedGroups.addAll(
-              _reconstructGroups(
-                tableName,
-                itemsFromDb,
-                isPaid: isPaid,
-                docId: doc.id,
-              ),
-            );
-          }
-
-          // Sort by time
-          updatedGroups.sort((a, b) => a.groupTime.compareTo(b.groupTime));
-
-          // Filter by selected categories
-          final filteredGroups = _filterByCategories(updatedGroups);
-
-          // Compute keys, content signatures and doc ids for this snapshot.
-          final currentKeys = updatedGroups.map((g) => g.key).toSet();
-          final currentSignatures = <String, String>{};
-          final currentDocIds = <String>{};
-          final keyToGroup = <String, TableGroup>{};
-          for (final g in updatedGroups) {
-            currentSignatures[g.key] = _groupSignature(g);
-            currentDocIds.add(g.docId);
-            keyToGroup[g.key] = g;
-          }
-
-          if (_previousSignatures.isEmpty && currentKeys.isNotEmpty) {
-            // First load: just record the baseline, don't blink everything.
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              setState(() {
-                previousKeys = currentKeys;
-                _previousSignatures = currentSignatures;
-                _previousDocIds = currentDocIds;
-                _previousKeyToGroup = keyToGroup;
-              });
-            });
-          } else {
-            final addedKeys = currentKeys.difference(previousKeys);
-            final removedKeys = previousKeys.difference(currentKeys);
-            final removedDocIds = _previousDocIds.difference(currentDocIds);
-
-            // Existing key whose content changed => quantity changed or an
-            // item was added/removed within the same batch.
-            final changedKeys = currentKeys
-                .where(
-                  (k) =>
-                      previousKeys.contains(k) &&
-                      _previousSignatures[k] != currentSignatures[k],
-                )
-                .toList();
-
-            // A brand-new table = a new key on a doc id we hadn't seen before.
-            final newTableKeys = addedKeys
-                .where((k) => !_previousDocIds.contains(keyToGroup[k]?.docId))
-                .toList();
-
-            // An update = a new batch on an already-available table, or a
-            // content change on an existing batch.
-            final updateKeys = <String>[
-              ...addedKeys.where(
-                (k) => _previousDocIds.contains(keyToGroup[k]?.docId),
-              ),
-              ...changedKeys,
-            ];
-
-            if (newTableKeys.isNotEmpty) {
-              _scheduleBlink(
-                key: newTableKeys.last,
-                keyToGroup: keyToGroup,
-                currentKeys: currentKeys,
-                currentSignatures: currentSignatures,
-                currentDocIds: currentDocIds,
-                isUpdate: false,
-              );
-            } else if (updateKeys.isNotEmpty) {
-              _scheduleBlink(
-                key: updateKeys.last,
-                keyToGroup: keyToGroup,
-                currentKeys: currentKeys,
-                currentSignatures: currentSignatures,
-                currentDocIds: currentDocIds,
-                isUpdate: true,
-              );
-            } else if (removedKeys.isNotEmpty ||
-                removedDocIds.isNotEmpty) {
-              _notifyOrderRemoved(
-                removedKeys: removedKeys,
-                removedDocIds: removedDocIds,
-                currentKeys: currentKeys,
-                currentSignatures: currentSignatures,
-                currentDocIds: currentDocIds,
-                keyToGroup: keyToGroup,
-              );
-            }
-          }
-
-          // Show message if no items match filter
-          if (filteredGroups.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.filter_list_off,
-                    size: 64,
-                    color: Colors.grey,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    showAllCategories
-                        ? "No orders found"
-                        : "No orders in selected categories",
-                    style: const TextStyle(
-                      fontFamily: fontMulishSemiBold,
-                      fontSize: 16,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  if (!showAllCategories && selectedCategories.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      "Selected: ${selectedCategories.join(', ')}",
-                      style: const TextStyle(
-                        fontFamily: fontMulishRegular,
-                        fontSize: 14,
-                        color: Colors.grey,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ],
-              ),
-            );
-          }
-
-          final screenW = MediaQuery.of(context).size.width;
-          final crossCols = screenW > 1200
-              ? 5
-              : screenW > 900
-              ? 4
-              : screenW > 600
-              ? 3
-              : screenW > 400
-              ? 2
-              : 1;
-
-          if (_showTableAllOrders == true) {
-            final tableCards = _mergeGroupsByTable(filteredGroups);
-            final firstUnpaidIndex = tableCards.indexWhere((c) => !c.isPaid);
-            return MasonryGridView.count(
-              crossAxisCount: crossCols,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              padding: const EdgeInsets.all(12),
-              itemCount: tableCards.length,
-              itemBuilder: (context, index) => _buildTableBatchCard(
-                tableCards[index],
-                index + 1,
-                isNext: index == firstUnpaidIndex && firstUnpaidIndex != -1,
-              ),
-            );
-          }
-
-          final firstUnpaidIndex = filteredGroups.indexWhere((g) => !g.isPaid);
-          return MasonryGridView.count(
-            crossAxisCount: crossCols,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            padding: const EdgeInsets.all(12),
-            itemCount: filteredGroups.length,
-            itemBuilder: (context, index) => _buildGroupCard(
-              filteredGroups[index],
-              index + 1,
-              isNext: index == firstUnpaidIndex && firstUnpaidIndex != -1,
-            ),
-          );
-        },
-      ),
+      body: !_kitchenStreamReady
+          ? const Center(child: CircularProgressIndicator())
+          : (_showTableAllOrders
+                ? _displayTableCards.isEmpty
+                : _displayFilteredGroups.isEmpty)
+              ? _buildKitchenEmptyState()
+              : _buildKitchenOrdersGrid(),
     );
   }
 
@@ -841,45 +911,55 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       deleteTable(group.docId);
     }
 
-    return InkWell(
-      onTap: () {
-        if (group.isPaid && selectedCategories.isEmpty) {
-          showServedDialog(context, group.tableName, () async {
-            _playDeleteSound();
-            if (group.tableName.contains("Take Away")) {
-              await FirebaseFirestore.instance
-                  .collection('tables')
-                  .doc(group.docId)
-                  .delete();
-              setState(() {});
-            } else {
-              await _updateTableItemsInFirestore(group.tableName, [], false);
-            }
-          });
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 800),
-        curve: Curves.easeInOut,
-        decoration: _orderCardDecoration(isBlinking, isOld, isNext),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildOrderHeader(
-              group.tableName,
-              group.isPaid,
-              queueNumber,
-              isNext: isNext,
-            ),
-            _buildTimeBar(time, isOld),
-            Padding(
-              padding: const EdgeInsets.all(12),
+    return KeyedSubtree(
+      key: ValueKey(group.key),
+      child: InkWell(
+        onTap: () {
+          if (group.isPaid && selectedCategories.isEmpty) {
+            showServedDialog(context, group.tableName, () async {
+              _playDeleteSound();
+              if (group.tableName.contains("Take Away")) {
+                await FirebaseFirestore.instance
+                    .collection('tables')
+                    .doc(group.docId)
+                    .delete();
+              } else {
+                await _updateTableItemsInFirestore(group.tableName, [], false);
+              }
+            });
+          }
+        },
+        child: ListenableBuilder(
+          listenable: _minuteTick,
+          builder: (context, _) {
+            final tickTime = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
+            final tickIsOld =
+                DateTime.now().difference(tickTime).inMinutes > 5;
+            return _orderCardShell(
+              isBlinking: isBlinking,
+              animationDuration: const Duration(milliseconds: 800),
+              decoration: _orderCardDecoration(isBlinking, tickIsOld, isNext),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: group.items.map(_buildItemRow).toList(),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildOrderHeader(
+                    group.tableName,
+                    group.isPaid,
+                    queueNumber,
+                    isNext: isNext,
+                  ),
+                  _buildTimeBar(tickTime, tickIsOld),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: group.items.map(_buildItemRow).toList(),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -905,86 +985,91 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       }
     }
 
-    final isOld = tableCard.batches.any((batch) {
-      final time = DateTime.fromMillisecondsSinceEpoch(batch.groupTime);
-      return DateTime.now().difference(time).inMinutes > 5;
-    });
-
-    return GestureDetector(
-      onDoubleTap: () {
-        if (tableCard.isPaid && selectedCategories.isEmpty) {
-          showServedDialog(context, tableCard.tableName, () async {
-            _playDeleteSound();
-            if (tableCard.tableName.contains("Take Away")) {
-              await FirebaseFirestore.instance
-                  .collection('tables')
-                  .doc(tableCard.docId)
-                  .delete();
-              setState(() {});
-            } else {
-              await _updateTableItemsInFirestore(
-                tableCard.tableName,
-                [],
-                false,
-              );
-            }
-          });
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOut,
-        decoration: _orderCardDecoration(isBlinking, isOld, isNext),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildOrderHeader(
-              tableCard.tableName,
-              tableCard.isPaid,
-              queueNumber,
-              isNext: isNext,
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 6, 12),
+    return KeyedSubtree(
+      key: ValueKey(tableCard.docId),
+      child: GestureDetector(
+        onDoubleTap: () {
+          if (tableCard.isPaid && selectedCategories.isEmpty) {
+            showServedDialog(context, tableCard.tableName, () async {
+              _playDeleteSound();
+              if (tableCard.tableName.contains("Take Away")) {
+                await FirebaseFirestore.instance
+                    .collection('tables')
+                    .doc(tableCard.docId)
+                    .delete();
+              } else {
+                await _updateTableItemsInFirestore(
+                  tableCard.tableName,
+                  [],
+                  false,
+                );
+              }
+            });
+          }
+        },
+        child: ListenableBuilder(
+          listenable: _minuteTick,
+          builder: (context, _) {
+            final tickIsOld = tableCard.batches.any((batch) {
+              final batchTime =
+                  DateTime.fromMillisecondsSinceEpoch(batch.groupTime);
+              return DateTime.now().difference(batchTime).inMinutes > 5;
+            });
+            return _orderCardShell(
+              isBlinking: isBlinking,
+              decoration: _orderCardDecoration(isBlinking, tickIsOld, isNext),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (var i = 0; i < tableCard.batches.length; i++) ...[
-                    if (i > 0) ...[
-                      const SizedBox(height: 0),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: DottedLine(
-                          dashColor: Colors.grey.shade300,
-                          lineThickness: 1,
-                          dashLength: 4,
-                          dashGapLength: 4,
-                        ),
-                      ),
-                    ],
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        formatRelativeTime(
-                          DateTime.fromMillisecondsSinceEpoch(
-                            tableCard.batches[i].groupTime,
+                  _buildOrderHeader(
+                    tableCard.tableName,
+                    tableCard.isPaid,
+                    queueNumber,
+                    isNext: isNext,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 6, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (var i = 0; i < tableCard.batches.length; i++) ...[
+                          if (i > 0) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: DottedLine(
+                                dashColor: Colors.grey.shade300,
+                                lineThickness: 1,
+                                dashLength: 4,
+                                dashGapLength: 4,
+                              ),
+                            ),
+                          ],
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: _KitchenRelativeTime(
+                              time: DateTime.fromMillisecondsSinceEpoch(
+                                tableCard.batches[i].groupTime,
+                              ),
+                              tick: _minuteTick,
+                              formatter: formatRelativeTime,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontFamily: fontMulishRegular,
+                                color: Colors.grey.shade500,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
                           ),
-                        ),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontFamily: fontMulishRegular,
-                          color: Colors.grey.shade500,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
+                          const SizedBox(height: 6),
+                          ...tableCard.batches[i].items.map(_buildItemRow),
+                        ],
+                      ],
                     ),
-                    const SizedBox(height: 6),
-                    ...tableCard.batches[i].items.map(_buildItemRow),
-                  ],
+                  ),
                 ],
               ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -1128,8 +1213,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             color: isOld ? Colors.red : Colors.grey.shade700,
           ),
           const SizedBox(width: 6),
-          Text(
-            formatRelativeTime(time),
+          _KitchenRelativeTime(
+            time: time,
+            tick: _minuteTick,
+            formatter: formatRelativeTime,
             style: TextStyle(
               fontFamily: fontMulishSemiBold,
               fontSize: 13,
@@ -1237,7 +1324,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     KitchenSettings.showTableAllOrders.removeListener(
       _onKitchenSettingsChanged,
     );
+    _tablesSub?.cancel();
     _timer?.cancel();
+    _minuteTick.dispose();
     audioPlayer.dispose();
     updateAudioPlayer.dispose();
     deleteAudioPlayer.dispose();
@@ -1246,7 +1335,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
   void deleteTable(String docId) async {
     await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
-    setState(() {});
   }
 
   void showServedDialog(
@@ -1409,4 +1497,27 @@ class KitchenTableCard {
     required this.isPaid,
     required this.batches,
   });
+}
+
+/// Rebuilds only this label on the minute tick — avoids refreshing the whole grid.
+class _KitchenRelativeTime extends StatelessWidget {
+  final DateTime time;
+  final ValueListenable<int> tick;
+  final String Function(DateTime) formatter;
+  final TextStyle style;
+
+  const _KitchenRelativeTime({
+    required this.time,
+    required this.tick,
+    required this.formatter,
+    required this.style,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: tick,
+      builder: (context, _, __) => Text(formatter(time), style: style),
+    );
+  }
 }

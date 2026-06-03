@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/Widgets/setup_page_layout.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
 import '../../Styles/my_font.dart';
@@ -52,6 +53,32 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
         widget.transaction['onlineAmount']?.toString() ?? '0';
 
     _syncTotalsFromItems();
+    _alignPaymentFieldsToTotal();
+  }
+
+  int get _computedTotal {
+    final subtotal = int.tryParse(subtotalController.text) ?? 0;
+    final tax = int.tryParse(taxController.text) ?? 0;
+    final discount = int.tryParse(discountController.text) ?? 0;
+    return subtotal + tax - discount;
+  }
+
+  /// Keeps cash/online in sync when subtotal, tax, or discount change.
+  void _alignPaymentFieldsToTotal() {
+    final total = _computedTotal;
+    if (total < 0) return;
+
+    final cash = int.tryParse(cashController.text) ?? 0;
+    final online = int.tryParse(onlineController.text) ?? 0;
+    if (cash + online == total) return;
+
+    if (online == 0) {
+      cashController.text = total.toString();
+    } else if (cash == 0) {
+      onlineController.text = total.toString();
+    } else {
+      cashController.text = (total - online).toString();
+    }
   }
 
   @override
@@ -91,19 +118,34 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     });
   }
 
-  void _showMessage(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  void _showMessage(String msg, {bool isError = true}) {
+    Get.closeAllSnackbars();
+    Get.snackbar(
+      isError ? 'Could not save' : 'Saved',
+      msg,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
+      colorText: Colors.white,
+      margin: const EdgeInsets.all(12),
+      duration: const Duration(seconds: 3),
+    );
   }
 
   Future<void> saveChanges() async {
     if (_saving) return;
 
+    if (widget.transactionId.trim().isEmpty) {
+      _showMessage('Missing transaction id. Go back and open the transaction again.');
+      return;
+    }
+
     _syncTotalsFromItems();
+    _alignPaymentFieldsToTotal();
 
     final subtotal = int.tryParse(subtotalController.text) ?? 0;
     final tax = int.tryParse(taxController.text) ?? 0;
     final discount = int.tryParse(discountController.text) ?? 0;
-    final total = subtotal + tax - discount;
+    final total = _computedTotal;
     final cashAmount = int.tryParse(cashController.text) ?? 0;
     final onlineAmount = int.tryParse(onlineController.text) ?? 0;
 
@@ -112,7 +154,9 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
       return;
     }
     if (cashAmount + onlineAmount != total) {
-      _showMessage('Cash + Online must equal the total (₹$total).');
+      _showMessage(
+        'Cash (₹$cashAmount) + Online (₹$onlineAmount) must equal total (₹$total).',
+      );
       return;
     }
 
@@ -143,11 +187,13 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
         updated: updatedTransaction,
       );
       if (!mounted) return;
-      _showMessage('Transaction updated successfully.');
       Navigator.pop(context, updatedTransaction);
     } catch (e) {
       if (mounted) {
-        _showMessage(e.toString().replaceFirst('Exception: ', ''));
+        final msg = e is FirebaseException
+            ? (e.message ?? 'Failed to save transaction.')
+            : e.toString().replaceFirst('Exception: ', '');
+        _showMessage(msg);
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -426,7 +472,10 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
             _buildEditableRow(
               'Discount',
               discountController,
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) {
+                _alignPaymentFieldsToTotal();
+                setState(() {});
+              },
             ),
             const SizedBox(height: 10),
             _buildEditableRow(

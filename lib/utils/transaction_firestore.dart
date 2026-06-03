@@ -62,16 +62,20 @@ Future<void> updateTransactionInFirestore({
 
   final txRef =
       FirebaseFirestore.instance.collection('transactions').doc(transactionId);
-  batch.update(txRef, {
-    'items': normalizedItems,
-    'subtotal': newSubtotal,
-    'tax': newTax,
-    'discount': newDiscount,
-    'total': newTotal,
-    'cashAmount': newCash,
-    'onlineAmount': newOnline,
-    'updatedAt': FieldValue.serverTimestamp(),
-  });
+  batch.set(
+    txRef,
+    {
+      'items': normalizedItems,
+      'subtotal': newSubtotal,
+      'tax': newTax,
+      'discount': newDiscount,
+      'total': newTotal,
+      'cashAmount': newCash,
+      'onlineAmount': newOnline,
+      'updatedAt': FieldValue.serverTimestamp(),
+    },
+    SetOptions(merge: true),
+  );
 
   final deltaTotal = newTotal - oldTotal;
   final deltaCash = newCash - oldCash;
@@ -103,7 +107,11 @@ Future<void> updateTransactionInFirestore({
     );
   }
 
-  await batch.commit();
+  try {
+    await batch.commit();
+  } on FirebaseException catch (e) {
+    throw Exception(e.message ?? 'Failed to save transaction (${e.code}).');
+  }
 
   updated['items'] = normalizedItems;
   updated['subtotal'] = newSubtotal;
