@@ -3,6 +3,7 @@ import 'package:demo/AddCategoryPage.dart';
 import 'package:demo/AddTablePage.dart';
 import 'package:demo/Screens/Authentication/LoginScreenView.dart';
 import 'package:demo/Screens/Settings/ExpensesPage.dart';
+import 'package:demo/Screens/Settings/AdminDashboardPage.dart';
 import 'package:demo/Screens/Settings/ExportPage.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/TransactionsPage.dart';
@@ -102,6 +103,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 const SizedBox(height: 8),
                 if (isAdmin)
                   _SettingsTile(
+                    icon: Icons.dashboard_rounded,
+                    title: 'Dashboard',
+                    subtitle: 'Sales, expenses & reserved tables overview',
+                    onTap: () => Get.to(() => const AdminDashboardPage()),
+                  ),
+                if (isAdmin)
+                  _SettingsTile(
                     icon: Icons.receipt_long_rounded,
                     title: 'Transactions',
                     subtitle: 'View sales and payment history',
@@ -113,12 +121,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   subtitle: 'Track and add business expenses',
                   onTap: () => Get.to(() => const ExpensesPage()),
                 ),
-                _SettingsTile(
-                  icon: Icons.file_download_outlined,
-                  title: 'Export',
-                  subtitle: 'Download transactions & expenses to Excel',
-                  onTap: () => Get.to(() => ExportPage(isAdmin: isAdmin)),
-                ),
+                if (isAdmin)
+                  _SettingsTile(
+                    icon: Icons.file_download_outlined,
+                    title: 'Export',
+                    subtitle: 'Download transactions & expenses to Excel',
+                    onTap: () => Get.to(() => ExportPage(isAdmin: true)),
+                  ),
                 const SizedBox(height: 20),
                 const Text(
                   'Restaurant setup',
