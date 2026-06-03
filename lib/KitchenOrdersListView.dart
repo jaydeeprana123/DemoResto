@@ -46,6 +46,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _tablesSub;
   final ValueNotifier<int> _minuteTick = ValueNotifier(0);
   bool _kitchenStreamReady = false;
+  /// True when the kitchen list was last shown empty (no orders to display).
+  bool _wasKitchenEmpty = false;
   List<TableGroup> _lastUpdatedGroups = [];
   List<TableGroup> _displayFilteredGroups = [];
   List<KitchenTableCard> _displayTableCards = [];
@@ -361,6 +363,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     if (!mounted) return;
 
     if (snapshot.docs.isEmpty) {
+      _wasKitchenEmpty = true;
       if (previousKeys.isNotEmpty || _previousSignatures.isNotEmpty) {
         previousKeys = {};
         _previousSignatures = {};
@@ -403,6 +406,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     final filteredGroups = _filterByCategories(updatedGroups);
     final tableCards = _mergeGroupsByTable(filteredGroups);
 
+    if (filteredGroups.isEmpty) {
+      _wasKitchenEmpty = true;
+    }
+
     final currentKeys = updatedGroups.map((g) => g.key).toSet();
     final currentSignatures = <String, String>{};
     final currentDocIds = <String>{};
@@ -414,10 +421,28 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     }
 
     if (_previousSignatures.isEmpty && currentKeys.isNotEmpty) {
-      previousKeys = currentKeys;
-      _previousSignatures = currentSignatures;
-      _previousDocIds = currentDocIds;
-      _previousKeyToGroup = keyToGroup;
+      if (_wasKitchenEmpty) {
+        final newTableKeys = currentKeys
+            .where((k) => !_previousDocIds.contains(keyToGroup[k]?.docId))
+            .toList();
+        final keyToBlink = newTableKeys.isNotEmpty
+            ? newTableKeys.last
+            : currentKeys.last;
+        _scheduleBlink(
+          key: keyToBlink,
+          keyToGroup: keyToGroup,
+          currentKeys: currentKeys,
+          currentSignatures: currentSignatures,
+          currentDocIds: currentDocIds,
+          isUpdate: false,
+        );
+        _wasKitchenEmpty = false;
+      } else {
+        previousKeys = currentKeys;
+        _previousSignatures = currentSignatures;
+        _previousDocIds = currentDocIds;
+        _previousKeyToGroup = keyToGroup;
+      }
     } else if (_previousSignatures.isNotEmpty) {
       final addedKeys = currentKeys.difference(previousKeys);
       final removedKeys = previousKeys.difference(currentKeys);
@@ -482,6 +507,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
         _displayTableCards = tableCards;
         _kitchenStreamReady = true;
       });
+    }
+
+    if (filteredGroups.isNotEmpty) {
+      _wasKitchenEmpty = false;
     }
   }
 
