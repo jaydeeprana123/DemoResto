@@ -1654,23 +1654,23 @@ class _MenuPageState extends State<MenuPage>
                 ],
               )
             : _buildMenuBodyContent(),
-        floatingActionButton: !kIsWeb &&
-                !widget.isFromFinalBilling &&
-                _hasOrderItems
-            ? FloatingActionButton.extended(
-                backgroundColor: _kNavy,
-                foregroundColor: Colors.white,
-                icon: const Icon(Icons.receipt_long_outlined, size: 22),
-                label: const Text(
-                  'Billing',
-                  style: TextStyle(
-                    fontFamily: fontMulishSemiBold,
-                    fontSize: 14,
-                  ),
-                ),
-                onPressed: _openFinalBilling,
-              )
-            : null,
+        // floatingActionButton: !kIsWeb &&
+        //         !widget.isFromFinalBilling &&
+        //         _hasOrderItems
+        //     ? FloatingActionButton.extended(
+        //         backgroundColor: _kNavy,
+        //         foregroundColor: Colors.white,
+        //         icon: const Icon(Icons.receipt_long_outlined, size: 22),
+        //         label: const Text(
+        //           'Billing',
+        //           style: TextStyle(
+        //             fontFamily: fontMulishSemiBold,
+        //             fontSize: 14,
+        //           ),
+        //         ),
+        //         onPressed: _openFinalBilling,
+        //       )
+        //     : null,
       ),
     );
   }
