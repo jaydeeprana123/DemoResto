@@ -58,11 +58,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   }
 
   List<TableGroup> _reconstructGroups(
-      String tableName,
-      List<dynamic>? itemsFromDb, {
-        required bool isPaid,
-        required String docId,
-      }) {
+    String tableName,
+    List<dynamic>? itemsFromDb, {
+    required bool isPaid,
+    required String docId,
+  }) {
     List<TableGroup> groups = [];
     if (itemsFromDb == null) return groups;
 
@@ -113,7 +113,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     KitchenSettings.load().then((_) {
       if (mounted) {
         setState(() {
-          _showTableAllOrders = KitchenSettings.showTableAllOrders.value == true;
+          _showTableAllOrders =
+              KitchenSettings.showTableAllOrders.value == true;
         });
       }
     });
@@ -145,7 +146,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     }
 
     final cards = map.values.toList()
-      ..sort((a, b) => a.batches.first.groupTime.compareTo(b.batches.first.groupTime));
+      ..sort(
+        (a, b) =>
+            a.batches.first.groupTime.compareTo(b.batches.first.groupTime),
+      );
     return cards;
   }
 
@@ -156,26 +160,29 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       return groups;
     }
 
-    return groups.map((group) {
-      // Filter items in this group by selected categories
-      final filteredItems = group.items.where((item) {
-        final itemCategory = item['category']?.toString() ?? '';
-        return selectedCategories.contains(itemCategory);
-      }).toList();
+    return groups
+        .map((group) {
+          // Filter items in this group by selected categories
+          final filteredItems = group.items.where((item) {
+            final itemCategory = item['category']?.toString() ?? '';
+            return selectedCategories.contains(itemCategory);
+          }).toList();
 
-      // If no items match, return null (will be filtered out)
-      if (filteredItems.isEmpty) return null;
+          // If no items match, return null (will be filtered out)
+          if (filteredItems.isEmpty) return null;
 
-      // Return new group with filtered items
-      return TableGroup(
-        group.tableName,
-        filteredItems,
-        group.groupTime,
-        key: group.key,
-        docId: group.docId,
-        isPaid: group.isPaid,
-      );
-    }).whereType<TableGroup>().toList(); // Remove nulls
+          // Return new group with filtered items
+          return TableGroup(
+            group.tableName,
+            filteredItems,
+            group.groupTime,
+            key: group.key,
+            docId: group.docId,
+            isPaid: group.isPaid,
+          );
+        })
+        .whereType<TableGroup>()
+        .toList(); // Remove nulls
   }
 
   // Check if the group contains items from selected categories
@@ -208,9 +215,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const AlertDialog(
-                content: Center(
-                  child: CircularProgressIndicator(),
-                ),
+                content: Center(child: CircularProgressIndicator()),
               );
             }
 
@@ -287,7 +292,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                             itemBuilder: (context, index) {
                               final category = categories[index];
                               final categoryName = category['name'] as String;
-                              final isSelected = selectedCategories.contains(categoryName);
+                              final isSelected = selectedCategories.contains(
+                                categoryName,
+                              );
 
                               return CheckboxListTile(
                                 title: Text(
@@ -303,14 +310,18 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                                 onChanged: showAllCategories
                                     ? null
                                     : (bool? value) {
-                                  setDialogState(() {
-                                    if (value == true) {
-                                      selectedCategories.add(categoryName);
-                                    } else {
-                                      selectedCategories.remove(categoryName);
-                                    }
-                                  });
-                                },
+                                        setDialogState(() {
+                                          if (value == true) {
+                                            selectedCategories.add(
+                                              categoryName,
+                                            );
+                                          } else {
+                                            selectedCategories.remove(
+                                              categoryName,
+                                            );
+                                          }
+                                        });
+                                      },
                                 contentPadding: EdgeInsets.zero,
                                 dense: true,
                               );
@@ -373,10 +384,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       appBar: AppBar(
         title: const Text(
           "All Orders",
-          style: TextStyle(
-            fontFamily: fontMulishSemiBold,
-            fontSize: 16,
-          ),
+          style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 16),
         ),
         actions: [
           // Filter button with badge showing count
@@ -446,12 +454,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             final itemsFromDb = (data.containsKey('items'))
                 ? (data['items'] as List<dynamic>?)
                 : null;
-            updatedGroups.addAll(_reconstructGroups(
-              tableName,
-              itemsFromDb,
-              isPaid: isPaid,
-              docId: doc.id,
-            ));
+            updatedGroups.addAll(
+              _reconstructGroups(
+                tableName,
+                itemsFromDb,
+                isPaid: isPaid,
+                docId: doc.id,
+              ),
+            );
           }
 
           // Sort by time
@@ -472,7 +482,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
               // Check if the new order contains items from selected categories
               final newGroup = updatedGroups.firstWhere(
-                    (g) => g.key == firstKey,
+                (g) => g.key == firstKey,
                 orElse: () => updatedGroups.last,
               );
               final shouldPlaySound = _shouldPlaySoundForGroup(newGroup);
@@ -504,7 +514,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
                 // Check if the new order contains items from selected categories
                 final newGroup = updatedGroups.firstWhere(
-                      (g) => g.key == newKey,
+                  (g) => g.key == newKey,
                   orElse: () => updatedGroups.last,
                 );
                 final shouldPlaySound = _shouldPlaySoundForGroup(newGroup);
@@ -540,7 +550,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.filter_list_off, size: 64, color: Colors.grey),
+                  const Icon(
+                    Icons.filter_list_off,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     showAllCategories
@@ -570,10 +584,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           }
 
           final screenW = MediaQuery.of(context).size.width;
-          final crossCols = screenW > 1200 ? 5
-              : screenW > 900  ? 4
-              : screenW > 600  ? 3
-              : screenW > 400  ? 2
+          final crossCols = screenW > 1200
+              ? 5
+              : screenW > 900
+              ? 4
+              : screenW > 600
+              ? 3
+              : screenW > 400
+              ? 2
               : 1;
 
           if (_showTableAllOrders == true) {
@@ -652,8 +670,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   }
 
   Widget _buildTableBatchCard(KitchenTableCard tableCard) {
-    final isBlinking = tableCard.batches
-        .any((g) => blinkingGroupKey == g.key.hashCode);
+    final isBlinking = tableCard.batches.any(
+      (g) => blinkingGroupKey == g.key.hashCode,
+    );
 
     for (final batch in tableCard.batches) {
       final time = DateTime.fromMillisecondsSinceEpoch(batch.groupTime);
@@ -683,7 +702,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                   .delete();
               setState(() {});
             } else {
-              await _updateTableItemsInFirestore(tableCard.tableName, [], false);
+              await _updateTableItemsInFirestore(
+                tableCard.tableName,
+                [],
+                false,
+              );
             }
           });
         }
@@ -697,15 +720,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           children: [
             _buildOrderHeader(tableCard.tableName, tableCard.isPaid),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              padding: const EdgeInsets.fromLTRB(12, 8, 6, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   for (var i = 0; i < tableCard.batches.length; i++) ...[
                     if (i > 0) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 0),
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        padding: const EdgeInsets.only(bottom: 4),
                         child: DottedLine(
                           dashColor: Colors.grey.shade300,
                           lineThickness: 1,
@@ -777,8 +800,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               children: [
                 SvgPicture.asset(
                   tableName.contains("Take Away") ? icon_packing : icon_table,
-                  colorFilter:
-                      const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                  colorFilter: const ColorFilter.mode(
+                    Colors.white,
+                    BlendMode.srcIn,
+                  ),
                   width: tableName.contains("Take Away") ? 18 : 22,
                 ),
                 const SizedBox(width: 8),
@@ -826,8 +851,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       color: isOld ? Colors.red.shade50 : const Color(0xFFF5F6FA),
       child: Row(
         children: [
-          Icon(Icons.access_time,
-              size: 14, color: isOld ? Colors.red : Colors.grey.shade700),
+          Icon(
+            Icons.access_time,
+            size: 14,
+            color: isOld ? Colors.red : Colors.grey.shade700,
+          ),
           const SizedBox(width: 6),
           Text(
             formatRelativeTime(time),
@@ -867,7 +895,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               color: const Color(0xFFf57c35).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
-                  color: const Color(0xFFf57c35).withValues(alpha: 0.3)),
+                color: const Color(0xFFf57c35).withValues(alpha: 0.3),
+              ),
             ),
             child: Text(
               "${qty}x",
@@ -934,7 +963,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
   @override
   void dispose() {
-    KitchenSettings.showTableAllOrders.removeListener(_onKitchenSettingsChanged);
+    KitchenSettings.showTableAllOrders.removeListener(
+      _onKitchenSettingsChanged,
+    );
     _timer?.cancel();
     super.dispose();
   }
@@ -945,10 +976,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   }
 
   void showServedDialog(
-      BuildContext context,
-      String tableName,
-      VoidCallback onServed,
-      ) {
+    BuildContext context,
+    String tableName,
+    VoidCallback onServed,
+  ) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -958,11 +989,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
-           tableName.contains("Take Away")?"Mark as Delivered?": "Mark as Served?",
+            tableName.contains("Take Away")
+                ? "Mark as Delivered?"
+                : "Mark as Served?",
             style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
           ),
           content: Text(
-            tableName.contains("Take Away")? "Are you sure you want to mark table '$tableName' as delivered?":"Are you sure you want to mark table '$tableName' as served?",
+            tableName.contains("Take Away")
+                ? "Are you sure you want to mark table '$tableName' as delivered?"
+                : "Are you sure you want to mark table '$tableName' as served?",
             style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 15),
           ),
           actions: [
@@ -987,8 +1022,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                 Navigator.pop(context);
                 onServed();
               },
-              child:  Text(
-                tableName.contains("Take Away")? "Delivered":"Served",
+              child: Text(
+                tableName.contains("Take Away") ? "Delivered" : "Served",
                 style: TextStyle(
                   fontFamily: fontMulishSemiBold,
                   color: Colors.white,
@@ -1002,10 +1037,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   }
 
   Future<void> _updateTableItemsInFirestore(
-      String tableName,
-      List<List<Map<String, dynamic>>> groups,
-      bool isBillPaid,
-      ) async {
+    String tableName,
+    List<List<Map<String, dynamic>>> groups,
+    bool isBillPaid,
+  ) async {
     try {
       print("=== UPDATING FIREBASE ===");
       print("Table name: $tableName");
@@ -1101,6 +1136,3 @@ class KitchenTableCard {
     required this.batches,
   });
 }
-
-
-

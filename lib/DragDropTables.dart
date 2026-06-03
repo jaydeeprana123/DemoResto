@@ -55,10 +55,8 @@ class DragListBetweenTables extends StatefulWidget {
   State<DragListBetweenTables> createState() => _DragListBetweenTablesState();
 }
 
-
 class _DragListBetweenTablesState extends State<DragListBetweenTables>
     with AutomaticKeepAliveClientMixin {
-
   @override
   bool get wantKeepAlive => true;
   Map<String, List<List<Map<String, dynamic>>>> tables = {};
@@ -138,13 +136,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     dynamic preserveAddedAt,
   }) {
     final ts = preserveAddedAt ?? Timestamp.now();
-    return items
-        .map((item) {
-          final copy = Map<String, dynamic>.from(item);
-          copy['addedAt'] = ts;
-          return copy;
-        })
-        .toList();
+    return items.map((item) {
+      final copy = Map<String, dynamic>.from(item);
+      copy['addedAt'] = ts;
+      return copy;
+    }).toList();
   }
 
   // Listen to Firestore tables collection changes - UPDATED for flattened structure
@@ -361,7 +357,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         "isPaid": isBillPaid,
         'updatedAt': FieldValue.serverTimestamp(),
       };
-      
+
       if (overallRemarks.isNotEmpty) {
         updateData['remarks'] = overallRemarks;
       }
@@ -417,12 +413,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       tables[tableName] = [];
       tableIsPaid[tableName] = false;
     });
-    await _updateTableItemsInFirestore(
-      tableName,
-      [],
-      false,
-      overallRemarks,
-    );
+    await _updateTableItemsInFirestore(tableName, [], false, overallRemarks);
   }
 
   /// Take Away billing: keep table visible, show items with PAID tag.
@@ -573,13 +564,15 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       };
-      
+
       if (overallRemarks.isNotEmpty) {
         tableData['remarks'] = overallRemarks;
       }
 
       // Step 2: Add the document to Firestore
-      final docRef = await FirebaseFirestore.instance.collection('tables').add(tableData);
+      final docRef = await FirebaseFirestore.instance
+          .collection('tables')
+          .add(tableData);
 
       print(
         "SUCCESS: Table $tableName added with ${flattenedItems.length} items",
@@ -596,18 +589,21 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   }
 
   // ── Brand colours (matches login/signup) ────────────────────────────────
-  static const _navy   = Color(0xFF1A3A5C);
+  static const _navy = Color(0xFF1A3A5C);
   static const _orange = Color(0xFFf57c35);
-  static const _green  = Color(0xFF4CAF50);
-  static const _bg     = Color(0xFFF5F6FA);
+  static const _green = Color(0xFF4CAF50);
+  static const _bg = Color(0xFFF5F6FA);
 
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
     final screenW = MediaQuery.of(context).size.width;
-    final crossCols = screenW > 1200 ? 5
-        : screenW > 900  ? 4
-        : screenW > 600  ? 3
+    final crossCols = screenW > 1200
+        ? 5
+        : screenW > 900
+        ? 4
+        : screenW > 600
+        ? 3
         : 2;
 
     return Scaffold(
@@ -626,24 +622,25 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         onRefresh: () async => _loadMenu(),
                         child: MasonryGridView.count(
                           crossAxisCount: crossCols,
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 22,
+                          crossAxisSpacing: 6,
                           padding: EdgeInsets.fromLTRB(
-                            screenW > 900 ? 16 : 8,
+                            screenW > 900 ? 16 : 4,
                             8,
-                            screenW > 900 ? 16 : 8,
+                            screenW > 900 ? 16 : 4,
                             100,
                           ),
                           itemCount: _filteredTableKeys().length,
                           itemBuilder: (context, index) {
-                            final tableName =
-                                _filteredTableKeys().elementAt(index);
+                            final tableName = _filteredTableKeys().elementAt(
+                              index,
+                            );
                             final groups = tables[tableName]!;
-                            final queuePos = _takeAwayQueuePosition(tableName);
+                            final queuePos = _takeAwayNumber(tableName);
                             return _buildTableCard(
                               tableName,
                               groups,
-                              queuePosition: queuePos,
+                              takeAwayNum: queuePos,
                             );
                           },
                         ),
@@ -674,7 +671,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           ClipOval(
             child: Image.asset(
               'assets/images/logo.png',
-              width: 36, height: 36,
+              width: 36,
+              height: 36,
               fit: BoxFit.contain,
               errorBuilder: (_, __, ___) =>
                   const Icon(Icons.restaurant, color: Colors.white, size: 28),
@@ -685,14 +683,22 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Text('Flavor Flow',
-                  style: TextStyle(
-                    fontSize: 16, fontFamily: fontMulishBold, color: Colors.white,
-                  )),
-              Text('Restaurant Dashboard',
-                  style: TextStyle(
-                    fontSize: 11, fontFamily: fontMulishRegular, color: Colors.white60,
-                  )),
+              Text(
+                'Flavor Flow',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontFamily: fontMulishBold,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                'Restaurant Dashboard',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: fontMulishRegular,
+                  color: Colors.white60,
+                ),
+              ),
             ],
           ),
         ],
@@ -708,7 +714,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           child: Text(
             '${_filteredTableKeys().length} ${selectedTab == 'Take Away' ? 'orders' : 'tables'}',
             style: const TextStyle(
-              color: Colors.white70, fontSize: 12, fontFamily: fontMulishSemiBold,
+              color: Colors.white70,
+              fontSize: 12,
+              fontFamily: fontMulishSemiBold,
             ),
           ),
         ),
@@ -754,12 +762,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                     borderRadius: BorderRadius.circular(9),
                   ),
                   child: Center(
-                    child: Text(label,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontFamily: fontMulishSemiBold,
-                          color: selected ? Colors.white : Colors.white60,
-                        )),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontFamily: fontMulishSemiBold,
+                        color: selected ? Colors.white : Colors.white60,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -781,17 +791,31 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               color: _orange.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.table_restaurant_outlined, size: 56, color: _orange),
+            child: const Icon(
+              Icons.table_restaurant_outlined,
+              size: 56,
+              color: _orange,
+            ),
           ),
           const SizedBox(height: 16),
-          const Text('No tables yet',
-              style: TextStyle(fontSize: 18, fontFamily: fontMulishBold, color: _navy)),
+          const Text(
+            'No tables yet',
+            style: TextStyle(
+              fontSize: 18,
+              fontFamily: fontMulishBold,
+              color: _navy,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text('Add tables from the Table tab\nor use the Take Away button below',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13, fontFamily: fontMulishRegular, color: Colors.grey.shade500,
-              )),
+          Text(
+            'Add tables from the Table tab\nor use the Take Away button below',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              fontFamily: fontMulishRegular,
+              color: Colors.grey.shade500,
+            ),
+          ),
         ],
       ),
     );
@@ -816,9 +840,16 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       backgroundColor: _navy,
       foregroundColor: Colors.white,
       elevation: 6,
-      icon: SvgPicture.asset(icon_take_away, width: 22, height: 22, color: Colors.white),
-      label: const Text('Take Away',
-          style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 14)),
+      icon: SvgPicture.asset(
+        icon_take_away,
+        width: 22,
+        height: 22,
+        color: Colors.white,
+      ),
+      label: const Text(
+        'Take Away',
+        style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 14),
+      ),
       onPressed: () async {
         final nextName = _getNextTakeAwayName();
         await Navigator.push(
@@ -831,32 +862,37 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               initialItems: [],
               showBilling: true,
               isFromFinalBilling: false,
-              onConfirm: (
-                List<Map<String, dynamic>> selectedItems,
-                bool isBillPaid,
-                String tableName,
-                String overallRemarks, {
-                bool fromBilling = false,
-                bool fromFinalBilling = false,
-              }) async {
-                if (fromBilling || fromFinalBilling) {
-                  await _billTakeAwayOrder(
-                    tableName,
-                    selectedItems,
-                    overallRemarks,
-                  );
-                  return;
-                }
-                await _addTableAndUpdateItems(tableName, selectedItems, isBillPaid, overallRemarks);
-                setState(() {});
-              },
+              onConfirm:
+                  (
+                    List<Map<String, dynamic>> selectedItems,
+                    bool isBillPaid,
+                    String tableName,
+                    String overallRemarks, {
+                    bool fromBilling = false,
+                    bool fromFinalBilling = false,
+                  }) async {
+                    if (fromBilling || fromFinalBilling) {
+                      await _billTakeAwayOrder(
+                        tableName,
+                        selectedItems,
+                        overallRemarks,
+                      );
+                      return;
+                    }
+                    await _addTableAndUpdateItems(
+                      tableName,
+                      selectedItems,
+                      isBillPaid,
+                      overallRemarks,
+                    );
+                    setState(() {});
+                  },
             ),
           ),
         );
       },
     );
   }
-
 
   bool _isTakeAway(String name) => !name.contains('Table');
 
@@ -866,8 +902,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       return 'T$num';
     }
     if (tableName.startsWith('Take Away ')) {
-      final num = tableName.substring('Take Away '.length).trim();
-      return 'Away $num';
+      return 'Away';
     }
     return tableName;
   }
@@ -887,18 +922,39 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     return aNum.compareTo(bNum);
   }
 
-  int? _takeAwayQueuePosition(String tableName) {
-    if (!_isTakeAway(tableName)) return null;
-    final sorted = tables.keys.where(_isTakeAway).toList()
-      ..sort(_compareByCreatedAt);
-    final index = sorted.indexOf(tableName);
-    return index >= 0 ? index + 1 : null;
+  // int? _takeAwayQueuePosition(String tableName) {
+  //   if (!_isTakeAway(tableName)) return null;
+  //   final sorted = tables.keys.where(_isTakeAway).toList()
+  //     ..sort(_compareByCreatedAt);
+  //   final index = sorted.indexOf(tableName);
+  //   return index >= 0 ? index + 1 : null;
+  // }
+
+  int? _takeAwayNumber(String tableName) {
+    if (tableName.startsWith("Take Away ")) {
+      final match = RegExp(r'\d+$').firstMatch(tableName);
+
+      if (match != null) {
+        int number = int.parse(match.group(0)!);
+        return number;
+      } else {
+        return null;
+      }
+
+      // if (!_isTakeAway(tableName)) return null;
+      // final sorted = tables.keys.where(_isTakeAway).toList()
+      //   ..sort(_compareByCreatedAt);
+      // final index = sorted.indexOf(tableName);
+      // return index >= 0 ? index + 1 : null;
+    } else {
+      return null;
+    }
   }
 
   Widget _buildTableCard(
     String tableName,
     List<List<Map<String, dynamic>>> groups, {
-    int? queuePosition,
+    int? takeAwayNum,
   }) {
     final isPaid = tableIsPaid[tableName] == true;
     final docId = tableDocIds[tableName] ?? '';
@@ -933,9 +989,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                'Moved all items from $sourceTable to $tableName',
-              ),
+              content: Text('Moved all items from $sourceTable to $tableName'),
             ),
           );
         }
@@ -969,7 +1023,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               groups,
               isPaid,
               docId,
-              queuePosition: queuePosition,
+              takeAwayNum: takeAwayNum,
             ),
           ),
           child: _buildTableCardWithContent(
@@ -977,7 +1031,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             groups,
             isPaid,
             docId,
-            queuePosition: queuePosition,
+            takeAwayNum: takeAwayNum,
           ),
         );
       },
@@ -990,7 +1044,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     List<List<Map<String, dynamic>>> groups,
     bool isPaid,
     String docId, {
-    int? queuePosition,
+    int? takeAwayNum,
   }) {
     final paid = isPaid == true;
     final hasItems = groups.isNotEmpty;
@@ -1000,15 +1054,18 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     final headerColor = paid
         ? Colors.red.shade700
         : hasItems
-            ? _green
-            : isTakeAway
-                ? _navy
-                : _orange;
+        ? _green
+        : isTakeAway
+        ? _navy
+        : _orange;
 
     // Count total items across all groups
     final totalQty = groups
         .expand((g) => g)
-        .fold<int>(0, (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 1));
+        .fold<int>(
+          0,
+          (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 1),
+        );
 
     return GestureDetector(
       onTap: () async {
@@ -1028,9 +1085,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         }
         // Double-tap always opens MenuPage to add items
         final pastItems = hasItems
-            ? _mergeItemsByNameAndCategory(
-                groups.expand((g) => g).toList(),
-              )
+            ? _mergeItemsByNameAndCategory(groups.expand((g) => g).toList())
             : <Map<String, dynamic>>[];
         await Navigator.push(
           context,
@@ -1043,40 +1098,45 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               pastItems: pastItems,
               showBilling: !hasItems,
               isFromFinalBilling: false,
-              onConfirm: (items, isBillPaid, tName, overallRemarks, {
-                  bool fromBilling = false,
-                  bool fromFinalBilling = false,
-                }) async {
-                if (fromFinalBilling) {
-                  if (isTakeAway) {
-                    await _deleteTakeAwayAfterFinalBilling(tName, docId);
-                  } else {
-                    await _clearTableAfterFinalBilling(
+              onConfirm:
+                  (
+                    items,
+                    isBillPaid,
+                    tName,
+                    overallRemarks, {
+                    bool fromBilling = false,
+                    bool fromFinalBilling = false,
+                  }) async {
+                    if (fromFinalBilling) {
+                      if (isTakeAway) {
+                        await _deleteTakeAwayAfterFinalBilling(tName, docId);
+                      } else {
+                        await _clearTableAfterFinalBilling(
+                          tName,
+                          overallRemarks: overallRemarks,
+                        );
+                      }
+                      return;
+                    }
+                    if (fromBilling) {
+                      await _applyBillingToTable(tName, items, overallRemarks);
+                      return;
+                    }
+                    setState(() {
+                      if (isBillPaid) {
+                        groups.clear();
+                        tableIsPaid[tName] = true;
+                      } else {
+                        groups.add(_stampGroupAddedAt(items));
+                      }
+                    });
+                    await _updateTableItemsInFirestore(
                       tName,
-                      overallRemarks: overallRemarks,
+                      isBillPaid ? [] : groups,
+                      isBillPaid,
+                      overallRemarks,
                     );
-                  }
-                  return;
-                }
-                if (fromBilling) {
-                  await _applyBillingToTable(tName, items, overallRemarks);
-                  return;
-                }
-                setState(() {
-                  if (isBillPaid) {
-                    groups.clear();
-                    tableIsPaid[tName] = true;
-                  } else {
-                    groups.add(_stampGroupAddedAt(items));
-                  }
-                });
-                await _updateTableItemsInFirestore(
-                  tName,
-                  isBillPaid ? [] : groups,
-                  isBillPaid,
-                  overallRemarks,
-                );
-              },
+                  },
             ),
           ),
         );
@@ -1099,24 +1159,26 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           children: [
             // ── Card header ──────────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+              padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
               decoration: BoxDecoration(
                 color: headerColor,
                 borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16)),
+                  top: Radius.circular(16),
+                ),
               ),
               child: Row(
                 children: [
                   // Table icon
-                  Icon(
-                    isTakeAway
-                        ? Icons.delivery_dining_outlined
-                        : Icons.table_restaurant_outlined,
-                    color: Colors.white70,
-                    size: 17,
-                  ),
-                  const SizedBox(width: 6),
-                  if (isTakeAway && queuePosition != null) ...[
+                  if (!isTakeAway)
+                    Icon(
+                      isTakeAway
+                          ? Icons.delivery_dining_outlined
+                          : Icons.table_restaurant_outlined,
+                      color: Colors.white70,
+                      size: 17,
+                    ),
+                  if (!isTakeAway) const SizedBox(width: 6),
+                  if (isTakeAway && takeAwayNum != null) ...[
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 6,
@@ -1127,10 +1189,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        '#$queuePosition',
+                        '#$takeAwayNum',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 11,
+                          fontSize: 13,
                           fontFamily: fontMulishBold,
                         ),
                       ),
@@ -1142,7 +1204,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                       displayName,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 14,
+                        fontSize: 16,
                         fontFamily: fontMulishBold,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -1167,54 +1229,73 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                             menuList: menu,
                             tableName: tableName,
                             tableNameEditable: false,
-                            initialItems: List<Map<String, dynamic>>.from(lastGroup),
+                            initialItems: List<Map<String, dynamic>>.from(
+                              lastGroup,
+                            ),
                             pastItems: pastForEdit,
                             showBilling: groups.length == 1,
                             isFromFinalBilling: false,
-                            onConfirm: (items, isBillPaid, tName, overallRemarks, {
-                                bool fromBilling = false,
-                                bool fromFinalBilling = false,
-                              }) async {
-                              if (fromFinalBilling) {
-                                if (isTakeAway) {
-                                  await _deleteTakeAwayAfterFinalBilling(
-                                    tName, docId,
+                            onConfirm:
+                                (
+                                  items,
+                                  isBillPaid,
+                                  tName,
+                                  overallRemarks, {
+                                  bool fromBilling = false,
+                                  bool fromFinalBilling = false,
+                                }) async {
+                                  if (fromFinalBilling) {
+                                    if (isTakeAway) {
+                                      await _deleteTakeAwayAfterFinalBilling(
+                                        tName,
+                                        docId,
+                                      );
+                                    } else {
+                                      await _clearTableAfterFinalBilling(
+                                        tName,
+                                        overallRemarks: overallRemarks,
+                                      );
+                                    }
+                                    return;
+                                  }
+                                  if (fromBilling) {
+                                    await _applyBillingToTable(
+                                      tName,
+                                      items,
+                                      overallRemarks,
+                                    );
+                                    return;
+                                  }
+                                  if (isBillPaid) {
+                                    setState(() {
+                                      groups.clear();
+                                      tableIsPaid[tName] = true;
+                                    });
+                                    await _updateTableItemsInFirestore(
+                                      tName,
+                                      [],
+                                      true,
+                                      overallRemarks,
+                                    );
+                                    return;
+                                  }
+                                  final existingAddedAt = groups.isNotEmpty
+                                      ? groups.last.first['addedAt']
+                                      : null;
+                                  setState(
+                                    () => groups[groups.length - 1] =
+                                        _stampGroupAddedAt(
+                                          items,
+                                          preserveAddedAt: existingAddedAt,
+                                        ),
                                   );
-                                } else {
-                                  await _clearTableAfterFinalBilling(
+                                  await _updateTableItemsInFirestore(
                                     tName,
-                                    overallRemarks: overallRemarks,
+                                    groups,
+                                    false,
+                                    overallRemarks,
                                   );
-                                }
-                                return;
-                              }
-                              if (fromBilling) {
-                                await _applyBillingToTable(
-                                  tName, items, overallRemarks,
-                                );
-                                return;
-                              }
-                              if (isBillPaid) {
-                                setState(() {
-                                  groups.clear();
-                                  tableIsPaid[tName] = true;
-                                });
-                                await _updateTableItemsInFirestore(
-                                  tName, [], true, overallRemarks,
-                                );
-                                return;
-                              }
-                              final existingAddedAt = groups.isNotEmpty
-                                  ? groups.last.first['addedAt']
-                                  : null;
-                              setState(() => groups[groups.length - 1] =
-                                  _stampGroupAddedAt(
-                                    items,
-                                    preserveAddedAt: existingAddedAt,
-                                  ));
-                              await _updateTableItemsInFirestore(
-                                  tName, groups, false, overallRemarks);
-                            },
+                                },
                           ),
                         ),
                       );
@@ -1223,23 +1304,25 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                   if (hasItems && !paid)
                     _cardIconBtn(Icons.receipt_long_outlined, () async {
                       final merged = _mergeItemsByNameAndCategory(
-                          groups.expand((g) => g).toList());
+                        groups.expand((g) => g).toList(),
+                      );
                       final confirmedItems =
                           await Navigator.push<List<Map<String, dynamic>>>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => FinalBillingView(
-                            menuData: merged,
-                            totalMenuList: menu,
-                            tableName: tableName,
-                            onConfirm: (_) {},
-                          ),
-                        ),
-                      );
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => FinalBillingView(
+                                menuData: merged,
+                                totalMenuList: menu,
+                                tableName: tableName,
+                                onConfirm: (_) {},
+                              ),
+                            ),
+                          );
                       if (confirmedItems == null) return;
                       if (isTakeAway) {
                         await _deleteTakeAwayAfterFinalBilling(
-                          tableName, docId,
+                          tableName,
+                          docId,
                         );
                       } else {
                         await _clearTableAfterFinalBilling(tableName);
@@ -1249,17 +1332,21 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                   if (paid)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 3),
+                        horizontal: 10,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text('PAID',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontSize: 11,
-                            fontFamily: fontMulishBold,
-                          )),
+                      child: const Text(
+                        'PAID',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 11,
+                          fontFamily: fontMulishBold,
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -1272,22 +1359,27 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 child: Center(
                   child: Column(
                     children: [
-                      Icon(Icons.touch_app_outlined,
-                          color: Colors.grey.shade300, size: 28),
+                      Icon(
+                        Icons.touch_app_outlined,
+                        color: Colors.grey.shade300,
+                        size: 28,
+                      ),
                       const SizedBox(height: 6),
-                      Text('Tap to order',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade400,
-                            fontFamily: fontMulishRegular,
-                          )),
+                      Text(
+                        'Tap to order',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade400,
+                          fontFamily: fontMulishRegular,
+                        ),
+                      ),
                     ],
                   ),
                 ),
               )
             else
               Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1303,19 +1395,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                               padding: const EdgeInsets.symmetric(vertical: 3),
                               child: Row(
                                 children: [
-                                  Expanded(
-                                    child: Text(
-                                      item['name'] ?? '',
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontFamily: fontMulishRegular,
-                                        color: Color(0xFF212121),
-                                      ),
-                                    ),
-                                  ),
                                   Container(
+                                    margin: EdgeInsets.only(right: 5),
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 3),
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: _orange.withOpacity(0.12),
                                       borderRadius: BorderRadius.circular(10),
@@ -1329,6 +1414,17 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                                       ),
                                     ),
                                   ),
+
+                                  Expanded(
+                                    child: Text(
+                                      item['name'] ?? '',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontFamily: fontMulishSemiBold,
+                                        color: Color(0xFF212121),
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
                             );
@@ -1337,7 +1433,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                             Align(
                               alignment: Alignment.centerRight,
                               child: Padding(
-                                padding: const EdgeInsets.only(top: 2, bottom: 2),
+                                padding: const EdgeInsets.only(
+                                  top: 0,
+                                  bottom: 1,
+                                ),
                                 child: Text(
                                   _groupTimeLabel(group)!,
                                   style: TextStyle(
@@ -1351,7 +1450,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                             ),
                           if (gi < groups.length - 1)
                             Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              padding: const EdgeInsets.symmetric(vertical: 4),
                               child: DottedLine(
                                 dashColor: Colors.grey.shade300,
                                 lineThickness: 1,
@@ -1369,7 +1468,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                       children: [
                         Expanded(
                           child: Divider(
-                              color: Colors.grey.shade200, thickness: 1),
+                            color: Colors.grey.shade200,
+                            thickness: 1,
+                          ),
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1394,13 +1495,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   }
 
   Widget _cardIconBtn(IconData icon, VoidCallback onTap) => GestureDetector(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Icon(icon, color: Colors.white70, size: 18),
-        ),
-      );
-
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Icon(icon, color: Colors.white70, size: 20),
+    ),
+  );
 
   // Filter the tables based on current selectedTab
   List<String> _filteredTableKeys() {
@@ -1416,14 +1516,16 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       return keys;
     }
 
-    final tableKeys = tables.keys.where((key) => key.startsWith('Table ')).toList()
-      ..sort(_compareTableNumber);
+    final tableKeys =
+        tables.keys.where((key) => key.startsWith('Table ')).toList()
+          ..sort(_compareTableNumber);
     final takeAwayKeys = tables.keys.where(_isTakeAway).toList()
       ..sort(_compareByCreatedAt);
-    final otherKeys = tables.keys
-        .where((key) => !key.startsWith('Table ') && !_isTakeAway(key))
-        .toList()
-      ..sort();
+    final otherKeys =
+        tables.keys
+            .where((key) => !key.startsWith('Table ') && !_isTakeAway(key))
+            .toList()
+          ..sort();
 
     return [...tableKeys, ...takeAwayKeys, ...otherKeys];
   }
