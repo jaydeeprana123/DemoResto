@@ -1,27 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/AddCategoryPage.dart' hide AddTablePage;
-import 'package:demo/AddMenuItemPage.dart';
-import 'package:demo/Styles/my_colors.dart';
+import 'package:demo/Widgets/setup_page_layout.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../../Styles/my_font.dart';
-
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:get/get.dart';
-
-// Import your AddTablePage, AddCategoryPage, MenuPage, FinalCartPage here
-// import 'add_table_page.dart';
-// import 'add_category_page.dart';
-// import 'menu_page.dart';
-// import 'final_cart_page.dart';
-
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 class EditTransactionPage extends StatefulWidget {
   final Map<String, dynamic> transaction;
@@ -55,16 +38,18 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     cashController = TextEditingController();
     onlineController = TextEditingController();
 
-    items = List<Map<String, dynamic>>.from(widget.transaction["items"] ?? []);
+    items = List<Map<String, dynamic>>.from(widget.transaction['items'] ?? []);
 
-    subtotalController.text = widget.transaction["subtotal"]?.toString() ?? "0";
-    taxController.text = widget.transaction["tax"]?.toString() ?? "0";
-    discountController.text = widget.transaction["discount"]?.toString() ?? "0";
-    cashController.text = widget.transaction["cashAmount"]?.toString() ?? "0";
+    subtotalController.text =
+        widget.transaction['subtotal']?.toString() ?? '0';
+    taxController.text = widget.transaction['tax']?.toString() ?? '0';
+    discountController.text =
+        widget.transaction['discount']?.toString() ?? '0';
+    cashController.text = widget.transaction['cashAmount']?.toString() ?? '0';
     onlineController.text =
-        widget.transaction["onlineAmount"]?.toString() ?? "0";
+        widget.transaction['onlineAmount']?.toString() ?? '0';
 
-    _recalculateTotals(); // initialize totals
+    _recalculateTotals();
   }
 
   @override
@@ -85,15 +70,12 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
       subtotal += qty * price;
     }
 
-    final taxPercent = 8.5; // you can modify this if dynamic
+    const taxPercent = 8.5;
     final tax = (subtotal * taxPercent / 100).round();
-    final discount = int.tryParse(discountController.text) ?? 0;
-    final total = subtotal + tax - discount;
 
     setState(() {
       subtotalController.text = subtotal.toString();
       taxController.text = tax.toString();
-      // total is derived, no controller needed
     });
   }
 
@@ -115,165 +97,318 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
 
     final updatedTransaction = {
       ...widget.transaction,
-      "items": items,
-      "subtotal": subtotal,
-      "tax": tax,
-      "discount": discount,
-      "total": total,
-      "cashAmount": cashAmount,
-      "onlineAmount": onlineAmount,
+      'items': items,
+      'subtotal': subtotal,
+      'tax': tax,
+      'discount': discount,
+      'total': total,
+      'cashAmount': cashAmount,
+      'onlineAmount': onlineAmount,
     };
 
     widget.onSave?.call(updatedTransaction);
     Navigator.pop(context, updatedTransaction);
   }
 
+  int get _total =>
+      (int.tryParse(subtotalController.text) ?? 0) +
+      (int.tryParse(taxController.text) ?? 0) -
+      (int.tryParse(discountController.text) ?? 0);
+
+  String get _dateTime {
+    final createdAt = widget.transaction['createdAt'];
+    if (createdAt is Timestamp) {
+      return DateFormat('dd MMM yyyy  hh:mm a').format(createdAt.toDate());
+    }
+    return '-';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final dateTime = widget.transaction["createdAt"] != null
-        ? DateFormat(
-            "dd-MM-yyyy | hh:mm a",
-          ).format((widget.transaction["createdAt"]).toDate())
-        : "-";
-
-    final total =
-        (int.tryParse(subtotalController.text) ?? 0) +
-        (int.tryParse(taxController.text) ?? 0) -
-        (int.tryParse(discountController.text) ?? 0);
+    final tableName = widget.transaction['table']?.toString() ?? 'Unknown Table';
 
     return Scaffold(
+      backgroundColor: SetupPageColors.bg,
       appBar: AppBar(
-        title: const Text("Edit Transaction"),
+        backgroundColor: SetupPageColors.navy,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text(
+          'Edit Transaction',
+          style: TextStyle(
+            fontSize: 16,
+            fontFamily: fontMulishBold,
+            color: Colors.white,
+          ),
+        ),
         actions: [
-          IconButton(icon: const Icon(Icons.save), onPressed: saveChanges),
+          TextButton.icon(
+            onPressed: saveChanges,
+            icon: const Icon(Icons.save_outlined, size: 18),
+            label: const Text(
+              'Save',
+              style: TextStyle(
+                fontFamily: fontMulishSemiBold,
+                fontSize: 13,
+              ),
+            ),
+            style: TextButton.styleFrom(foregroundColor: SetupPageColors.orange),
+          ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
+        children: [
+          _buildHeader(tableName),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildItemsSection(),
+                  const SizedBox(height: 16),
+                  _buildSummaryCard(),
+                  const SizedBox(height: 16),
+                  SetupPageStyle.primaryButton(
+                    label: 'Save Changes',
+                    icon: Icons.check_rounded,
+                    onTap: saveChanges,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(String tableName) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      color: SetupPageColors.navy,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.table_restaurant_outlined,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              tableName,
+              style: const TextStyle(
+                fontSize: 16,
+                fontFamily: fontMulishBold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          Text(
+            _dateTime,
+            style: const TextStyle(
+              fontSize: 12,
+              fontFamily: fontMulishRegular,
+              color: Colors.white70,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemsSection() {
+    return SetupPageStyle.listCard(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  widget.transaction["table"] ?? "Unknown Table",
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+            const Text(
+              'Items',
+              style: TextStyle(
+                fontSize: 15,
+                fontFamily: fontMulishBold,
+                color: SetupPageColors.navy,
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (items.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'No items in this transaction',
+                  style: TextStyle(
+                    fontFamily: fontMulishRegular,
+                    fontSize: 13,
+                    color: Colors.grey.shade600,
                   ),
                 ),
-                Text(
-                  dateTime,
-                  style: const TextStyle(fontSize: 14, color: Colors.black54),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+              )
+            else
+              ...items.asMap().entries.map((entry) {
+                final i = entry.key;
+                final item = entry.value;
+                final qty = item['qty'] ?? 0;
+                final price = item['price'] ?? 0;
+                final lineTotal = qty * price;
+                final remarks = item['remarks']?.toString() ?? '';
 
-            // Items list
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Items",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const Divider(),
-                ...items.asMap().entries.map((entry) {
-                  final i = entry.key;
-                  final item = entry.value;
-                  final qty = item['qty'] ?? 0;
-                  final price = item['price'] ?? 0;
-
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item['name'] ?? '-',
-                            style: const TextStyle(fontSize: 15),
-                          ),
-                        ),
-                        Row(
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: SetupPageColors.bg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.remove_circle_outline,
-                                color: Colors.red,
-                              ),
-                              onPressed: () => updateItemQty(i, -1),
-                            ),
                             Text(
-                              qty.toString(),
-                              style: const TextStyle(fontSize: 15),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.add_circle_outline,
-                                color: Colors.green,
+                              item['name']?.toString() ?? '-',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontFamily: fontMulishBold,
+                                color: SetupPageColors.navy,
                               ),
-                              onPressed: () => updateItemQty(i, 1),
                             ),
+                            if (remarks.isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                remarks,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: SetupPageColors.orange,
+                                  fontFamily: fontMulishRegular,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
-                        Text(
-                          "₹${qty * price}",
-                          style: const TextStyle(fontSize: 15),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.remove_circle_outline,
+                          color: Colors.red,
+                          size: 22,
                         ),
-                      ],
-                    ),
-                  );
-                }),
-              ],
+                        onPressed: () => updateItemQty(i, -1),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: SetupPageColors.navy.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '×$qty',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontFamily: fontMulishBold,
+                            color: SetupPageColors.navy,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.add_circle_outline,
+                          color: SetupPageColors.green,
+                          size: 22,
+                        ),
+                        onPressed: () => updateItemQty(i, 1),
+                      ),
+                      Text(
+                        '₹$lineTotal',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontFamily: fontMulishBold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard() {
+    return SetupPageStyle.listCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Payment Summary',
+              style: TextStyle(
+                fontSize: 15,
+                fontFamily: fontMulishBold,
+                color: SetupPageColors.navy,
+              ),
             ),
-
-            const Divider(height: 32),
-
-            buildEditableRow("Subtotal", subtotalController, readOnly: true),
-            buildEditableRow("Tax (8.5%)", taxController, readOnly: true),
-            buildEditableRow(
-              "Discount",
+            const SizedBox(height: 14),
+            _buildReadOnlyRow('Subtotal', subtotalController),
+            const SizedBox(height: 10),
+            _buildReadOnlyRow('Tax (8.5%)', taxController),
+            const SizedBox(height: 10),
+            _buildEditableRow(
+              'Discount',
               discountController,
               onChanged: (_) => _recalculateTotals(),
             ),
-            buildEditableRow("Cash", cashController),
-            buildEditableRow("Online", onlineController),
-
-            const SizedBox(height: 12),
-            const Divider(),
-
+            const SizedBox(height: 10),
+            _buildEditableRow('Cash', cashController),
+            const SizedBox(height: 10),
+            _buildEditableRow('Online', onlineController),
+            const SizedBox(height: 14),
+            DottedLine(
+              dashLength: 4,
+              dashGapLength: 6,
+              lineThickness: 1,
+              dashColor: Colors.grey.shade300,
+            ),
+            const SizedBox(height: 14),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  "Total",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  'Total',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontFamily: fontMulishBold,
+                    color: SetupPageColors.navy,
+                  ),
                 ),
                 Text(
-                  "₹$total",
+                  '₹$_total',
                   style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
+                    fontSize: 18,
+                    fontFamily: fontMulishBold,
+                    color: SetupPageColors.orange,
                   ),
                 ),
               ],
-            ),
-
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: saveChanges,
-              icon: const Icon(Icons.save),
-              label: Text(
-                "Save Changes",
-                style: TextStyle(color: Colors.white),
-              ),
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 48),
-                backgroundColor: primary_color,
-              ),
             ),
           ],
         ),
@@ -281,44 +416,66 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     );
   }
 
-  Widget buildEditableRow(
+  Widget _buildReadOnlyRow(String label, TextEditingController controller) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontFamily: fontMulishRegular,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        Text(
+          '₹${controller.text}',
+          style: const TextStyle(
+            fontSize: 13,
+            fontFamily: fontMulishSemiBold,
+            color: Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEditableRow(
     String label,
     TextEditingController controller, {
-    bool readOnly = false,
     Function(String)? onChanged,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+    return Row(
+      children: [
+        Expanded(
+          flex: 2,
+          child: SetupPageStyle.label(label),
+        ),
+        Expanded(
+          flex: 1,
+          child: TextField(
+            controller: controller,
+            onChanged: onChanged,
+            textAlign: TextAlign.end,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(
+              fontSize: 14,
+              fontFamily: fontMulishSemiBold,
+              color: SetupPageColors.navy,
             ),
-          ),
-          Expanded(
-            flex: 1,
-            child: TextField(
-              controller: controller,
-              readOnly: readOnly,
-              onChanged: onChanged,
-              textAlign: TextAlign.end,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(
-                  vertical: 6,
-                  horizontal: 8,
-                ),
-                border: OutlineInputBorder(),
+            decoration: SetupPageStyle.inputDecoration(
+              hint: '0',
+              icon: Icons.currency_rupee_rounded,
+            ).copyWith(
+              prefixIcon: null,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
