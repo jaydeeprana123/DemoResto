@@ -13,6 +13,8 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:demo/services/kitchen_settings.dart';
+import 'package:demo/services/table_item_served.dart';
+import 'package:demo/widgets/order_item_row.dart';
 import 'Styles/my_font.dart';
 import 'models/GroupOrder.dart';
 import 'MenuPage.dart';
@@ -56,6 +58,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   // yellow for an update (quantity changed / item added on existing table).
   Color _blinkColor = Colors.lightGreenAccent.shade100;
   Timer? _timer;
+  final TableItemSelectionController _itemSelection =
+      TableItemSelectionController();
 
   static final Color _newOrderBlinkColor = Colors.lightGreenAccent.shade100;
   static final Color _updateBlinkColor = Colors.yellow.shade300;
@@ -258,8 +262,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     for (var item in itemsFromDb) {
       if (item is Map) {
         final itemMap = Map<String, dynamic>.from(item);
-        final int groupIndex = (itemMap['groupIndex'] is int)
-            ? itemMap['groupIndex'] as int
+        final int groupIndex = (itemMap['groupIndex'] is num)
+            ? (itemMap['groupIndex'] as num).toInt()
             : 0;
         final Timestamp addedAt = (itemMap['addedAt'] is Timestamp)
             ? itemMap['addedAt'] as Timestamp
@@ -286,6 +290,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           key: '${tableName}_$index',
           docId: docId,
           isPaid: isPaid,
+          groupIndex: index,
         ),
       );
     });
@@ -329,12 +334,26 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     _displayTableCards = _mergeGroupsByTable(filtered);
   }
 
+  bool _sameServedState(
+    List<Map<String, dynamic>> a,
+    List<Map<String, dynamic>> b,
+  ) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (TableItemServed.isServed(a[i]) != TableItemServed.isServed(b[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   bool _sameGroupList(List<TableGroup> a, List<TableGroup> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
       if (a[i].key != b[i].key ||
           a[i].isPaid != b[i].isPaid ||
-          _groupSignature(a[i]) != _groupSignature(b[i])) {
+          _groupSignature(a[i]) != _groupSignature(b[i]) ||
+          !_sameServedState(a[i].items, b[i].items)) {
         return false;
       }
     }
@@ -351,7 +370,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       for (var j = 0; j < a[i].batches.length; j++) {
         if (a[i].batches[j].key != b[i].batches[j].key ||
             _groupSignature(a[i].batches[j]) !=
-                _groupSignature(b[i].batches[j])) {
+                _groupSignature(b[i].batches[j]) ||
+            !_sameServedState(
+              a[i].batches[j].items,
+              b[i].batches[j].items,
+            )) {
           return false;
         }
       }
@@ -657,15 +680,19 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     return groups
         .map((group) {
           // Filter items in this group by selected categories
-          final filteredItems = group.items.where((item) {
+          final filteredIndices = <int>[];
+          final filteredItems = <Map<String, dynamic>>[];
+          for (var i = 0; i < group.items.length; i++) {
+            final item = group.items[i];
             final itemCategory = item['category']?.toString() ?? '';
-            return selectedCategories.contains(itemCategory);
-          }).toList();
+            if (selectedCategories.contains(itemCategory)) {
+              filteredItems.add(item);
+              filteredIndices.add(i);
+            }
+          }
 
-          // If no items match, return null (will be filtered out)
           if (filteredItems.isEmpty) return null;
 
-          // Return new group with filtered items
           return TableGroup(
             group.tableName,
             filteredItems,
@@ -673,6 +700,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             key: group.key,
             docId: group.docId,
             isPaid: group.isPaid,
+            groupIndex: group.groupIndex,
+            itemIndicesInGroup: filteredIndices,
           );
         })
         .whereType<TableGroup>()
@@ -944,6 +973,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       key: ValueKey(group.key),
       child: InkWell(
         onTap: () {
+          if (_itemSelection.isSelectionModeFor(group.docId)) return;
           if (group.isPaid && selectedCategories.isEmpty) {
             showServedDialog(context, group.tableName, () async {
               _playDeleteSound();
@@ -982,7 +1012,22 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                     padding: const EdgeInsets.all(12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: group.items.map(_buildItemRow).toList(),
+                      children: [
+                        ...group.items.asMap().entries.map((entry) {
+                          return OrderItemRow(
+                            item: entry.value,
+                            docId: group.docId,
+                            groupIndex: group.groupIndex,
+                            itemIndexInGroup:
+                                group.itemIndicesInGroup[entry.key],
+                            selectionController: _itemSelection,
+                          );
+                        }),
+                        TableItemSelectionActionBar(
+                          docId: group.docId,
+                          controller: _itemSelection,
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1018,6 +1063,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       key: ValueKey(tableCard.docId),
       child: GestureDetector(
         onDoubleTap: () {
+          if (_itemSelection.isSelectionModeFor(tableCard.docId)) return;
           if (tableCard.isPaid && selectedCategories.isEmpty) {
             showServedDialog(context, tableCard.tableName, () async {
               _playDeleteSound();
@@ -1090,8 +1136,24 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                             ),
                           ),
                           const SizedBox(height: 6),
-                          ...tableCard.batches[i].items.map(_buildItemRow),
+                          ...tableCard.batches[i].items.asMap().entries.map((
+                            entry,
+                          ) {
+                            return OrderItemRow(
+                              item: entry.value,
+                              docId: tableCard.docId,
+                              groupIndex: tableCard.batches[i].groupIndex,
+                              itemIndexInGroup: tableCard
+                                  .batches[i]
+                                  .itemIndicesInGroup[entry.key],
+                              selectionController: _itemSelection,
+                            );
+                          }),
                         ],
+                        TableItemSelectionActionBar(
+                          docId: tableCard.docId,
+                          controller: _itemSelection,
+                        ),
                       ],
                     ),
                   ),
@@ -1268,67 +1330,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     );
   }
 
-  Widget _buildItemRow(Map<String, dynamic> item) {
-    final qty = item['qty'] ?? 1;
-    final remarks = item['remarks']?.toString() ?? '';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFFf57c35).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: const Color(0xFFf57c35).withValues(alpha: 0.3),
-              ),
-            ),
-            child: Text(
-              "${qty}x",
-              style: const TextStyle(
-                color: Color(0xFFf57c35),
-                fontFamily: fontMulishBold,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item['name']?.toString() ?? '',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
-                    fontFamily: fontMulishSemiBold,
-                    height: 1.2,
-                  ),
-                ),
-                if (remarks.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      "* $remarks",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.red.shade400,
-                        fontFamily: fontMulishSemiBold,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   String formatRelativeTime(DateTime time) {
     final now = DateTime.now();
     final difference = now.difference(time);
@@ -1350,6 +1351,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
   @override
   void dispose() {
+    _itemSelection.dispose();
     KitchenSettings.showTableAllOrders.removeListener(
       _onKitchenSettingsChanged,
     );
@@ -1503,6 +1505,8 @@ class TableGroup {
   final String key;
   final String docId;
   final bool isPaid;
+  final int groupIndex;
+  final List<int> itemIndicesInGroup;
 
   TableGroup(
     this.tableName,
@@ -1511,7 +1515,10 @@ class TableGroup {
     required this.key,
     required this.docId,
     required this.isPaid,
-  });
+    this.groupIndex = 0,
+    List<int>? itemIndicesInGroup,
+  }) : itemIndicesInGroup =
+           itemIndicesInGroup ?? List.generate(items.length, (i) => i);
 }
 
 class KitchenTableCard {

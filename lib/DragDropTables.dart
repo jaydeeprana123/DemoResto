@@ -47,6 +47,8 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import 'Styles/my_colors.dart';
 import 'Styles/my_font.dart';
+import 'services/table_item_served.dart';
+import 'widgets/order_item_row.dart';
 
 class DragListBetweenTables extends StatefulWidget {
   const DragListBetweenTables({super.key});
@@ -63,6 +65,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   final Map<String, Timestamp?> tableCreatedAt = {};
   final Map<String, bool> tableIsPaid = {};
   final Map<String, String> tableDocIds = {};
+  final Map<String, List<int>> _firestoreGroupIndices = {};
   final List<Map<String, dynamic>> menu = [];
   bool isLoading = false;
   final user = FirebaseAuth.instance.currentUser;
@@ -70,6 +73,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   String selectedTab = 'All'; // 👈 Add this variable at class level
   StreamSubscription<QuerySnapshot>? tablesSubscription;
   Timer? _timeRefreshTimer;
+  final TableItemSelectionController _itemSelection =
+      TableItemSelectionController();
 
   @override
   void initState() {
@@ -95,6 +100,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
   @override
   void dispose() {
+    _itemSelection.dispose();
     _timeRefreshTimer?.cancel();
     tablesSubscription?.cancel();
     super.dispose();
@@ -167,6 +173,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 : null;
 
             List<List<Map<String, dynamic>>> groupedItems = [];
+            List<int> firestoreGroupIndices = [];
 
             if (itemsFromDb != null && itemsFromDb.isNotEmpty) {
               // Check if items have groupIndex (new flattened format)
@@ -184,7 +191,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                     Map<String, dynamic> itemMap = Map<String, dynamic>.from(
                       item,
                     );
-                    int groupIndex = itemMap['groupIndex'] ?? 0;
+                    int groupIndex = (itemMap['groupIndex'] is num)
+                        ? (itemMap['groupIndex'] as num).toInt()
+                        : 0;
 
                     // Remove groupIndex from the item (it's only for storage)
                     itemMap.remove('groupIndex');
@@ -198,6 +207,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
                 // Convert to ordered list of groups
                 List<int> sortedGroupIndices = groupMap.keys.toList()..sort();
+                firestoreGroupIndices = sortedGroupIndices;
                 for (int groupIndex in sortedGroupIndices) {
                   groupedItems.add(groupMap[groupIndex]!);
                 }
@@ -235,6 +245,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             }
 
             updatedTables[tableName] = groupedItems;
+            _firestoreGroupIndices[tableName] = firestoreGroupIndices.isNotEmpty
+                ? firestoreGroupIndices
+                : List.generate(groupedItems.length, (i) => i);
             print(
               "Table '$tableName' loaded with ${groupedItems.length} groups",
             );
@@ -1067,8 +1080,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 1),
         );
 
+    final isCompleted = !paid && TableItemServed.allServedInGroups(groups);
+
     return GestureDetector(
       onTap: () async {
+        if (_itemSelection.isSelectionModeFor(docId)) return;
         if (paid) {
           showServedDialog(context, tableName, () async {
             if (isTakeAway) {
@@ -1210,6 +1226,26 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (isCompleted)
+                    Container(
+                      margin: const EdgeInsets.only(left: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.22),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'Completed',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontFamily: fontMulishBold,
+                        ),
+                      ),
+                    ),
                   // Action icons
                   if (hasItems && !paid)
                     _cardIconBtn(Icons.edit_outlined, () async {
@@ -1386,46 +1422,21 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                     // Item rows
                     ...List.generate(groups.length, (gi) {
                       final group = groups[gi];
+                      final firestoreGi =
+                          _firestoreGroupIndices[tableName]?[gi] ?? gi;
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          ...group.map((item) {
-                            final qty = (item['qty'] as num?)?.toInt() ?? 1;
+                          ...group.asMap().entries.map((entry) {
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 3),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    margin: EdgeInsets.only(right: 5),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _orange.withOpacity(0.12),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Text(
-                                      '×$qty',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: _orange,
-                                        fontFamily: fontMulishBold,
-                                      ),
-                                    ),
-                                  ),
-
-                                  Expanded(
-                                    child: Text(
-                                      item['name'] ?? '',
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontFamily: fontMulishSemiBold,
-                                        color: Color(0xFF212121),
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              child: OrderItemRow(
+                                item: entry.value,
+                                docId: docId,
+                                groupIndex: firestoreGi,
+                                itemIndexInGroup: entry.key,
+                                selectionController: _itemSelection,
+                                style: OrderItemRowStyle.dashboard,
                               ),
                             );
                           }),
@@ -1461,6 +1472,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         ],
                       );
                     }),
+
+                    TableItemSelectionActionBar(
+                      docId: docId,
+                      controller: _itemSelection,
+                    ),
 
                     // Total row
                     const SizedBox(height: 8),
