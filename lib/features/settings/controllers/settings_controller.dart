@@ -1,5 +1,6 @@
 import 'package:demo/core/repositories/user_repository.dart';
 import 'package:demo/features/kitchen/services/kitchen_settings.dart';
+import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:get/get.dart';
 
 class SettingsController extends GetxController {
@@ -10,6 +11,8 @@ class SettingsController extends GetxController {
   final userRole = Rxn<String>();
   final isLoadingRole = true.obs;
   final kitchenShowTableAllOrders = false.obs;
+  final printPdfEnabled = false.obs;
+  final printerType = PosPrinterType.tvs80.obs;
 
   Future<void> loadUserRole() async {
     isLoadingRole.value = true;
@@ -31,6 +34,21 @@ class SettingsController extends GetxController {
   Future<void> setKitchenShowTableAllOrders(bool value) async {
     await KitchenSettings.setShowTableAllOrders(value);
     kitchenShowTableAllOrders.value = value;
+  }
+
+  Future<void> loadPrintSettings() async {
+    printPdfEnabled.value = await PrintSettings.getPrintPdfEnabled();
+    printerType.value = await PrintSettings.getPrinterType();
+  }
+
+  Future<void> setPrintPdfEnabled(bool value) async {
+    await PrintSettings.setPrintPdfEnabled(value);
+    printPdfEnabled.value = value;
+  }
+
+  Future<void> setPrinterType(PosPrinterType value) async {
+    await PrintSettings.setPrinterType(value);
+    printerType.value = value;
   }
 
   Future<void> signOut() => _userRepository.signOut();

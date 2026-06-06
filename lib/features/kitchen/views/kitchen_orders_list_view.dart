@@ -125,6 +125,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   Set<String> selectedCategories = {};
   bool showAllCategories = true; // Track if "All" is selected
   bool _showTableAllOrders = false;
+  /// 0 = active (unserved items), 1 = served items only
+  int _kitchenOrderTabIndex = 0;
 
   void _onKitchenSettingsChanged() {
     if (!mounted) return;
@@ -330,9 +332,61 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   }
 
   void _rebuildDisplayFromCache() {
-    final filtered = _filterByCategories(_lastUpdatedGroups);
+    final filtered = _applyKitchenDisplayFilters(_lastUpdatedGroups);
     _displayFilteredGroups = filtered;
     _displayTableCards = _mergeGroupsByTable(filtered);
+  }
+
+  List<TableGroup> _applyKitchenDisplayFilters(List<TableGroup> groups) {
+    final byCategory = _filterByCategories(groups);
+    return _filterByServedStatus(
+      byCategory,
+      servedOnly: _kitchenOrderTabIndex == 1,
+    );
+  }
+
+  void _onKitchenOrderTabChanged(int index) {
+    if (_kitchenOrderTabIndex == index) return;
+    setState(() {
+      _kitchenOrderTabIndex = index;
+      _itemSelection.cancel();
+      _rebuildDisplayFromCache();
+    });
+  }
+
+  List<TableGroup> _filterByServedStatus(
+    List<TableGroup> groups, {
+    required bool servedOnly,
+  }) {
+    return groups
+        .map((group) {
+          final filteredItems = group.items.asMap().entries
+              .where((entry) {
+                final served = TableItemServed.isServed(entry.value);
+                return servedOnly ? served : !served;
+              })
+              .map((entry) {
+                final copy = Map<String, dynamic>.from(entry.value);
+                copy['__itemIndex'] =
+                    entry.value['__itemIndex'] as int? ?? entry.key;
+                return copy;
+              })
+              .toList();
+
+          if (filteredItems.isEmpty) return null;
+
+          return TableGroup(
+            group.tableName,
+            filteredItems,
+            group.groupTime,
+            key: group.key,
+            docId: group.docId,
+            isPaid: group.isPaid,
+            groupIndex: group.groupIndex,
+          );
+        })
+        .whereType<TableGroup>()
+        .toList();
   }
 
   bool _sameGroupList(List<TableGroup> a, List<TableGroup> b) {
@@ -409,7 +463,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     updatedGroups.sort((a, b) => a.groupTime.compareTo(b.groupTime));
     _lastUpdatedGroups = updatedGroups;
 
-    final filteredGroups = _filterByCategories(updatedGroups);
+    final filteredGroups = _applyKitchenDisplayFilters(updatedGroups);
     final tableCards = _mergeGroupsByTable(filteredGroups);
 
     if (filteredGroups.isEmpty) {
@@ -534,9 +588,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           ),
           const SizedBox(height: 16),
           Text(
-            !showAllCategories && selectedCategories.isNotEmpty
-                ? "No orders in selected categories"
-                : "No orders found",
+            _kitchenOrderTabIndex == 1
+                ? (!showAllCategories && selectedCategories.isNotEmpty
+                    ? "No served orders in selected categories"
+                    : "No served orders")
+                : (!showAllCategories && selectedCategories.isNotEmpty
+                    ? "No orders in selected categories"
+                    : "No orders found"),
             style: const TextStyle(
               fontFamily: fontMulishSemiBold,
               fontSize: 16,
@@ -885,13 +943,62 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     );
   }
 
+  Widget _buildKitchenOrderTabs() {
+    const navy = Color(0xFF1A3A5C);
+    const orange = Color(0xFFf57c35);
+
+    Widget tabButton(String label, int index) {
+      final selected = _kitchenOrderTabIndex == index;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => _onKitchenOrderTabChanged(index),
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: selected ? orange : Colors.transparent,
+                  width: 3,
+                ),
+              ),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: selected ? fontMulishBold : fontMulishSemiBold,
+                fontSize: 14,
+                color: selected ? Colors.white : Colors.white70,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ColoredBox(
+      color: navy,
+      child: Row(
+        children: [
+          tabButton('All Orders', 0),
+          tabButton('Served Orders', 1),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          "All Orders",
+          "Kitchen",
           style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 16),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(44),
+          child: _buildKitchenOrderTabs(),
         ),
         actions: [
           // Filter button with badge showing count
@@ -1003,6 +1110,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                           TableItemSelectionActionBar(
                             docId: group.docId,
                             controller: _itemSelection,
+                            action: _kitchenOrderTabIndex == 1
+                                ? TableItemSelectionAction.markPending
+                                : TableItemSelectionAction.serve,
                           ),
                         ],
                       );
@@ -1120,6 +1230,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                           TableItemSelectionActionBar(
                             docId: tableCard.docId,
                             controller: _itemSelection,
+                            action: _kitchenOrderTabIndex == 1
+                                ? TableItemSelectionAction.markPending
+                                : TableItemSelectionAction.serve,
                           ),
                         ],
                       );
@@ -1342,6 +1455,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       selectionMode: selectionMode,
       isSelected: _itemSelection.isSelected(key),
       style: OrderItemRowStyle.kitchen,
+      selectionForServedItems: _kitchenOrderTabIndex == 1,
     );
   }
 

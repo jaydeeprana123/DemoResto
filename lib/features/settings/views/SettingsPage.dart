@@ -1,6 +1,7 @@
 import 'package:demo/features/authentication/authentication.dart';
 import 'package:demo/features/menu_setup/menu_setup.dart';
 import 'package:demo/features/settings/controllers/settings_controller.dart';
+import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/features/settings/views/AdminDashboardPage.dart';
 import 'package:demo/features/settings/views/ExpensesPage.dart';
 import 'package:demo/features/settings/views/ExportPage.dart';
@@ -29,6 +30,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _settings = Get.find<SettingsController>();
     _settings.loadUserRole();
     _settings.loadKitchenSettings();
+    _settings.loadPrintSettings();
   }
 
   Future<void> _signOut() async {
@@ -122,6 +124,102 @@ class _SettingsPageState extends State<SettingsPage> {
                     title: 'Menu',
                     subtitle: 'Categories and menu items',
                     onTap: () => Get.to(() => AddCategoryPage()),
+                  ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Billing',
+                  style: TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SwitchListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    secondary: CircleAvatar(
+                      backgroundColor: _orange.withOpacity(0.12),
+                      child: const Icon(Icons.picture_as_pdf_rounded, color: _orange),
+                    ),
+                    title: const Text(
+                      'Print PDF bill',
+                      style: TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 15,
+                        color: _navy,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Print POS receipt on Confirm & Billing',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    value: _settings.printPdfEnabled.value,
+                    activeColor: _orange,
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      await _settings.setPrintPdfEnabled(value);
+                    },
+                  ),
+                ),
+                if (_settings.printPdfEnabled.value)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ListTile(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      leading: CircleAvatar(
+                        backgroundColor: _orange.withOpacity(0.12),
+                        child: const Icon(Icons.print_rounded, color: _orange),
+                      ),
+                      title: const Text(
+                        'POS Printer',
+                        style: TextStyle(
+                          fontFamily: fontMulishSemiBold,
+                          fontSize: 15,
+                          color: _navy,
+                        ),
+                      ),
+                      subtitle: Text(
+                        _settings.printerType.value.subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      trailing: DropdownButton<PosPrinterType>(
+                        value: _settings.printerType.value,
+                        underline: const SizedBox.shrink(),
+                        items: PosPrinterType.values
+                            .map(
+                              (type) => DropdownMenuItem(
+                                value: type,
+                                child: Text(
+                                  type.label,
+                                  style: const TextStyle(
+                                    fontFamily: fontMulishSemiBold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) async {
+                          if (value == null) return;
+                          await _settings.setPrinterType(value);
+                        },
+                      ),
+                    ),
                   ),
                 const SizedBox(height: 20),
                 const Text(

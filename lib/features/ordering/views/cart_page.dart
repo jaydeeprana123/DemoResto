@@ -7,9 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:demo/services/sarvam_stt_service.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:pdf/pdf.dart';
-import 'package:printing/printing.dart';
+import 'package:demo/features/ordering/services/food_bill_pdf_service.dart';
 
 import 'package:demo/MyWidgets/EditableTextField.dart';
 import 'package:demo/Styles/my_colors.dart';
@@ -184,16 +182,35 @@ class _CartPageState extends State<CartPage> {
     final cash = int.tryParse(cashController.text) ?? 0;
     final online = int.tryParse(onlineController.text) ?? 0;
 
-    await addTransactionToFirestore(
+    final taxAmount = (subtotal * 0.085).round();
+    final txId = await addTransactionToFirestore(
       items: billItems,
       tableName: widget.tableName,
       subtotal: subtotal.round(),
-      tax: (subtotal * 0.085).round(),
+      tax: taxAmount,
       discount: discountAmount.round(),
       total: total,
       cashAmount: cash,
       onlineAmount: online,
     );
+
+    if (mounted) {
+      final pdfContext = sheetContext ?? context;
+      await FoodBillPdfService.generateAndPrintIfEnabled(
+        context: pdfContext,
+        data: FoodBillPdfData(
+          tableName: widget.tableName,
+          items: billItems,
+          subtotal: subtotal.round(),
+          tax: taxAmount,
+          discount: discountAmount.round(),
+          total: total,
+          cashAmount: cash,
+          onlineAmount: online,
+          invoiceNumber: txId,
+        ),
+      );
+    }
 
     await widget.onConfirm(
       billItems,
@@ -1650,7 +1667,7 @@ class _CartPageState extends State<CartPage> {
     );
   }
 
-  Future<void> addTransactionToFirestore({
+  Future<String?> addTransactionToFirestore({
     required List<Map<String, dynamic>> items,
     required String tableName,
     required int subtotal,
@@ -1714,8 +1731,10 @@ class _CartPageState extends State<CartPage> {
       // 4️⃣ Commit batch
       await batch.commit();
       Get.snackbar("Successfull", "Transaction saved successfully!");
+      return txRef.id;
     } catch (e) {
       Get.snackbar("Error", "Transaction not saved" + e.toString());
+      return null;
     }
   }
 

@@ -96,6 +96,64 @@ class TableItemServed {
     return anyUpdated;
   }
 
+  static Future<bool> markItemsUnserved(List<TableItemKey> keys) async {
+    if (keys.isEmpty) return false;
+
+    final byDoc = <String, List<TableItemKey>>{};
+    for (final key in keys) {
+      byDoc.putIfAbsent(key.docId, () => []).add(key);
+    }
+
+    var anyUpdated = false;
+
+    for (final entry in byDoc.entries) {
+      final docRef =
+          FirebaseFirestore.instance.collection('tables').doc(entry.key);
+      final snap = await docRef.get();
+      if (!snap.exists) continue;
+
+      final rawItems = snap.data()?['items'];
+      if (rawItems is! List) continue;
+
+      final items = rawItems
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+
+      final groupCounters = <int, int>{};
+      var changed = false;
+
+      for (var i = 0; i < items.length; i++) {
+        final item = items[i];
+        final groupIndex = (item['groupIndex'] as int?) ?? 0;
+        final indexInGroup = groupCounters[groupIndex] ?? 0;
+        groupCounters[groupIndex] = indexInGroup + 1;
+
+        final shouldUnserve = entry.value.any(
+          (key) =>
+              key.groupIndex == groupIndex &&
+              key.itemIndexInGroup == indexInGroup,
+        );
+
+        if (!shouldUnserve || !isServed(item)) continue;
+
+        items[i]['isServed'] = false;
+        items[i].remove('servedAt');
+        changed = true;
+      }
+
+      if (changed) {
+        await docRef.update({
+          'items': items,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        anyUpdated = true;
+      }
+    }
+
+    return anyUpdated;
+  }
+
   /// Compact row: ✓ qty badge + name, or checkbox during selection mode.
   static Widget buildItemLine({
     required int qty,

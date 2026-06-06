@@ -65,7 +65,19 @@ class TableItemSelectionController {
     }
     return updated;
   }
+
+  Future<bool> submitSelectedUnserved() async {
+    if (_selected.isEmpty) return false;
+    final keys = _selected.toList();
+    final updated = await TableItemServed.markItemsUnserved(keys);
+    if (updated) {
+      cancel();
+    }
+    return updated;
+  }
 }
+
+enum TableItemSelectionAction { serve, markPending }
 
 enum OrderItemRowStyle { kitchen, dashboard }
 
@@ -80,6 +92,7 @@ class OrderItemRow extends StatelessWidget {
     required this.selectionMode,
     required this.isSelected,
     this.style = OrderItemRowStyle.kitchen,
+    this.selectionForServedItems = false,
   });
 
   final Map<String, dynamic> item;
@@ -90,6 +103,7 @@ class OrderItemRow extends StatelessWidget {
   final bool selectionMode;
   final bool isSelected;
   final OrderItemRowStyle style;
+  final bool selectionForServedItems;
 
   TableItemKey get _key => TableItemKey(
     docId: docId,
@@ -113,7 +127,8 @@ class OrderItemRow extends StatelessWidget {
       qtyBadge: _qtyBadge(qtyInt, served: served),
       nameStyle: _nameStyle(served: served),
       remarksStyle: _remarksStyle(served: served),
-      showSelectionIndicator: selectionMode && !served,
+      showSelectionIndicator:
+          selectionMode && (!served || selectionForServedItems),
       selectionSelected: isSelected,
     );
 
@@ -137,7 +152,7 @@ class OrderItemRow extends StatelessWidget {
       ),
     );
 
-    if (served) return content;
+    if (served && !selectionForServedItems) return content;
 
     if (selectionMode) {
       return GestureDetector(
@@ -159,10 +174,10 @@ class OrderItemRow extends StatelessWidget {
     required bool selectionMode,
     required bool selected,
   }) {
-    if (served) return Colors.green.withValues(alpha: 0.1);
     if (selectionMode && selected) {
       return Colors.green.withValues(alpha: 0.08);
     }
+    if (served) return Colors.green.withValues(alpha: 0.1);
     return null;
   }
 
@@ -241,10 +256,12 @@ class TableItemSelectionActionBar extends StatefulWidget {
     super.key,
     required this.docId,
     required this.controller,
+    this.action = TableItemSelectionAction.serve,
   });
 
   final String docId;
   final TableItemSelectionController controller;
+  final TableItemSelectionAction action;
 
   @override
   State<TableItemSelectionActionBar> createState() =>
@@ -265,6 +282,7 @@ class _TableItemSelectionActionBarState
         }
 
         final count = widget.controller.selectedFor(widget.docId).length;
+        final isPending = widget.action == TableItemSelectionAction.markPending;
 
         return Padding(
           padding: const EdgeInsets.only(top: 8),
@@ -279,22 +297,34 @@ class _TableItemSelectionActionBarState
               ),
               const SizedBox(width: 12),
               _actionIcon(
-                icon: Icons.check_circle_outline,
-                tooltip: count > 0 ? 'Serve ($count)' : 'Serve',
-                color: Colors.green.shade600,
+                icon: isPending
+                    ? Icons.pending_actions
+                    : Icons.check_circle_outline,
+                tooltip: isPending
+                    ? (count > 0
+                        ? 'Pending to serve ($count)'
+                        : 'Pending to serve')
+                    : (count > 0 ? 'Serve ($count)' : 'Serve'),
+                color: isPending
+                    ? const Color(0xFFf57c35)
+                    : Colors.green.shade600,
                 onPressed: count == 0 || _submitting
                     ? null
                     : () async {
                         setState(() => _submitting = true);
                         try {
-                          final updated =
-                              await widget.controller.submitSelected();
+                          final updated = isPending
+                              ? await widget.controller.submitSelectedUnserved()
+                              : await widget.controller.submitSelected();
                           if (!updated && mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
+                              SnackBar(
                                 content: Text(
-                                  'Could not mark items as served. '
-                                  'Please try again.',
+                                  isPending
+                                      ? 'Could not mark items as pending. '
+                                          'Please try again.'
+                                      : 'Could not mark items as served. '
+                                          'Please try again.',
                                 ),
                               ),
                             );

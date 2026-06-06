@@ -1,16 +1,11 @@
-import 'dart:typed_data';
-import 'package:flutter/services.dart' show rootBundle;
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:pdf/pdf.dart';
-import 'package:printing/printing.dart';
 
+import 'package:demo/features/ordering/services/food_bill_pdf_service.dart';
 import 'package:demo/features/shell/shell.dart';
 import 'package:demo/features/ordering/views/menu_page.dart';
 import 'package:demo/Styles/my_colors.dart';
@@ -872,16 +867,34 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                         .map((e) => Map<String, dynamic>.from(e))
                         .toList();
 
-                    await addTransactionToFirestore(
+                    final taxAmount = (subtotal * 0.085).round();
+                    final txId = await addTransactionToFirestore(
                       items: confirmedItems,
                       tableName: widget.tableName,
                       subtotal: subtotal.round(),
-                      tax: (subtotal * 0.085).round(),
+                      tax: taxAmount,
                       discount: discountAmount.round(),
                       total: total,
                       cashAmount: cash,
                       onlineAmount: online,
                     );
+
+                    if (context.mounted) {
+                      await FoodBillPdfService.generateAndPrintIfEnabled(
+                        context: context,
+                        data: FoodBillPdfData(
+                          tableName: widget.tableName,
+                          items: confirmedItems,
+                          subtotal: subtotal.round(),
+                          tax: taxAmount,
+                          discount: discountAmount.round(),
+                          total: total,
+                          cashAmount: cash,
+                          onlineAmount: online,
+                          invoiceNumber: txId,
+                        ),
+                      );
+                    }
 
                     widget.onConfirm(confirmedItems);
 
@@ -943,7 +956,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
 );
   }
 
-  Future<void> addTransactionToFirestore({
+  Future<String?> addTransactionToFirestore({
     required List<Map<String, dynamic>> items,
     required String tableName,
     required int subtotal,
@@ -1007,178 +1020,10 @@ class _FinalBillingViewState extends State<FinalBillingView> {
       // 4️⃣ Commit batch
       await batch.commit();
       Get.snackbar("Successfull", "Transaction saved successfully!");
+      return txRef.id;
     } catch (e) {
       Get.snackbar("Error", "Transaction not saved");
+      return null;
     }
-  }
-
-  Future<Uint8List> generateInvoicePdf({
-    required String tableName,
-    required List<Map<String, dynamic>> items,
-    required double subtotal,
-    required double tax,
-    required double discount,
-    required int total,
-    required int cashAmount,
-    required int onlineAmount,
-  }) async {
-    final pdf = pw.Document();
-
-    // ✅ Load custom Unicode font
-    final fontData = await rootBundle.load("assets/fonts/NotoSans-Regular.ttf");
-    final ttf = pw.Font.ttf(fontData);
-
-    // ✅ Load logo
-    final ByteData logoData = await rootBundle.load('assets/images/logo.png');
-    final Uint8List logoBytes = logoData.buffer.asUint8List();
-    final logoImage = pw.MemoryImage(logoBytes);
-
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(24),
-        build: (context) {
-          return pw.DefaultTextStyle(
-            style: pw.TextStyle(font: ttf, fontSize: 12),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                // Header section with logo
-                pw.Center(
-                  child: pw.Column(
-                    children: [
-                      pw.Image(logoImage, width: 64, height: 64),
-                      pw.SizedBox(height: 8),
-                      pw.Text(
-                        "Flavor Flow",
-                        style: pw.TextStyle(
-                          font: ttf,
-                          fontSize: 24,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.SizedBox(height: 4),
-                      pw.Text(
-                        "Invoice / Bill",
-                        style: pw.TextStyle(
-                          font: ttf,
-                          fontSize: 16,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(height: 16),
-                
-                pw.Text(
-                  "Table / Order: $tableName",
-                  style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold, fontSize: 14),
-                ),
-
-                pw.Divider(),
-
-                pw.Table(
-                  border: pw.TableBorder.all(width: 0.5, color: PdfColors.grey),
-                  children: [
-                    pw.TableRow(
-                      decoration: const pw.BoxDecoration(
-                        color: PdfColors.grey300,
-                      ),
-                      children: [
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("Item"),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("Qty"),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("Price"),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text("Total"),
-                        ),
-                      ],
-                    ),
-                    ...items.map((item) {
-                      final qty = item['qty'] ?? 1;
-                      final price =
-                          double.tryParse(item['price'].toString()) ?? 0;
-                      return pw.TableRow(
-                        children: [
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text(item['name'] ?? ''),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text('$qty'),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text('₹${price.toStringAsFixed(2)}'),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text(
-                              '₹${(price * qty).toStringAsFixed(2)}',
-                            ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                  ],
-                ),
-
-                pw.SizedBox(height: 16),
-
-                pw.Align(
-                  alignment: pw.Alignment.centerRight,
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text("Subtotal: ₹${subtotal.toStringAsFixed(2)}"),
-                      pw.Text("Tax (8.5%): ₹${tax.toStringAsFixed(2)}"),
-                      pw.Text("Discount: ₹${discount.toStringAsFixed(2)}"),
-                      pw.Text(
-                        "Total: ₹${total.toStringAsFixed(2)}",
-                        style: pw.TextStyle(
-                          font: ttf,
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.SizedBox(height: 8),
-                      pw.Text("Cash: ₹$cashAmount"),
-                      pw.Text("Online: ₹$onlineAmount"),
-                    ],
-                  ),
-                ),
-
-                pw.Divider(),
-
-                pw.Align(
-                  alignment: pw.Alignment.center,
-                  child: pw.Text(
-                    "Thank you for visiting!",
-                    style: pw.TextStyle(
-                      font: ttf,
-                      fontSize: 12,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-
-    return pdf.save();
   }
 }

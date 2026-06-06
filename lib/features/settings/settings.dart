@@ -9,6 +9,7 @@ export 'repositories/admin_dashboard_repository.dart';
 export 'repositories/expenses_repository.dart';
 export 'repositories/export_repository.dart';
 export 'services/export_excel_service.dart';
+export 'services/print_settings.dart';
 export 'utils/export_date_range.dart';
 export 'views/AddExpensePage.dart';
 export 'views/AdminDashboardPage.dart';
