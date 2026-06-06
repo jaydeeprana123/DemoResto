@@ -1,4 +1,4 @@
-import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
+import 'package:demo/features/shell/shell.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/features/authentication/controllers/login_controller.dart';
 import 'package:demo/features/authentication/views/signup_screen_view.dart';

@@ -1,15 +1,14 @@
-import 'package:demo/AddMenuItemPage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/features/menu_setup/menu_setup.dart';
+import 'package:demo/features/ordering/ordering.dart';
+import 'package:demo/models/GroupOrder.dart';
 import 'package:demo/Styles/my_colors.dart';
+import 'package:demo/Styles/my_font.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'MenuPage.dart';
-import 'Styles/my_font.dart';
-import 'models/GroupOrder.dart';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
