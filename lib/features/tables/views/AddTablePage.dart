@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:flutter/material.dart';
 
 import 'package:demo/Styles/my_font.dart';
@@ -46,7 +47,7 @@ class _AddTablePageState extends State<AddTablePage>
     setState(() => _isAdding = true);
     try {
       final name = _tableNameController.text.trim();
-      await FirebaseFirestore.instance.collection('tables').add({
+      await FirestorePaths.scoped('tables').add({
         'name': name,
         'createdAt': Timestamp.now(),
       });
@@ -107,7 +108,7 @@ class _AddTablePageState extends State<AddTablePage>
 
     if (confirmed != true || !mounted) return;
 
-    await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
+    await FirestorePaths.scoped('tables').doc(docId).delete();
     if (mounted) {
       ScaffoldMessenger.of(
         context,
@@ -374,8 +375,8 @@ class _AddTablePageState extends State<AddTablePage>
 
   Widget _buildTablesList() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('tables')
+      stream: FirestorePaths
+          .scoped('tables')
           .orderBy('createdAt', descending: false)
           .snapshots(),
       builder: (context, snapshot) {

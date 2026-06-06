@@ -1,5 +1,4 @@
 import 'package:demo/features/authentication/repositories/auth_repository.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -41,28 +40,6 @@ class SignupController extends GetxController {
   }
 
   Future<String?> register() async {
-    final validationError = validateSignup();
-    if (validationError != null) return validationError;
-
-    isLoading.value = true;
-    try {
-      final cred = await _authRepository.createUserWithEmailAndPassword(
-        email: emailController.text.trim(),
-        password: passwordController.text.trim(),
-      );
-      final user = cred.user;
-      if (user != null) {
-        await _authRepository.createUserDocument(
-          user: user,
-          name: nameController.text.trim(),
-          role: selectedRole.value,
-        );
-      }
-      return null;
-    } on FirebaseAuthException catch (e) {
-      return e.message ?? 'Signup failed';
-    } finally {
-      isLoading.value = false;
-    }
+    return 'Public signup is disabled. Contact Super Admin or Restaurant Admin.';
   }
 }

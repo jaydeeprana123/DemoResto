@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:flutter/material.dart';
 
 import 'package:demo/Styles/my_font.dart';
@@ -29,13 +30,39 @@ class TableItemKey {
 }
 
 class TableItemServed {
-  static bool isServed(Map<String, dynamic> item) =>
-      item['isServed'] == true;
+  /// Normalizes Firestore / web interop values into a Dart map.
+  static Map<String, dynamic>? asItemMap(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) {
+      try {
+        return Map<String, dynamic>.from(raw);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  static bool isServed(dynamic item) {
+    final map = asItemMap(item);
+    return map?['isServed'] == true;
+  }
 
   static bool allServedInGroups(List<List<Map<String, dynamic>>> groups) {
     final items = groups.expand((g) => g);
     if (items.isEmpty) return false;
     return items.every(isServed);
+  }
+
+  static List<Map<String, dynamic>> parseItemList(dynamic rawItems) {
+    if (rawItems is! List) return const [];
+    final parsed = <Map<String, dynamic>>[];
+    for (final raw in rawItems) {
+      final map = asItemMap(raw);
+      if (map != null) parsed.add(map);
+    }
+    return parsed;
   }
 
   static Future<bool> markItemsServed(List<TableItemKey> keys) async {
@@ -49,18 +76,12 @@ class TableItemServed {
     var anyUpdated = false;
 
     for (final entry in byDoc.entries) {
-      final docRef =
-          FirebaseFirestore.instance.collection('tables').doc(entry.key);
+      final docRef = FirestorePaths.scopedDoc('tables', entry.key);
       final snap = await docRef.get();
       if (!snap.exists) continue;
 
-      final rawItems = snap.data()?['items'];
-      if (rawItems is! List) continue;
-
-      final items = rawItems
-          .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
+      final items = parseItemList(snap.data()?['items']);
+      if (items.isEmpty) continue;
 
       final groupCounters = <int, int>{};
       var changed = false;
@@ -107,18 +128,12 @@ class TableItemServed {
     var anyUpdated = false;
 
     for (final entry in byDoc.entries) {
-      final docRef =
-          FirebaseFirestore.instance.collection('tables').doc(entry.key);
+      final docRef = FirestorePaths.scopedDoc('tables', entry.key);
       final snap = await docRef.get();
       if (!snap.exists) continue;
 
-      final rawItems = snap.data()?['items'];
-      if (rawItems is! List) continue;
-
-      final items = rawItems
-          .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
+      final items = parseItemList(snap.data()?['items']);
+      if (items.isEmpty) continue;
 
       final groupCounters = <int, int>{};
       var changed = false;

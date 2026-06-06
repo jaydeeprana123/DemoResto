@@ -1,4 +1,3 @@
-import 'package:demo/features/shell/shell.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/features/authentication/controllers/signup_controller.dart';
 import 'package:demo/features/authentication/views/login_screen_view.dart';
@@ -99,11 +98,6 @@ class _SignupScreenViewState extends State<SignupScreenView>
       _snack(error);
       return;
     }
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const BottomNavigationView()),
-    );
   }
 
   void _snack(String msg) =>

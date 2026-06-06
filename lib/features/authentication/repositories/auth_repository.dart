@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 /// Data layer for Firebase authentication and user profile documents.
@@ -25,7 +26,7 @@ class AuthRepository {
 
   /// Login screen legacy register path (Staff role, no display name).
   Future<void> createStaffUserDocument(User user) {
-    return FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+    return FirestorePaths.user(user.uid).set({
       'email': user.email,
       'role': 'Staff',
       'createdAt': FieldValue.serverTimestamp(),
@@ -38,7 +39,7 @@ class AuthRepository {
     required String name,
     required String role,
   }) {
-    return FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+    return FirestorePaths.user(user.uid).set({
       'name': name,
       'email': user.email,
       'role': role,

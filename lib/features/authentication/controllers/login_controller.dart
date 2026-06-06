@@ -1,3 +1,4 @@
+import 'package:demo/core/constants/auth_constants.dart';
 import 'package:demo/features/authentication/repositories/auth_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -41,24 +42,30 @@ class LoginController extends GetxController {
     }
   }
 
-  /// Preserves the unused login-screen register helper for parity.
-  Future<String?> register() async {
-    final email = emailController.text;
-    final password = passwordController.text;
+  /// First-time setup: only the designated Super Admin can create an account.
+  Future<String?> createSuperAdminAccount() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      return 'Please enter email and password.';
+    }
+    if (email.toLowerCase() != AuthConstants.superAdminEmail.toLowerCase()) {
+      return 'First-time setup is only for the Super Admin email.';
+    }
+    if (password.length < 6) {
+      return 'Password must be at least 6 characters.';
+    }
 
     isLoading.value = true;
     try {
-      final cred = await _authRepository.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password.trim(),
+      await _authRepository.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
       );
-      final user = cred.user;
-      if (user != null) {
-        await _authRepository.createStaffUserDocument(user);
-      }
       return null;
     } on FirebaseAuthException catch (e) {
-      return e.message ?? 'Signup failed';
+      return e.message ?? 'Account setup failed';
     } finally {
       isLoading.value = false;
     }

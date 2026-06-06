@@ -1,6 +1,5 @@
 import 'package:demo/bindings/app_binding.dart';
 import 'package:demo/features/authentication/authentication.dart';
-import 'package:demo/features/shell/shell.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -45,9 +44,9 @@ class MyApp extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasData) {
-            return const BottomNavigationView();
+            return AuthGateView(key: ValueKey(snapshot.data!.uid));
           }
-          return const LoginPage();
+          return const LoginPage(key: ValueKey('login'));
         },
       ),
     );

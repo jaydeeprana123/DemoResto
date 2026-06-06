@@ -1,7 +1,6 @@
-import 'package:demo/features/shell/shell.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/features/authentication/controllers/login_controller.dart';
-import 'package:demo/features/authentication/views/signup_screen_view.dart';
+import 'package:demo/core/constants/auth_constants.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -97,25 +96,18 @@ class _LoginPageState extends State<LoginPage>
       _snack(error);
       return;
     }
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const BottomNavigationView()),
-    );
   }
 
-  Future<void> _register() async {
-    final error = await _loginController.register();
+  Future<void> _createSuperAdminAccount() async {
+    final error = await _loginController.createSuperAdminAccount();
     if (error != null) {
       _snack(error);
-      return;
     }
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const BottomNavigationView()),
-    );
   }
+
+  bool get _isSuperAdminEmail =>
+      _loginController.emailController.text.trim().toLowerCase() ==
+      AuthConstants.superAdminEmail.toLowerCase();
 
   void _snack(String msg) {
     ScaffoldMessenger.of(context)
@@ -373,6 +365,7 @@ class _LoginPageState extends State<LoginPage>
                     hint: 'your@email.com',
                     icon: Icons.mail_outline_rounded,
                     keyboardType: TextInputType.emailAddress,
+                    onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 18),
 
@@ -469,34 +462,26 @@ class _LoginPageState extends State<LoginPage>
                   const SizedBox(height: 16),
 
                   // Divider
-                  Row(
-                    children: [
-                      Expanded(child: Divider(color: Colors.grey.shade300)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          'or',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade500,
-                            fontFamily: fontMulishRegular,
-                          ),
-                        ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Text(
+                      'Restaurant staff and admins are created by Super Admin '
+                      'or Restaurant Admin.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontFamily: fontMulishRegular,
                       ),
-                      Expanded(child: Divider(color: Colors.grey.shade300)),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Sign Up button
-                  _outlineButton(
-                    label: "Don't have an account? Sign Up",
-                    onTap: () => Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => SignupScreenView()),
                     ),
                   ),
+                  if (_isSuperAdminEmail) ...[
+                    const SizedBox(height: 16),
+                    _outlineButton(
+                      label: 'First-time Super Admin setup',
+                      onTap: _createSuperAdminAccount,
+                    ),
+                  ],
 
                   const SizedBox(height: 32),
 
@@ -676,11 +661,13 @@ class _LoginPageState extends State<LoginPage>
     TextInputType? keyboardType,
     bool obscure = false,
     Widget? suffix,
+    ValueChanged<String>? onChanged,
   }) {
     return TextField(
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboardType,
+      onChanged: onChanged,
       style: TextStyle(
         fontSize: 14,
         fontFamily: fontMulishRegular,

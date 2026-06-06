@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -70,10 +71,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   String _groupSignature(TableGroup group) {
     final parts =
         group.items
-            .map(
-              (it) =>
-                  '${it['name']}~${it['qty'] ?? 1}~${it['remarks']?.toString() ?? ''}~${it['isServed'] == true}',
-            )
+            .map((it) {
+              final item = TableItemServed.asItemMap(it);
+              if (item == null) return '';
+              return '${item['name']}~${item['qty'] ?? 1}~${item['remarks']?.toString() ?? ''}~${item['isServed'] == true}';
+            })
+            .where((s) => s.isNotEmpty)
             .toList()
           ..sort();
     return parts.join('|');
@@ -262,24 +265,25 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     Map<int, List<Map<String, dynamic>>> groupMap = {};
     Map<int, Timestamp> groupTimeMap = {};
 
-    for (var item in itemsFromDb) {
-      if (item is Map) {
-        final itemMap = Map<String, dynamic>.from(item);
-        final int groupIndex = (itemMap['groupIndex'] is int)
-            ? itemMap['groupIndex'] as int
-            : 0;
-        final Timestamp addedAt = (itemMap['addedAt'] is Timestamp)
-            ? itemMap['addedAt'] as Timestamp
-            : Timestamp.now();
+    for (final raw in itemsFromDb) {
+      final itemMap = TableItemServed.asItemMap(raw);
+      if (itemMap == null) continue;
 
-        // remove internal metadata so UI shows only item fields
-        itemMap.remove('groupIndex');
-        itemMap.remove('addedAt');
+      final int groupIndex = (itemMap['groupIndex'] is int)
+          ? itemMap['groupIndex'] as int
+          : 0;
+      final Timestamp addedAt = (itemMap['addedAt'] is Timestamp)
+          ? itemMap['addedAt'] as Timestamp
+          : Timestamp.now();
 
-        groupMap.putIfAbsent(groupIndex, () => []);
-        groupMap[groupIndex]!.add(itemMap);
-        groupTimeMap[groupIndex] = addedAt;
-      }
+      final normalized = Map<String, dynamic>.from(itemMap);
+      // remove internal metadata so UI shows only item fields
+      normalized.remove('groupIndex');
+      normalized.remove('addedAt');
+
+      groupMap.putIfAbsent(groupIndex, () => []);
+      groupMap[groupIndex]!.add(normalized);
+      groupTimeMap[groupIndex] = addedAt;
     }
 
     groupMap.forEach((index, items) {
@@ -321,8 +325,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       }
     });
     KitchenSettings.showTableAllOrders.addListener(_onKitchenSettingsChanged);
-    _tablesSub = FirebaseFirestore.instance
-        .collection('tables')
+    _tablesSub = FirestorePaths
+        .scoped('tables')
         .orderBy('createdAt', descending: false)
         .snapshots()
         .listen(_handleTablesSnapshot);
@@ -362,13 +366,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
         .map((group) {
           final filteredItems = group.items.asMap().entries
               .where((entry) {
-                final served = TableItemServed.isServed(entry.value);
+                final item = TableItemServed.asItemMap(entry.value);
+                if (item == null) return false;
+                final served = TableItemServed.isServed(item);
                 return servedOnly ? served : !served;
               })
               .map((entry) {
-                final copy = Map<String, dynamic>.from(entry.value);
+                final item = TableItemServed.asItemMap(entry.value)!;
+                final copy = Map<String, dynamic>.from(item);
                 copy['__itemIndex'] =
-                    entry.value['__itemIndex'] as int? ?? entry.key;
+                    item['__itemIndex'] as int? ?? entry.key;
                 return copy;
               })
               .toList();
@@ -723,12 +730,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           // Filter items in this group by selected categories
           final filteredItems = group.items.asMap().entries
               .where((entry) {
-                final itemCategory =
-                    entry.value['category']?.toString() ?? '';
+                final item = TableItemServed.asItemMap(entry.value);
+                if (item == null) return false;
+                final itemCategory = item['category']?.toString() ?? '';
                 return selectedCategories.contains(itemCategory);
               })
               .map((entry) {
-                final copy = Map<String, dynamic>.from(entry.value);
+                final item = TableItemServed.asItemMap(entry.value)!;
+                final copy = Map<String, dynamic>.from(item);
                 copy['__itemIndex'] = entry.key;
                 return copy;
               })
@@ -775,8 +784,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       context: context,
       builder: (BuildContext context) {
         return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('menus')
+          stream: FirestorePaths
+              .scoped('menus')
               .orderBy('createdAt', descending: false)
               .snapshots(),
           builder: (context, snapshot) {
@@ -1252,7 +1261,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     showServedDialog(context, tableName, () async {
       _playDeleteSound();
       if (tableName.contains("Take Away")) {
-        await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
+        await FirestorePaths.scoped('tables').doc(docId).delete();
       } else {
         await _updateTableItemsInFirestore(tableName, [], false);
       }
@@ -1493,7 +1502,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   }
 
   void deleteTable(String docId) async {
-    await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
+    await FirestorePaths.scoped('tables').doc(docId).delete();
   }
 
   void showServedDialog(

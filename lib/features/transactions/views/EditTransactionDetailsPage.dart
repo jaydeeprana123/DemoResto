@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/features/menu_setup/widgets/setup_page_layout.dart';
 import 'package:demo/features/transactions/repositories/transactions_repository.dart';
+import 'package:demo/features/transactions/widgets/add_menu_item_sheet.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
@@ -115,6 +116,42 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
       items[index]['qty'] = newQty < 0 ? 0 : newQty;
       _recalculateTotals();
     });
+  }
+
+  void _addItemFromMenu(Map<String, dynamic> menuItem) {
+    final name = menuItem['name']?.toString() ?? '';
+    if (name.isEmpty) return;
+
+    final price = transactionAsInt(menuItem['price']);
+    setState(() {
+      final existingIndex = items.indexWhere(
+        (e) => e['name']?.toString() == name,
+      );
+      if (existingIndex >= 0) {
+        items[existingIndex]['qty'] =
+            transactionAsInt(items[existingIndex]['qty']) + 1;
+      } else {
+        items.add({'name': name, 'qty': 1, 'price': price});
+      }
+      _recalculateTotals();
+    });
+  }
+
+  Future<void> _openAddFromMenu() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: SetupPageColors.bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => AddMenuItemSheet(
+        onItemSelected: (item) {
+          _addItemFromMenu(item);
+          Navigator.pop(ctx);
+        },
+      ),
+    );
   }
 
   void _showMessage(String msg, {bool isError = true}) {
@@ -330,13 +367,35 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Items',
-              style: TextStyle(
-                fontSize: 15,
-                fontFamily: fontMulishBold,
-                color: SetupPageColors.navy,
-              ),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Items',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontFamily: fontMulishBold,
+                      color: SetupPageColors.navy,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _openAddFromMenu,
+                  icon: const Icon(
+                    Icons.restaurant_menu_outlined,
+                    size: 18,
+                    color: SetupPageColors.orange,
+                  ),
+                  label: const Text(
+                    'Add from menu',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontFamily: fontMulishSemiBold,
+                      color: SetupPageColors.orange,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             if (items.isEmpty)

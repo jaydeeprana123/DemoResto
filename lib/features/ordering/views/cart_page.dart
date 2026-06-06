@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/foundation.dart';
@@ -1684,7 +1685,7 @@ class _CartPageState extends State<CartPage> {
       final batch = FirebaseFirestore.instance.batch();
 
       // 1️⃣ Add transaction
-      final txRef = FirebaseFirestore.instance.collection("transactions").doc();
+      final txRef = FirestorePaths.scoped('transactions').doc();
       batch.set(txRef, {
         "table": tableName,
         "items": items
@@ -1707,9 +1708,7 @@ class _CartPageState extends State<CartPage> {
       });
 
       // 2️⃣ Update daily_stats
-      final dailyRef = FirebaseFirestore.instance
-          .collection("daily_stats")
-          .doc(dateKey);
+      final dailyRef = FirestorePaths.scopedDoc('daily_stats', dateKey);
       batch.set(dailyRef, {
         "revenue": FieldValue.increment(total),
         "totalCash": FieldValue.increment(cashAmount),
@@ -1719,9 +1718,7 @@ class _CartPageState extends State<CartPage> {
       }, SetOptions(merge: true));
 
       // 3️⃣ Update global summary
-      final summaryRef = FirebaseFirestore.instance
-          .collection("stats")
-          .doc("summary");
+      final summaryRef = FirestorePaths.scopedDoc('stats', 'summary');
       batch.set(summaryRef, {
         "totalRevenue": FieldValue.increment(total),
         "totalTransactions": FieldValue.increment(1),

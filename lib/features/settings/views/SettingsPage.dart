@@ -1,9 +1,9 @@
-import 'package:demo/features/authentication/authentication.dart';
 import 'package:demo/features/menu_setup/menu_setup.dart';
 import 'package:demo/features/settings/controllers/settings_controller.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/features/settings/views/AdminDashboardPage.dart';
 import 'package:demo/features/settings/views/ExpensesPage.dart';
+import 'package:demo/features/settings/views/staff_list_view.dart';
 import 'package:demo/features/settings/views/ExportPage.dart';
 import 'package:demo/features/tables/tables.dart';
 import 'package:demo/features/transactions/transactions.dart';
@@ -35,8 +35,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _signOut() async {
     await _settings.signOut();
-    if (!mounted) return;
-    Get.offAll(() => const LoginPage());
   }
 
   @override
@@ -124,6 +122,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     title: 'Menu',
                     subtitle: 'Categories and menu items',
                     onTap: () => Get.to(() => AddCategoryPage()),
+                  ),
+                if (isAdmin)
+                  _SettingsTile(
+                    icon: Icons.group_add_rounded,
+                    title: 'Staff',
+                    subtitle: 'View staff, emails & change passwords',
+                    onTap: () => Get.to(() => const StaffListView()),
                   ),
                 const SizedBox(height: 20),
                 const Text(

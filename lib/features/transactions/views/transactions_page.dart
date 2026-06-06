@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/features/transactions/views/transaction_details_page.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
@@ -161,8 +162,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
     final fromKey = DateFormat("yyyy-MM-dd").format(from);
     final toKey = DateFormat("yyyy-MM-dd").format(to);
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection("daily_stats")
+    final snapshot = await FirestorePaths
+        .scoped('daily_stats')
         .where(FieldPath.documentId, isGreaterThanOrEqualTo: fromKey)
         .where(FieldPath.documentId, isLessThanOrEqualTo: toKey)
         .get();
@@ -188,8 +189,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
   }
 
   Future<void> getTotalRevenue() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection("daily_stats")
+    final snapshot = await FirestorePaths
+        .scoped('daily_stats')
         .get();
 
     double totalRevenue = 0;
@@ -252,8 +253,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
     setState(() => isLoading = true);
 
-    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
-        .collection("transactions")
+    Query<Map<String, dynamic>> query = FirestorePaths
+        .scoped('transactions')
         .orderBy("createdAt", descending: true);
 
     if (isFilterApplied && fromDate != null) {
@@ -272,8 +273,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
           : DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
 
       query =
-          FirebaseFirestore.instance
-                  .collection("transactions")
+          FirestorePaths
+                  .scoped('transactions')
                   .where(
                     "createdAt",
                     isGreaterThanOrEqualTo: Timestamp.fromDate(effectiveFrom),

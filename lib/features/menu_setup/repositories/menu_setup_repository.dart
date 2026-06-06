@@ -1,23 +1,22 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 
 class MenuSetupRepository {
   Stream<QuerySnapshot<Map<String, dynamic>>> watchCategories() {
-    return FirebaseFirestore.instance.collection('menus').snapshots();
+    return FirestorePaths.scoped('menus').snapshots();
   }
 
   Future<DocumentReference<Map<String, dynamic>>> addCategory(String name) {
-    return FirebaseFirestore.instance.collection('menus').add({'name': name});
+    return FirestorePaths.scoped('menus').add({'name': name});
   }
 
   Future<void> deleteCategory(String categoryId) {
-    return FirebaseFirestore.instance.collection('menus').doc(categoryId).delete();
+    return FirestorePaths.scopedDoc('menus', categoryId).delete();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchItems(String categoryId) {
-    return FirebaseFirestore.instance
-        .collection('menus')
-        .doc(categoryId)
-        .collection('items')
+    return FirestorePaths
+        .scopedSubCollection('menus', categoryId, 'items')
         .snapshots();
   }
 
@@ -26,10 +25,8 @@ class MenuSetupRepository {
     required String name,
     required dynamic price,
   }) {
-    return FirebaseFirestore.instance
-        .collection('menus')
-        .doc(categoryId)
-        .collection('items')
+    return FirestorePaths
+        .scopedSubCollection('menus', categoryId, 'items')
         .add({'name': name, 'price': price});
   }
 
@@ -39,10 +36,8 @@ class MenuSetupRepository {
     required String name,
     required dynamic price,
   }) {
-    return FirebaseFirestore.instance
-        .collection('menus')
-        .doc(categoryId)
-        .collection('items')
+    return FirestorePaths
+        .scopedSubCollection('menus', categoryId, 'items')
         .doc(itemId)
         .update({'name': name, 'price': price});
   }
@@ -51,10 +46,8 @@ class MenuSetupRepository {
     required String categoryId,
     required String itemId,
   }) {
-    return FirebaseFirestore.instance
-        .collection('menus')
-        .doc(categoryId)
-        .collection('items')
+    return FirestorePaths
+        .scopedSubCollection('menus', categoryId, 'items')
         .doc(itemId)
         .delete();
   }
