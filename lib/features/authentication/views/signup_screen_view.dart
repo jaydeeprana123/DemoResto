@@ -1,11 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/Screens/Authentication/LoginScreenView.dart';
 import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:demo/Styles/my_font.dart';
+import 'package:demo/features/authentication/controllers/signup_controller.dart';
+import 'package:demo/features/authentication/views/login_screen_view.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-
-import '../../Styles/my_font.dart';
+import 'package:get/get.dart';
 
 // ── Brand colours (same as LoginScreenView) ───────────────────────────────
 const _navy   = Color(0xFF1A3A5C);
@@ -33,17 +32,11 @@ class SignupScreenView extends StatefulWidget {
 
 class _SignupScreenViewState extends State<SignupScreenView>
     with SingleTickerProviderStateMixin {
-  final _nameCtrl    = TextEditingController();
-  final _emailCtrl   = TextEditingController();
-  final _passCtrl    = TextEditingController();
-  final _confirmCtrl = TextEditingController();
   final _infoPageCtrl = PageController();
-  String _selectedRole = 'Staff';
   final List<String> _roles = ['Admin', 'Staff'];
-  bool _loading        = false;
+  late final SignupController _signupController;
   bool _obscurePass    = true;
   bool _obscureConfirm = true;
-  bool _agreeTerms     = false;
   int _infoPageIndex   = 0;
 
   static const _aboutPages = [
@@ -80,6 +73,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
   @override
   void initState() {
     super.initState();
+    _signupController = Get.find<SignupController>();
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -96,57 +90,20 @@ class _SignupScreenViewState extends State<SignupScreenView>
   void dispose() {
     _animCtrl.dispose();
     _infoPageCtrl.dispose();
-    _nameCtrl.dispose();
-    _emailCtrl.dispose();
-    _passCtrl.dispose();
-    _confirmCtrl.dispose();
     super.dispose();
   }
 
-  // ── Validation ────────────────────────────────────────────────────────
-  String? _validate() {
-    if (_nameCtrl.text.trim().isEmpty) return 'Please enter your full name.';
-    if (_emailCtrl.text.trim().isEmpty) return 'Please enter your email.';
-    if (!_emailCtrl.text.contains('@')) return 'Please enter a valid email.';
-    if (_passCtrl.text.length < 6)
-      return 'Password must be at least 6 characters.';
-    if (_passCtrl.text != _confirmCtrl.text) return 'Passwords do not match.';
-    if (!_agreeTerms) return 'Please agree to the terms to continue.';
-    return null;
-  }
-
   Future<void> _register() async {
-    final err = _validate();
-    if (err != null) { _snack(err); return; }
-
-    setState(() => _loading = true);
-    try {
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailCtrl.text.trim(),
-        password: _passCtrl.text.trim(),
-      );
-      final user = cred.user;
-      if (user != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({
-          'name': _nameCtrl.text.trim(),
-          'email': user.email,
-          'role': _selectedRole,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const BottomNavigationView()),
-      );
-    } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Signup failed');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    final error = await _signupController.register();
+    if (error != null) {
+      _snack(error);
+      return;
     }
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const BottomNavigationView()),
+    );
   }
 
   void _snack(String msg) =>
@@ -389,7 +346,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
                   _label('Full Name'),
                   const SizedBox(height: 8),
                   _inputField(
-                    controller: _nameCtrl,
+                    controller: _signupController.nameController,
                     hint: 'John Doe',
                     icon: Icons.person_outline_rounded,
                     keyboardType: TextInputType.name,
@@ -400,7 +357,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
                   _label('Email Address'),
                   const SizedBox(height: 8),
                   _inputField(
-                    controller: _emailCtrl,
+                    controller: _signupController.emailController,
                     hint: 'your@email.com',
                     icon: Icons.mail_outline_rounded,
                     keyboardType: TextInputType.emailAddress,
@@ -411,7 +368,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
                   _label('Password'),
                   const SizedBox(height: 8),
                   _inputField(
-                    controller: _passCtrl,
+                    controller: _signupController.passwordController,
                     hint: 'Min. 6 characters',
                     icon: Icons.lock_outline_rounded,
                     obscure: _obscurePass,
@@ -433,7 +390,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
                   _label('Confirm Password'),
                   const SizedBox(height: 8),
                   _inputField(
-                    controller: _confirmCtrl,
+                    controller: _signupController.confirmPasswordController,
                     hint: 'Re-enter password',
                     icon: Icons.lock_outline_rounded,
                     obscure: _obscureConfirm,
@@ -462,14 +419,17 @@ class _SignupScreenViewState extends State<SignupScreenView>
                   const SizedBox(height: 24),
 
                   // Create Account button
-                  _loading
-                      ? const Center(
-                          child: CircularProgressIndicator(color: _orange))
-                      : _primaryButton(
-                          label: 'Create Account',
-                          icon: Icons.person_add_alt_1_rounded,
-                          onTap: _register,
-                        ),
+                  Obx(
+                    () => _signupController.isLoading.value
+                        ? const Center(
+                            child: CircularProgressIndicator(color: _orange),
+                          )
+                        : _primaryButton(
+                            label: 'Create Account',
+                            icon: Icons.person_add_alt_1_rounded,
+                            onTap: _register,
+                          ),
+                  ),
                   const SizedBox(height: 16),
 
                   // Divider
@@ -532,15 +492,16 @@ class _SignupScreenViewState extends State<SignupScreenView>
 
   // ── Role selector pills ───────────────────────────────────────────────
   Widget _roleSelector() {
-    return Row(
-      children: _roles.map((role) {
-        final selected = _selectedRole == role;
-        final isAdmin  = role == 'Admin';
-        final selColor = isAdmin ? _navy : _orange;
-        return Expanded(
-          child: GestureDetector(
-            onTap: () => setState(() => _selectedRole = role),
-            child: AnimatedContainer(
+    return Obx(
+      () => Row(
+        children: _roles.map((role) {
+          final selected = _signupController.selectedRole.value == role;
+          final isAdmin = role == 'Admin';
+          final selColor = isAdmin ? _navy : _orange;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => _signupController.selectedRole.value = role,
+              child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               margin: EdgeInsets.only(right: isAdmin ? 8 : 0),
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -582,35 +543,43 @@ class _SignupScreenViewState extends State<SignupScreenView>
                   ),
                 ],
               ),
+              ),
             ),
-          ),
-        );
-      }).toList(),
+          );
+        }).toList(),
+      ),
     );
   }
 
   // ── Agree-to-terms row ────────────────────────────────────────────────
   Widget _termsRow() {
-    return GestureDetector(
-      onTap: () => setState(() => _agreeTerms = !_agreeTerms),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: 20, height: 20,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(5),
-              border: Border.all(
-                color: _agreeTerms ? _orange : Colors.grey.shade400,
-                width: 1.5,
+    return Obx(
+      () => GestureDetector(
+        onTap: () =>
+            _signupController.agreeTerms.value = !_signupController.agreeTerms.value,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(
+                  color: _signupController.agreeTerms.value
+                      ? _orange
+                      : Colors.grey.shade400,
+                  width: 1.5,
+                ),
+                color: _signupController.agreeTerms.value
+                    ? _orange
+                    : Colors.transparent,
               ),
-              color: _agreeTerms ? _orange : Colors.transparent,
+              child: _signupController.agreeTerms.value
+                  ? const Icon(Icons.check, size: 13, color: Colors.white)
+                  : null,
             ),
-            child: _agreeTerms
-                ? const Icon(Icons.check, size: 13, color: Colors.white)
-                : null,
-          ),
           const SizedBox(width: 10),
           Expanded(
             child: RichText(
@@ -644,6 +613,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
             ),
           ),
         ],
+        ),
       ),
     );
   }

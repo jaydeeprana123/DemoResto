@@ -1,6 +1,6 @@
 import "package:demo/DragDropTables.dart";
-import 'package:demo/Screens/Authentication/LoginScreenView.dart';
 import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
+import 'package:demo/features/authentication/authentication.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -38,6 +38,7 @@ class MyApp extends StatelessWidget {
     return GetMaterialApp(
       title: 'Flavor Flow',
       debugShowCheckedModeBanner: false,
+      initialBinding: AuthBinding(),
       theme: ThemeData(primarySwatch: Colors.blue),
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
