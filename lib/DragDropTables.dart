@@ -15,6 +15,8 @@ import 'FinalCartPage.dart';
 import 'MenuPage.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'Widgets/order_item_row.dart';
+import 'services/table_item_served.dart';
 
 import 'package:flutter/material.dart';
 import 'MenuPage.dart';
@@ -63,6 +65,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   final Map<String, Timestamp?> tableCreatedAt = {};
   final Map<String, bool> tableIsPaid = {};
   final Map<String, String> tableDocIds = {};
+  final Map<String, List<int>> _firestoreGroupIndices = {};
+  final TableItemSelectionController _itemSelection =
+      TableItemSelectionController();
   final List<Map<String, dynamic>> menu = [];
   bool isLoading = false;
   final user = FirebaseAuth.instance.currentUser;
@@ -151,6 +156,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         .snapshots()
         .listen((querySnapshot) {
           Map<String, List<List<Map<String, dynamic>>>> updatedTables = {};
+          final Map<String, List<int>> updatedFirestoreGroupIndices = {};
 
           final Map<String, Timestamp?> updatedCreatedAt = {};
           final Map<String, bool> updatedIsPaid = {};
@@ -201,6 +207,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 for (int groupIndex in sortedGroupIndices) {
                   groupedItems.add(groupMap[groupIndex]!);
                 }
+                updatedFirestoreGroupIndices[tableName] =
+                    sortedGroupIndices.isNotEmpty
+                    ? sortedGroupIndices
+                    : List.generate(groupedItems.length, (i) => i);
 
                 print(
                   "Reconstructed ${groupedItems.length} groups from flattened data",
@@ -235,6 +245,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             }
 
             updatedTables[tableName] = groupedItems;
+            updatedFirestoreGroupIndices.putIfAbsent(
+              tableName,
+              () => List.generate(groupedItems.length, (i) => i),
+            );
             print(
               "Table '$tableName' loaded with ${groupedItems.length} groups",
             );
@@ -242,6 +256,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
           setState(() {
             tables = updatedTables;
+            _firestoreGroupIndices
+              ..clear()
+              ..addAll(updatedFirestoreGroupIndices);
             tableCreatedAt
               ..clear()
               ..addAll(updatedCreatedAt);
@@ -490,6 +507,29 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     }
 
     return itemMap.values.toList();
+  }
+
+  int _firestoreGroupIndexFor(String tableName, int gi) {
+    final indices = _firestoreGroupIndices[tableName];
+    if (indices != null && gi >= 0 && gi < indices.length) {
+      return indices[gi];
+    }
+    return gi;
+  }
+
+  void _syncFirestoreGroupIndices(String tableName, int groupCount) {
+    if (groupCount <= 0) {
+      _firestoreGroupIndices[tableName] = [];
+      return;
+    }
+    final indices = _firestoreGroupIndices[tableName];
+    if (indices != null && indices.length >= groupCount) return;
+    final extended = List<int>.from(indices ?? []);
+    var next = extended.isEmpty ? 0 : extended.last + 1;
+    for (var i = extended.length; i < groupCount; i++) {
+      extended.add(next++);
+    }
+    _firestoreGroupIndices[tableName] = extended;
   }
 
   // Add a new table with empty items list
@@ -977,6 +1017,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
             destGroups.addAll(copiedGroups);
             sourceGroups.clear();
+            _syncFirestoreGroupIndices(tableName, destGroups.length);
+            _syncFirestoreGroupIndices(sourceTable, 0);
           });
 
           // Update destination with source's paid status
@@ -1126,8 +1168,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                       if (isBillPaid) {
                         groups.clear();
                         tableIsPaid[tName] = true;
+                        _syncFirestoreGroupIndices(tName, 0);
                       } else {
                         groups.add(_stampGroupAddedAt(items));
+                        _syncFirestoreGroupIndices(tName, groups.length);
                       }
                     });
                     await _updateTableItemsInFirestore(
@@ -1270,6 +1314,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                                     setState(() {
                                       groups.clear();
                                       tableIsPaid[tName] = true;
+                                      _syncFirestoreGroupIndices(tName, 0);
                                     });
                                     await _updateTableItemsInFirestore(
                                       tName,
@@ -1380,112 +1425,114 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             else
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Item rows
-                    ...List.generate(groups.length, (gi) {
-                      final group = groups[gi];
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ...group.map((item) {
-                            final qty = (item['qty'] as num?)?.toInt() ?? 1;
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 3),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    margin: EdgeInsets.only(right: 5),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _orange.withOpacity(0.12),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Text(
-                                      '×$qty',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: _orange,
-                                        fontFamily: fontMulishBold,
-                                      ),
-                                    ),
-                                  ),
-
-                                  Expanded(
-                                    child: Text(
-                                      item['name'] ?? '',
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontFamily: fontMulishSemiBold,
-                                        color: Color(0xFF212121),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
-                          if (_groupTimeLabel(group) != null)
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: Padding(
-                                padding: const EdgeInsets.only(
-                                  top: 0,
-                                  bottom: 1,
-                                ),
-                                child: Text(
-                                  _groupTimeLabel(group)!,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontFamily: fontMulishRegular,
-                                    color: Colors.grey.shade500,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          if (gi < groups.length - 1)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: DottedLine(
-                                dashColor: Colors.grey.shade300,
-                                lineThickness: 1,
-                                dashLength: 4,
-                                dashGapLength: 4,
-                              ),
-                            ),
-                        ],
-                      );
-                    }),
-
-                    // Total row
-                    const SizedBox(height: 8),
-                    Row(
+                child: ListenableBuilder(
+                  listenable: _itemSelection.listenableFor(docId),
+                  builder: (context, _) {
+                    final selectionMode =
+                        _itemSelection.isSelectionModeFor(docId);
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Divider(
-                            color: Colors.grey.shade200,
-                            thickness: 1,
-                          ),
+                        // Item rows
+                        ...List.generate(groups.length, (gi) {
+                          final group = groups[gi];
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ...group.asMap().entries.map((entry) {
+                                final firestoreGi = _firestoreGroupIndexFor(
+                                  tableName,
+                                  gi,
+                                );
+                                final key = TableItemKey(
+                                  docId: docId,
+                                  groupIndex: firestoreGi,
+                                  itemIndexInGroup: entry.key,
+                                );
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 3,
+                                  ),
+                                  child: OrderItemRow(
+                                    item: entry.value,
+                                    docId: docId,
+                                    groupIndex: firestoreGi,
+                                    itemIndexInGroup: entry.key,
+                                    selectionController: _itemSelection,
+                                    selectionMode: selectionMode,
+                                    isSelected: _itemSelection.isSelected(key),
+                                    style: OrderItemRowStyle.dashboard,
+                                  ),
+                                );
+                              }),
+                              if (_groupTimeLabel(group) != null)
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: 0,
+                                      bottom: 1,
+                                    ),
+                                    child: Text(
+                                      _groupTimeLabel(group)!,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontFamily: fontMulishRegular,
+                                        color: Colors.grey.shade500,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (gi < groups.length - 1)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 4,
+                                  ),
+                                  child: DottedLine(
+                                    dashColor: Colors.grey.shade300,
+                                    lineThickness: 1,
+                                    dashLength: 4,
+                                    dashGapLength: 4,
+                                  ),
+                                ),
+                            ],
+                          );
+                        }),
+
+                        TableItemSelectionActionBar(
+                          docId: docId,
+                          controller: _itemSelection,
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Text(
-                            '$totalQty item${totalQty != 1 ? 's' : ''}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade500,
-                              fontFamily: fontMulishSemiBold,
+
+                        // Total row
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Divider(
+                                color: Colors.grey.shade200,
+                                thickness: 1,
+                              ),
                             ),
-                          ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              child: Text(
+                                '$totalQty item${totalQty != 1 ? 's' : ''}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade500,
+                                  fontFamily: fontMulishSemiBold,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
           ],

@@ -16,6 +16,8 @@ import 'package:demo/services/kitchen_settings.dart';
 import 'Styles/my_font.dart';
 import 'models/GroupOrder.dart';
 import 'MenuPage.dart';
+import 'Widgets/order_item_row.dart';
+import 'services/table_item_served.dart';
 
 class KitchenOrdersListView extends StatefulWidget {
   /// When false (e.g. another bottom-nav tab is selected), order bells stay silent.
@@ -56,6 +58,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   // yellow for an update (quantity changed / item added on existing table).
   Color _blinkColor = Colors.lightGreenAccent.shade100;
   Timer? _timer;
+  final TableItemSelectionController _itemSelection =
+      TableItemSelectionController();
 
   static final Color _newOrderBlinkColor = Colors.lightGreenAccent.shade100;
   static final Color _updateBlinkColor = Colors.yellow.shade300;
@@ -67,7 +71,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
         group.items
             .map(
               (it) =>
-                  '${it['name']}~${it['qty'] ?? 1}~${it['remarks']?.toString() ?? ''}',
+                  '${it['name']}~${it['qty'] ?? 1}~${it['remarks']?.toString() ?? ''}~${it['isServed'] == true}',
             )
             .toList()
           ..sort();
@@ -286,6 +290,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           key: '${tableName}_$index',
           docId: docId,
           isPaid: isPaid,
+          groupIndex: index,
         ),
       );
     });
@@ -657,10 +662,18 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     return groups
         .map((group) {
           // Filter items in this group by selected categories
-          final filteredItems = group.items.where((item) {
-            final itemCategory = item['category']?.toString() ?? '';
-            return selectedCategories.contains(itemCategory);
-          }).toList();
+          final filteredItems = group.items.asMap().entries
+              .where((entry) {
+                final itemCategory =
+                    entry.value['category']?.toString() ?? '';
+                return selectedCategories.contains(itemCategory);
+              })
+              .map((entry) {
+                final copy = Map<String, dynamic>.from(entry.value);
+                copy['__itemIndex'] = entry.key;
+                return copy;
+              })
+              .toList();
 
           // If no items match, return null (will be filtered out)
           if (filteredItems.isEmpty) return null;
@@ -673,6 +686,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             key: group.key,
             docId: group.docId,
             isPaid: group.isPaid,
+            groupIndex: group.groupIndex,
           );
         })
         .whereType<TableGroup>()
@@ -942,54 +956,62 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
     return KeyedSubtree(
       key: ValueKey(group.key),
-      child: InkWell(
-        onTap: () {
-          if (group.isPaid && selectedCategories.isEmpty) {
-            showServedDialog(context, group.tableName, () async {
-              _playDeleteSound();
-              if (group.tableName.contains("Take Away")) {
-                await FirebaseFirestore.instance
-                    .collection('tables')
-                    .doc(group.docId)
-                    .delete();
-              } else {
-                await _updateTableItemsInFirestore(group.tableName, [], false);
-              }
-            });
-          }
+      child: ListenableBuilder(
+        listenable: _minuteTick,
+        builder: (context, _) {
+          final tickTime = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
+          final tickIsOld = DateTime.now().difference(tickTime).inMinutes > 5;
+          return _orderCardShell(
+            isBlinking: isBlinking,
+            animationDuration: const Duration(milliseconds: 800),
+            decoration: _orderCardDecoration(isBlinking, tickIsOld, isNext),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildOrderHeader(
+                  group.tableName,
+                  group.isPaid,
+                  queueNumber,
+                  isNext: isNext,
+                  onPaidTap: group.isPaid
+                      ? () => _markTableServed(group.tableName, group.docId)
+                      : null,
+                ),
+                _buildTimeBar(tickTime, tickIsOld),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: ListenableBuilder(
+                    listenable: _itemSelection.listenableFor(group.docId),
+                    builder: (context, _) {
+                      final selectionMode =
+                          _itemSelection.isSelectionModeFor(group.docId);
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ...group.items.asMap().entries.map(
+                            (entry) => _buildItemRow(
+                              entry.value,
+                              docId: group.docId,
+                              groupIndex: group.groupIndex,
+                              itemIndexInGroup:
+                                  (entry.value['__itemIndex'] as int?) ??
+                                  entry.key,
+                              selectionMode: selectionMode,
+                            ),
+                          ),
+                          TableItemSelectionActionBar(
+                            docId: group.docId,
+                            controller: _itemSelection,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
         },
-        child: ListenableBuilder(
-          listenable: _minuteTick,
-          builder: (context, _) {
-            final tickTime = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
-            final tickIsOld =
-                DateTime.now().difference(tickTime).inMinutes > 5;
-            return _orderCardShell(
-              isBlinking: isBlinking,
-              animationDuration: const Duration(milliseconds: 800),
-              decoration: _orderCardDecoration(isBlinking, tickIsOld, isNext),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildOrderHeader(
-                    group.tableName,
-                    group.isPaid,
-                    queueNumber,
-                    isNext: isNext,
-                  ),
-                  _buildTimeBar(tickTime, tickIsOld),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: group.items.map(_buildItemRow).toList(),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
       ),
     );
   }
@@ -1016,92 +1038,111 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
     return KeyedSubtree(
       key: ValueKey(tableCard.docId),
-      child: GestureDetector(
-        onDoubleTap: () {
-          if (tableCard.isPaid && selectedCategories.isEmpty) {
-            showServedDialog(context, tableCard.tableName, () async {
-              _playDeleteSound();
-              if (tableCard.tableName.contains("Take Away")) {
-                await FirebaseFirestore.instance
-                    .collection('tables')
-                    .doc(tableCard.docId)
-                    .delete();
-              } else {
-                await _updateTableItemsInFirestore(
+      child: ListenableBuilder(
+        listenable: _minuteTick,
+        builder: (context, _) {
+          final tickIsOld = tableCard.batches.any((batch) {
+            final batchTime =
+                DateTime.fromMillisecondsSinceEpoch(batch.groupTime);
+            return DateTime.now().difference(batchTime).inMinutes > 5;
+          });
+          return _orderCardShell(
+            isBlinking: isBlinking,
+            decoration: _orderCardDecoration(isBlinking, tickIsOld, isNext),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildOrderHeader(
                   tableCard.tableName,
-                  [],
-                  false,
-                );
-              }
-            });
-          }
-        },
-        child: ListenableBuilder(
-          listenable: _minuteTick,
-          builder: (context, _) {
-            final tickIsOld = tableCard.batches.any((batch) {
-              final batchTime =
-                  DateTime.fromMillisecondsSinceEpoch(batch.groupTime);
-              return DateTime.now().difference(batchTime).inMinutes > 5;
-            });
-            return _orderCardShell(
-              isBlinking: isBlinking,
-              decoration: _orderCardDecoration(isBlinking, tickIsOld, isNext),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildOrderHeader(
-                    tableCard.tableName,
-                    tableCard.isPaid,
-                    queueNumber,
-                    isNext: isNext,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 6, 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (var i = 0; i < tableCard.batches.length; i++) ...[
-                          if (i > 0) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: DottedLine(
-                                dashColor: Colors.grey.shade300,
-                                lineThickness: 1,
-                                dashLength: 4,
-                                dashGapLength: 4,
+                  tableCard.isPaid,
+                  queueNumber,
+                  isNext: isNext,
+                  onPaidTap: tableCard.isPaid
+                      ? () => _markTableServed(
+                          tableCard.tableName,
+                          tableCard.docId,
+                        )
+                      : null,
+                  useDoubleTapForPaid: true,
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 6, 12),
+                  child: ListenableBuilder(
+                    listenable: _itemSelection.listenableFor(tableCard.docId),
+                    builder: (context, _) {
+                      final selectionMode =
+                          _itemSelection.isSelectionModeFor(tableCard.docId);
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (var i = 0; i < tableCard.batches.length; i++) ...[
+                            if (i > 0) ...[
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: DottedLine(
+                                  dashColor: Colors.grey.shade300,
+                                  lineThickness: 1,
+                                  dashLength: 4,
+                                  dashGapLength: 4,
+                                ),
+                              ),
+                            ],
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: _KitchenRelativeTime(
+                                time: DateTime.fromMillisecondsSinceEpoch(
+                                  tableCard.batches[i].groupTime,
+                                ),
+                                tick: _minuteTick,
+                                formatter: formatRelativeTime,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontFamily: fontMulishRegular,
+                                  color: Colors.grey.shade500,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            ...tableCard.batches[i].items.asMap().entries.map(
+                              (entry) => _buildItemRow(
+                                entry.value,
+                                docId: tableCard.docId,
+                                groupIndex: tableCard.batches[i].groupIndex,
+                                itemIndexInGroup:
+                                    (entry.value['__itemIndex'] as int?) ??
+                                    entry.key,
+                                selectionMode: selectionMode,
                               ),
                             ),
                           ],
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: _KitchenRelativeTime(
-                              time: DateTime.fromMillisecondsSinceEpoch(
-                                tableCard.batches[i].groupTime,
-                              ),
-                              tick: _minuteTick,
-                              formatter: formatRelativeTime,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontFamily: fontMulishRegular,
-                                color: Colors.grey.shade500,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
+                          TableItemSelectionActionBar(
+                            docId: tableCard.docId,
+                            controller: _itemSelection,
                           ),
-                          const SizedBox(height: 6),
-                          ...tableCard.batches[i].items.map(_buildItemRow),
                         ],
-                      ],
-                    ),
+                      );
+                    },
                   ),
-                ],
-              ),
-            );
-          },
-        ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
+  }
+
+  void _markTableServed(String tableName, String docId) {
+    if (selectedCategories.isNotEmpty) return;
+    showServedDialog(context, tableName, () async {
+      _playDeleteSound();
+      if (tableName.contains("Take Away")) {
+        await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
+      } else {
+        await _updateTableItemsInFirestore(tableName, [], false);
+      }
+    });
   }
 
   BoxDecoration _orderCardDecoration(bool isBlinking, bool isOld, bool isNext) {
@@ -1132,9 +1173,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     bool isPaid,
     int queueNumber, {
     bool isNext = false,
+    VoidCallback? onPaidTap,
+    bool useDoubleTapForPaid = false,
   }) {
     final paid = isPaid == true;
-    return Container(
+    final header = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: const BoxDecoration(
         color: Color(0xFF1A3A5C),
@@ -1228,6 +1271,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
         ],
       ),
     );
+
+    if (onPaidTap == null) return header;
+
+    return GestureDetector(
+      onTap: useDoubleTapForPaid ? null : onPaidTap,
+      onDoubleTap: useDoubleTapForPaid ? onPaidTap : null,
+      behavior: HitTestBehavior.opaque,
+      child: header,
+    );
   }
 
   Widget _buildTimeBar(DateTime time, bool isOld) {
@@ -1268,64 +1320,27 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     );
   }
 
-  Widget _buildItemRow(Map<String, dynamic> item) {
-    final qty = item['qty'] ?? 1;
-    final remarks = item['remarks']?.toString() ?? '';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFFf57c35).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: const Color(0xFFf57c35).withValues(alpha: 0.3),
-              ),
-            ),
-            child: Text(
-              "${qty}x",
-              style: const TextStyle(
-                color: Color(0xFFf57c35),
-                fontFamily: fontMulishBold,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item['name']?.toString() ?? '',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
-                    fontFamily: fontMulishSemiBold,
-                    height: 1.2,
-                  ),
-                ),
-                if (remarks.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      "* $remarks",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.red.shade400,
-                        fontFamily: fontMulishSemiBold,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
+  Widget _buildItemRow(
+    Map<String, dynamic> item, {
+    required String docId,
+    required int groupIndex,
+    required int itemIndexInGroup,
+    required bool selectionMode,
+  }) {
+    final key = TableItemKey(
+      docId: docId,
+      groupIndex: groupIndex,
+      itemIndexInGroup: itemIndexInGroup,
+    );
+    return OrderItemRow(
+      item: item,
+      docId: docId,
+      groupIndex: groupIndex,
+      itemIndexInGroup: itemIndexInGroup,
+      selectionController: _itemSelection,
+      selectionMode: selectionMode,
+      isSelected: _itemSelection.isSelected(key),
+      style: OrderItemRowStyle.kitchen,
     );
   }
 
@@ -1503,6 +1518,7 @@ class TableGroup {
   final String key;
   final String docId;
   final bool isPaid;
+  final int groupIndex;
 
   TableGroup(
     this.tableName,
@@ -1511,6 +1527,7 @@ class TableGroup {
     required this.key,
     required this.docId,
     required this.isPaid,
+    required this.groupIndex,
   });
 }
 
