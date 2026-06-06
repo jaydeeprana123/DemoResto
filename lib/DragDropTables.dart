@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/AddCategoryPage.dart' hide AddTablePage;
 import 'package:demo/AddMenuItemPage.dart';
-import 'package:demo/Screens/Authentication/LoginScreenView.dart';
+import 'package:demo/features/authentication/authentication.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:demo/TransactionsPage.dart';
 import 'package:dotted_line/dotted_line.dart';

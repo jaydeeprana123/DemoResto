@@ -1,11 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/Screens/Authentication/SignupScreenView.dart';
 import 'package:demo/Screens/BottomNavigation/bottom_navigation_view.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:demo/Styles/my_font.dart';
+import 'package:demo/features/authentication/controllers/login_controller.dart';
+import 'package:demo/features/authentication/views/signup_screen_view.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-
-import '../../Styles/my_font.dart';
+import 'package:get/get.dart';
 
 // Brand colours extracted from the Flavor Flow logo
 const _navy   = Color(0xFF1A3A5C);
@@ -33,10 +32,8 @@ class _AboutInfoPage {
 
 class _LoginPageState extends State<LoginPage>
     with SingleTickerProviderStateMixin {
-  final _emailCtrl    = TextEditingController();
-  final _passCtrl     = TextEditingController();
   final _infoPageCtrl = PageController();
-  bool _loading       = false;
+  late final LoginController _loginController;
   bool _obscurePass   = true;
   bool _rememberMe    = false;
   int _infoPageIndex  = 0;
@@ -74,6 +71,7 @@ class _LoginPageState extends State<LoginPage>
   @override
   void initState() {
     super.initState();
+    _loginController = Get.find<LoginController>();
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -90,62 +88,33 @@ class _LoginPageState extends State<LoginPage>
   void dispose() {
     _animCtrl.dispose();
     _infoPageCtrl.dispose();
-    _emailCtrl.dispose();
-    _passCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _login() async {
-    if (_emailCtrl.text.trim().isEmpty || _passCtrl.text.trim().isEmpty) {
-      _snack('Please enter email and password.');
+    final error = await _loginController.login();
+    if (error != null) {
+      _snack(error);
       return;
     }
-    setState(() => _loading = true);
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailCtrl.text.trim(),
-        password: _passCtrl.text.trim(),
-      );
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const BottomNavigationView()),
-      );
-    } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Login failed');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const BottomNavigationView()),
+    );
   }
 
   Future<void> _register() async {
-    setState(() => _loading = true);
-    try {
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailCtrl.text.trim(),
-        password: _passCtrl.text.trim(),
-      );
-      final user = cred.user;
-      if (user != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({
-          'email': user.email,
-          'role': 'Staff',
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const BottomNavigationView()),
-      );
-    } on FirebaseAuthException catch (e) {
-      _snack(e.message ?? 'Signup failed');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    final error = await _loginController.register();
+    if (error != null) {
+      _snack(error);
+      return;
     }
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const BottomNavigationView()),
+    );
   }
 
   void _snack(String msg) {
@@ -400,7 +369,7 @@ class _LoginPageState extends State<LoginPage>
                   _label('Email Address'),
                   const SizedBox(height: 8),
                   _inputField(
-                    controller: _emailCtrl,
+                    controller: _loginController.emailController,
                     hint: 'your@email.com',
                     icon: Icons.mail_outline_rounded,
                     keyboardType: TextInputType.emailAddress,
@@ -411,7 +380,7 @@ class _LoginPageState extends State<LoginPage>
                   _label('Password'),
                   const SizedBox(height: 8),
                   _inputField(
-                    controller: _passCtrl,
+                    controller: _loginController.passwordController,
                     hint: '••••••••',
                     icon: Icons.lock_outline_rounded,
                     obscure: _obscurePass,
@@ -486,14 +455,17 @@ class _LoginPageState extends State<LoginPage>
                   const SizedBox(height: 28),
 
                   // Sign In button
-                  _loading
-                      ? const Center(
-                          child: CircularProgressIndicator(color: _orange))
-                      : _primaryButton(
-                          label: 'Sign In',
-                          icon: Icons.login_rounded,
-                          onTap: _login,
-                        ),
+                  Obx(
+                    () => _loginController.isLoading.value
+                        ? const Center(
+                            child: CircularProgressIndicator(color: _orange),
+                          )
+                        : _primaryButton(
+                            label: 'Sign In',
+                            icon: Icons.login_rounded,
+                            onTap: _login,
+                          ),
+                  ),
                   const SizedBox(height: 16),
 
                   // Divider

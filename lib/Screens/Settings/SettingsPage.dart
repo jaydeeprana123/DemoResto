@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/AddCategoryPage.dart';
 import 'package:demo/AddTablePage.dart';
-import 'package:demo/Screens/Authentication/LoginScreenView.dart';
+import 'package:demo/features/authentication/authentication.dart';
 import 'package:demo/Screens/Settings/ExpensesPage.dart';
 import 'package:demo/Screens/Settings/AdminDashboardPage.dart';
 import 'package:demo/Screens/Settings/ExportPage.dart';
