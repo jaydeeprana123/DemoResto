@@ -262,10 +262,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             .get();
 
         for (var itemDoc in itemsSnapshot.docs) {
+          final data = itemDoc.data();
           loadedMenu.add({
             "category": categoryName,
-            "name": itemDoc['name'],
-            "price": itemDoc['price'],
+            "name": data['name'],
+            "price": data['price'],
+            if (data.containsKey('halfPrice')) "halfPrice": data['halfPrice'],
+            if (data.containsKey('fullPrice')) "fullPrice": data['fullPrice'],
             "categoryId": categoryId,
             "itemId": itemDoc.id,
             "qty": 1,

@@ -9,6 +9,7 @@ import 'package:demo/models/agent_response.dart';
 
 import 'package:demo/features/ordering/views/cart_page.dart';
 import 'package:demo/features/ordering/views/final_billing_view.dart';
+import 'package:demo/features/ordering/utils/menu_item_variants.dart';
 import 'package:demo/MyWidgets/EditableTextField.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
@@ -96,24 +97,38 @@ class _MenuPageState extends State<MenuPage>
     _pastItems = widget.pastItems
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
-    // Group menuList by category and initialize qty = 0
+    // Group menuList by category; merge Half/Full pairs for display.
     menuData = {};
+    final normalizedMenu = MenuItemVariants.normalizeMenuList(widget.menuList);
 
-    for (var item in widget.menuList) {
+    for (var item in normalizedMenu) {
       final category = item['category'] as String;
       menuData[category] ??= [];
-      menuData[category]!.add({...item, 'qty': 0});
+      menuData[category]!.add(item);
     }
 
     // Pre-fill quantities from initialItems if any
     for (var category in menuData.keys) {
       for (var item in menuData[category]!) {
-        final existingItem = widget.initialItems.firstWhere(
-          (e) => e['name'] == item['name'],
-          orElse: () => {},
-        );
-        if (existingItem.isNotEmpty) {
-          item['qty'] = existingItem['qty'];
+        if (MenuItemVariants.hasVariants(item)) {
+          for (final raw in item['variants'] as List) {
+            final variant = raw as Map<String, dynamic>;
+            final existingItem = widget.initialItems.firstWhere(
+              (e) => e['name'] == variant['name'],
+              orElse: () => {},
+            );
+            if (existingItem.isNotEmpty) {
+              variant['qty'] = existingItem['qty'];
+            }
+          }
+        } else {
+          final existingItem = widget.initialItems.firstWhere(
+            (e) => e['name'] == item['name'],
+            orElse: () => {},
+          );
+          if (existingItem.isNotEmpty) {
+            item['qty'] = existingItem['qty'];
+          }
         }
       }
     }
@@ -131,6 +146,124 @@ class _MenuPageState extends State<MenuPage>
     setState(() {
       if (menuData[category]![index]['qty'] > 0) {
         menuData[category]![index]['qty']--;
+      }
+    });
+  }
+
+  void _onMenuItemAdd(String category, int index) {
+    final item = menuData[category]![index];
+    if (MenuItemVariants.hasVariants(item)) {
+      _showHalfFullPicker(category, index, forDecrement: false);
+      return;
+    }
+    incrementQty(category, index);
+  }
+
+  void _onMenuItemRemove(String category, int index) {
+    final item = menuData[category]![index];
+    if (!MenuItemVariants.hasVariants(item)) {
+      decrementQty(category, index);
+      return;
+    }
+
+    final withQty = (item['variants'] as List)
+        .cast<Map<String, dynamic>>()
+        .where((v) => (v['qty'] as int? ?? 0) > 0)
+        .toList();
+    if (withQty.isEmpty) return;
+    if (withQty.length == 1) {
+      setState(() {
+        withQty.first['qty'] = (withQty.first['qty'] as int) - 1;
+      });
+      return;
+    }
+    _showHalfFullPicker(category, index, forDecrement: true);
+  }
+
+  Future<void> _showHalfFullPicker(
+    String category,
+    int index, {
+    required bool forDecrement,
+  }) async {
+    final item = menuData[category]![index];
+    final variants = MenuItemVariants.variantsOf(item);
+    final displayName = MenuItemVariants.displayName(item);
+
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          displayName,
+          style: const TextStyle(
+            fontFamily: fontMulishBold,
+            fontSize: 17,
+            color: Color(0xFF1A3A5C),
+          ),
+        ),
+        content: Text(
+          forDecrement ? 'Remove which size?' : 'Select Half or Full',
+          style: TextStyle(
+            fontFamily: fontMulishRegular,
+            fontSize: 14,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          for (final variant in variants)
+            if (!forDecrement || (variant['qty'] as int? ?? 0) > 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor:
+                          forDecrement ? Colors.red.shade700 : _kNavy,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: () =>
+                        Navigator.pop(ctx, variant['label']?.toString()),
+                    child: Text(
+                      forDecrement
+                          ? '${variant['label']} '
+                              '(${variant['qty']}) — Remove 1'
+                          : '${variant['label']} — '
+                              '₹${(variant['price'] as num).toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontFamily: fontMulishBold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null || !mounted) return;
+
+    setState(() {
+      for (final raw in item['variants'] as List) {
+        final variant = raw as Map<String, dynamic>;
+        if (variant['label']?.toString() != choice) continue;
+        final current = variant['qty'] as int? ?? 0;
+        if (forDecrement) {
+          if (current > 0) variant['qty'] = current - 1;
+        } else {
+          variant['qty'] = current + 1;
+        }
+        break;
       }
     });
   }
@@ -188,7 +321,7 @@ class _MenuPageState extends State<MenuPage>
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     height: 1.25,
                     fontFamily: fontMulishBold,
                     letterSpacing: 0.3,
@@ -777,13 +910,13 @@ class _MenuPageState extends State<MenuPage>
       for (final r in results) {
         final itemName = r.item['name'];
         for (final category in menuData.keys) {
-          for (int i = 0; i < menuData[category]!.length; i++) {
-            if (menuData[category]![i]['name'] == itemName) {
-              menuData[category]![i]['qty'] += r.quantity;
-              if (r.remarks.isNotEmpty) {
-                menuData[category]![i]['remarks'] = r.remarks;
-              }
-            }
+          for (final item in menuData[category]!) {
+            MenuItemVariants.applyOrderToItem(
+              item,
+              itemName,
+              r.quantity,
+              remarks: r.remarks,
+            );
           }
         }
       }
@@ -1146,7 +1279,8 @@ class _MenuPageState extends State<MenuPage>
   // ── Menu item card helper ────────────────────────────────────────────────
   Widget _buildMenuItem(String category, int index) {
     final item = menuData[category]![index];
-    final qty = item['qty'] as int;
+    final qty = MenuItemVariants.totalQty(item);
+    final displayName = MenuItemVariants.displayName(item);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -1167,12 +1301,12 @@ class _MenuPageState extends State<MenuPage>
         children: [
           Expanded(
             child: InkWell(
-              onTap: () => incrementQty(category, index),
+              onTap: () => _onMenuItemAdd(category, index),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item['name'].toString(),
+                    displayName,
                     style: const TextStyle(
                       fontSize: 14,
                       fontFamily: fontMulishBold,
@@ -1183,7 +1317,7 @@ class _MenuPageState extends State<MenuPage>
                   Row(
                     children: [
                       Text(
-                        '₹${(item['price'] as num).toStringAsFixed(0)}',
+                        MenuItemVariants.priceLabel(item),
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.grey.shade500,
@@ -1208,11 +1342,11 @@ class _MenuPageState extends State<MenuPage>
           ),
           const SizedBox(width: 12),
           qty == 0
-              ? _addButton(onTap: () => incrementQty(category, index))
+              ? _addButton(onTap: () => _onMenuItemAdd(category, index))
               : _stepper(
                   qty: qty,
-                  onDecrement: () => decrementQty(category, index),
-                  onIncrement: () => incrementQty(category, index),
+                  onDecrement: () => _onMenuItemRemove(category, index),
+                  onIncrement: () => _onMenuItemAdd(category, index),
                 ),
         ],
       ),
@@ -1363,7 +1497,9 @@ class _MenuPageState extends State<MenuPage>
   int get totalItems {
     int total = 0;
     menuData.forEach((category, items) {
-      for (var item in items) total += item['qty'] as int;
+      for (var item in items) {
+        total += MenuItemVariants.totalQty(item);
+      }
     });
     return total;
   }
@@ -1372,7 +1508,7 @@ class _MenuPageState extends State<MenuPage>
     double total = 0.0;
     menuData.forEach((category, items) {
       for (var item in items) {
-        total += (item['qty'] as int) * (item['price']);
+        total += MenuItemVariants.totalLinePrice(item);
       }
     });
     return total;
@@ -1384,9 +1520,7 @@ class _MenuPageState extends State<MenuPage>
     final selectedItems = <Map<String, dynamic>>[];
     menuData.forEach((category, items) {
       for (final item in items) {
-        if ((item['qty'] as int? ?? 0) > 0) {
-          selectedItems.add(Map<String, dynamic>.from(item));
-        }
+        selectedItems.addAll(MenuItemVariants.expandToCartLines(item));
       }
     });
     return selectedItems;
@@ -1395,16 +1529,7 @@ class _MenuPageState extends State<MenuPage>
   void _syncFromCart(List<Map<String, dynamic>> changedItems) {
     for (var category in menuData.keys) {
       for (var item in menuData[category]!) {
-        final existingItem = changedItems.firstWhere(
-          (e) => e['name'] == item['name'],
-          orElse: () => {},
-        );
-        if (existingItem.isNotEmpty) {
-          item['qty'] = existingItem['qty'];
-          item['remarks'] = existingItem['remarks'] ?? '';
-        } else {
-          item['qty'] = 0;
-        }
+        MenuItemVariants.syncVariantQtyFromCart(item, changedItems);
       }
     }
     setState(() {});
@@ -1988,8 +2113,14 @@ class _MenuPageState extends State<MenuPage>
     }
 
     final filtered = allItems.where((item) {
-      final name = item['name'].toString().toLowerCase();
-      return name.contains(searchQuery);
+      final displayName = MenuItemVariants.displayName(item).toLowerCase();
+      if (displayName.contains(searchQuery)) return true;
+      if (MenuItemVariants.hasVariants(item)) {
+        return MenuItemVariants.variantsOf(item).any(
+          (v) => v['name'].toString().toLowerCase().contains(searchQuery),
+        );
+      }
+      return false;
     }).toList();
 
     if (filtered.isEmpty) {

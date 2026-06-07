@@ -700,6 +700,9 @@ class _CartPageState extends State<CartPage> {
   double get _pastItemsSubtotal =>
       pastItems.fold(0.0, (sum, item) => sum + _lineTotal(item));
 
+  double get _cartItemsSubtotal =>
+      cartItems.fold(0.0, (sum, item) => sum + _lineTotal(item));
+
   int get _pastItemsQty =>
       pastItems.fold(0, (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 0));
 
@@ -1632,73 +1635,51 @@ class _CartPageState extends State<CartPage> {
                         padding: const EdgeInsets.all(16),
                         color: primary_color,
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  SvgPicture.asset(
-                                    icon_cooking,
-                                    width: 32,
-                                    color: Colors.white,
-                                  ),
-
-                                  SizedBox(width: 6),
-
-                                  Text(
-                                    "Send to Kitchen",
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      color: Colors.white,
-                                      fontFamily: fontMulishSemiBold,
-                                    ),
-                                  ),
-                                ],
+                            SvgPicture.asset(
+                              icon_cooking,
+                              width: 32,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 6),
+                            const Expanded(
+                              child: Text(
+                                "Send to Kitchen",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.white,
+                                  fontFamily: fontMulishSemiBold,
+                                ),
                               ),
                             ),
-
-                            Icon(Icons.arrow_forward_ios, color: Colors.white),
-
-                            // ElevatedButton(
-                            //   onPressed: () {
-                            //     final selectedItems = <Map<String, dynamic>>[];
-                            //     menuData.forEach((category, items) {
-                            //       selectedItems.addAll(
-                            //         items.where((item) => item['qty'] > 0),
-                            //       );
-                            //     });
-                            //
-                            //     // Send selected items to cart or callback
-                            //
-                            //
-                            //     if(widget.tableName == "Take Away"){
-                            //       Navigator.push(
-                            //         context,
-                            //         MaterialPageRoute(
-                            //           builder: (_) => CartPageForTakeAway(
-                            //             tableName: widget.tableName,
-                            //             menuData: selectedItems,
-                            //             onConfirm: widget.onConfirm,
-                            //           ),
-                            //         ),
-                            //       );
-                            //     }else{
-                            //       Navigator.push(
-                            //         context,
-                            //         MaterialPageRoute(
-                            //           builder: (_) => CartPage(
-                            //             tableName: widget.tableName,
-                            //             menuData: selectedItems,
-                            //             onConfirm: widget.onConfirm,
-                            //           ),
-                            //         ),
-                            //       );
-                            //     }
-                            //
-                            //
-                            //   },
-                            //   child: const Text("View Cart"),
-                            // ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Subtotal',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                    fontFamily: fontMulishRegular,
+                                  ),
+                                ),
+                                Text(
+                                  '₹${_cartItemsSubtotal.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                    fontFamily: fontMulishBold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(
+                              Icons.arrow_forward_ios,
+                              color: Colors.white,
+                              size: 16,
+                            ),
                           ],
                         ),
                       ),
