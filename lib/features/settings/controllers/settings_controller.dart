@@ -12,6 +12,7 @@ class SettingsController extends GetxController {
   final userRole = Rxn<String>();
   final isLoadingRole = true.obs;
   final kitchenShowTableAllOrders = false.obs;
+  final kitchenShowServeOrderScreen = true.obs;
   final printPdfEnabled = false.obs;
   final printerType = PosPrinterType.tvs80.obs;
   final cgstPercentage = 0.0.obs;
@@ -33,11 +34,18 @@ class SettingsController extends GetxController {
   Future<void> loadKitchenSettings() async {
     kitchenShowTableAllOrders.value =
         await KitchenSettings.getShowTableAllOrders();
+    kitchenShowServeOrderScreen.value =
+        await KitchenSettings.getShowServeOrderScreen();
   }
 
   Future<void> setKitchenShowTableAllOrders(bool value) async {
     await KitchenSettings.setShowTableAllOrders(value);
     kitchenShowTableAllOrders.value = value;
+  }
+
+  Future<void> setKitchenShowServeOrderScreen(bool value) async {
+    await KitchenSettings.setShowServeOrderScreen(value);
+    kitchenShowServeOrderScreen.value = value;
   }
 
   Future<void> loadPrintSettings() async {

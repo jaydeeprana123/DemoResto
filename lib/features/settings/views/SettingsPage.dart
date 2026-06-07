@@ -428,6 +428,39 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                 ),
+                Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SwitchListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    secondary: CircleAvatar(
+                      backgroundColor: _orange.withOpacity(0.12),
+                      child: const Icon(Icons.check_circle_outline, color: _orange),
+                    ),
+                    title: const Text(
+                      'Show Serve Orders screen',
+                      style: TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 15,
+                        color: _navy,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'When off, hide Served Orders tab and combine all items in All Orders',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    value: _settings.kitchenShowServeOrderScreen.value,
+                    activeColor: _orange,
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      await _settings.setKitchenShowServeOrderScreen(value);
+                    },
+                  ),
+                ),
                 const SizedBox(height: 20),
                 const Text(
                   'Account',

@@ -128,6 +128,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   Set<String> selectedCategories = {};
   bool showAllCategories = true; // Track if "All" is selected
   bool _showTableAllOrders = false;
+  bool _showServeOrderScreen = true;
   /// 0 = active (unserved items), 1 = served items only
   int _kitchenOrderTabIndex = 0;
 
@@ -135,6 +136,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     if (!mounted) return;
     setState(() {
       _showTableAllOrders = KitchenSettings.showTableAllOrders.value == true;
+      _showServeOrderScreen = KitchenSettings.showServeOrderScreen.value == true;
+      if (!_showServeOrderScreen) {
+        _kitchenOrderTabIndex = 0;
+        _itemSelection.cancel();
+      }
       _rebuildDisplayFromCache();
     });
   }
@@ -321,10 +327,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
         setState(() {
           _showTableAllOrders =
               KitchenSettings.showTableAllOrders.value == true;
+          _showServeOrderScreen =
+              KitchenSettings.showServeOrderScreen.value == true;
         });
       }
     });
     KitchenSettings.showTableAllOrders.addListener(_onKitchenSettingsChanged);
+    KitchenSettings.showServeOrderScreen.addListener(_onKitchenSettingsChanged);
     _tablesSub = FirestorePaths
         .scoped('tables')
         .orderBy('createdAt', descending: false)
@@ -343,10 +352,43 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
   List<TableGroup> _applyKitchenDisplayFilters(List<TableGroup> groups) {
     final byCategory = _filterByCategories(groups);
+    if (!_showServeOrderScreen) {
+      return _filterAllItems(byCategory);
+    }
     return _filterByServedStatus(
       byCategory,
       servedOnly: _kitchenOrderTabIndex == 1,
     );
+  }
+
+  List<TableGroup> _filterAllItems(List<TableGroup> groups) {
+    return groups
+        .map((group) {
+          final filteredItems = group.items.asMap().entries
+              .where((entry) => TableItemServed.asItemMap(entry.value) != null)
+              .map((entry) {
+                final item = TableItemServed.asItemMap(entry.value)!;
+                final copy = Map<String, dynamic>.from(item);
+                copy['__itemIndex'] =
+                    item['__itemIndex'] as int? ?? entry.key;
+                return copy;
+              })
+              .toList();
+
+          if (filteredItems.isEmpty) return null;
+
+          return TableGroup(
+            group.tableName,
+            filteredItems,
+            group.groupTime,
+            key: group.key,
+            docId: group.docId,
+            isPaid: group.isPaid,
+            groupIndex: group.groupIndex,
+          );
+        })
+        .whereType<TableGroup>()
+        .toList();
   }
 
   void _onKitchenOrderTabChanged(int index) {
@@ -1005,10 +1047,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           "Kitchen",
           style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 16),
         ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(44),
-          child: _buildKitchenOrderTabs(),
-        ),
+        bottom: _showServeOrderScreen
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(44),
+                child: _buildKitchenOrderTabs(),
+              )
+            : null,
         actions: [
           // Filter button with badge showing count
           Stack(
@@ -1119,7 +1163,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                           TableItemSelectionActionBar(
                             docId: group.docId,
                             controller: _itemSelection,
-                            action: _kitchenOrderTabIndex == 1
+                            action: _showServeOrderScreen &&
+                                    _kitchenOrderTabIndex == 1
                                 ? TableItemSelectionAction.markPending
                                 : TableItemSelectionAction.serve,
                           ),
@@ -1239,7 +1284,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                           TableItemSelectionActionBar(
                             docId: tableCard.docId,
                             controller: _itemSelection,
-                            action: _kitchenOrderTabIndex == 1
+                            action: _showServeOrderScreen &&
+                                    _kitchenOrderTabIndex == 1
                                 ? TableItemSelectionAction.markPending
                                 : TableItemSelectionAction.serve,
                           ),
@@ -1464,7 +1510,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       selectionMode: selectionMode,
       isSelected: _itemSelection.isSelected(key),
       style: OrderItemRowStyle.kitchen,
-      selectionForServedItems: _kitchenOrderTabIndex == 1,
+      selectionForServedItems:
+          _showServeOrderScreen && _kitchenOrderTabIndex == 1,
     );
   }
 
@@ -1490,6 +1537,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   @override
   void dispose() {
     KitchenSettings.showTableAllOrders.removeListener(
+      _onKitchenSettingsChanged,
+    );
+    KitchenSettings.showServeOrderScreen.removeListener(
       _onKitchenSettingsChanged,
     );
     _tablesSub?.cancel();
