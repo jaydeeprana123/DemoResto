@@ -25,6 +25,8 @@ import 'package:demo/models/agent_response.dart';
 class CartPage extends StatefulWidget {
   final String tableName;
   final bool tableNameEditable;
+  /// When set (e.g. from [MenuPage]), cart title stays in sync with menu edits.
+  final TextEditingController? nameController;
   final List<Map<String, dynamic>> menuData; // new items only
   final List<Map<String, dynamic>> pastItems; // previous rounds — read-only
   final List<Map<String, dynamic>> fullMenu; // all items for AI detection
@@ -55,6 +57,7 @@ class CartPage extends StatefulWidget {
     required this.onConfirm,
     required this.tableName,
     required this.tableNameEditable,
+    this.nameController,
     required this.showBilling,
     this.overallRemarks,
     this.embedded = false,
@@ -70,6 +73,7 @@ class _CartPageState extends State<CartPage> {
   late List<Map<String, dynamic>> pastItems;
   late List<Map<String, dynamic>> cartItems;
   late TextEditingController tableNameController;
+  bool _ownsTableNameController = true;
   late TextEditingController overallRemarksController;
   late List<TextEditingController> _remarkControllers;
   late List<bool> _remarkExpanded;
@@ -98,7 +102,13 @@ class _CartPageState extends State<CartPage> {
   @override
   void initState() {
     super.initState();
-    tableNameController = TextEditingController(text: widget.tableName);
+    if (widget.nameController != null) {
+      tableNameController = widget.nameController!;
+      _ownsTableNameController = false;
+      tableNameController.addListener(_onSharedTableNameChanged);
+    } else {
+      tableNameController = TextEditingController(text: widget.tableName);
+    }
     overallRemarksController = TextEditingController(text: widget.overallRemarks ?? '');
     pastItems = widget.pastItems
         .map((item) => Map<String, dynamic>.from(item))
@@ -174,9 +184,17 @@ class _CartPageState extends State<CartPage> {
         sgstPercent: _sgstPercent,
       );
 
+  void _onSharedTableNameChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
-    tableNameController.dispose();
+    if (!_ownsTableNameController) {
+      tableNameController.removeListener(_onSharedTableNameChanged);
+    } else {
+      tableNameController.dispose();
+    }
     overallRemarksController.dispose();
     for (final c in _remarkControllers) c.dispose();
     discountPercentController.dispose();
@@ -190,6 +208,11 @@ class _CartPageState extends State<CartPage> {
   @override
   void didUpdateWidget(CartPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (_ownsTableNameController &&
+        widget.tableName != oldWidget.tableName &&
+        widget.tableName != tableNameController.text) {
+      tableNameController.text = widget.tableName;
+    }
     if (!widget.embedded) return;
     if (_cartSignature(widget.menuData) != _cartSignature(oldWidget.menuData)) {
       _reloadCartFromMenuData();
@@ -256,7 +279,7 @@ class _CartPageState extends State<CartPage> {
     final taxes = taxBreakdown;
     final txId = await addTransactionToFirestore(
       items: billItems,
-      tableName: widget.tableName,
+      tableName: tableNameController.text.trim(),
       subtotal: subtotal.round(),
       tax: taxAmount,
       cgstPercentage: _cgstPercent,
@@ -274,7 +297,7 @@ class _CartPageState extends State<CartPage> {
       await FoodBillPdfService.generateAndPrintIfEnabled(
         context: pdfContext,
         data: FoodBillPdfData(
-          tableName: widget.tableName,
+          tableName: tableNameController.text.trim(),
           items: billItems,
           subtotal: subtotal.round(),
           tax: taxAmount,
@@ -995,7 +1018,7 @@ class _CartPageState extends State<CartPage> {
               ),
               (widget.tableName.contains("Table") || !widget.tableNameEditable)
                   ? Text(
-                      widget.tableName,
+                      tableNameController.text,
                       style: const TextStyle(
                         fontSize: 16,
                         fontFamily: fontMulishBold,
@@ -1591,7 +1614,7 @@ class _CartPageState extends State<CartPage> {
                                 //         context,
                                 //         MaterialPageRoute(
                                 //           builder: (_) => CartPageForTakeAway(
-                                //             tableName: widget.tableName,
+                                //             tableName: tableNameController.text.trim(),
                                 //             menuData: selectedItems,
                                 //             onConfirm: widget.onConfirm,
                                 //           ),
@@ -1602,7 +1625,7 @@ class _CartPageState extends State<CartPage> {
                                 //         context,
                                 //         MaterialPageRoute(
                                 //           builder: (_) => CartPage(
-                                //             tableName: widget.tableName,
+                                //             tableName: tableNameController.text.trim(),
                                 //             menuData: selectedItems,
                                 //             onConfirm: widget.onConfirm,
                                 //           ),

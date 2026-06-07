@@ -1562,6 +1562,10 @@ class _MenuPageState extends State<MenuPage>
 
   bool get _isTakeAwayTable => !widget.tableName.contains('Table');
 
+  bool get _canEditTakeAwayName =>
+      _isTakeAwayTable &&
+      (widget.tableNameEditable || _pastItems.isNotEmpty);
+
   bool get _canDeleteTable =>
       !widget.isFromFinalBilling &&
       !isNameEdit &&
@@ -1667,7 +1671,8 @@ class _MenuPageState extends State<MenuPage>
       MaterialPageRoute(
         builder: (_) => CartPage(
           tableName: tableNameController.text,
-          tableNameEditable: widget.tableNameEditable,
+          nameController: tableNameController,
+          tableNameEditable: _canEditTakeAwayName,
           menuData: selectedItems,
           pastItems: _pastItems,
           fullMenu: widget.menuList,
@@ -1726,7 +1731,8 @@ class _MenuPageState extends State<MenuPage>
     return CartPage(
       embedded: true,
       tableName: tableNameController.text,
-      tableNameEditable: widget.tableNameEditable,
+      nameController: tableNameController,
+      tableNameEditable: _canEditTakeAwayName,
       menuData: selectedItems,
       pastItems: _pastItems,
       fullMenu: widget.menuList,
@@ -1807,7 +1813,7 @@ class _MenuPageState extends State<MenuPage>
                   children: [
                     // const Icon(Icons.restaurant_menu, color: Colors.white70, size: 20),
                     // const SizedBox(width: 8),
-                    (widget.tableName.contains("Table") || !widget.tableNameEditable)
+                    (widget.tableName.contains("Table") || !_canEditTakeAwayName)
                         ? Text(
                             widget.tableName,
                             style: const TextStyle(

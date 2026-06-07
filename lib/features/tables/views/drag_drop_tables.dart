@@ -416,6 +416,50 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     await _clearTableAfterFinalBilling(tableName);
   }
 
+  void _migrateTableKey(String oldName, String newName, String docId) {
+    tables[newName] = tables.remove(oldName) ?? [];
+    if (tableIsPaid.containsKey(oldName)) {
+      tableIsPaid[newName] = tableIsPaid.remove(oldName)!;
+    }
+    tableDocIds[newName] = docId;
+    tableDocIds.remove(oldName);
+    if (tableCreatedAt.containsKey(oldName)) {
+      tableCreatedAt[newName] = tableCreatedAt.remove(oldName);
+    }
+    if (_firestoreGroupIndices.containsKey(oldName)) {
+      _firestoreGroupIndices[newName] =
+          _firestoreGroupIndices.remove(oldName)!;
+    }
+  }
+
+  Future<void> _renameTableIfNeeded(
+    String oldName,
+    String newName, {
+    String docId = '',
+  }) async {
+    if (oldName == newName) return;
+
+    final id = docId.isNotEmpty ? docId : (tableDocIds[oldName] ?? '');
+    if (id.isEmpty) {
+      final snap = await FirestorePaths
+          .scoped('tables')
+          .where('name', isEqualTo: oldName)
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) return;
+      await snap.docs.first.reference.update({'name': newName});
+      if (mounted) {
+        setState(() => _migrateTableKey(oldName, newName, snap.docs.first.id));
+      }
+      return;
+    }
+
+    await FirestorePaths.scopedDoc('tables', id).update({'name': newName});
+    if (mounted) {
+      setState(() => _migrateTableKey(oldName, newName, id));
+    }
+  }
+
   // Merge items by name and category to combine quantities
   List<Map<String, dynamic>> _mergeItemsByNameAndCategory(
     List<Map<String, dynamic>> items,
@@ -1062,6 +1106,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                   bool fromBilling = false,
                   bool fromFinalBilling = false,
                 }) async {
+                  if (isTakeAway) {
+                    await _renameTableIfNeeded(tableName, tName, docId: docId);
+                  }
                   if (fromFinalBilling) {
                     if (isTakeAway) {
                       await _deleteTakeAwayAfterFinalBilling(tName, docId);
@@ -1157,6 +1204,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         bool fromBilling = false,
                         bool fromFinalBilling = false,
                       }) async {
+                        if (isTakeAway) {
+                          await _renameTableIfNeeded(
+                            tableName,
+                            tName,
+                            docId: docId,
+                          );
+                        }
                         if (fromFinalBilling) {
                           if (isTakeAway) {
                             await _deleteTakeAwayAfterFinalBilling(tName, docId);
@@ -1281,6 +1335,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                                     bool fromBilling = false,
                                     bool fromFinalBilling = false,
                                   }) async {
+                                    if (isTakeAway) {
+                                      await _renameTableIfNeeded(
+                                        tableName,
+                                        tName,
+                                        docId: docId,
+                                      );
+                                    }
                                     if (fromFinalBilling) {
                                       if (isTakeAway) {
                                         await _deleteTakeAwayAfterFinalBilling(
