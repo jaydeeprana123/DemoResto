@@ -1016,7 +1016,7 @@ class _CartPageState extends State<CartPage> {
                 " — ",
                 style: TextStyle(fontSize: 15, color: Colors.white38),
               ),
-              (widget.tableName.contains("Table") || !widget.tableNameEditable)
+              (!widget.tableNameEditable)
                   ? Text(
                       tableNameController.text,
                       style: const TextStyle(

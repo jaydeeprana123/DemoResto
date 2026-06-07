@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/repositories/user_repository.dart';
 import 'package:demo/core/services/restaurant_session.dart';
@@ -460,6 +461,213 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     }
   }
 
+  Future<String> _createOrderWithGroups(
+    String orderName,
+    List<List<Map<String, dynamic>>> groups, {
+    bool isBillPaid = false,
+    String overallRemarks = '',
+  }) async {
+    final existing = await FirestorePaths
+        .scoped('tables')
+        .where('name', isEqualTo: orderName)
+        .limit(1)
+        .get();
+
+    if (existing.docs.isNotEmpty) {
+      await _updateTableItemsInFirestore(
+        orderName,
+        groups,
+        isBillPaid,
+        overallRemarks,
+      );
+      return existing.docs.first.id;
+    }
+
+    final flattenedItems = <Map<String, dynamic>>[];
+    for (var groupIndex = 0; groupIndex < groups.length; groupIndex++) {
+      final group = groups[groupIndex];
+      final Timestamp groupTimestamp = group.isNotEmpty &&
+              group.first.containsKey('addedAt') &&
+              group.first['addedAt'] is Timestamp
+          ? group.first['addedAt'] as Timestamp
+          : Timestamp.now();
+
+      for (final item in group) {
+        final itemWithMeta = Map<String, dynamic>.from(item);
+        itemWithMeta['groupIndex'] = groupIndex;
+        itemWithMeta['addedAt'] = groupTimestamp;
+        flattenedItems.add(itemWithMeta);
+      }
+    }
+
+    final tableData = <String, dynamic>{
+      'name': orderName,
+      'items': flattenedItems,
+      'isPaid': isBillPaid,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (overallRemarks.isNotEmpty) {
+      tableData['remarks'] = overallRemarks;
+    }
+
+    final docRef = await FirestorePaths.scoped('tables').add(tableData);
+    return docRef.id;
+  }
+
+  Future<List<List<Map<String, dynamic>>>> _splitDiningTableToNewOrder(
+    String diningTableName,
+    String newOrderName,
+    List<List<Map<String, dynamic>>> currentGroups,
+  ) async {
+    final copiedGroups = currentGroups
+        .map(
+          (group) => group.map((item) => Map<String, dynamic>.from(item)).toList(),
+        )
+        .toList();
+
+    setState(() {
+      currentGroups.clear();
+      tableIsPaid[diningTableName] = false;
+      _syncFirestoreGroupIndices(diningTableName, 0);
+    });
+    await _updateTableItemsInFirestore(diningTableName, [], false);
+
+    final newDocId = await _createOrderWithGroups(newOrderName, copiedGroups);
+
+    setState(() {
+      tables[newOrderName] = copiedGroups;
+      tableIsPaid[newOrderName] = false;
+      tableDocIds[newOrderName] = newDocId;
+      tableCreatedAt[newOrderName] = Timestamp.now();
+      _syncFirestoreGroupIndices(newOrderName, copiedGroups.length);
+    });
+
+    return tables[newOrderName]!;
+  }
+
+  Future<({List<List<Map<String, dynamic>>> groups, String docId})>
+      _prepareGroupsForConfirm(
+    String originalName,
+    String newName,
+    List<List<Map<String, dynamic>>> groups, {
+    required String docId,
+  }) async {
+    if (originalName == newName) {
+      return (groups: groups, docId: docId);
+    }
+
+    if (isDiningTableName(originalName) && _isTakeAway(newName)) {
+      final newGroups = await _splitDiningTableToNewOrder(
+        originalName,
+        newName,
+        groups,
+      );
+      return (groups: newGroups, docId: tableDocIds[newName] ?? '');
+    }
+
+    await _renameTableIfNeeded(originalName, newName, docId: docId);
+    return (
+      groups: tables[newName] ?? groups,
+      docId: tableDocIds[newName] ?? docId,
+    );
+  }
+
+  Future<void> _handleMenuPageConfirm({
+    required String originalName,
+    required List<List<Map<String, dynamic>>> groups,
+    required String docId,
+    required List<Map<String, dynamic>> items,
+    required bool isBillPaid,
+    required String tName,
+    required String overallRemarks,
+    required bool fromBilling,
+    required bool fromFinalBilling,
+    bool editingLastGroup = false,
+  }) async {
+    var activeGroups = groups;
+    var activeDocId = docId;
+
+    if (tName != originalName) {
+      final prepared = await _prepareGroupsForConfirm(
+        originalName,
+        tName,
+        groups,
+        docId: docId,
+      );
+      activeGroups = prepared.groups;
+      activeDocId = prepared.docId;
+    }
+
+    if (fromFinalBilling) {
+      if (_isTakeAway(tName)) {
+        await _deleteTakeAwayAfterFinalBilling(tName, activeDocId);
+      } else {
+        await _clearTableAfterFinalBilling(
+          tName,
+          overallRemarks: overallRemarks,
+        );
+      }
+      return;
+    }
+
+    if (fromBilling) {
+      await _applyBillingToTable(tName, items, overallRemarks);
+      return;
+    }
+
+    if (editingLastGroup) {
+      if (isBillPaid) {
+        setState(() {
+          activeGroups.clear();
+          tableIsPaid[tName] = true;
+          _syncFirestoreGroupIndices(tName, 0);
+        });
+        await _updateTableItemsInFirestore(
+          tName,
+          [],
+          true,
+          overallRemarks,
+        );
+        return;
+      }
+
+      final existingAddedAt = activeGroups.isNotEmpty
+          ? activeGroups.last.first['addedAt']
+          : null;
+      setState(
+        () => activeGroups[activeGroups.length - 1] = _stampGroupAddedAt(
+          items,
+          preserveAddedAt: existingAddedAt,
+        ),
+      );
+      await _updateTableItemsInFirestore(
+        tName,
+        activeGroups,
+        false,
+        overallRemarks,
+      );
+      return;
+    }
+
+    setState(() {
+      if (isBillPaid) {
+        activeGroups.clear();
+        tableIsPaid[tName] = true;
+        _syncFirestoreGroupIndices(tName, 0);
+      } else {
+        activeGroups.add(_stampGroupAddedAt(items));
+        _syncFirestoreGroupIndices(tName, activeGroups.length);
+      }
+    });
+    await _updateTableItemsInFirestore(
+      tName,
+      isBillPaid ? [] : activeGroups,
+      isBillPaid,
+      overallRemarks,
+    );
+  }
+
   // Merge items by name and category to combine quantities
   List<Map<String, dynamic>> _mergeItemsByNameAndCategory(
     List<Map<String, dynamic>> items,
@@ -906,7 +1114,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     );
   }
 
-  bool _isTakeAway(String name) => !name.contains('Table');
+  bool _isTakeAway(String name) => isTakeAwayOrderName(name);
 
   String _shortDisplayName(String tableName) {
     if (tableName.startsWith('Table ')) {
@@ -1105,42 +1313,17 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                     overallRemarks, {
                   bool fromBilling = false,
                   bool fromFinalBilling = false,
-                }) async {
-                  if (isTakeAway) {
-                    await _renameTableIfNeeded(tableName, tName, docId: docId);
-                  }
-                  if (fromFinalBilling) {
-                    if (isTakeAway) {
-                      await _deleteTakeAwayAfterFinalBilling(tName, docId);
-                    } else {
-                      await _clearTableAfterFinalBilling(
-                        tName,
-                        overallRemarks: overallRemarks,
-                      );
-                    }
-                    return;
-                  }
-                  if (fromBilling) {
-                    await _applyBillingToTable(tName, items, overallRemarks);
-                    return;
-                  }
-                  setState(() {
-                    if (isBillPaid) {
-                      groups.clear();
-                      tableIsPaid[tName] = true;
-                      _syncFirestoreGroupIndices(tName, 0);
-                    } else {
-                      groups.add(_stampGroupAddedAt(items));
-                      _syncFirestoreGroupIndices(tName, groups.length);
-                    }
-                  });
-                  await _updateTableItemsInFirestore(
-                    tName,
-                    isBillPaid ? [] : groups,
-                    isBillPaid,
-                    overallRemarks,
-                  );
-                },
+                }) => _handleMenuPageConfirm(
+                  originalName: tableName,
+                  groups: groups,
+                  docId: docId,
+                  items: items,
+                  isBillPaid: isBillPaid,
+                  tName: tName,
+                  overallRemarks: overallRemarks,
+                  fromBilling: fromBilling,
+                  fromFinalBilling: fromFinalBilling,
+                ),
               ),
             ),
           );
@@ -1203,46 +1386,17 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                           overallRemarks, {
                         bool fromBilling = false,
                         bool fromFinalBilling = false,
-                      }) async {
-                        if (isTakeAway) {
-                          await _renameTableIfNeeded(
-                            tableName,
-                            tName,
-                            docId: docId,
-                          );
-                        }
-                        if (fromFinalBilling) {
-                          if (isTakeAway) {
-                            await _deleteTakeAwayAfterFinalBilling(tName, docId);
-                          } else {
-                            await _clearTableAfterFinalBilling(
-                              tName,
-                              overallRemarks: overallRemarks,
-                            );
-                          }
-                          return;
-                        }
-                        if (fromBilling) {
-                          await _applyBillingToTable(tName, items, overallRemarks);
-                          return;
-                        }
-                        setState(() {
-                          if (isBillPaid) {
-                            groups.clear();
-                            tableIsPaid[tName] = true;
-                            _syncFirestoreGroupIndices(tName, 0);
-                          } else {
-                            groups.add(_stampGroupAddedAt(items));
-                            _syncFirestoreGroupIndices(tName, groups.length);
-                          }
-                        });
-                        await _updateTableItemsInFirestore(
-                          tName,
-                          isBillPaid ? [] : groups,
-                          isBillPaid,
-                          overallRemarks,
-                        );
-                      },
+                      }) => _handleMenuPageConfirm(
+                        originalName: tableName,
+                        groups: groups,
+                        docId: docId,
+                        items: items,
+                        isBillPaid: isBillPaid,
+                        tName: tName,
+                        overallRemarks: overallRemarks,
+                        fromBilling: fromBilling,
+                        fromFinalBilling: fromFinalBilling,
+                      ),
                     ),
                   ),
                 );
@@ -1334,67 +1488,18 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                                     overallRemarks, {
                                     bool fromBilling = false,
                                     bool fromFinalBilling = false,
-                                  }) async {
-                                    if (isTakeAway) {
-                                      await _renameTableIfNeeded(
-                                        tableName,
-                                        tName,
-                                        docId: docId,
-                                      );
-                                    }
-                                    if (fromFinalBilling) {
-                                      if (isTakeAway) {
-                                        await _deleteTakeAwayAfterFinalBilling(
-                                          tName,
-                                          docId,
-                                        );
-                                      } else {
-                                        await _clearTableAfterFinalBilling(
-                                          tName,
-                                          overallRemarks: overallRemarks,
-                                        );
-                                      }
-                                      return;
-                                    }
-                                    if (fromBilling) {
-                                      await _applyBillingToTable(
-                                        tName,
-                                        items,
-                                        overallRemarks,
-                                      );
-                                      return;
-                                    }
-                                    if (isBillPaid) {
-                                      setState(() {
-                                        groups.clear();
-                                        tableIsPaid[tName] = true;
-                                        _syncFirestoreGroupIndices(tName, 0);
-                                      });
-                                      await _updateTableItemsInFirestore(
-                                        tName,
-                                        [],
-                                        true,
-                                        overallRemarks,
-                                      );
-                                      return;
-                                    }
-                                    final existingAddedAt = groups.isNotEmpty
-                                        ? groups.last.first['addedAt']
-                                        : null;
-                                    setState(
-                                      () => groups[groups.length - 1] =
-                                          _stampGroupAddedAt(
-                                            items,
-                                            preserveAddedAt: existingAddedAt,
-                                          ),
-                                    );
-                                    await _updateTableItemsInFirestore(
-                                      tName,
-                                      groups,
-                                      false,
-                                      overallRemarks,
-                                    );
-                                  },
+                                  }) => _handleMenuPageConfirm(
+                                    originalName: tableName,
+                                    groups: groups,
+                                    docId: docId,
+                                    items: items,
+                                    isBillPaid: isBillPaid,
+                                    tName: tName,
+                                    overallRemarks: overallRemarks,
+                                    fromBilling: fromBilling,
+                                    fromFinalBilling: fromFinalBilling,
+                                    editingLastGroup: true,
+                                  ),
                             ),
                           ),
                         );
@@ -1674,13 +1779,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
-            tableName.contains("Take Away")
+            _isTakeAway(tableName)
                 ? "Mark as Delivered?"
                 : "Mark as Served?",
             style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
           ),
           content: Text(
-            tableName.contains("Take Away")
+            _isTakeAway(tableName)
                 ? "Are you sure you want to mark table '$tableName' as delivered?"
                 : "Are you sure you want to mark table '$tableName' as served?",
             style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 15),
@@ -1708,7 +1813,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 onServed(); // perform the action
               },
               child: Text(
-                tableName.contains("Take Away") ? "Delivered" : "Served",
+                _isTakeAway(tableName) ? "Delivered" : "Served",
                 style: TextStyle(
                   fontFamily: fontMulishSemiBold,
                   color: Colors.white,

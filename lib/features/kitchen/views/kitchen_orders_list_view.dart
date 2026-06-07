@@ -11,6 +11,7 @@ import 'package:dotted_line/dotted_line.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
+import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/Styles/my_icons.dart';
@@ -131,6 +132,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   bool _showServeOrderScreen = true;
   /// 0 = active (unserved items), 1 = served items only
   int _kitchenOrderTabIndex = 0;
+  /// 0 = All, 1 = Table (dine-in), 2 = Take Away
+  int _orderTypeFilterIndex = 0;
 
   void _onKitchenSettingsChanged() {
     if (!mounted) return;
@@ -352,13 +355,34 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
   List<TableGroup> _applyKitchenDisplayFilters(List<TableGroup> groups) {
     final byCategory = _filterByCategories(groups);
+    final byOrderType = _filterByOrderType(byCategory);
     if (!_showServeOrderScreen) {
-      return _filterAllItems(byCategory);
+      return _filterAllItems(byOrderType);
     }
     return _filterByServedStatus(
-      byCategory,
+      byOrderType,
       servedOnly: _kitchenOrderTabIndex == 1,
     );
+  }
+
+  List<TableGroup> _filterByOrderType(List<TableGroup> groups) {
+    if (_orderTypeFilterIndex == 0) return groups;
+    return groups.where((group) {
+      final isTakeAway = isTakeAwayOrderName(group.tableName);
+      if (_orderTypeFilterIndex == 1) {
+        return isDiningTableName(group.tableName);
+      }
+      return isTakeAway;
+    }).toList();
+  }
+
+  void _onOrderTypeFilterChanged(int? value) {
+    if (value == null || value == _orderTypeFilterIndex) return;
+    setState(() {
+      _orderTypeFilterIndex = value;
+      _itemSelection.cancel();
+      _rebuildDisplayFromCache();
+    });
   }
 
   List<TableGroup> _filterAllItems(List<TableGroup> groups) {
@@ -623,6 +647,27 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     }
   }
 
+  String _emptyStateMessage() {
+    final typeLabel = _orderTypeFilterIndex == 1
+        ? 'table'
+        : _orderTypeFilterIndex == 2
+        ? 'take away'
+        : '';
+    final typeSuffix = typeLabel.isEmpty ? '' : ' for $typeLabel orders';
+
+    if (_kitchenOrderTabIndex == 1) {
+      if (!showAllCategories && selectedCategories.isNotEmpty) {
+        return 'No served orders in selected categories$typeSuffix';
+      }
+      return 'No served orders$typeSuffix';
+    }
+
+    if (!showAllCategories && selectedCategories.isNotEmpty) {
+      return 'No orders in selected categories$typeSuffix';
+    }
+    return 'No orders found$typeSuffix';
+  }
+
   Widget _buildKitchenEmptyState() {
     return Center(
       child: Column(
@@ -637,13 +682,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           ),
           const SizedBox(height: 16),
           Text(
-            _kitchenOrderTabIndex == 1
-                ? (!showAllCategories && selectedCategories.isNotEmpty
-                    ? "No served orders in selected categories"
-                    : "No served orders")
-                : (!showAllCategories && selectedCategories.isNotEmpty
-                    ? "No orders in selected categories"
-                    : "No orders found"),
+            _emptyStateMessage(),
             style: const TextStyle(
               fontFamily: fontMulishSemiBold,
               fontSize: 16,
@@ -1039,6 +1078,48 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     );
   }
 
+  Widget _buildOrderTypeFilter() {
+    const navy = Color(0xFF1A3A5C);
+
+    Widget radioTile(String label, int value) {
+      return Expanded(
+        child: RadioListTile<int>(
+          dense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+          title: Text(
+            label,
+            style: TextStyle(
+              fontFamily: _orderTypeFilterIndex == value
+                  ? fontMulishBold
+                  : fontMulishSemiBold,
+              fontSize: 13,
+              color: navy,
+            ),
+          ),
+          value: value,
+          groupValue: _orderTypeFilterIndex,
+          activeColor: const Color(0xFFf57c35),
+          onChanged: _onOrderTypeFilterChanged,
+        ),
+      );
+    }
+
+    return Material(
+      color: Colors.white,
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Row(
+          children: [
+            radioTile('All', 0),
+            radioTile('Table', 1),
+            radioTile('Take Away', 2),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1094,11 +1175,18 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       ),
       body: !_kitchenStreamReady
           ? const Center(child: CircularProgressIndicator())
-          : (_showTableAllOrders
-                ? _displayTableCards.isEmpty
-                : _displayFilteredGroups.isEmpty)
-              ? _buildKitchenEmptyState()
-              : _buildKitchenOrdersGrid(),
+          : Column(
+              children: [
+                _buildOrderTypeFilter(),
+                Expanded(
+                  child: (_showTableAllOrders
+                          ? _displayTableCards.isEmpty
+                          : _displayFilteredGroups.isEmpty)
+                      ? _buildKitchenEmptyState()
+                      : _buildKitchenOrdersGrid(),
+                ),
+              ],
+            ),
     );
   }
 

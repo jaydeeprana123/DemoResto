@@ -7,6 +7,7 @@ import 'package:demo/services/ai_order_service.dart';
 import 'package:demo/services/restaurant_agent_service.dart';
 import 'package:demo/models/agent_response.dart';
 
+import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/features/ordering/views/cart_page.dart';
 import 'package:demo/features/ordering/views/final_billing_view.dart';
 import 'package:demo/features/ordering/utils/menu_item_variants.dart';
@@ -94,6 +95,7 @@ class _MenuPageState extends State<MenuPage>
   void initState() {
     super.initState();
     tableNameController = TextEditingController(text: widget.tableName);
+    tableNameController.addListener(_onTableNameChanged);
     _pastItems = widget.pastItems
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
@@ -1535,6 +1537,20 @@ class _MenuPageState extends State<MenuPage>
     setState(() {});
   }
 
+  void _onTableNameChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    tableNameController.removeListener(_onTableNameChanged);
+    tableNameController.dispose();
+    searchController.dispose();
+    _recordingTimer?.cancel();
+    _amplitudeTimer?.cancel();
+    super.dispose();
+  }
+
   List<Map<String, dynamic>> _mergeItemLists(
     List<Map<String, dynamic>> lists,
   ) {
@@ -1560,11 +1576,10 @@ class _MenuPageState extends State<MenuPage>
   bool get _hasOrderItems =>
       _pastItems.isNotEmpty || _getSelectedItems().isNotEmpty;
 
-  bool get _isTakeAwayTable => !widget.tableName.contains('Table');
+  bool get _isTakeAwayTable =>
+      isTakeAwayOrderName(tableNameController.text.trim());
 
-  bool get _canEditTakeAwayName =>
-      _isTakeAwayTable &&
-      (widget.tableNameEditable || _pastItems.isNotEmpty);
+  bool get _canEditTableName => !widget.isFromFinalBilling;
 
   bool get _canDeleteTable =>
       !widget.isFromFinalBilling &&
@@ -1672,7 +1687,7 @@ class _MenuPageState extends State<MenuPage>
         builder: (_) => CartPage(
           tableName: tableNameController.text,
           nameController: tableNameController,
-          tableNameEditable: _canEditTakeAwayName,
+          tableNameEditable: _canEditTableName,
           menuData: selectedItems,
           pastItems: _pastItems,
           fullMenu: widget.menuList,
@@ -1732,7 +1747,7 @@ class _MenuPageState extends State<MenuPage>
       embedded: true,
       tableName: tableNameController.text,
       nameController: tableNameController,
-      tableNameEditable: _canEditTakeAwayName,
+      tableNameEditable: _canEditTableName,
       menuData: selectedItems,
       pastItems: _pastItems,
       fullMenu: widget.menuList,
@@ -1813,9 +1828,9 @@ class _MenuPageState extends State<MenuPage>
                   children: [
                     // const Icon(Icons.restaurant_menu, color: Colors.white70, size: 20),
                     // const SizedBox(width: 8),
-                    (widget.tableName.contains("Table") || !_canEditTakeAwayName)
+                    !_canEditTableName
                         ? Text(
-                            widget.tableName,
+                            tableNameController.text,
                             style: const TextStyle(
                               fontSize: 16,
                               fontFamily: fontMulishBold,
