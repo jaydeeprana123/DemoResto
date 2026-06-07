@@ -402,6 +402,17 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     });
   }
 
+  Future<void> _deleteTableFromMenu(String tableName, {String docId = ''}) async {
+    if (_isTakeAway(tableName)) {
+      await _deleteTakeAwayAfterFinalBilling(
+        tableName,
+        docId.isNotEmpty ? docId : (tableDocIds[tableName] ?? ''),
+      );
+      return;
+    }
+    await _clearTableAfterFinalBilling(tableName);
+  }
+
   // Merge items by name and category to combine quantities
   List<Map<String, dynamic>> _mergeItemsByNameAndCategory(
     List<Map<String, dynamic>> items,
@@ -815,6 +826,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               initialItems: [],
               showBilling: true,
               isFromFinalBilling: false,
+              onDeleteTable: (tName) => _deleteTableFromMenu(tName),
               onConfirm:
                   (
                     List<Map<String, dynamic>> selectedItems,
@@ -1052,6 +1064,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               pastItems: pastItems,
               showBilling: !hasItems,
               isFromFinalBilling: false,
+              onDeleteTable: (tName) =>
+                  _deleteTableFromMenu(tName, docId: docId),
               onConfirm:
                   (
                     items,
@@ -1191,6 +1205,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                             pastItems: pastForEdit,
                             showBilling: groups.length == 1,
                             isFromFinalBilling: false,
+                            onDeleteTable: (tName) =>
+                                _deleteTableFromMenu(tName, docId: docId),
                             onConfirm:
                                 (
                                   items,

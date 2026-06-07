@@ -35,6 +35,8 @@ class MenuPage extends StatefulWidget {
   final bool tableNameEditable;
   final bool showBilling;
   final bool isFromFinalBilling;
+  /// Clears dine-in table items or deletes a take-away order (no transaction).
+  final Future<void> Function(String tableName)? onDeleteTable;
 
   const MenuPage({
     required this.onConfirm,
@@ -43,6 +45,7 @@ class MenuPage extends StatefulWidget {
     required this.tableNameEditable,
     required this.showBilling,
     required this.isFromFinalBilling,
+    this.onDeleteTable,
     this.initialItems = const [],
     this.pastItems = const [],
     Key? key,
@@ -1320,6 +1323,66 @@ class _MenuPageState extends State<MenuPage>
   bool get _hasOrderItems =>
       _pastItems.isNotEmpty || _getSelectedItems().isNotEmpty;
 
+  bool get _isTakeAwayTable => !widget.tableName.contains('Table');
+
+  bool get _canDeleteTable =>
+      !widget.isFromFinalBilling &&
+      !isNameEdit &&
+      widget.onDeleteTable != null &&
+      (_pastItems.isNotEmpty ||
+          _hasOrderItems ||
+          (_isTakeAwayTable && widget.tableNameEditable));
+
+  Future<void> _confirmDeleteTable() async {
+    if (widget.onDeleteTable == null) return;
+
+    final tableName = tableNameController.text.trim();
+    final isTakeAway = _isTakeAwayTable;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          isTakeAway ? 'Delete take away order?' : 'Clear table items?',
+          style: const TextStyle(
+            fontFamily: fontMulishBold,
+            fontSize: 17,
+            color: _kNavy,
+          ),
+        ),
+        content: Text(
+          isTakeAway
+              ? 'All items on "$tableName" will be removed and the order will be deleted. No bill will be created.'
+              : 'All items on "$tableName" will be removed. No bill will be created.',
+          style: TextStyle(
+            fontFamily: fontMulishRegular,
+            fontSize: 14,
+            color: Colors.grey.shade700,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(isTakeAway ? 'Delete' : 'Clear'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    await widget.onDeleteTable!(tableName);
+
+    if (mounted) Navigator.pop(context);
+  }
+
   Future<void> _openFinalBilling() async {
     final merged = _mergeAllForBilling();
     if (merged.isEmpty) {
@@ -1557,6 +1620,12 @@ class _MenuPageState extends State<MenuPage>
                 ),
 
           actions: [
+            if (_canDeleteTable)
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, color: Colors.white),
+                onPressed: _confirmDeleteTable,
+                tooltip: _isTakeAwayTable ? 'Delete order' : 'Clear table',
+              ),
             if (!isNameEdit && _hasOrderItems && !widget.showBilling && !widget.isFromFinalBilling)
               IconButton(
                 icon: const Icon(Icons.receipt_long_outlined, color: Colors.white),
