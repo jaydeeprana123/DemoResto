@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/utils/tax_calculator.dart';
 import 'package:demo/features/menu_setup/widgets/setup_page_layout.dart';
 import 'package:demo/features/settings/services/tax_settings_service.dart';
+import 'package:demo/features/ordering/widgets/editable_total_row.dart';
 import 'package:demo/features/transactions/repositories/transactions_repository.dart';
 import 'package:demo/features/transactions/widgets/add_menu_item_sheet.dart';
 import 'package:demo/Styles/my_font.dart';
@@ -30,9 +31,12 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
   late TextEditingController discountController;
   late TextEditingController cashController;
   late TextEditingController onlineController;
+  late TextEditingController totalController;
 
   late List<Map<String, dynamic>> items;
   bool _saving = false;
+  bool _isEditingTotal = false;
+  bool _totalOverridden = false;
   double _cgstPercent = 0;
   double _sgstPercent = 0;
 
@@ -60,10 +64,18 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     cashController.text = widget.transaction['cashAmount']?.toString() ?? '0';
     onlineController.text =
         widget.transaction['onlineAmount']?.toString() ?? '0';
+    totalController = TextEditingController(
+      text: widget.transaction['total']?.toString() ?? '0',
+    );
 
     _syncTotalsFromItems();
     _alignPaymentFieldsToTotal();
     _loadTaxSettingsIfNeeded();
+
+    final savedTotal = int.tryParse(totalController.text) ?? 0;
+    if (savedTotal != _computedTotal) {
+      _totalOverridden = true;
+    }
   }
 
   Future<void> _loadTaxSettingsIfNeeded() async {
@@ -94,21 +106,56 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     return subtotal + tax - discount;
   }
 
+  int get total {
+    if (_totalOverridden) {
+      return int.tryParse(totalController.text.trim()) ?? _computedTotal;
+    }
+    return _computedTotal;
+  }
+
+  void _resetTotalOverride() {
+    _totalOverridden = false;
+    _isEditingTotal = false;
+  }
+
+  void _startEditingTotal() {
+    totalController.text = total.toString();
+    setState(() => _isEditingTotal = true);
+  }
+
+  void _applyManualTotal() {
+    final edited = int.tryParse(totalController.text.trim());
+    if (edited == null || edited < 0) return;
+
+    setState(() {
+      _totalOverridden = true;
+      _isEditingTotal = false;
+      final subtotal = int.tryParse(subtotalController.text) ?? 0;
+      final tax = int.tryParse(taxController.text) ?? 0;
+      final taxable = subtotal + tax;
+      var discount = (taxable - edited).toDouble();
+      if (discount < 0) discount = 0;
+      discountController.text = discount.round().toString();
+      totalController.text = edited.toString();
+      _alignPaymentFieldsToTotal();
+    });
+  }
+
   /// Keeps cash/online in sync when subtotal, tax, or discount change.
   void _alignPaymentFieldsToTotal() {
-    final total = _computedTotal;
+    final billTotal = total;
     if (total < 0) return;
 
     final cash = int.tryParse(cashController.text) ?? 0;
     final online = int.tryParse(onlineController.text) ?? 0;
-    if (cash + online == total) return;
+    if (cash + online == billTotal) return;
 
     if (online == 0) {
-      cashController.text = total.toString();
+      cashController.text = billTotal.toString();
     } else if (cash == 0) {
-      onlineController.text = total.toString();
+      onlineController.text = billTotal.toString();
     } else {
-      cashController.text = (total - online).toString();
+      cashController.text = (billTotal - online).toString();
     }
   }
 
@@ -119,6 +166,7 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     discountController.dispose();
     cashController.dispose();
     onlineController.dispose();
+    totalController.dispose();
     super.dispose();
   }
 
@@ -141,7 +189,11 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
   }
 
   void _recalculateTotals() {
-    setState(_syncTotalsFromItems);
+    setState(() {
+      _resetTotalOverride();
+      _syncTotalsFromItems();
+      _alignPaymentFieldsToTotal();
+    });
   }
 
   void updateItemQty(int index, int change) {
@@ -216,17 +268,17 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     final taxBreakdown = _taxBreakdown;
     final tax = taxBreakdown.totalTax;
     final discount = int.tryParse(discountController.text) ?? 0;
-    final total = _computedTotal;
+    final billTotal = total;
     final cashAmount = int.tryParse(cashController.text) ?? 0;
     final onlineAmount = int.tryParse(onlineController.text) ?? 0;
 
-    if (total < 0) {
+    if (billTotal < 0) {
       _showMessage('Total cannot be negative.');
       return;
     }
-    if (cashAmount + onlineAmount != total) {
+    if (cashAmount + onlineAmount != billTotal) {
       _showMessage(
-        'Cash (₹$cashAmount) + Online (₹$onlineAmount) must equal total (₹$total).',
+        'Cash (₹$cashAmount) + Online (₹$onlineAmount) must equal total (₹$billTotal).',
       );
       return;
     }
@@ -249,7 +301,7 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
       'cgstAmount': taxBreakdown.cgstAmount,
       'sgstAmount': taxBreakdown.sgstAmount,
       'discount': discount,
-      'total': total,
+      'total': billTotal,
       'cashAmount': cashAmount,
       'onlineAmount': onlineAmount,
     };
@@ -274,11 +326,6 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
       if (mounted) setState(() => _saving = false);
     }
   }
-
-  int get _total =>
-      (int.tryParse(subtotalController.text) ?? 0) +
-      (int.tryParse(taxController.text) ?? 0) -
-      (int.tryParse(discountController.text) ?? 0);
 
   String get _dateTime {
     final createdAt = widget.transaction['createdAt'];
@@ -582,6 +629,7 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
               'Discount',
               discountController,
               onChanged: (_) {
+                _resetTotalOverride();
                 _alignPaymentFieldsToTotal();
                 setState(() {});
               },
@@ -606,26 +654,13 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
               dashColor: Colors.grey.shade300,
             ),
             const SizedBox(height: 14),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Total',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontFamily: fontMulishBold,
-                    color: SetupPageColors.navy,
-                  ),
-                ),
-                Text(
-                  '₹$_total',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontFamily: fontMulishBold,
-                    color: SetupPageColors.orange,
-                  ),
-                ),
-              ],
+            EditableTotalRow(
+              total: total,
+              isEditing: _isEditingTotal,
+              controller: totalController,
+              onEditPressed: _startEditingTotal,
+              onApplyPressed: _applyManualTotal,
+              accentColor: SetupPageColors.orange,
             ),
           ],
         ),
