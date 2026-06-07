@@ -142,12 +142,13 @@ class _CartPageState extends State<CartPage> {
     _isEditingTotal = false;
   }
 
-  void _startEditingTotal() {
+  void _startEditingTotal([VoidCallback? onRebuild]) {
     totalController.text = total.toString();
     setState(() => _isEditingTotal = true);
+    onRebuild?.call();
   }
 
-  void _applyManualTotal() {
+  void _applyManualTotal([VoidCallback? onRebuild]) {
     final edited = int.tryParse(totalController.text.trim());
     if (edited == null || edited < 0) return;
 
@@ -164,6 +165,7 @@ class _CartPageState extends State<CartPage> {
       totalController.text = edited.toString();
       _updatePaymentAmounts();
     });
+    onRebuild?.call();
   }
 
   TaxBreakdown get taxBreakdown => TaxCalculator.calculate(
@@ -2252,8 +2254,12 @@ class _CartPageState extends State<CartPage> {
                                       total: total,
                                       isEditing: _isEditingTotal,
                                       controller: totalController,
-                                      onEditPressed: _startEditingTotal,
-                                      onApplyPressed: _applyManualTotal,
+                                      onEditPressed: () => _startEditingTotal(
+                                        () => setModalState(() {}),
+                                      ),
+                                      onApplyPressed: () => _applyManualTotal(
+                                        () => setModalState(() {}),
+                                      ),
                                       accentColor: primary_color,
                                     ),
                                   ],
