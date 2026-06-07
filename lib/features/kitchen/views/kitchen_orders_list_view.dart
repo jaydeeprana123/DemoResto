@@ -66,6 +66,70 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
   static final Color _newOrderBlinkColor = Colors.lightGreenAccent.shade100;
   static final Color _updateBlinkColor = Colors.yellow.shade300;
+  static final Color _delayedItemBackground = Color(0xFFFFEBEE); // light red
+  static final Color _delayedItemBlinkBackground = Color(0xFFFFCDD2);
+  static const int _delayThresholdMinutes = 5;
+  static const int _delayedBlinkPulseCount = 7;
+
+  Set<int> _delayedBlinkGroupKeys = {};
+  bool _delayedBlinkHighlight = false;
+  Timer? _delayedBlinkTimer;
+
+  bool _isOrderDelayed(DateTime time) =>
+      DateTime.now().difference(time).inMinutes > _delayThresholdMinutes;
+
+  bool _isDelayedGroupBlinking(TableGroup group) =>
+      _delayedBlinkGroupKeys.contains(group.key.hashCode) &&
+      _delayedBlinkHighlight;
+
+  Iterable<TableGroup> get _visibleKitchenGroups => _showTableAllOrders
+      ? _displayTableCards.expand((card) => card.batches)
+      : _displayFilteredGroups;
+
+  void _triggerDelayedBlinkIfNeeded() {
+    final delayedKeys = _visibleKitchenGroups
+        .where(
+          (group) => _isOrderDelayed(
+            DateTime.fromMillisecondsSinceEpoch(group.groupTime),
+          ),
+        )
+        .map((group) => group.key.hashCode)
+        .toSet();
+    if (delayedKeys.isEmpty) return;
+    _startDelayedBlinkAnimation(delayedKeys);
+  }
+
+  void _startDelayedBlinkAnimation(Set<int> groupKeyHashes) {
+    _delayedBlinkTimer?.cancel();
+    if (groupKeyHashes.isEmpty || !mounted) return;
+
+    setState(() {
+      _delayedBlinkGroupKeys = groupKeyHashes;
+      _delayedBlinkHighlight = true;
+    });
+
+    var pulseCount = 0;
+    _delayedBlinkTimer = Timer.periodic(const Duration(milliseconds: 450), (
+      timer,
+    ) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      pulseCount++;
+      if (pulseCount >= _delayedBlinkPulseCount * 2) {
+        timer.cancel();
+        setState(() {
+          _delayedBlinkGroupKeys.clear();
+          _delayedBlinkHighlight = false;
+        });
+        return;
+      }
+
+      setState(() => _delayedBlinkHighlight = !_delayedBlinkHighlight);
+    });
+  }
 
   bool get _canRingBell => widget.isTabActive;
 
@@ -344,6 +408,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
         .listen(_handleTablesSnapshot);
     _timer = Timer.periodic(const Duration(minutes: 1), (_) {
       _minuteTick.value++;
+      _triggerDelayedBlinkIfNeeded();
     });
   }
 
@@ -351,6 +416,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     final filtered = _applyKitchenDisplayFilters(_lastUpdatedGroups);
     _displayFilteredGroups = filtered;
     _displayTableCards = _mergeGroupsByTable(filtered);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _triggerDelayedBlinkIfNeeded();
+    });
   }
 
   List<TableGroup> _applyKitchenDisplayFilters(List<TableGroup> groups) {
@@ -640,6 +708,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
         _displayTableCards = tableCards;
         _kitchenStreamReady = true;
       });
+      _triggerDelayedBlinkIfNeeded();
     }
 
     if (filteredGroups.isNotEmpty) {
@@ -1197,9 +1266,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   }) {
     final time = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
     final isBlinking = blinkingGroupKey == group.key.hashCode;
-    final isOld = DateTime.now().difference(time).inMinutes > 5;
+    final isDelayed = _isOrderDelayed(time);
+    final isDelayedBlinking = _isDelayedGroupBlinking(group);
 
-    if (group.tableName.contains("Take Away") && isOld && group.isPaid) {
+    if (group.tableName.contains("Take Away") && isDelayed && group.isPaid) {
       deleteTable(group.docId);
     }
 
@@ -1209,11 +1279,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
         listenable: _minuteTick,
         builder: (context, _) {
           final tickTime = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
-          final tickIsOld = DateTime.now().difference(tickTime).inMinutes > 5;
+          final tickIsDelayed = _isOrderDelayed(tickTime);
           return _orderCardShell(
             isBlinking: isBlinking,
             animationDuration: const Duration(milliseconds: 800),
-            decoration: _orderCardDecoration(isBlinking, tickIsOld, isNext),
+            decoration: _orderCardDecoration(
+              isBlinking,
+              tickIsDelayed,
+              isNext,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1226,7 +1300,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                       ? () => _markTableServed(group.tableName, group.docId)
                       : null,
                 ),
-                _buildTimeBar(tickTime, tickIsOld),
+                _buildTimeBar(tickTime, tickIsDelayed),
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: ListenableBuilder(
@@ -1246,6 +1320,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                                   (entry.value['__itemIndex'] as int?) ??
                                   entry.key,
                               selectionMode: selectionMode,
+                              isDelayed: tickIsDelayed,
+                              isDelayedBlinking: isDelayedBlinking,
                             ),
                           ),
                           TableItemSelectionActionBar(
@@ -1280,9 +1356,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
     for (final batch in tableCard.batches) {
       final time = DateTime.fromMillisecondsSinceEpoch(batch.groupTime);
-      final isOld = DateTime.now().difference(time).inMinutes > 5;
+      final isDelayed = _isOrderDelayed(time);
       if (tableCard.tableName.contains("Take Away") &&
-          isOld &&
+          isDelayed &&
           tableCard.isPaid) {
         deleteTable(tableCard.docId);
         break;
@@ -1294,14 +1370,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       child: ListenableBuilder(
         listenable: _minuteTick,
         builder: (context, _) {
-          final tickIsOld = tableCard.batches.any((batch) {
+          final tickIsDelayed = tableCard.batches.any((batch) {
             final batchTime =
                 DateTime.fromMillisecondsSinceEpoch(batch.groupTime);
-            return DateTime.now().difference(batchTime).inMinutes > 5;
+            return _isOrderDelayed(batchTime);
           });
           return _orderCardShell(
             isBlinking: isBlinking,
-            decoration: _orderCardDecoration(isBlinking, tickIsOld, isNext),
+            decoration: _orderCardDecoration(isBlinking, tickIsDelayed, isNext),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1340,33 +1416,54 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                                 ),
                               ),
                             ],
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: _KitchenRelativeTime(
-                                time: DateTime.fromMillisecondsSinceEpoch(
-                                  tableCard.batches[i].groupTime,
-                                ),
-                                tick: _minuteTick,
-                                formatter: formatRelativeTime,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontFamily: fontMulishRegular,
-                                  color: Colors.grey.shade500,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            ...tableCard.batches[i].items.asMap().entries.map(
-                              (entry) => _buildItemRow(
-                                entry.value,
-                                docId: tableCard.docId,
-                                groupIndex: tableCard.batches[i].groupIndex,
-                                itemIndexInGroup:
-                                    (entry.value['__itemIndex'] as int?) ??
-                                    entry.key,
-                                selectionMode: selectionMode,
-                              ),
+                            Builder(
+                              builder: (context) {
+                                final batch = tableCard.batches[i];
+                                final batchTime =
+                                    DateTime.fromMillisecondsSinceEpoch(
+                                  batch.groupTime,
+                                );
+                                final batchDelayed = _isOrderDelayed(batchTime);
+                                final batchDelayedBlinking =
+                                    _isDelayedGroupBlinking(batch);
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: _KitchenRelativeTime(
+                                        time: batchTime,
+                                        tick: _minuteTick,
+                                        formatter: formatRelativeTime,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontFamily: fontMulishRegular,
+                                          color: batchDelayed
+                                              ? Colors.red.shade700
+                                              : Colors.grey.shade500,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    ...batch.items.asMap().entries.map(
+                                      (entry) => _buildItemRow(
+                                        entry.value,
+                                        docId: tableCard.docId,
+                                        groupIndex: batch.groupIndex,
+                                        itemIndexInGroup:
+                                            (entry.value['__itemIndex']
+                                                    as int?) ??
+                                                entry.key,
+                                        selectionMode: selectionMode,
+                                        isDelayed: batchDelayed,
+                                        isDelayedBlinking:
+                                            batchDelayedBlinking,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             ),
                           ],
                           TableItemSelectionActionBar(
@@ -1402,7 +1499,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     });
   }
 
-  BoxDecoration _orderCardDecoration(bool isBlinking, bool isOld, bool isNext) {
+  BoxDecoration _orderCardDecoration(
+    bool isBlinking,
+    bool isDelayed,
+    bool isNext,
+  ) {
     return BoxDecoration(
       color: isBlinking ? _blinkColor : Colors.white,
       borderRadius: BorderRadius.circular(12),
@@ -1410,7 +1511,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
         BoxShadow(
           color: isNext
               ? Colors.green.withValues(alpha: 0.35)
-              : isOld
+              : isDelayed
               ? Colors.red.withValues(alpha: 0.3)
               : Colors.black.withValues(alpha: 0.05),
           blurRadius: isNext ? 12 : 8,
@@ -1419,7 +1520,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       ],
       border: isNext
           ? Border.all(color: Colors.green, width: 2.5)
-          : isOld
+          : isDelayed
           ? Border.all(color: Colors.red, width: 2)
           : Border.all(color: Colors.grey.shade200),
     );
@@ -1539,16 +1640,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     );
   }
 
-  Widget _buildTimeBar(DateTime time, bool isOld) {
+  Widget _buildTimeBar(DateTime time, bool isDelayed) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      color: isOld ? Colors.red.shade50 : const Color(0xFFF5F6FA),
+      color: isDelayed ? _delayedItemBackground : const Color(0xFFF5F6FA),
       child: Row(
         children: [
           Icon(
             Icons.access_time,
             size: 14,
-            color: isOld ? Colors.red : Colors.grey.shade700,
+            color: isDelayed ? Colors.red : Colors.grey.shade700,
           ),
           const SizedBox(width: 6),
           _KitchenRelativeTime(
@@ -1558,10 +1659,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             style: TextStyle(
               fontFamily: fontMulishSemiBold,
               fontSize: 13,
-              color: isOld ? Colors.red : Colors.grey.shade800,
+              color: isDelayed ? Colors.red : Colors.grey.shade800,
             ),
           ),
-          if (isOld) ...[
+          if (isDelayed) ...[
             const Spacer(),
             const Text(
               "DELAYED",
@@ -1583,13 +1684,18 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     required int groupIndex,
     required int itemIndexInGroup,
     required bool selectionMode,
+    bool isDelayed = false,
+    bool isDelayedBlinking = false,
   }) {
     final key = TableItemKey(
       docId: docId,
       groupIndex: groupIndex,
       itemIndexInGroup: itemIndexInGroup,
     );
-    return OrderItemRow(
+    final served = TableItemServed.isServed(item);
+    final showDelayedBackground = isDelayed && !served;
+
+    final row = OrderItemRow(
       item: item,
       docId: docId,
       groupIndex: groupIndex,
@@ -1600,6 +1706,20 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       style: OrderItemRowStyle.kitchen,
       selectionForServedItems:
           _showServeOrderScreen && _kitchenOrderTabIndex == 1,
+    );
+
+    if (!showDelayedBackground) return row;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
+      decoration: BoxDecoration(
+        color: isDelayedBlinking
+            ? _delayedItemBlinkBackground
+            : _delayedItemBackground,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: row,
     );
   }
 
@@ -1632,6 +1752,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     );
     _tablesSub?.cancel();
     _timer?.cancel();
+    _delayedBlinkTimer?.cancel();
     _minuteTick.dispose();
     audioPlayer.dispose();
     updateAudioPlayer.dispose();
