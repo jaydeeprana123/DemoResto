@@ -263,6 +263,48 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Cheezy Fries', 'price': 90.0},
     ],
   },
+
+
+  {
+    'category': 'Soda',
+    'items': [
+      {'name': 'Plain Soda', 'price': 10.0},
+      {'name': 'Jeera Masala', 'price': 10.0},
+      {'name': 'Orange', 'price': 10.0},
+      {'name': 'Seven Up', 'price': 10.0},
+      {'name': 'Fruit Beer', 'price': 10.0},
+      {'name': 'Lichi', 'price': 10.0},
+      {'name': 'Lemon', 'price': 10.0},
+      {'name': 'Blue Berry', 'price': 10.0},
+      {'name': 'Mango', 'price': 10.0},
+      {'name': 'Apple', 'price': 10.0},
+      {'name': 'Kashmiri Soda', 'price': 20.0},
+      {'name': 'Kashmiri Lemon', 'price': 20.0},
+      {'name': 'Kashmiri Jeera', 'price': 20.0},
+      {'name': 'Limbu Soda', 'price': 20.0},
+      {'name': 'Limbu Sharbat', 'price': 20.0},
+    ],
+  },
+  {
+    'category': 'Mocktails',
+    'items': [
+      {'name': 'Mojeeto Mocktail', 'price': 40.0},
+      {'name': 'Taquila Mocktail', 'price': 50.0},
+      {'name': 'Green Mocktail', 'price': 50.0},
+      {'name': 'Rainbow Mocktail', 'price': 70.0},
+      {'name': 'Pineapple Mocktail', 'price': 50.0},
+      {'name': 'Guava Mocktail', 'price': 50.0},
+      {'name': 'Black Current', 'price': 50.0},
+      {'name': 'Peach Mocktail', 'price': 50.0},
+      {'name': 'Cherry Mocktail', 'price': 50.0},
+      {'name': 'Mango Mocktail', 'price': 50.0},
+      {'name': 'Banana Mocktail', 'price': 50.0},
+      {'name': 'Patiala Mocktail', 'price': 70.0},
+      {'name': 'Chilly Lemon', 'price': 70.0},
+    ],
+  },
+
+
 ];
 
 
