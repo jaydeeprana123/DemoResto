@@ -169,6 +169,61 @@ class TableItemServed {
     return anyUpdated;
   }
 
+  static Future<bool> removeItems(List<TableItemKey> keys) async {
+    if (keys.isEmpty) return false;
+
+    final byDoc = <String, List<TableItemKey>>{};
+    for (final key in keys) {
+      byDoc.putIfAbsent(key.docId, () => []).add(key);
+    }
+
+    var anyUpdated = false;
+
+    for (final entry in byDoc.entries) {
+      final docRef = FirestorePaths.scopedDoc('tables', entry.key);
+      final snap = await docRef.get();
+      if (!snap.exists) continue;
+
+      final items = parseItemList(snap.data()?['items']);
+      if (items.isEmpty) continue;
+
+      final groupCounters = <int, int>{};
+      final indicesToRemove = <int>{};
+
+      for (var i = 0; i < items.length; i++) {
+        final item = items[i];
+        final groupIndex = (item['groupIndex'] as int?) ?? 0;
+        final indexInGroup = groupCounters[groupIndex] ?? 0;
+        groupCounters[groupIndex] = indexInGroup + 1;
+
+        final shouldRemove = entry.value.any(
+          (key) =>
+              key.groupIndex == groupIndex &&
+              key.itemIndexInGroup == indexInGroup,
+        );
+
+        if (shouldRemove) {
+          indicesToRemove.add(i);
+        }
+      }
+
+      if (indicesToRemove.isEmpty) continue;
+
+      final remaining = [
+        for (var i = 0; i < items.length; i++)
+          if (!indicesToRemove.contains(i)) items[i],
+      ];
+
+      await docRef.update({
+        'items': remaining,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      anyUpdated = true;
+    }
+
+    return anyUpdated;
+  }
+
   /// Compact row: ✓ qty badge + name, or checkbox during selection mode.
   static Widget buildItemLine({
     required int qty,

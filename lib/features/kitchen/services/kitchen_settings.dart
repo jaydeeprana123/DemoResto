@@ -3,13 +3,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class KitchenSettings {
   static const _keyShowTableAllOrders = 'kitchen_show_table_all_orders';
+  static const _keyShowServeOrderScreen = 'kitchen_show_serve_order_screen';
+  static const _keyMobileOrdersGridLayout = 'kitchen_mobile_orders_grid_layout';
 
   static final ValueNotifier<bool> showTableAllOrders = ValueNotifier(false);
+  static final ValueNotifier<bool> showServeOrderScreen = ValueNotifier(true);
+  /// On mobile kitchen screen: true = 2-column grid, false = single-column list.
+  static final ValueNotifier<bool> mobileOrdersGridLayout = ValueNotifier(false);
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     showTableAllOrders.value =
         prefs.getBool(_keyShowTableAllOrders) ?? false;
+    showServeOrderScreen.value =
+        prefs.getBool(_keyShowServeOrderScreen) ?? true;
+    mobileOrdersGridLayout.value =
+        prefs.getBool(_keyMobileOrdersGridLayout) ?? false;
   }
 
   static Future<bool> getShowTableAllOrders() async {
@@ -21,5 +30,22 @@ class KitchenSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyShowTableAllOrders, value);
     showTableAllOrders.value = value;
+  }
+
+  static Future<bool> getShowServeOrderScreen() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyShowServeOrderScreen) ?? true;
+  }
+
+  static Future<void> setShowServeOrderScreen(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyShowServeOrderScreen, value);
+    showServeOrderScreen.value = value;
+  }
+
+  static Future<void> setMobileOrdersGridLayout(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyMobileOrdersGridLayout, value);
+    mobileOrdersGridLayout.value = value;
   }
 }

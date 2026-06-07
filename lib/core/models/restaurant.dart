@@ -20,6 +20,8 @@ class Restaurant {
     this.adminEmail,
     this.address,
     this.createdAt,
+    this.cgstPercentage = 0,
+    this.sgstPercentage = 0,
   });
 
   final String id;
@@ -30,6 +32,8 @@ class Restaurant {
   final String? adminEmail;
   final String? address;
   final DateTime? createdAt;
+  final double cgstPercentage;
+  final double sgstPercentage;
 
   bool get isAccessible => status == RestaurantStatus.active;
 
@@ -53,6 +57,8 @@ class Restaurant {
       createdAt: data['createdAt'] is Timestamp
           ? (data['createdAt'] as Timestamp).toDate()
           : null,
+      cgstPercentage: (data['cgstPercentage'] as num?)?.toDouble() ?? 0,
+      sgstPercentage: (data['sgstPercentage'] as num?)?.toDouble() ?? 0,
     );
   }
 
@@ -64,6 +70,8 @@ class Restaurant {
       'subscriptionEnd': Timestamp.fromDate(subscriptionEnd),
       if (adminEmail != null) 'adminEmail': adminEmail,
       if (address != null) 'address': address,
+      'cgstPercentage': cgstPercentage,
+      'sgstPercentage': sgstPercentage,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }

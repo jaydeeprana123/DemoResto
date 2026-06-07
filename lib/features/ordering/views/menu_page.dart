@@ -7,8 +7,10 @@ import 'package:demo/services/ai_order_service.dart';
 import 'package:demo/services/restaurant_agent_service.dart';
 import 'package:demo/models/agent_response.dart';
 
+import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/features/ordering/views/cart_page.dart';
 import 'package:demo/features/ordering/views/final_billing_view.dart';
+import 'package:demo/features/ordering/utils/menu_item_variants.dart';
 import 'package:demo/MyWidgets/EditableTextField.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
@@ -16,6 +18,7 @@ import 'package:demo/Styles/my_font.dart';
 // ── Brand colours (shared across screens) ─────────────────────────────────
 const _kNavy   = Color(0xFF1A3A5C);
 const _kOrange = Color(0xFFf57c35);
+const _kCategoryInactive = Color(0xFFF3F8F9);
 
 
 class MenuPage extends StatefulWidget {
@@ -35,6 +38,8 @@ class MenuPage extends StatefulWidget {
   final bool tableNameEditable;
   final bool showBilling;
   final bool isFromFinalBilling;
+  /// Clears dine-in table items or deletes a take-away order (no transaction).
+  final Future<void> Function(String tableName)? onDeleteTable;
 
   const MenuPage({
     required this.onConfirm,
@@ -43,6 +48,7 @@ class MenuPage extends StatefulWidget {
     required this.tableNameEditable,
     required this.showBilling,
     required this.isFromFinalBilling,
+    this.onDeleteTable,
     this.initialItems = const [],
     this.pastItems = const [],
     Key? key,
@@ -66,6 +72,7 @@ class _MenuPageState extends State<MenuPage>
   // Multiple category selection
   Set<String> selectedCategories = {};
   bool showAllCategories = true; // Track if "All" is selected
+  int _selectedCategoryIndex = 0;
 
   // Voice AI — Sarvam STT
   final SarvamSttService _sttService = SarvamSttService();
@@ -88,27 +95,42 @@ class _MenuPageState extends State<MenuPage>
   void initState() {
     super.initState();
     tableNameController = TextEditingController(text: widget.tableName);
+    tableNameController.addListener(_onTableNameChanged);
     _pastItems = widget.pastItems
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
-    // Group menuList by category and initialize qty = 0
+    // Group menuList by category; merge Half/Full pairs for display.
     menuData = {};
+    final normalizedMenu = MenuItemVariants.normalizeMenuList(widget.menuList);
 
-    for (var item in widget.menuList) {
+    for (var item in normalizedMenu) {
       final category = item['category'] as String;
       menuData[category] ??= [];
-      menuData[category]!.add({...item, 'qty': 0});
+      menuData[category]!.add(item);
     }
 
     // Pre-fill quantities from initialItems if any
     for (var category in menuData.keys) {
       for (var item in menuData[category]!) {
-        final existingItem = widget.initialItems.firstWhere(
-          (e) => e['name'] == item['name'],
-          orElse: () => {},
-        );
-        if (existingItem.isNotEmpty) {
-          item['qty'] = existingItem['qty'];
+        if (MenuItemVariants.hasVariants(item)) {
+          for (final raw in item['variants'] as List) {
+            final variant = raw as Map<String, dynamic>;
+            final existingItem = widget.initialItems.firstWhere(
+              (e) => e['name'] == variant['name'],
+              orElse: () => {},
+            );
+            if (existingItem.isNotEmpty) {
+              variant['qty'] = existingItem['qty'];
+            }
+          }
+        } else {
+          final existingItem = widget.initialItems.firstWhere(
+            (e) => e['name'] == item['name'],
+            orElse: () => {},
+          );
+          if (existingItem.isNotEmpty) {
+            item['qty'] = existingItem['qty'];
+          }
         }
       }
     }
@@ -128,6 +150,238 @@ class _MenuPageState extends State<MenuPage>
         menuData[category]![index]['qty']--;
       }
     });
+  }
+
+  void _onMenuItemAdd(String category, int index) {
+    final item = menuData[category]![index];
+    if (MenuItemVariants.hasVariants(item)) {
+      _showHalfFullPicker(category, index, forDecrement: false);
+      return;
+    }
+    incrementQty(category, index);
+  }
+
+  void _onMenuItemRemove(String category, int index) {
+    final item = menuData[category]![index];
+    if (!MenuItemVariants.hasVariants(item)) {
+      decrementQty(category, index);
+      return;
+    }
+
+    final withQty = (item['variants'] as List)
+        .cast<Map<String, dynamic>>()
+        .where((v) => (v['qty'] as int? ?? 0) > 0)
+        .toList();
+    if (withQty.isEmpty) return;
+    if (withQty.length == 1) {
+      setState(() {
+        withQty.first['qty'] = (withQty.first['qty'] as int) - 1;
+      });
+      return;
+    }
+    _showHalfFullPicker(category, index, forDecrement: true);
+  }
+
+  Future<void> _showHalfFullPicker(
+    String category,
+    int index, {
+    required bool forDecrement,
+  }) async {
+    final item = menuData[category]![index];
+    final variants = MenuItemVariants.variantsOf(item);
+    final displayName = MenuItemVariants.displayName(item);
+
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          displayName,
+          style: const TextStyle(
+            fontFamily: fontMulishBold,
+            fontSize: 17,
+            color: Color(0xFF1A3A5C),
+          ),
+        ),
+        content: Text(
+          forDecrement ? 'Remove which size?' : 'Select Half or Full',
+          style: TextStyle(
+            fontFamily: fontMulishRegular,
+            fontSize: 14,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          for (final variant in variants)
+            if (!forDecrement || (variant['qty'] as int? ?? 0) > 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor:
+                          forDecrement ? Colors.red.shade700 : _kNavy,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: () =>
+                        Navigator.pop(ctx, variant['label']?.toString()),
+                    child: Text(
+                      forDecrement
+                          ? '${variant['label']} '
+                              '(${variant['qty']}) — Remove 1'
+                          : '${variant['label']} — '
+                              '₹${(variant['price'] as num).toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontFamily: fontMulishBold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null || !mounted) return;
+
+    setState(() {
+      for (final raw in item['variants'] as List) {
+        final variant = raw as Map<String, dynamic>;
+        if (variant['label']?.toString() != choice) continue;
+        final current = variant['qty'] as int? ?? 0;
+        if (forDecrement) {
+          if (current > 0) variant['qty'] = current - 1;
+        } else {
+          variant['qty'] = current + 1;
+        }
+        break;
+      }
+    });
+  }
+
+  List<String> get _visibleCategories {
+    if (showAllCategories) return menuData.keys.toList();
+    return menuData.keys
+        .where((category) => selectedCategories.contains(category))
+        .toList();
+  }
+
+  void _selectCategory(int index) {
+    setState(() => _selectedCategoryIndex = index);
+  }
+
+  Widget _buildCategorySidebar(List<String> categories, int activeIndex) {
+    if (categories.isEmpty) return const SizedBox.shrink();
+
+    final sidebarWidth = kIsWeb ? 132.0 : 108.0;
+
+    return Container(
+      width: sidebarWidth,
+      decoration: BoxDecoration(
+        color: _kCategoryInactive,
+        border: Border(
+          right: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      child: ListView.builder(
+        itemCount: categories.length,
+        padding: EdgeInsets.zero,
+        itemBuilder: (context, index) {
+          final category = categories[index];
+          final isActive = index == activeIndex;
+
+          return Material(
+            color: isActive ? _kNavy : _kCategoryInactive,
+            child: InkWell(
+              onTap: () => _selectCategory(index),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isActive
+                          ? _kNavy
+                          : Colors.black.withValues(alpha: 0.05),
+                    ),
+                  ),
+                ),
+                child: Text(
+                  category,
+                  textAlign: TextAlign.center,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.25,
+                    fontFamily: fontMulishBold,
+                    letterSpacing: 0.3,
+                    color: isActive
+                        ? Colors.white
+                        : _kNavy.withValues(alpha: 0.65),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMenuItemsList(String category) {
+    final items = menuData[category] ?? [];
+
+    return ListView.builder(
+      itemCount: items.length,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemBuilder: (context, index) => _buildMenuItem(category, index),
+    );
+  }
+
+  Widget _buildSidebarMenuLayout() {
+    final categories = _visibleCategories;
+
+    if (categories.isEmpty) {
+      return Center(
+        child: Text(
+          'No categories selected.',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
+            fontFamily: fontMulishRegular,
+          ),
+        ),
+      );
+    }
+
+    if (_selectedCategoryIndex >= categories.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _selectedCategoryIndex = 0);
+      });
+    }
+
+    final activeIndex = _selectedCategoryIndex.clamp(0, categories.length - 1);
+    final activeCategory = categories[activeIndex];
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildCategorySidebar(categories, activeIndex),
+        Expanded(child: _buildMenuItemsList(activeCategory)),
+      ],
+    );
   }
 
   // ── Sarvam STT Recording ─────────────────────────────────────────────────
@@ -658,13 +912,13 @@ class _MenuPageState extends State<MenuPage>
       for (final r in results) {
         final itemName = r.item['name'];
         for (final category in menuData.keys) {
-          for (int i = 0; i < menuData[category]!.length; i++) {
-            if (menuData[category]![i]['name'] == itemName) {
-              menuData[category]![i]['qty'] += r.quantity;
-              if (r.remarks.isNotEmpty) {
-                menuData[category]![i]['remarks'] = r.remarks;
-              }
-            }
+          for (final item in menuData[category]!) {
+            MenuItemVariants.applyOrderToItem(
+              item,
+              itemName,
+              r.quantity,
+              remarks: r.remarks,
+            );
           }
         }
       }
@@ -1027,7 +1281,8 @@ class _MenuPageState extends State<MenuPage>
   // ── Menu item card helper ────────────────────────────────────────────────
   Widget _buildMenuItem(String category, int index) {
     final item = menuData[category]![index];
-    final qty = item['qty'] as int;
+    final qty = MenuItemVariants.totalQty(item);
+    final displayName = MenuItemVariants.displayName(item);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -1048,14 +1303,12 @@ class _MenuPageState extends State<MenuPage>
         children: [
           Expanded(
             child: InkWell(
-              onTap: () {
-                incrementQty(category, index);
-              },
+              onTap: () => _onMenuItemAdd(category, index),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item['name'].toString(),
+                    displayName,
                     style: const TextStyle(
                       fontSize: 14,
                       fontFamily: fontMulishBold,
@@ -1066,7 +1319,7 @@ class _MenuPageState extends State<MenuPage>
                   Row(
                     children: [
                       Text(
-                        '₹${(item['price'] as num).toStringAsFixed(0)}',
+                        MenuItemVariants.priceLabel(item),
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.grey.shade500,
@@ -1074,9 +1327,9 @@ class _MenuPageState extends State<MenuPage>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      if (item['qty'] > 0)
+                      if (qty > 0)
                         Text(
-                          ' x${(item['qty'] as int)}',
+                          ' x$qty',
                           style: const TextStyle(
                             fontSize: 13,
                             color: _kOrange,
@@ -1091,11 +1344,11 @@ class _MenuPageState extends State<MenuPage>
           ),
           const SizedBox(width: 12),
           qty == 0
-              ? _addButton(onTap: () => incrementQty(category, index))
+              ? _addButton(onTap: () => _onMenuItemAdd(category, index))
               : _stepper(
                   qty: qty,
-                  onDecrement: () => decrementQty(category, index),
-                  onIncrement: () => incrementQty(category, index),
+                  onDecrement: () => _onMenuItemRemove(category, index),
+                  onIncrement: () => _onMenuItemAdd(category, index),
                 ),
         ],
       ),
@@ -1176,8 +1429,6 @@ class _MenuPageState extends State<MenuPage>
     );
   }
 
-
-
   void _showRemarkEditSheet(String category, int index) {
     final item = menuData[category]![index];
     final ctrl = TextEditingController(text: (item['remarks'] ?? '').toString());
@@ -1248,7 +1499,9 @@ class _MenuPageState extends State<MenuPage>
   int get totalItems {
     int total = 0;
     menuData.forEach((category, items) {
-      for (var item in items) total += item['qty'] as int;
+      for (var item in items) {
+        total += MenuItemVariants.totalQty(item);
+      }
     });
     return total;
   }
@@ -1257,7 +1510,7 @@ class _MenuPageState extends State<MenuPage>
     double total = 0.0;
     menuData.forEach((category, items) {
       for (var item in items) {
-        total += (item['qty'] as int) * (item['price']);
+        total += MenuItemVariants.totalLinePrice(item);
       }
     });
     return total;
@@ -1269,9 +1522,7 @@ class _MenuPageState extends State<MenuPage>
     final selectedItems = <Map<String, dynamic>>[];
     menuData.forEach((category, items) {
       for (final item in items) {
-        if ((item['qty'] as int? ?? 0) > 0) {
-          selectedItems.add(Map<String, dynamic>.from(item));
-        }
+        selectedItems.addAll(MenuItemVariants.expandToCartLines(item));
       }
     });
     return selectedItems;
@@ -1280,19 +1531,24 @@ class _MenuPageState extends State<MenuPage>
   void _syncFromCart(List<Map<String, dynamic>> changedItems) {
     for (var category in menuData.keys) {
       for (var item in menuData[category]!) {
-        final existingItem = changedItems.firstWhere(
-          (e) => e['name'] == item['name'],
-          orElse: () => {},
-        );
-        if (existingItem.isNotEmpty) {
-          item['qty'] = existingItem['qty'];
-          item['remarks'] = existingItem['remarks'] ?? '';
-        } else {
-          item['qty'] = 0;
-        }
+        MenuItemVariants.syncVariantQtyFromCart(item, changedItems);
       }
     }
     setState(() {});
+  }
+
+  void _onTableNameChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    tableNameController.removeListener(_onTableNameChanged);
+    tableNameController.dispose();
+    searchController.dispose();
+    _recordingTimer?.cancel();
+    _amplitudeTimer?.cancel();
+    super.dispose();
   }
 
   List<Map<String, dynamic>> _mergeItemLists(
@@ -1319,6 +1575,69 @@ class _MenuPageState extends State<MenuPage>
 
   bool get _hasOrderItems =>
       _pastItems.isNotEmpty || _getSelectedItems().isNotEmpty;
+
+  bool get _isTakeAwayTable =>
+      isTakeAwayOrderName(tableNameController.text.trim());
+
+  bool get _canEditTableName => !widget.isFromFinalBilling;
+
+  bool get _canDeleteTable =>
+      !widget.isFromFinalBilling &&
+      !isNameEdit &&
+      widget.onDeleteTable != null &&
+      (_pastItems.isNotEmpty ||
+          _hasOrderItems ||
+          (_isTakeAwayTable && widget.tableNameEditable));
+
+  Future<void> _confirmDeleteTable() async {
+    if (widget.onDeleteTable == null) return;
+
+    final tableName = tableNameController.text.trim();
+    final isTakeAway = _isTakeAwayTable;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          isTakeAway ? 'Delete take away order?' : 'Clear table items?',
+          style: const TextStyle(
+            fontFamily: fontMulishBold,
+            fontSize: 17,
+            color: _kNavy,
+          ),
+        ),
+        content: Text(
+          isTakeAway
+              ? 'All items on "$tableName" will be removed and the order will be deleted. No bill will be created.'
+              : 'All items on "$tableName" will be removed. No bill will be created.',
+          style: TextStyle(
+            fontFamily: fontMulishRegular,
+            fontSize: 14,
+            color: Colors.grey.shade700,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(isTakeAway ? 'Delete' : 'Clear'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    await widget.onDeleteTable!(tableName);
+
+    if (mounted) Navigator.pop(context);
+  }
 
   Future<void> _openFinalBilling() async {
     final merged = _mergeAllForBilling();
@@ -1367,7 +1686,8 @@ class _MenuPageState extends State<MenuPage>
       MaterialPageRoute(
         builder: (_) => CartPage(
           tableName: tableNameController.text,
-          tableNameEditable: widget.tableNameEditable,
+          nameController: tableNameController,
+          tableNameEditable: _canEditTableName,
           menuData: selectedItems,
           pastItems: _pastItems,
           fullMenu: widget.menuList,
@@ -1426,7 +1746,8 @@ class _MenuPageState extends State<MenuPage>
     return CartPage(
       embedded: true,
       tableName: tableNameController.text,
-      tableNameEditable: widget.tableNameEditable,
+      nameController: tableNameController,
+      tableNameEditable: _canEditTableName,
       menuData: selectedItems,
       pastItems: _pastItems,
       fullMenu: widget.menuList,
@@ -1438,36 +1759,12 @@ class _MenuPageState extends State<MenuPage>
   }
 
   Widget _buildMenuBodyContent() {
-    final categories = menuData.keys.toList();
-
     return Column(
       children: [
         Expanded(
           child: _showSearch
               ? _buildGlobalSearchList()
-              : showAllCategories
-                  ? TabBarView(
-                      children: categories.map((category) {
-                        final items = menuData[category]!;
-                        return ListView.builder(
-                          itemCount: items.length,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemBuilder: (context, index) =>
-                              _buildMenuItem(category, index),
-                        );
-                      }).toList(),
-                    )
-                  : TabBarView(
-                      children: selectedCategories.map((category) {
-                        final items = menuData[category];
-                        return ListView.builder(
-                          itemCount: items?.length ?? 0,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemBuilder: (context, index) =>
-                              _buildMenuItem(category, index),
-                        );
-                      }).toList(),
-                    ),
+              : _buildSidebarMenuLayout(),
         ),
         if (!_useWebSideCart && _hasOrderItems)
           InkWell(
@@ -1502,11 +1799,7 @@ class _MenuPageState extends State<MenuPage>
 
   @override
   Widget build(BuildContext context) {
-    final categories = menuData.keys.toList();
-
-    return DefaultTabController(
-      length: showAllCategories ? categories.length : selectedCategories.length,
-      child: Scaffold(
+    return Scaffold(
         backgroundColor: const Color(0xFFF5F6FA),
         appBar: AppBar(
           backgroundColor: _kNavy,
@@ -1535,9 +1828,9 @@ class _MenuPageState extends State<MenuPage>
                   children: [
                     // const Icon(Icons.restaurant_menu, color: Colors.white70, size: 20),
                     // const SizedBox(width: 8),
-                    (widget.tableName.contains("Table") || !widget.tableNameEditable)
+                    !_canEditTableName
                         ? Text(
-                            widget.tableName,
+                            tableNameController.text,
                             style: const TextStyle(
                               fontSize: 16,
                               fontFamily: fontMulishBold,
@@ -1557,6 +1850,12 @@ class _MenuPageState extends State<MenuPage>
                 ),
 
           actions: [
+            if (_canDeleteTable)
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, color: Colors.white),
+                onPressed: _confirmDeleteTable,
+                tooltip: _isTakeAwayTable ? 'Delete order' : 'Clear table',
+              ),
             if (!isNameEdit && _hasOrderItems && !widget.showBilling && !widget.isFromFinalBilling)
               IconButton(
                 icon: const Icon(Icons.receipt_long_outlined, color: Colors.white),
@@ -1617,23 +1916,6 @@ class _MenuPageState extends State<MenuPage>
                 ],
               ),
           ],
-
-          bottom: !_showSearch
-              ? TabBar(
-                  isScrollable: true,
-                  indicatorColor: _kOrange,
-                  indicatorWeight: 3,
-                  labelColor: Colors.white,
-                  unselectedLabelColor: Colors.white60,
-                  labelStyle: const TextStyle(
-                    fontFamily: fontMulishSemiBold,
-                    fontSize: 13,
-                  ),
-                  tabs: showAllCategories
-                      ? categories.map((c) => Tab(text: c)).toList()
-                      : selectedCategories.map((c) => Tab(text: c)).toList(),
-                )
-              : null,
         ),
         body: _useWebSideCart
             ? Row(
@@ -1671,7 +1953,6 @@ class _MenuPageState extends State<MenuPage>
         //         onPressed: _openFinalBilling,
         //       )
         //     : null,
-      ),
     );
   }
 
@@ -1772,7 +2053,9 @@ class _MenuPageState extends State<MenuPage>
 
                     _saveSelectedCategories();
 
-                    setState(() {});
+                    setState(() {
+                      _selectedCategoryIndex = 0;
+                    });
                   },
                   child: const Text(
                     "Clear",
@@ -1792,7 +2075,9 @@ class _MenuPageState extends State<MenuPage>
                   onPressed: () {
                     _saveSelectedCategories();
                     Navigator.pop(context);
-                    setState(() {});
+                    setState(() {
+                      _selectedCategoryIndex = 0;
+                    });
                   },
                   child: const Text(
                     "Apply",
@@ -1832,7 +2117,9 @@ class _MenuPageState extends State<MenuPage>
       print("showAllCategories false");
     }
 
-    setState(() {});
+    setState(() {
+      _selectedCategoryIndex = 0;
+    });
   }
 
   Widget _buildGlobalSearchList() {
@@ -1847,8 +2134,14 @@ class _MenuPageState extends State<MenuPage>
     }
 
     final filtered = allItems.where((item) {
-      final name = item['name'].toString().toLowerCase();
-      return name.contains(searchQuery);
+      final displayName = MenuItemVariants.displayName(item).toLowerCase();
+      if (displayName.contains(searchQuery)) return true;
+      if (MenuItemVariants.hasVariants(item)) {
+        return MenuItemVariants.variantsOf(item).any(
+          (v) => v['name'].toString().toLowerCase().contains(searchQuery),
+        );
+      }
+      return false;
     }).toList();
 
     if (filtered.isEmpty) {
@@ -1865,135 +2158,13 @@ class _MenuPageState extends State<MenuPage>
       padding: const EdgeInsets.only(top: 8),
       itemBuilder: (context, index) {
         final item = filtered[index];
-        final category = item['category'];
-        final qty = item['qty'] as int;
-        return _buildMenuTile(category, index, item, qty);
+        final category = item['category'] as String;
+        final itemIndex = menuData[category]!.indexWhere(
+          (e) => e['name'] == item['name'],
+        );
+        if (itemIndex < 0) return const SizedBox.shrink();
+        return _buildMenuItem(category, itemIndex);
       },
-    );
-  }
-
-  Widget _buildMenuTile(
-    String category,
-    int index,
-    Map<String, dynamic> item,
-    int qty,
-  ) {
-    return InkWell(
-      onTap: () {
-        setState(() {
-          item['qty']++;
-        });
-      },
-      child: Column(
-        children: [
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 2,
-              horizontal: 16,
-            ),
-            title: Text(
-              item['name'],
-              style: const TextStyle(
-                fontSize: 14,
-                color: text_color,
-                fontFamily: fontMulishSemiBold,
-              ),
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 2.0),
-              child: Row(
-                children: [
-                  Text(
-                    "₹${item['price'].toStringAsFixed(2)}",
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: secondary_text_color,
-                      fontFamily: fontMulishRegular,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  if (qty > 0)
-                    Text(
-                      "\u00D7$qty",
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.red,
-                        fontFamily: fontMulishBold,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            trailing: qty == 0
-                ? GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        item['qty'] = 1;
-                      });
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.black87, width: 0.5),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        "Add",
-                        style: TextStyle(
-                          color: Colors.black87,
-                          fontWeight: FontWeight.normal,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  )
-                : GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {},
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.remove_circle,
-                            color: Colors.red,
-                          ),
-                          onPressed: () {
-                            if (item['qty'] > 0) {
-                              item['qty']--;
-                              setState(() {});
-                            }
-                          },
-                        ),
-                        Text(
-                          "$qty",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: text_color,
-                            fontFamily: fontMulishSemiBold,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle, color: Colors.green),
-                          onPressed: () {
-                            item['qty']++;
-                            setState(() {});
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-          ),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12),
-            height: 0.5,
-            color: Colors.grey.shade300,
-          ),
-        ],
-      ),
     );
   }
 }

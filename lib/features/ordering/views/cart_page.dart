@@ -1,6 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/core/utils/tax_calculator.dart';
 import 'package:demo/Styles/my_icons.dart';
+import 'package:demo/features/ordering/widgets/editable_total_row.dart';
+import 'package:demo/features/ordering/widgets/tax_summary_rows.dart';
+import 'package:demo/features/settings/services/tax_settings_service.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +25,8 @@ import 'package:demo/models/agent_response.dart';
 class CartPage extends StatefulWidget {
   final String tableName;
   final bool tableNameEditable;
+  /// When set (e.g. from [MenuPage]), cart title stays in sync with menu edits.
+  final TextEditingController? nameController;
   final List<Map<String, dynamic>> menuData; // new items only
   final List<Map<String, dynamic>> pastItems; // previous rounds — read-only
   final List<Map<String, dynamic>> fullMenu; // all items for AI detection
@@ -51,6 +57,7 @@ class CartPage extends StatefulWidget {
     required this.onConfirm,
     required this.tableName,
     required this.tableNameEditable,
+    this.nameController,
     required this.showBilling,
     this.overallRemarks,
     this.embedded = false,
@@ -66,6 +73,7 @@ class _CartPageState extends State<CartPage> {
   late List<Map<String, dynamic>> pastItems;
   late List<Map<String, dynamic>> cartItems;
   late TextEditingController tableNameController;
+  bool _ownsTableNameController = true;
   late TextEditingController overallRemarksController;
   late List<TextEditingController> _remarkControllers;
   late List<bool> _remarkExpanded;
@@ -76,6 +84,7 @@ class _CartPageState extends State<CartPage> {
 
   final TextEditingController cashController = TextEditingController();
   final TextEditingController onlineController = TextEditingController();
+  final TextEditingController totalController = TextEditingController();
 
   double discountPercent = 0.0;
   double discountAmount = 0.0;
@@ -83,12 +92,23 @@ class _CartPageState extends State<CartPage> {
   bool isBilling = false;
   bool _pastItemsExpanded = false;
 
+  double _cgstPercent = 0;
+  double _sgstPercent = 0;
+  bool _isEditingTotal = false;
+  bool _totalOverridden = false;
+
   String paymentMode = 'Cash'; // Cash, Online, Both
 
   @override
   void initState() {
     super.initState();
-    tableNameController = TextEditingController(text: widget.tableName);
+    if (widget.nameController != null) {
+      tableNameController = widget.nameController!;
+      _ownsTableNameController = false;
+      tableNameController.addListener(_onSharedTableNameChanged);
+    } else {
+      tableNameController = TextEditingController(text: widget.tableName);
+    }
     overallRemarksController = TextEditingController(text: widget.overallRemarks ?? '');
     pastItems = widget.pastItems
         .map((item) => Map<String, dynamic>.from(item))
@@ -104,23 +124,95 @@ class _CartPageState extends State<CartPage> {
         .map((item) => (item['remarks'] ?? '').toString().isNotEmpty)
         .toList();
     _updatePaymentAmounts();
+    _loadTaxSettings();
+  }
+
+  Future<void> _loadTaxSettings() async {
+    final settings = await TaxSettingsService.load();
+    if (!mounted) return;
+    setState(() {
+      _cgstPercent = settings.cgstPercentage;
+      _sgstPercent = settings.sgstPercentage;
+      _resetTotalOverride();
+    });
+  }
+
+  int get _computedTotal =>
+      (subtotal + taxBreakdown.totalTax - discountAmount).round();
+
+  int get total {
+    if (_totalOverridden) {
+      return int.tryParse(totalController.text.trim()) ?? _computedTotal;
+    }
+    return _computedTotal;
+  }
+
+  void _resetTotalOverride() {
+    _totalOverridden = false;
+    _isEditingTotal = false;
+  }
+
+  void _startEditingTotal([VoidCallback? onRebuild]) {
+    totalController.text = total.toString();
+    setState(() => _isEditingTotal = true);
+    onRebuild?.call();
+  }
+
+  void _applyManualTotal([VoidCallback? onRebuild]) {
+    final edited = int.tryParse(totalController.text.trim());
+    if (edited == null || edited < 0) return;
+
+    setState(() {
+      _totalOverridden = true;
+      _isEditingTotal = false;
+      final taxable = subtotal + taxBreakdown.totalTax;
+      discountAmount = (taxable - edited).toDouble();
+      if (discountAmount < 0) discountAmount = 0;
+      discountPercent =
+          subtotal > 0 ? (discountAmount / subtotal) * 100 : 0;
+      discountAmountController.text = discountAmount.toStringAsFixed(0);
+      discountPercentController.text = discountPercent.toStringAsFixed(2);
+      totalController.text = edited.toString();
+      _updatePaymentAmounts();
+    });
+    onRebuild?.call();
+  }
+
+  TaxBreakdown get taxBreakdown => TaxCalculator.calculate(
+        subtotal,
+        cgstPercent: _cgstPercent,
+        sgstPercent: _sgstPercent,
+      );
+
+  void _onSharedTableNameChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    tableNameController.dispose();
+    if (!_ownsTableNameController) {
+      tableNameController.removeListener(_onSharedTableNameChanged);
+    } else {
+      tableNameController.dispose();
+    }
     overallRemarksController.dispose();
     for (final c in _remarkControllers) c.dispose();
     discountPercentController.dispose();
     discountAmountController.dispose();
     cashController.dispose();
     onlineController.dispose();
+    totalController.dispose();
     super.dispose();
   }
 
   @override
   void didUpdateWidget(CartPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (_ownsTableNameController &&
+        widget.tableName != oldWidget.tableName &&
+        widget.tableName != tableNameController.text) {
+      tableNameController.text = widget.tableName;
+    }
     if (!widget.embedded) return;
     if (_cartSignature(widget.menuData) != _cartSignature(oldWidget.menuData)) {
       _reloadCartFromMenuData();
@@ -183,12 +275,17 @@ class _CartPageState extends State<CartPage> {
     final cash = int.tryParse(cashController.text) ?? 0;
     final online = int.tryParse(onlineController.text) ?? 0;
 
-    final taxAmount = (subtotal * 0.085).round();
+    final taxAmount = taxBreakdown.totalTax;
+    final taxes = taxBreakdown;
     final txId = await addTransactionToFirestore(
       items: billItems,
-      tableName: widget.tableName,
+      tableName: tableNameController.text.trim(),
       subtotal: subtotal.round(),
       tax: taxAmount,
+      cgstPercentage: _cgstPercent,
+      sgstPercentage: _sgstPercent,
+      cgstAmount: taxes.cgstAmount,
+      sgstAmount: taxes.sgstAmount,
       discount: discountAmount.round(),
       total: total,
       cashAmount: cash,
@@ -200,10 +297,14 @@ class _CartPageState extends State<CartPage> {
       await FoodBillPdfService.generateAndPrintIfEnabled(
         context: pdfContext,
         data: FoodBillPdfData(
-          tableName: widget.tableName,
+          tableName: tableNameController.text.trim(),
           items: billItems,
           subtotal: subtotal.round(),
           tax: taxAmount,
+          cgstPercentage: _cgstPercent,
+          sgstPercentage: _sgstPercent,
+          cgstAmount: taxes.cgstAmount,
+          sgstAmount: taxes.sgstAmount,
           discount: discountAmount.round(),
           total: total,
           cashAmount: cash,
@@ -493,10 +594,9 @@ class _CartPageState extends State<CartPage> {
     );
   }
 
-  int get total => ((subtotal + (subtotal * 0.085) - discountAmount).round());
-
   void incrementQty(int index) {
     setState(() {
+      _resetTotalOverride();
       cartItems[index]['qty']++;
       _updateDiscountFromPercent();
       _updatePaymentAmounts();
@@ -506,6 +606,7 @@ class _CartPageState extends State<CartPage> {
 
   void decrementQty(int index) {
     setState(() {
+      _resetTotalOverride();
       if (cartItems[index]['qty'] > 1) {
         cartItems[index]['qty']--;
       } else {
@@ -521,6 +622,7 @@ class _CartPageState extends State<CartPage> {
   }
 
   void _updateDiscountFromPercent() {
+    _resetTotalOverride();
     if (discountPercent > 0) {
       discountAmount = (subtotal * discountPercent) / 100;
       discountAmountController.text = discountAmount.toStringAsFixed(0);
@@ -529,6 +631,7 @@ class _CartPageState extends State<CartPage> {
   }
 
   void _updateDiscountFromAmount() {
+    _resetTotalOverride();
     if (discountAmount > 0 && subtotal > 0) {
       discountPercent = (discountAmount / subtotal) * 100;
       discountPercentController.text = discountPercent.toStringAsFixed(2);
@@ -621,6 +724,9 @@ class _CartPageState extends State<CartPage> {
 
   double get _pastItemsSubtotal =>
       pastItems.fold(0.0, (sum, item) => sum + _lineTotal(item));
+
+  double get _cartItemsSubtotal =>
+      cartItems.fold(0.0, (sum, item) => sum + _lineTotal(item));
 
   int get _pastItemsQty =>
       pastItems.fold(0, (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 0));
@@ -885,7 +991,7 @@ class _CartPageState extends State<CartPage> {
 
   @override
   Widget build(BuildContext context) {
-    final tax = (subtotal * 0.085).round();
+    final taxes = taxBreakdown;
 
     final scaffold = Scaffold(
         backgroundColor: const Color(0xFFF5F6FA),
@@ -910,9 +1016,9 @@ class _CartPageState extends State<CartPage> {
                 " — ",
                 style: TextStyle(fontSize: 15, color: Colors.white38),
               ),
-              (widget.tableName.contains("Table") || !widget.tableNameEditable)
+              (!widget.tableNameEditable)
                   ? Text(
-                      widget.tableName,
+                      tableNameController.text,
                       style: const TextStyle(
                         fontSize: 16,
                         fontFamily: fontMulishBold,
@@ -1295,27 +1401,9 @@ class _CartPageState extends State<CartPage> {
 
                             SizedBox(height: 8),
 
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  "Tax (8.5%)",
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: secondary_text_color,
-                                    fontFamily: fontMulishSemiBold,
-                                  ),
-                                ),
-                                Text(
-                                  "₹$tax",
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: text_color,
-                                    fontFamily: fontMulishSemiBold,
-                                  ),
-                                ),
-                              ],
-                            ),
+                            TaxSummaryRows(breakdown: taxes),
+
+                            if (taxes.hasTax) SizedBox(height: 8),
 
                             SizedBox(height: 6),
 
@@ -1456,20 +1544,13 @@ class _CartPageState extends State<CartPage> {
 
                             const SizedBox(height: 12),
 
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  "Total",
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                Text(
-                                  "₹$total",
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
+                            EditableTotalRow(
+                              total: total,
+                              isEditing: _isEditingTotal,
+                              controller: totalController,
+                              onEditPressed: _startEditingTotal,
+                              onApplyPressed: _applyManualTotal,
+                              accentColor: primary_color,
                             ),
                             // const SizedBox(height: 8),
                           ],
@@ -1533,7 +1614,7 @@ class _CartPageState extends State<CartPage> {
                                 //         context,
                                 //         MaterialPageRoute(
                                 //           builder: (_) => CartPageForTakeAway(
-                                //             tableName: widget.tableName,
+                                //             tableName: tableNameController.text.trim(),
                                 //             menuData: selectedItems,
                                 //             onConfirm: widget.onConfirm,
                                 //           ),
@@ -1544,7 +1625,7 @@ class _CartPageState extends State<CartPage> {
                                 //         context,
                                 //         MaterialPageRoute(
                                 //           builder: (_) => CartPage(
-                                //             tableName: widget.tableName,
+                                //             tableName: tableNameController.text.trim(),
                                 //             menuData: selectedItems,
                                 //             onConfirm: widget.onConfirm,
                                 //           ),
@@ -1579,73 +1660,51 @@ class _CartPageState extends State<CartPage> {
                         padding: const EdgeInsets.all(16),
                         color: primary_color,
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  SvgPicture.asset(
-                                    icon_cooking,
-                                    width: 32,
-                                    color: Colors.white,
-                                  ),
-
-                                  SizedBox(width: 6),
-
-                                  Text(
-                                    "Send to Kitchen",
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      color: Colors.white,
-                                      fontFamily: fontMulishSemiBold,
-                                    ),
-                                  ),
-                                ],
+                            SvgPicture.asset(
+                              icon_cooking,
+                              width: 32,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 6),
+                            const Expanded(
+                              child: Text(
+                                "Send to Kitchen",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.white,
+                                  fontFamily: fontMulishSemiBold,
+                                ),
                               ),
                             ),
-
-                            Icon(Icons.arrow_forward_ios, color: Colors.white),
-
-                            // ElevatedButton(
-                            //   onPressed: () {
-                            //     final selectedItems = <Map<String, dynamic>>[];
-                            //     menuData.forEach((category, items) {
-                            //       selectedItems.addAll(
-                            //         items.where((item) => item['qty'] > 0),
-                            //       );
-                            //     });
-                            //
-                            //     // Send selected items to cart or callback
-                            //
-                            //
-                            //     if(widget.tableName == "Take Away"){
-                            //       Navigator.push(
-                            //         context,
-                            //         MaterialPageRoute(
-                            //           builder: (_) => CartPageForTakeAway(
-                            //             tableName: widget.tableName,
-                            //             menuData: selectedItems,
-                            //             onConfirm: widget.onConfirm,
-                            //           ),
-                            //         ),
-                            //       );
-                            //     }else{
-                            //       Navigator.push(
-                            //         context,
-                            //         MaterialPageRoute(
-                            //           builder: (_) => CartPage(
-                            //             tableName: widget.tableName,
-                            //             menuData: selectedItems,
-                            //             onConfirm: widget.onConfirm,
-                            //           ),
-                            //         ),
-                            //       );
-                            //     }
-                            //
-                            //
-                            //   },
-                            //   child: const Text("View Cart"),
-                            // ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Subtotal',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                    fontFamily: fontMulishRegular,
+                                  ),
+                                ),
+                                Text(
+                                  '₹${_cartItemsSubtotal.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                    fontFamily: fontMulishBold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(
+                              Icons.arrow_forward_ios,
+                              color: Colors.white,
+                              size: 16,
+                            ),
                           ],
                         ),
                       ),
@@ -1673,6 +1732,10 @@ class _CartPageState extends State<CartPage> {
     required String tableName,
     required int subtotal,
     required int tax,
+    required double cgstPercentage,
+    required double sgstPercentage,
+    required int cgstAmount,
+    required int sgstAmount,
     required int discount,
     required int total,
     required int cashAmount,
@@ -1700,6 +1763,10 @@ class _CartPageState extends State<CartPage> {
             .toList(),
         "subtotal": subtotal,
         "tax": tax,
+        "cgstPercentage": cgstPercentage,
+        "sgstPercentage": sgstPercentage,
+        "cgstAmount": cgstAmount,
+        "sgstAmount": sgstAmount,
         "discount": discount,
         "total": total,
         "cashAmount": cashAmount,
@@ -1736,8 +1803,6 @@ class _CartPageState extends State<CartPage> {
   }
 
   void _showBillingBottomSheet(BuildContext context) {
-    final tax = (subtotal * 0.085).round();
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -2085,28 +2150,9 @@ class _CartPageState extends State<CartPage> {
 
                                     const SizedBox(height: 8),
 
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Text(
-                                          "Tax (8.5%)",
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: secondary_text_color,
-                                            fontFamily: fontMulishSemiBold,
-                                          ),
-                                        ),
-                                        Text(
-                                          "₹$tax",
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            color: text_color,
-                                            fontFamily: fontMulishSemiBold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                    TaxSummaryRows(breakdown: taxBreakdown),
+
+                                    if (taxBreakdown.hasTax) const SizedBox(height: 8),
 
                                     const SizedBox(height: 6),
 
@@ -2227,23 +2273,17 @@ class _CartPageState extends State<CartPage> {
 
                                     const SizedBox(height: 12),
 
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Text(
-                                          "Total",
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        Text(
-                                          "₹$total",
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
+                                    EditableTotalRow(
+                                      total: total,
+                                      isEditing: _isEditingTotal,
+                                      controller: totalController,
+                                      onEditPressed: () => _startEditingTotal(
+                                        () => setModalState(() {}),
+                                      ),
+                                      onApplyPressed: () => _applyManualTotal(
+                                        () => setModalState(() {}),
+                                      ),
+                                      accentColor: primary_color,
                                     ),
                                   ],
                                 ),

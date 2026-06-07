@@ -75,6 +75,7 @@ class PrintSettings {
     required int itemCount,
     bool hasDiscount = false,
     bool hasPaymentLines = false,
+    bool hasTaxLines = false,
   }) {
     final widthMm = type == PosPrinterType.narrow58 ? 57.0 : 80.0;
     final margins = _marginsFor(type);
@@ -82,6 +83,7 @@ class PrintSettings {
     var heightMm = 102.0;
     heightMm += itemCount * 12.0;
     heightMm += 30.0;
+    if (hasTaxLines) heightMm += 12.0;
     if (hasDiscount) heightMm += 6.0;
     if (hasPaymentLines) heightMm += 12.0;
     heightMm += 24.0;

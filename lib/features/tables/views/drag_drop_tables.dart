@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/repositories/user_repository.dart';
 import 'package:demo/core/services/restaurant_session.dart';
@@ -262,10 +263,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             .get();
 
         for (var itemDoc in itemsSnapshot.docs) {
+          final data = itemDoc.data();
           loadedMenu.add({
             "category": categoryName,
-            "name": itemDoc['name'],
-            "price": itemDoc['price'],
+            "name": data['name'],
+            "price": data['price'],
+            if (data.containsKey('halfPrice')) "halfPrice": data['halfPrice'],
+            if (data.containsKey('fullPrice')) "fullPrice": data['fullPrice'],
             "categoryId": categoryId,
             "itemId": itemDoc.id,
             "qty": 1,
@@ -400,6 +404,268 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       tableDocIds.remove(tableName);
       tableCreatedAt.remove(tableName);
     });
+  }
+
+  Future<void> _deleteTableFromMenu(String tableName, {String docId = ''}) async {
+    if (_isTakeAway(tableName)) {
+      await _deleteTakeAwayAfterFinalBilling(
+        tableName,
+        docId.isNotEmpty ? docId : (tableDocIds[tableName] ?? ''),
+      );
+      return;
+    }
+    await _clearTableAfterFinalBilling(tableName);
+  }
+
+  void _migrateTableKey(String oldName, String newName, String docId) {
+    tables[newName] = tables.remove(oldName) ?? [];
+    if (tableIsPaid.containsKey(oldName)) {
+      tableIsPaid[newName] = tableIsPaid.remove(oldName)!;
+    }
+    tableDocIds[newName] = docId;
+    tableDocIds.remove(oldName);
+    if (tableCreatedAt.containsKey(oldName)) {
+      tableCreatedAt[newName] = tableCreatedAt.remove(oldName);
+    }
+    if (_firestoreGroupIndices.containsKey(oldName)) {
+      _firestoreGroupIndices[newName] =
+          _firestoreGroupIndices.remove(oldName)!;
+    }
+  }
+
+  Future<void> _renameTableIfNeeded(
+    String oldName,
+    String newName, {
+    String docId = '',
+  }) async {
+    if (oldName == newName) return;
+
+    final id = docId.isNotEmpty ? docId : (tableDocIds[oldName] ?? '');
+    if (id.isEmpty) {
+      final snap = await FirestorePaths
+          .scoped('tables')
+          .where('name', isEqualTo: oldName)
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) return;
+      await snap.docs.first.reference.update({'name': newName});
+      if (mounted) {
+        setState(() => _migrateTableKey(oldName, newName, snap.docs.first.id));
+      }
+      return;
+    }
+
+    await FirestorePaths.scopedDoc('tables', id).update({'name': newName});
+    if (mounted) {
+      setState(() => _migrateTableKey(oldName, newName, id));
+    }
+  }
+
+  Future<String> _createOrderWithGroups(
+    String orderName,
+    List<List<Map<String, dynamic>>> groups, {
+    bool isBillPaid = false,
+    String overallRemarks = '',
+  }) async {
+    final existing = await FirestorePaths
+        .scoped('tables')
+        .where('name', isEqualTo: orderName)
+        .limit(1)
+        .get();
+
+    if (existing.docs.isNotEmpty) {
+      await _updateTableItemsInFirestore(
+        orderName,
+        groups,
+        isBillPaid,
+        overallRemarks,
+      );
+      return existing.docs.first.id;
+    }
+
+    final flattenedItems = <Map<String, dynamic>>[];
+    for (var groupIndex = 0; groupIndex < groups.length; groupIndex++) {
+      final group = groups[groupIndex];
+      final Timestamp groupTimestamp = group.isNotEmpty &&
+              group.first.containsKey('addedAt') &&
+              group.first['addedAt'] is Timestamp
+          ? group.first['addedAt'] as Timestamp
+          : Timestamp.now();
+
+      for (final item in group) {
+        final itemWithMeta = Map<String, dynamic>.from(item);
+        itemWithMeta['groupIndex'] = groupIndex;
+        itemWithMeta['addedAt'] = groupTimestamp;
+        flattenedItems.add(itemWithMeta);
+      }
+    }
+
+    final tableData = <String, dynamic>{
+      'name': orderName,
+      'items': flattenedItems,
+      'isPaid': isBillPaid,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (overallRemarks.isNotEmpty) {
+      tableData['remarks'] = overallRemarks;
+    }
+
+    final docRef = await FirestorePaths.scoped('tables').add(tableData);
+    return docRef.id;
+  }
+
+  Future<List<List<Map<String, dynamic>>>> _splitDiningTableToNewOrder(
+    String diningTableName,
+    String newOrderName,
+    List<List<Map<String, dynamic>>> currentGroups,
+  ) async {
+    final copiedGroups = currentGroups
+        .map(
+          (group) => group.map((item) => Map<String, dynamic>.from(item)).toList(),
+        )
+        .toList();
+
+    setState(() {
+      currentGroups.clear();
+      tableIsPaid[diningTableName] = false;
+      _syncFirestoreGroupIndices(diningTableName, 0);
+    });
+    await _updateTableItemsInFirestore(diningTableName, [], false);
+
+    final newDocId = await _createOrderWithGroups(newOrderName, copiedGroups);
+
+    setState(() {
+      tables[newOrderName] = copiedGroups;
+      tableIsPaid[newOrderName] = false;
+      tableDocIds[newOrderName] = newDocId;
+      tableCreatedAt[newOrderName] = Timestamp.now();
+      _syncFirestoreGroupIndices(newOrderName, copiedGroups.length);
+    });
+
+    return tables[newOrderName]!;
+  }
+
+  Future<({List<List<Map<String, dynamic>>> groups, String docId})>
+      _prepareGroupsForConfirm(
+    String originalName,
+    String newName,
+    List<List<Map<String, dynamic>>> groups, {
+    required String docId,
+  }) async {
+    if (originalName == newName) {
+      return (groups: groups, docId: docId);
+    }
+
+    if (isDiningTableName(originalName) && _isTakeAway(newName)) {
+      final newGroups = await _splitDiningTableToNewOrder(
+        originalName,
+        newName,
+        groups,
+      );
+      return (groups: newGroups, docId: tableDocIds[newName] ?? '');
+    }
+
+    await _renameTableIfNeeded(originalName, newName, docId: docId);
+    return (
+      groups: tables[newName] ?? groups,
+      docId: tableDocIds[newName] ?? docId,
+    );
+  }
+
+  Future<void> _handleMenuPageConfirm({
+    required String originalName,
+    required List<List<Map<String, dynamic>>> groups,
+    required String docId,
+    required List<Map<String, dynamic>> items,
+    required bool isBillPaid,
+    required String tName,
+    required String overallRemarks,
+    required bool fromBilling,
+    required bool fromFinalBilling,
+    bool editingLastGroup = false,
+  }) async {
+    var activeGroups = groups;
+    var activeDocId = docId;
+
+    if (tName != originalName) {
+      final prepared = await _prepareGroupsForConfirm(
+        originalName,
+        tName,
+        groups,
+        docId: docId,
+      );
+      activeGroups = prepared.groups;
+      activeDocId = prepared.docId;
+    }
+
+    if (fromFinalBilling) {
+      if (_isTakeAway(tName)) {
+        await _deleteTakeAwayAfterFinalBilling(tName, activeDocId);
+      } else {
+        await _clearTableAfterFinalBilling(
+          tName,
+          overallRemarks: overallRemarks,
+        );
+      }
+      return;
+    }
+
+    if (fromBilling) {
+      await _applyBillingToTable(tName, items, overallRemarks);
+      return;
+    }
+
+    if (editingLastGroup) {
+      if (isBillPaid) {
+        setState(() {
+          activeGroups.clear();
+          tableIsPaid[tName] = true;
+          _syncFirestoreGroupIndices(tName, 0);
+        });
+        await _updateTableItemsInFirestore(
+          tName,
+          [],
+          true,
+          overallRemarks,
+        );
+        return;
+      }
+
+      final existingAddedAt = activeGroups.isNotEmpty
+          ? activeGroups.last.first['addedAt']
+          : null;
+      setState(
+        () => activeGroups[activeGroups.length - 1] = _stampGroupAddedAt(
+          items,
+          preserveAddedAt: existingAddedAt,
+        ),
+      );
+      await _updateTableItemsInFirestore(
+        tName,
+        activeGroups,
+        false,
+        overallRemarks,
+      );
+      return;
+    }
+
+    setState(() {
+      if (isBillPaid) {
+        activeGroups.clear();
+        tableIsPaid[tName] = true;
+        _syncFirestoreGroupIndices(tName, 0);
+      } else {
+        activeGroups.add(_stampGroupAddedAt(items));
+        _syncFirestoreGroupIndices(tName, activeGroups.length);
+      }
+    });
+    await _updateTableItemsInFirestore(
+      tName,
+      isBillPaid ? [] : activeGroups,
+      isBillPaid,
+      overallRemarks,
+    );
   }
 
   // Merge items by name and category to combine quantities
@@ -815,6 +1081,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               initialItems: [],
               showBilling: true,
               isFromFinalBilling: false,
+              onDeleteTable: (tName) => _deleteTableFromMenu(tName),
               onConfirm:
                   (
                     List<Map<String, dynamic>> selectedItems,
@@ -847,7 +1114,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     );
   }
 
-  bool _isTakeAway(String name) => !name.contains('Table');
+  bool _isTakeAway(String name) => isTakeAwayOrderName(name);
 
   String _shortDisplayName(String tableName) {
     if (tableName.startsWith('Table ')) {
@@ -1022,80 +1289,45 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 1),
         );
 
-    return GestureDetector(
-      onTap: () async {
-        if (paid) {
-          showServedDialog(context, tableName, () async {
-            if (isTakeAway) {
-              await FirestorePaths
-                  .scopedDoc('tables', docId)
-                  .delete();
-              setState(() {});
-            } else {
-              await _updateTableItemsInFirestore(tableName, [], false);
-            }
-          });
-          return;
-        }
-        // Double-tap always opens MenuPage to add items
-        final pastItems = hasItems
-            ? _mergeItemsByNameAndCategory(groups.expand((g) => g).toList())
-            : <Map<String, dynamic>>[];
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => MenuPage(
-              menuList: menu,
-              tableName: tableName,
-              tableNameEditable: false,
-              initialItems: [],
-              pastItems: pastItems,
-              showBilling: !hasItems,
-              isFromFinalBilling: false,
-              onConfirm:
-                  (
+    return InkWell(
+      onTap: ()async{
+        if(!hasItems){
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MenuPage(
+                menuList: menu,
+                tableName: tableName,
+                tableNameEditable: false,
+                initialItems: [],
+                pastItems: <Map<String, dynamic>>[],
+                showBilling: !hasItems,
+                isFromFinalBilling: false,
+                onDeleteTable: (tName) =>
+                    _deleteTableFromMenu(tName, docId: docId),
+                onConfirm:
+                    (
                     items,
                     isBillPaid,
                     tName,
                     overallRemarks, {
-                    bool fromBilling = false,
-                    bool fromFinalBilling = false,
-                  }) async {
-                    if (fromFinalBilling) {
-                      if (isTakeAway) {
-                        await _deleteTakeAwayAfterFinalBilling(tName, docId);
-                      } else {
-                        await _clearTableAfterFinalBilling(
-                          tName,
-                          overallRemarks: overallRemarks,
-                        );
-                      }
-                      return;
-                    }
-                    if (fromBilling) {
-                      await _applyBillingToTable(tName, items, overallRemarks);
-                      return;
-                    }
-                    setState(() {
-                      if (isBillPaid) {
-                        groups.clear();
-                        tableIsPaid[tName] = true;
-                        _syncFirestoreGroupIndices(tName, 0);
-                      } else {
-                        groups.add(_stampGroupAddedAt(items));
-                        _syncFirestoreGroupIndices(tName, groups.length);
-                      }
-                    });
-                    await _updateTableItemsInFirestore(
-                      tName,
-                      isBillPaid ? [] : groups,
-                      isBillPaid,
-                      overallRemarks,
-                    );
-                  },
+                  bool fromBilling = false,
+                  bool fromFinalBilling = false,
+                }) => _handleMenuPageConfirm(
+                  originalName: tableName,
+                  groups: groups,
+                  docId: docId,
+                  items: items,
+                  isBillPaid: isBillPaid,
+                  tName: tName,
+                  overallRemarks: overallRemarks,
+                  fromBilling: fromBilling,
+                  fromFinalBilling: fromFinalBilling,
+                ),
+              ),
             ),
-          ),
-        );
+          );
+        }
       },
       child: Container(
         decoration: BoxDecoration(
@@ -1114,198 +1346,214 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Card header ──────────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
-              decoration: BoxDecoration(
-                color: headerColor,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(16),
-                ),
-              ),
-              child: Row(
-                children: [
-                  // Table icon
-                  if (!isTakeAway)
-                    Icon(
-                      isTakeAway
-                          ? Icons.delivery_dining_outlined
-                          : Icons.table_restaurant_outlined,
-                      color: Colors.white70,
-                      size: 17,
-                    ),
-                  if (!isTakeAway) const SizedBox(width: 6),
-                  if (isTakeAway && takeAwayNum != null) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
+            InkWell(
+              onTap: () async{
+                if (paid) {
+                  showServedDialog(context, tableName, () async {
+                    if (isTakeAway) {
+                      await FirestorePaths
+                          .scopedDoc('tables', docId)
+                          .delete();
+                      setState(() {});
+                    } else {
+                      await _updateTableItemsInFirestore(tableName, [], false);
+                    }
+                  });
+                  return;
+                }
+                // Single-tap always opens MenuPage to add items
+                final pastItems = hasItems
+                    ? _mergeItemsByNameAndCategory(groups.expand((g) => g).toList())
+                    : <Map<String, dynamic>>[];
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MenuPage(
+                      menuList: menu,
+                      tableName: tableName,
+                      tableNameEditable: false,
+                      initialItems: [],
+                      pastItems: pastItems,
+                      showBilling: !hasItems,
+                      isFromFinalBilling: false,
+                      onDeleteTable: (tName) =>
+                          _deleteTableFromMenu(tName, docId: docId),
+                      onConfirm:
+                          (
+                          items,
+                          isBillPaid,
+                          tName,
+                          overallRemarks, {
+                        bool fromBilling = false,
+                        bool fromFinalBilling = false,
+                      }) => _handleMenuPageConfirm(
+                        originalName: tableName,
+                        groups: groups,
+                        docId: docId,
+                        items: items,
+                        isBillPaid: isBillPaid,
+                        tName: tName,
+                        overallRemarks: overallRemarks,
+                        fromBilling: fromBilling,
+                        fromFinalBilling: fromFinalBilling,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.22),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '# $takeAwayNum',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontFamily: fontMulishBold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                  Expanded(
-                    child: Text(
-                      displayName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontFamily: fontMulishBold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  // Action icons
-                  if (hasItems && !paid)
-                    _cardIconBtn(Icons.edit_outlined, () async {
-                      final lastGroup = groups.last;
-                      final pastForEdit = groups.length > 1
-                          ? _mergeItemsByNameAndCategory(
-                              groups
-                                  .sublist(0, groups.length - 1)
-                                  .expand((g) => g)
-                                  .toList(),
-                            )
-                          : <Map<String, dynamic>>[];
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => MenuPage(
-                            menuList: menu,
-                            tableName: tableName,
-                            tableNameEditable: false,
-                            initialItems: List<Map<String, dynamic>>.from(
-                              lastGroup,
-                            ),
-                            pastItems: pastForEdit,
-                            showBilling: groups.length == 1,
-                            isFromFinalBilling: false,
-                            onConfirm:
-                                (
-                                  items,
-                                  isBillPaid,
-                                  tName,
-                                  overallRemarks, {
-                                  bool fromBilling = false,
-                                  bool fromFinalBilling = false,
-                                }) async {
-                                  if (fromFinalBilling) {
-                                    if (isTakeAway) {
-                                      await _deleteTakeAwayAfterFinalBilling(
-                                        tName,
-                                        docId,
-                                      );
-                                    } else {
-                                      await _clearTableAfterFinalBilling(
-                                        tName,
-                                        overallRemarks: overallRemarks,
-                                      );
-                                    }
-                                    return;
-                                  }
-                                  if (fromBilling) {
-                                    await _applyBillingToTable(
-                                      tName,
-                                      items,
-                                      overallRemarks,
-                                    );
-                                    return;
-                                  }
-                                  if (isBillPaid) {
-                                    setState(() {
-                                      groups.clear();
-                                      tableIsPaid[tName] = true;
-                                      _syncFirestoreGroupIndices(tName, 0);
-                                    });
-                                    await _updateTableItemsInFirestore(
-                                      tName,
-                                      [],
-                                      true,
-                                      overallRemarks,
-                                    );
-                                    return;
-                                  }
-                                  final existingAddedAt = groups.isNotEmpty
-                                      ? groups.last.first['addedAt']
-                                      : null;
-                                  setState(
-                                    () => groups[groups.length - 1] =
-                                        _stampGroupAddedAt(
-                                          items,
-                                          preserveAddedAt: existingAddedAt,
-                                        ),
-                                  );
-                                  await _updateTableItemsInFirestore(
-                                    tName,
-                                    groups,
-                                    false,
-                                    overallRemarks,
-                                  );
-                                },
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
+                decoration: BoxDecoration(
+                  color: headerColor,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    // Table icon
+                    if (!isTakeAway)
+                      Icon(
+                        isTakeAway
+                            ? Icons.delivery_dining_outlined
+                            : Icons.table_restaurant_outlined,
+                        color: Colors.white70,
+                        size: 17,
+                      ),
+                    if (!isTakeAway) const SizedBox(width: 6),
+                    if (isTakeAway && takeAwayNum != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.22),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '# $takeAwayNum',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontFamily: fontMulishBold,
                           ),
                         ),
-                      );
-                    }),
-                  // Billing icon — only when items exist and not paid
-                  if (hasItems && !paid)
-                    _cardIconBtn(Icons.receipt_long_outlined, () async {
-                      final merged = _mergeItemsByNameAndCategory(
-                        groups.expand((g) => g).toList(),
-                      );
-                      final confirmedItems =
-                          await Navigator.push<List<Map<String, dynamic>>>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => FinalBillingView(
-                                menuData: merged,
-                                totalMenuList: menu,
-                                tableName: tableName,
-                                onConfirm: (_) {},
-                              ),
-                            ),
-                          );
-                      if (confirmedItems == null) return;
-                      if (isTakeAway) {
-                        await _deleteTakeAwayAfterFinalBilling(
-                          tableName,
-                          docId,
-                        );
-                      } else {
-                        await _clearTableAfterFinalBilling(tableName);
-                      }
-                    }),
-                  // PAID pill
-                  if (paid)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 3,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'PAID',
-                        style: TextStyle(
-                          color: Colors.red,
-                          fontSize: 11,
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: Text(
+                        displayName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
                           fontFamily: fontMulishBold,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                ],
+                    // Action icons
+                    if (hasItems && !paid)
+                      _cardIconBtn(Icons.edit_outlined, () async {
+                        final lastGroup = groups.last;
+                        final pastForEdit = groups.length > 1
+                            ? _mergeItemsByNameAndCategory(
+                                groups
+                                    .sublist(0, groups.length - 1)
+                                    .expand((g) => g)
+                                    .toList(),
+                              )
+                            : <Map<String, dynamic>>[];
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MenuPage(
+                              menuList: menu,
+                              tableName: tableName,
+                              tableNameEditable: false,
+                              initialItems: List<Map<String, dynamic>>.from(
+                                lastGroup,
+                              ),
+                              pastItems: pastForEdit,
+                              showBilling: groups.length == 1,
+                              isFromFinalBilling: false,
+                              onDeleteTable: (tName) =>
+                                  _deleteTableFromMenu(tName, docId: docId),
+                              onConfirm:
+                                  (
+                                    items,
+                                    isBillPaid,
+                                    tName,
+                                    overallRemarks, {
+                                    bool fromBilling = false,
+                                    bool fromFinalBilling = false,
+                                  }) => _handleMenuPageConfirm(
+                                    originalName: tableName,
+                                    groups: groups,
+                                    docId: docId,
+                                    items: items,
+                                    isBillPaid: isBillPaid,
+                                    tName: tName,
+                                    overallRemarks: overallRemarks,
+                                    fromBilling: fromBilling,
+                                    fromFinalBilling: fromFinalBilling,
+                                    editingLastGroup: true,
+                                  ),
+                            ),
+                          ),
+                        );
+                      }),
+                    // Billing icon — only when items exist and not paid
+                    if (hasItems && !paid)
+                      _cardIconBtn(Icons.receipt_long_outlined, () async {
+                        final merged = _mergeItemsByNameAndCategory(
+                          groups.expand((g) => g).toList(),
+                        );
+                        final confirmedItems =
+                            await Navigator.push<List<Map<String, dynamic>>>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => FinalBillingView(
+                                  menuData: merged,
+                                  totalMenuList: menu,
+                                  tableName: tableName,
+                                  onConfirm: (_) {},
+                                ),
+                              ),
+                            );
+                        if (confirmedItems == null) return;
+                        if (isTakeAway) {
+                          await _deleteTakeAwayAfterFinalBilling(
+                            tableName,
+                            docId,
+                          );
+                        } else {
+                          await _clearTableAfterFinalBilling(tableName);
+                        }
+                      }),
+                    // PAID pill
+                    if (paid)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'PAID',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: 11,
+                            fontFamily: fontMulishBold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
 
@@ -1531,13 +1779,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
-            tableName.contains("Take Away")
+            _isTakeAway(tableName)
                 ? "Mark as Delivered?"
                 : "Mark as Served?",
             style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
           ),
           content: Text(
-            tableName.contains("Take Away")
+            _isTakeAway(tableName)
                 ? "Are you sure you want to mark table '$tableName' as delivered?"
                 : "Are you sure you want to mark table '$tableName' as served?",
             style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 15),
@@ -1565,7 +1813,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 onServed(); // perform the action
               },
               child: Text(
-                tableName.contains("Take Away") ? "Delivered" : "Served",
+                _isTakeAway(tableName) ? "Delivered" : "Served",
                 style: TextStyle(
                   fontFamily: fontMulishSemiBold,
                   color: Colors.white,

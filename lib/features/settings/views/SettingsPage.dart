@@ -23,14 +23,62 @@ class _SettingsPageState extends State<SettingsPage> {
   static const _orange = Color(0xFFf57c35);
 
   late final SettingsController _settings;
+  late final TextEditingController _cgstController;
+  late final TextEditingController _sgstController;
 
   @override
   void initState() {
     super.initState();
     _settings = Get.find<SettingsController>();
+    _cgstController = TextEditingController();
+    _sgstController = TextEditingController();
     _settings.loadUserRole();
     _settings.loadKitchenSettings();
     _settings.loadPrintSettings();
+    _loadTaxFields();
+  }
+
+  Future<void> _loadTaxFields() async {
+    await _settings.loadTaxSettings();
+    if (!mounted) return;
+    _cgstController.text = _formatTaxField(_settings.cgstPercentage.value);
+    _sgstController.text = _formatTaxField(_settings.sgstPercentage.value);
+    setState(() {});
+  }
+
+  String _formatTaxField(double value) {
+    if (value == 0) return '0';
+    if (value == value.roundToDouble()) return value.toStringAsFixed(0);
+    return value.toString();
+  }
+
+  Future<void> _saveTaxSettings() async {
+    final cgst = double.tryParse(_cgstController.text.trim()) ?? 0;
+    final sgst = double.tryParse(_sgstController.text.trim()) ?? 0;
+
+    if (cgst < 0 || sgst < 0 || cgst > 100 || sgst > 100) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter valid tax percentages between 0 and 100.')),
+      );
+      return;
+    }
+
+    final ok = await _settings.saveTaxSettings(cgst: cgst, sgst: sgst);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'GST settings saved.' : 'Could not save GST settings.'),
+        backgroundColor: ok ? const Color(0xFF2E7D32) : Colors.red.shade700,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _cgstController.dispose();
+    _sgstController.dispose();
+    super.dispose();
   }
 
   Future<void> _signOut() async {
@@ -140,6 +188,117 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
+                if (isAdmin)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: _orange.withOpacity(0.12),
+                                child: const Icon(
+                                  Icons.percent_rounded,
+                                  color: _orange,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'CGST & SGST',
+                                      style: TextStyle(
+                                        fontFamily: fontMulishSemiBold,
+                                        fontSize: 15,
+                                        color: _navy,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Applied on final billing (0 = hidden)',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF6B7280),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _cgstController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                                  decoration: InputDecoration(
+                                    labelText: 'CGST %',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    isDense: true,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: TextField(
+                                  controller: _sgstController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                                  decoration: InputDecoration(
+                                    labelText: 'SGST %',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    isDense: true,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Obx(
+                              () => FilledButton(
+                                onPressed: _settings.isSavingTaxSettings.value
+                                    ? null
+                                    : _saveTaxSettings,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: _orange,
+                                ),
+                                child: _settings.isSavingTaxSettings.value
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text('Save GST'),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 Card(
                   margin: const EdgeInsets.only(bottom: 10),
                   shape: RoundedRectangleBorder(
@@ -266,6 +425,39 @@ class _SettingsPageState extends State<SettingsPage> {
                     onChanged: (value) async {
                       if (value == null) return;
                       await _settings.setKitchenShowTableAllOrders(value);
+                    },
+                  ),
+                ),
+                Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SwitchListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    secondary: CircleAvatar(
+                      backgroundColor: _orange.withOpacity(0.12),
+                      child: const Icon(Icons.check_circle_outline, color: _orange),
+                    ),
+                    title: const Text(
+                      'Show Serve Orders screen',
+                      style: TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 15,
+                        color: _navy,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'When off, hide Served Orders tab and combine all items in All Orders',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    value: _settings.kitchenShowServeOrderScreen.value,
+                    activeColor: _orange,
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      await _settings.setKitchenShowServeOrderScreen(value);
                     },
                   ),
                 ),

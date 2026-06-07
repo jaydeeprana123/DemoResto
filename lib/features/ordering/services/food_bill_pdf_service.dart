@@ -8,6 +8,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import 'package:demo/features/settings/services/print_settings.dart';
+import 'package:demo/core/utils/tax_calculator.dart';
 
 class FoodBillPdfData {
   const FoodBillPdfData({
@@ -20,6 +21,10 @@ class FoodBillPdfData {
     this.invoiceNumber,
     this.cashAmount = 0,
     this.onlineAmount = 0,
+    this.cgstPercentage = 0,
+    this.sgstPercentage = 0,
+    this.cgstAmount = 0,
+    this.sgstAmount = 0,
   });
 
   final String tableName;
@@ -31,6 +36,10 @@ class FoodBillPdfData {
   final String? invoiceNumber;
   final int cashAmount;
   final int onlineAmount;
+  final double cgstPercentage;
+  final double sgstPercentage;
+  final int cgstAmount;
+  final int sgstAmount;
 }
 
 class FoodBillPdfService {
@@ -47,6 +56,7 @@ class FoodBillPdfService {
       itemCount: data.items.length,
       hasDiscount: data.discount > 0,
       hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
+      hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
     );
 
     _showLoadingDialog(context, printerType);
@@ -181,8 +191,8 @@ class FoodBillPdfService {
     final invoiceNo = _formatInvoiceNumber(data.invoiceNumber, now);
     final dateText = DateFormat('dd/MM/yyyy').format(now);
     final timeText = DateFormat('hh:mm a').format(now);
-    final cgst = data.tax / 2.0;
-    final sgst = data.tax / 2.0;
+    final cgst = data.cgstAmount.toDouble();
+    final sgst = data.sgstAmount.toDouble();
 
     final isNarrow = printerType == PosPrinterType.narrow58;
     final baseSize = isNarrow ? 7.0 : 8.0;
@@ -243,8 +253,19 @@ class FoodBillPdfService {
                 (item) => _tableRow(item, labelStyle, isNarrow: isNarrow),
               ),
               _divider(),
-              _amountRow('CGST @ 4.25%', cgst, labelStyle),
-              _amountRow('SGST @ 4.25%', sgst, labelStyle),
+              _amountRow('Subtotal', data.subtotal.toDouble(), labelStyle),
+              if (data.cgstPercentage > 0 && data.cgstAmount > 0)
+                _amountRow(
+                  'CGST @ ${TaxCalculator.formatPercent(data.cgstPercentage)}%',
+                  cgst,
+                  labelStyle,
+                ),
+              if (data.sgstPercentage > 0 && data.sgstAmount > 0)
+                _amountRow(
+                  'SGST @ ${TaxCalculator.formatPercent(data.sgstPercentage)}%',
+                  sgst,
+                  labelStyle,
+                ),
               if (data.discount > 0)
                 _amountRow(
                   'Discount',
