@@ -1034,82 +1034,67 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 1),
         );
 
-    return GestureDetector(
-      onTap: () async {
-        if (paid) {
-          showServedDialog(context, tableName, () async {
-            if (isTakeAway) {
-              await FirestorePaths
-                  .scopedDoc('tables', docId)
-                  .delete();
-              setState(() {});
-            } else {
-              await _updateTableItemsInFirestore(tableName, [], false);
-            }
-          });
-          return;
-        }
-        // Double-tap always opens MenuPage to add items
-        final pastItems = hasItems
-            ? _mergeItemsByNameAndCategory(groups.expand((g) => g).toList())
-            : <Map<String, dynamic>>[];
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => MenuPage(
-              menuList: menu,
-              tableName: tableName,
-              tableNameEditable: false,
-              initialItems: [],
-              pastItems: pastItems,
-              showBilling: !hasItems,
-              isFromFinalBilling: false,
-              onDeleteTable: (tName) =>
-                  _deleteTableFromMenu(tName, docId: docId),
-              onConfirm:
-                  (
+    return InkWell(
+      onTap: ()async{
+        if(!hasItems){
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MenuPage(
+                menuList: menu,
+                tableName: tableName,
+                tableNameEditable: false,
+                initialItems: [],
+                pastItems: <Map<String, dynamic>>[],
+                showBilling: !hasItems,
+                isFromFinalBilling: false,
+                onDeleteTable: (tName) =>
+                    _deleteTableFromMenu(tName, docId: docId),
+                onConfirm:
+                    (
                     items,
                     isBillPaid,
                     tName,
                     overallRemarks, {
-                    bool fromBilling = false,
-                    bool fromFinalBilling = false,
-                  }) async {
-                    if (fromFinalBilling) {
-                      if (isTakeAway) {
-                        await _deleteTakeAwayAfterFinalBilling(tName, docId);
-                      } else {
-                        await _clearTableAfterFinalBilling(
-                          tName,
-                          overallRemarks: overallRemarks,
-                        );
-                      }
-                      return;
+                  bool fromBilling = false,
+                  bool fromFinalBilling = false,
+                }) async {
+                  if (fromFinalBilling) {
+                    if (isTakeAway) {
+                      await _deleteTakeAwayAfterFinalBilling(tName, docId);
+                    } else {
+                      await _clearTableAfterFinalBilling(
+                        tName,
+                        overallRemarks: overallRemarks,
+                      );
                     }
-                    if (fromBilling) {
-                      await _applyBillingToTable(tName, items, overallRemarks);
-                      return;
+                    return;
+                  }
+                  if (fromBilling) {
+                    await _applyBillingToTable(tName, items, overallRemarks);
+                    return;
+                  }
+                  setState(() {
+                    if (isBillPaid) {
+                      groups.clear();
+                      tableIsPaid[tName] = true;
+                      _syncFirestoreGroupIndices(tName, 0);
+                    } else {
+                      groups.add(_stampGroupAddedAt(items));
+                      _syncFirestoreGroupIndices(tName, groups.length);
                     }
-                    setState(() {
-                      if (isBillPaid) {
-                        groups.clear();
-                        tableIsPaid[tName] = true;
-                        _syncFirestoreGroupIndices(tName, 0);
-                      } else {
-                        groups.add(_stampGroupAddedAt(items));
-                        _syncFirestoreGroupIndices(tName, groups.length);
-                      }
-                    });
-                    await _updateTableItemsInFirestore(
-                      tName,
-                      isBillPaid ? [] : groups,
-                      isBillPaid,
-                      overallRemarks,
-                    );
-                  },
+                  });
+                  await _updateTableItemsInFirestore(
+                    tName,
+                    isBillPaid ? [] : groups,
+                    isBillPaid,
+                    overallRemarks,
+                  );
+                },
+              ),
             ),
-          ),
-        );
+          );
+        }
       },
       child: Container(
         decoration: BoxDecoration(
@@ -1128,200 +1113,278 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Card header ──────────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
-              decoration: BoxDecoration(
-                color: headerColor,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(16),
-                ),
-              ),
-              child: Row(
-                children: [
-                  // Table icon
-                  if (!isTakeAway)
-                    Icon(
-                      isTakeAway
-                          ? Icons.delivery_dining_outlined
-                          : Icons.table_restaurant_outlined,
-                      color: Colors.white70,
-                      size: 17,
-                    ),
-                  if (!isTakeAway) const SizedBox(width: 6),
-                  if (isTakeAway && takeAwayNum != null) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.22),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '# $takeAwayNum',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontFamily: fontMulishBold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                  Expanded(
-                    child: Text(
-                      displayName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontFamily: fontMulishBold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+            InkWell(
+              onTap: () async{
+                if (paid) {
+                  showServedDialog(context, tableName, () async {
+                    if (isTakeAway) {
+                      await FirestorePaths
+                          .scopedDoc('tables', docId)
+                          .delete();
+                      setState(() {});
+                    } else {
+                      await _updateTableItemsInFirestore(tableName, [], false);
+                    }
+                  });
+                  return;
+                }
+                // Single-tap always opens MenuPage to add items
+                final pastItems = hasItems
+                    ? _mergeItemsByNameAndCategory(groups.expand((g) => g).toList())
+                    : <Map<String, dynamic>>[];
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MenuPage(
+                      menuList: menu,
+                      tableName: tableName,
+                      tableNameEditable: false,
+                      initialItems: [],
+                      pastItems: pastItems,
+                      showBilling: !hasItems,
+                      isFromFinalBilling: false,
+                      onDeleteTable: (tName) =>
+                          _deleteTableFromMenu(tName, docId: docId),
+                      onConfirm:
+                          (
+                          items,
+                          isBillPaid,
+                          tName,
+                          overallRemarks, {
+                        bool fromBilling = false,
+                        bool fromFinalBilling = false,
+                      }) async {
+                        if (fromFinalBilling) {
+                          if (isTakeAway) {
+                            await _deleteTakeAwayAfterFinalBilling(tName, docId);
+                          } else {
+                            await _clearTableAfterFinalBilling(
+                              tName,
+                              overallRemarks: overallRemarks,
+                            );
+                          }
+                          return;
+                        }
+                        if (fromBilling) {
+                          await _applyBillingToTable(tName, items, overallRemarks);
+                          return;
+                        }
+                        setState(() {
+                          if (isBillPaid) {
+                            groups.clear();
+                            tableIsPaid[tName] = true;
+                            _syncFirestoreGroupIndices(tName, 0);
+                          } else {
+                            groups.add(_stampGroupAddedAt(items));
+                            _syncFirestoreGroupIndices(tName, groups.length);
+                          }
+                        });
+                        await _updateTableItemsInFirestore(
+                          tName,
+                          isBillPaid ? [] : groups,
+                          isBillPaid,
+                          overallRemarks,
+                        );
+                      },
                     ),
                   ),
-                  // Action icons
-                  if (hasItems && !paid)
-                    _cardIconBtn(Icons.edit_outlined, () async {
-                      final lastGroup = groups.last;
-                      final pastForEdit = groups.length > 1
-                          ? _mergeItemsByNameAndCategory(
-                              groups
-                                  .sublist(0, groups.length - 1)
-                                  .expand((g) => g)
-                                  .toList(),
-                            )
-                          : <Map<String, dynamic>>[];
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => MenuPage(
-                            menuList: menu,
-                            tableName: tableName,
-                            tableNameEditable: false,
-                            initialItems: List<Map<String, dynamic>>.from(
-                              lastGroup,
-                            ),
-                            pastItems: pastForEdit,
-                            showBilling: groups.length == 1,
-                            isFromFinalBilling: false,
-                            onDeleteTable: (tName) =>
-                                _deleteTableFromMenu(tName, docId: docId),
-                            onConfirm:
-                                (
-                                  items,
-                                  isBillPaid,
-                                  tName,
-                                  overallRemarks, {
-                                  bool fromBilling = false,
-                                  bool fromFinalBilling = false,
-                                }) async {
-                                  if (fromFinalBilling) {
-                                    if (isTakeAway) {
-                                      await _deleteTakeAwayAfterFinalBilling(
-                                        tName,
-                                        docId,
-                                      );
-                                    } else {
-                                      await _clearTableAfterFinalBilling(
-                                        tName,
-                                        overallRemarks: overallRemarks,
-                                      );
-                                    }
-                                    return;
-                                  }
-                                  if (fromBilling) {
-                                    await _applyBillingToTable(
-                                      tName,
-                                      items,
-                                      overallRemarks,
-                                    );
-                                    return;
-                                  }
-                                  if (isBillPaid) {
-                                    setState(() {
-                                      groups.clear();
-                                      tableIsPaid[tName] = true;
-                                      _syncFirestoreGroupIndices(tName, 0);
-                                    });
-                                    await _updateTableItemsInFirestore(
-                                      tName,
-                                      [],
-                                      true,
-                                      overallRemarks,
-                                    );
-                                    return;
-                                  }
-                                  final existingAddedAt = groups.isNotEmpty
-                                      ? groups.last.first['addedAt']
-                                      : null;
-                                  setState(
-                                    () => groups[groups.length - 1] =
-                                        _stampGroupAddedAt(
-                                          items,
-                                          preserveAddedAt: existingAddedAt,
-                                        ),
-                                  );
-                                  await _updateTableItemsInFirestore(
-                                    tName,
-                                    groups,
-                                    false,
-                                    overallRemarks,
-                                  );
-                                },
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
+                decoration: BoxDecoration(
+                  color: headerColor,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    // Table icon
+                    if (!isTakeAway)
+                      Icon(
+                        isTakeAway
+                            ? Icons.delivery_dining_outlined
+                            : Icons.table_restaurant_outlined,
+                        color: Colors.white70,
+                        size: 17,
+                      ),
+                    if (!isTakeAway) const SizedBox(width: 6),
+                    if (isTakeAway && takeAwayNum != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.22),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '# $takeAwayNum',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontFamily: fontMulishBold,
                           ),
                         ),
-                      );
-                    }),
-                  // Billing icon — only when items exist and not paid
-                  if (hasItems && !paid)
-                    _cardIconBtn(Icons.receipt_long_outlined, () async {
-                      final merged = _mergeItemsByNameAndCategory(
-                        groups.expand((g) => g).toList(),
-                      );
-                      final confirmedItems =
-                          await Navigator.push<List<Map<String, dynamic>>>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => FinalBillingView(
-                                menuData: merged,
-                                totalMenuList: menu,
-                                tableName: tableName,
-                                onConfirm: (_) {},
-                              ),
-                            ),
-                          );
-                      if (confirmedItems == null) return;
-                      if (isTakeAway) {
-                        await _deleteTakeAwayAfterFinalBilling(
-                          tableName,
-                          docId,
-                        );
-                      } else {
-                        await _clearTableAfterFinalBilling(tableName);
-                      }
-                    }),
-                  // PAID pill
-                  if (paid)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 3,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'PAID',
-                        style: TextStyle(
-                          color: Colors.red,
-                          fontSize: 11,
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: Text(
+                        displayName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
                           fontFamily: fontMulishBold,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                ],
+                    // Action icons
+                    if (hasItems && !paid)
+                      _cardIconBtn(Icons.edit_outlined, () async {
+                        final lastGroup = groups.last;
+                        final pastForEdit = groups.length > 1
+                            ? _mergeItemsByNameAndCategory(
+                                groups
+                                    .sublist(0, groups.length - 1)
+                                    .expand((g) => g)
+                                    .toList(),
+                              )
+                            : <Map<String, dynamic>>[];
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MenuPage(
+                              menuList: menu,
+                              tableName: tableName,
+                              tableNameEditable: false,
+                              initialItems: List<Map<String, dynamic>>.from(
+                                lastGroup,
+                              ),
+                              pastItems: pastForEdit,
+                              showBilling: groups.length == 1,
+                              isFromFinalBilling: false,
+                              onDeleteTable: (tName) =>
+                                  _deleteTableFromMenu(tName, docId: docId),
+                              onConfirm:
+                                  (
+                                    items,
+                                    isBillPaid,
+                                    tName,
+                                    overallRemarks, {
+                                    bool fromBilling = false,
+                                    bool fromFinalBilling = false,
+                                  }) async {
+                                    if (fromFinalBilling) {
+                                      if (isTakeAway) {
+                                        await _deleteTakeAwayAfterFinalBilling(
+                                          tName,
+                                          docId,
+                                        );
+                                      } else {
+                                        await _clearTableAfterFinalBilling(
+                                          tName,
+                                          overallRemarks: overallRemarks,
+                                        );
+                                      }
+                                      return;
+                                    }
+                                    if (fromBilling) {
+                                      await _applyBillingToTable(
+                                        tName,
+                                        items,
+                                        overallRemarks,
+                                      );
+                                      return;
+                                    }
+                                    if (isBillPaid) {
+                                      setState(() {
+                                        groups.clear();
+                                        tableIsPaid[tName] = true;
+                                        _syncFirestoreGroupIndices(tName, 0);
+                                      });
+                                      await _updateTableItemsInFirestore(
+                                        tName,
+                                        [],
+                                        true,
+                                        overallRemarks,
+                                      );
+                                      return;
+                                    }
+                                    final existingAddedAt = groups.isNotEmpty
+                                        ? groups.last.first['addedAt']
+                                        : null;
+                                    setState(
+                                      () => groups[groups.length - 1] =
+                                          _stampGroupAddedAt(
+                                            items,
+                                            preserveAddedAt: existingAddedAt,
+                                          ),
+                                    );
+                                    await _updateTableItemsInFirestore(
+                                      tName,
+                                      groups,
+                                      false,
+                                      overallRemarks,
+                                    );
+                                  },
+                            ),
+                          ),
+                        );
+                      }),
+                    // Billing icon — only when items exist and not paid
+                    if (hasItems && !paid)
+                      _cardIconBtn(Icons.receipt_long_outlined, () async {
+                        final merged = _mergeItemsByNameAndCategory(
+                          groups.expand((g) => g).toList(),
+                        );
+                        final confirmedItems =
+                            await Navigator.push<List<Map<String, dynamic>>>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => FinalBillingView(
+                                  menuData: merged,
+                                  totalMenuList: menu,
+                                  tableName: tableName,
+                                  onConfirm: (_) {},
+                                ),
+                              ),
+                            );
+                        if (confirmedItems == null) return;
+                        if (isTakeAway) {
+                          await _deleteTakeAwayAfterFinalBilling(
+                            tableName,
+                            docId,
+                          );
+                        } else {
+                          await _clearTableAfterFinalBilling(tableName);
+                        }
+                      }),
+                    // PAID pill
+                    if (paid)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'PAID',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: 11,
+                            fontFamily: fontMulishBold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
 
