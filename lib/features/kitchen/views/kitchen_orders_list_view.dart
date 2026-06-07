@@ -198,17 +198,23 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   int _kitchenOrderTabIndex = 0;
   /// 0 = All, 1 = Table (dine-in), 2 = Take Away
   int _orderTypeFilterIndex = 0;
+  bool _mobileLayoutIsGrid = false;
 
   void _onKitchenSettingsChanged() {
     if (!mounted) return;
+    final layoutChanged =
+        _mobileLayoutIsGrid != KitchenSettings.mobileOrdersGridLayout.value;
     setState(() {
       _showTableAllOrders = KitchenSettings.showTableAllOrders.value == true;
       _showServeOrderScreen = KitchenSettings.showServeOrderScreen.value == true;
+      _mobileLayoutIsGrid = KitchenSettings.mobileOrdersGridLayout.value;
       if (!_showServeOrderScreen) {
         _kitchenOrderTabIndex = 0;
         _itemSelection.cancel();
       }
-      _rebuildDisplayFromCache();
+      if (!layoutChanged) {
+        _rebuildDisplayFromCache();
+      }
     });
   }
 
@@ -396,11 +402,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               KitchenSettings.showTableAllOrders.value == true;
           _showServeOrderScreen =
               KitchenSettings.showServeOrderScreen.value == true;
+          _mobileLayoutIsGrid =
+              KitchenSettings.mobileOrdersGridLayout.value == true;
         });
       }
     });
     KitchenSettings.showTableAllOrders.addListener(_onKitchenSettingsChanged);
     KitchenSettings.showServeOrderScreen.addListener(_onKitchenSettingsChanged);
+    KitchenSettings.mobileOrdersGridLayout.addListener(_onKitchenSettingsChanged);
     _tablesSub = FirestorePaths
         .scoped('tables')
         .orderBy('createdAt', descending: false)
@@ -775,27 +784,37 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     );
   }
 
+  bool get _isMobileGridLayout =>
+      _isMobileKitchenScreen && _mobileLayoutIsGrid;
+
+  EdgeInsets get _kitchenGridPadding => _isMobileGridLayout
+      ? const EdgeInsets.only(top: 6, bottom: 6)
+      : const EdgeInsets.all(12);
+
+  double get _kitchenCrossAxisSpacing => _isMobileGridLayout ? 4 : 12;
+
+  double get _kitchenMainAxisSpacing => _isMobileGridLayout ? 6 : 12;
+
   Widget _buildKitchenOrdersGrid() {
-    final screenW = MediaQuery.of(context).size.width;
-    final crossCols = screenW > 1200
-        ? 5
-        : screenW > 900
-        ? 4
-        : screenW > 600
-        ? 3
-        : screenW > 400
-        ? 2
-        : 1;
+    if (_isMobileKitchenScreen && !_mobileLayoutIsGrid) {
+      return _buildMobileOrdersListView();
+    }
+
+    final screenW = MediaQuery.sizeOf(context).width;
+    final crossCols = _kitchenCrossAxisCount(screenW);
+    final layoutKey = ValueKey(
+      'kitchen_${_showTableAllOrders ? 'table' : 'group'}_${crossCols}_$_mobileLayoutIsGrid',
+    );
 
     if (_showTableAllOrders) {
       final firstUnpaidIndex =
           _displayTableCards.indexWhere((c) => !c.isPaid);
       return MasonryGridView.count(
-        key: const ValueKey('kitchen_table_grid'),
+        key: layoutKey,
         crossAxisCount: crossCols,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        padding: const EdgeInsets.all(12),
+        mainAxisSpacing: _kitchenMainAxisSpacing,
+        crossAxisSpacing: _kitchenCrossAxisSpacing,
+        padding: _kitchenGridPadding,
         itemCount: _displayTableCards.length,
         itemBuilder: (context, index) => _buildTableBatchCard(
           _displayTableCards[index],
@@ -808,12 +827,44 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     final firstUnpaidIndex =
         _displayFilteredGroups.indexWhere((g) => !g.isPaid);
     return MasonryGridView.count(
-      key: const ValueKey('kitchen_group_grid'),
+      key: layoutKey,
       crossAxisCount: crossCols,
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
+      mainAxisSpacing: _kitchenMainAxisSpacing,
+      crossAxisSpacing: _kitchenCrossAxisSpacing,
+      padding: _kitchenGridPadding,
+      itemCount: _displayFilteredGroups.length,
+      itemBuilder: (context, index) => _buildGroupCard(
+        _displayFilteredGroups[index],
+        index + 1,
+        isNext: index == firstUnpaidIndex && firstUnpaidIndex != -1,
+      ),
+    );
+  }
+
+  Widget _buildMobileOrdersListView() {
+    if (_showTableAllOrders) {
+      final firstUnpaidIndex =
+          _displayTableCards.indexWhere((c) => !c.isPaid);
+      return ListView.separated(
+        key: const ValueKey('kitchen_mobile_list_table'),
+        padding: const EdgeInsets.all(12),
+        itemCount: _displayTableCards.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) => _buildTableBatchCard(
+          _displayTableCards[index],
+          index + 1,
+          isNext: index == firstUnpaidIndex && firstUnpaidIndex != -1,
+        ),
+      );
+    }
+
+    final firstUnpaidIndex =
+        _displayFilteredGroups.indexWhere((g) => !g.isPaid);
+    return ListView.separated(
+      key: const ValueKey('kitchen_mobile_list_group'),
       padding: const EdgeInsets.all(12),
       itemCount: _displayFilteredGroups.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) => _buildGroupCard(
         _displayFilteredGroups[index],
         index + 1,
@@ -1102,6 +1153,81 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     );
   }
 
+  bool get _isNativeMobile =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
+  bool get _isMobileKitchenScreen =>
+      _isNativeMobile || MediaQuery.sizeOf(context).width < 600;
+
+  int _kitchenCrossAxisCount(double screenW) {
+    if (_isMobileKitchenScreen) {
+      return _mobileLayoutIsGrid ? 2 : 1;
+    }
+    if (screenW > 1200) return 5;
+    if (screenW > 900) return 4;
+    if (screenW > 600) return 3;
+    return 2;
+  }
+
+  void _setMobileLayoutIsGrid(bool isGrid) {
+    if (_mobileLayoutIsGrid == isGrid) return;
+    setState(() => _mobileLayoutIsGrid = isGrid);
+    KitchenSettings.setMobileOrdersGridLayout(isGrid);
+  }
+
+  Widget _buildMobileLayoutToggle() {
+    const navy = Color(0xFF1A3A5C);
+    const orange = Color(0xFFf57c35);
+
+    Widget option({
+      required IconData icon,
+      required String tooltip,
+      required bool selected,
+      required bool isGrid,
+    }) {
+      return IconButton(
+        icon: Icon(icon, size: 22),
+        tooltip: tooltip,
+        color: selected ? orange : navy.withValues(alpha: 0.55),
+        style: IconButton.styleFrom(
+          backgroundColor: selected
+              ? orange.withValues(alpha: 0.12)
+              : Colors.transparent,
+        ),
+        onPressed: () => _setMobileLayoutIsGrid(isGrid),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(right: 4),
+      decoration: BoxDecoration(
+        color: navy.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: navy.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          option(
+            icon: Icons.view_list_rounded,
+            tooltip: 'List view',
+            selected: !_mobileLayoutIsGrid,
+            isGrid: false,
+
+          ),
+          option(
+            icon: Icons.grid_view_rounded,
+            tooltip: 'Grid view (2 columns)',
+            selected: _mobileLayoutIsGrid,
+            isGrid: true,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildKitchenOrderTabs() {
     const navy = Color(0xFF1A3A5C);
     const orange = Color(0xFFf57c35);
@@ -1204,6 +1330,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               )
             : null,
         actions: [
+          if (_isMobileKitchenScreen) _buildMobileLayoutToggle(),
           // Filter button with badge showing count
           Stack(
             children: [
@@ -1287,6 +1414,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               isBlinking,
               tickIsDelayed,
               isNext,
+              compact: _isMobileGridLayout,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1299,10 +1427,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                   onPaidTap: group.isPaid
                       ? () => _markTableServed(group.tableName, group.docId)
                       : null,
+                  compact: _isMobileGridLayout,
                 ),
-                _buildTimeBar(tickTime, tickIsDelayed),
+                _buildTimeBar(tickTime, tickIsDelayed, compact: _isMobileGridLayout),
                 Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(_isMobileGridLayout ? 6 : 12),
                   child: ListenableBuilder(
                     listenable: _itemSelection.listenableFor(group.docId),
                     builder: (context, _) {
@@ -1377,7 +1506,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           });
           return _orderCardShell(
             isBlinking: isBlinking,
-            decoration: _orderCardDecoration(isBlinking, tickIsDelayed, isNext),
+            decoration: _orderCardDecoration(
+              isBlinking,
+              tickIsDelayed,
+              isNext,
+              compact: _isMobileGridLayout,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1393,9 +1527,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                         )
                       : null,
                   useDoubleTapForPaid: true,
+                  compact: _isMobileGridLayout,
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 6, 12),
+                  padding: EdgeInsets.fromLTRB(
+                    _isMobileGridLayout ? 6 : 12,
+                    8,
+                    _isMobileGridLayout ? 4 : 6,
+                    _isMobileGridLayout ? 6 : 12,
+                  ),
                   child: ListenableBuilder(
                     listenable: _itemSelection.listenableFor(tableCard.docId),
                     builder: (context, _) {
@@ -1502,27 +1642,34 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   BoxDecoration _orderCardDecoration(
     bool isBlinking,
     bool isDelayed,
-    bool isNext,
-  ) {
+    bool isNext, {
+    bool compact = false,
+  }) {
+    final radius = compact ? 8.0 : 12.0;
+    final borderWidth = compact
+        ? (isNext ? 2.0 : 1.5)
+        : (isNext ? 2.5 : (isDelayed ? 2.0 : 1.0));
     return BoxDecoration(
       color: isBlinking ? _blinkColor : Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      boxShadow: [
-        BoxShadow(
-          color: isNext
-              ? Colors.green.withValues(alpha: 0.35)
-              : isDelayed
-              ? Colors.red.withValues(alpha: 0.3)
-              : Colors.black.withValues(alpha: 0.05),
-          blurRadius: isNext ? 12 : 8,
-          offset: const Offset(0, 4),
-        ),
-      ],
+      borderRadius: BorderRadius.circular(radius),
+      boxShadow: compact
+          ? []
+          : [
+              BoxShadow(
+                color: isNext
+                    ? Colors.green.withValues(alpha: 0.35)
+                    : isDelayed
+                    ? Colors.red.withValues(alpha: 0.3)
+                    : Colors.black.withValues(alpha: 0.05),
+                blurRadius: isNext ? 12 : 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
       border: isNext
-          ? Border.all(color: Colors.green, width: 2.5)
+          ? Border.all(color: Colors.green, width: borderWidth)
           : isDelayed
-          ? Border.all(color: Colors.red, width: 2)
-          : Border.all(color: Colors.grey.shade200),
+          ? Border.all(color: Colors.red, width: borderWidth)
+          : Border.all(color: Colors.grey.shade200, width: borderWidth),
     );
   }
 
@@ -1533,13 +1680,19 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     bool isNext = false,
     VoidCallback? onPaidTap,
     bool useDoubleTapForPaid = false,
+    bool compact = false,
   }) {
     final paid = isPaid == true;
     final header = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A3A5C),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 12,
+        vertical: compact ? 8 : 10,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A3A5C),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(compact ? 7 : 10),
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1553,9 +1706,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                     Colors.white,
                     BlendMode.srcIn,
                   ),
-                  width: tableName.contains("Take Away") ? 18 : 22,
+                  width: tableName.contains("Take Away")
+                      ? (compact ? 15 : 18)
+                      : (compact ? 18 : 22),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: compact ? 6 : 8),
                 Flexible(
                   child: Text(
                     tableName,
@@ -1563,7 +1718,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                       fontFamily: tableName.contains("Take Away")
                           ? fontMulishBold
                           : fontMulishSemiBold,
-                      fontSize: 16,
+                      fontSize: compact ? 13 : 16,
                       color: Colors.white,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -1640,9 +1795,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     );
   }
 
-  Widget _buildTimeBar(DateTime time, bool isDelayed) {
+  Widget _buildTimeBar(DateTime time, bool isDelayed, {bool compact = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 12,
+        vertical: compact ? 4 : 6,
+      ),
       color: isDelayed ? _delayedItemBackground : const Color(0xFFF5F6FA),
       child: Row(
         children: [
@@ -1748,6 +1906,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       _onKitchenSettingsChanged,
     );
     KitchenSettings.showServeOrderScreen.removeListener(
+      _onKitchenSettingsChanged,
+    );
+    KitchenSettings.mobileOrdersGridLayout.removeListener(
       _onKitchenSettingsChanged,
     );
     _tablesSub?.cancel();
