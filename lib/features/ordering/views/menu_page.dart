@@ -16,6 +16,7 @@ import 'package:demo/Styles/my_font.dart';
 // ── Brand colours (shared across screens) ─────────────────────────────────
 const _kNavy   = Color(0xFF1A3A5C);
 const _kOrange = Color(0xFFf57c35);
+const _kCategoryInactive = Color(0xFFF3F8F9);
 
 
 class MenuPage extends StatefulWidget {
@@ -69,6 +70,7 @@ class _MenuPageState extends State<MenuPage>
   // Multiple category selection
   Set<String> selectedCategories = {};
   bool showAllCategories = true; // Track if "All" is selected
+  int _selectedCategoryIndex = 0;
 
   // Voice AI — Sarvam STT
   final SarvamSttService _sttService = SarvamSttService();
@@ -131,6 +133,120 @@ class _MenuPageState extends State<MenuPage>
         menuData[category]![index]['qty']--;
       }
     });
+  }
+
+  List<String> get _visibleCategories {
+    if (showAllCategories) return menuData.keys.toList();
+    return menuData.keys
+        .where((category) => selectedCategories.contains(category))
+        .toList();
+  }
+
+  void _selectCategory(int index) {
+    setState(() => _selectedCategoryIndex = index);
+  }
+
+  Widget _buildCategorySidebar(List<String> categories, int activeIndex) {
+    if (categories.isEmpty) return const SizedBox.shrink();
+
+    final sidebarWidth = kIsWeb ? 132.0 : 108.0;
+
+    return Container(
+      width: sidebarWidth,
+      decoration: BoxDecoration(
+        color: _kCategoryInactive,
+        border: Border(
+          right: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      child: ListView.builder(
+        itemCount: categories.length,
+        padding: EdgeInsets.zero,
+        itemBuilder: (context, index) {
+          final category = categories[index];
+          final isActive = index == activeIndex;
+
+          return Material(
+            color: isActive ? _kNavy : _kCategoryInactive,
+            child: InkWell(
+              onTap: () => _selectCategory(index),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isActive
+                          ? _kNavy
+                          : Colors.black.withValues(alpha: 0.05),
+                    ),
+                  ),
+                ),
+                child: Text(
+                  category,
+                  textAlign: TextAlign.center,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.25,
+                    fontFamily: fontMulishBold,
+                    letterSpacing: 0.3,
+                    color: isActive
+                        ? Colors.white
+                        : _kNavy.withValues(alpha: 0.65),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMenuItemsList(String category) {
+    final items = menuData[category] ?? [];
+
+    return ListView.builder(
+      itemCount: items.length,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemBuilder: (context, index) => _buildMenuItem(category, index),
+    );
+  }
+
+  Widget _buildSidebarMenuLayout() {
+    final categories = _visibleCategories;
+
+    if (categories.isEmpty) {
+      return Center(
+        child: Text(
+          'No categories selected.',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade600,
+            fontFamily: fontMulishRegular,
+          ),
+        ),
+      );
+    }
+
+    if (_selectedCategoryIndex >= categories.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _selectedCategoryIndex = 0);
+      });
+    }
+
+    final activeIndex = _selectedCategoryIndex.clamp(0, categories.length - 1);
+    final activeCategory = categories[activeIndex];
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildCategorySidebar(categories, activeIndex),
+        Expanded(child: _buildMenuItemsList(activeCategory)),
+      ],
+    );
   }
 
   // ── Sarvam STT Recording ─────────────────────────────────────────────────
@@ -1051,9 +1167,7 @@ class _MenuPageState extends State<MenuPage>
         children: [
           Expanded(
             child: InkWell(
-              onTap: () {
-                incrementQty(category, index);
-              },
+              onTap: () => incrementQty(category, index),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1077,9 +1191,9 @@ class _MenuPageState extends State<MenuPage>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      if (item['qty'] > 0)
+                      if (qty > 0)
                         Text(
-                          ' x${(item['qty'] as int)}',
+                          ' x$qty',
                           style: const TextStyle(
                             fontSize: 13,
                             color: _kOrange,
@@ -1178,8 +1292,6 @@ class _MenuPageState extends State<MenuPage>
       ),
     );
   }
-
-
 
   void _showRemarkEditSheet(String category, int index) {
     final item = menuData[category]![index];
@@ -1501,36 +1613,12 @@ class _MenuPageState extends State<MenuPage>
   }
 
   Widget _buildMenuBodyContent() {
-    final categories = menuData.keys.toList();
-
     return Column(
       children: [
         Expanded(
           child: _showSearch
               ? _buildGlobalSearchList()
-              : showAllCategories
-                  ? TabBarView(
-                      children: categories.map((category) {
-                        final items = menuData[category]!;
-                        return ListView.builder(
-                          itemCount: items.length,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemBuilder: (context, index) =>
-                              _buildMenuItem(category, index),
-                        );
-                      }).toList(),
-                    )
-                  : TabBarView(
-                      children: selectedCategories.map((category) {
-                        final items = menuData[category];
-                        return ListView.builder(
-                          itemCount: items?.length ?? 0,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemBuilder: (context, index) =>
-                              _buildMenuItem(category, index),
-                        );
-                      }).toList(),
-                    ),
+              : _buildSidebarMenuLayout(),
         ),
         if (!_useWebSideCart && _hasOrderItems)
           InkWell(
@@ -1565,11 +1653,7 @@ class _MenuPageState extends State<MenuPage>
 
   @override
   Widget build(BuildContext context) {
-    final categories = menuData.keys.toList();
-
-    return DefaultTabController(
-      length: showAllCategories ? categories.length : selectedCategories.length,
-      child: Scaffold(
+    return Scaffold(
         backgroundColor: const Color(0xFFF5F6FA),
         appBar: AppBar(
           backgroundColor: _kNavy,
@@ -1686,23 +1770,6 @@ class _MenuPageState extends State<MenuPage>
                 ],
               ),
           ],
-
-          bottom: !_showSearch
-              ? TabBar(
-                  isScrollable: true,
-                  indicatorColor: _kOrange,
-                  indicatorWeight: 3,
-                  labelColor: Colors.white,
-                  unselectedLabelColor: Colors.white60,
-                  labelStyle: const TextStyle(
-                    fontFamily: fontMulishSemiBold,
-                    fontSize: 13,
-                  ),
-                  tabs: showAllCategories
-                      ? categories.map((c) => Tab(text: c)).toList()
-                      : selectedCategories.map((c) => Tab(text: c)).toList(),
-                )
-              : null,
         ),
         body: _useWebSideCart
             ? Row(
@@ -1740,7 +1807,6 @@ class _MenuPageState extends State<MenuPage>
         //         onPressed: _openFinalBilling,
         //       )
         //     : null,
-      ),
     );
   }
 
@@ -1841,7 +1907,9 @@ class _MenuPageState extends State<MenuPage>
 
                     _saveSelectedCategories();
 
-                    setState(() {});
+                    setState(() {
+                      _selectedCategoryIndex = 0;
+                    });
                   },
                   child: const Text(
                     "Clear",
@@ -1861,7 +1929,9 @@ class _MenuPageState extends State<MenuPage>
                   onPressed: () {
                     _saveSelectedCategories();
                     Navigator.pop(context);
-                    setState(() {});
+                    setState(() {
+                      _selectedCategoryIndex = 0;
+                    });
                   },
                   child: const Text(
                     "Apply",
@@ -1901,7 +1971,9 @@ class _MenuPageState extends State<MenuPage>
       print("showAllCategories false");
     }
 
-    setState(() {});
+    setState(() {
+      _selectedCategoryIndex = 0;
+    });
   }
 
   Widget _buildGlobalSearchList() {
@@ -1934,135 +2006,13 @@ class _MenuPageState extends State<MenuPage>
       padding: const EdgeInsets.only(top: 8),
       itemBuilder: (context, index) {
         final item = filtered[index];
-        final category = item['category'];
-        final qty = item['qty'] as int;
-        return _buildMenuTile(category, index, item, qty);
+        final category = item['category'] as String;
+        final itemIndex = menuData[category]!.indexWhere(
+          (e) => e['name'] == item['name'],
+        );
+        if (itemIndex < 0) return const SizedBox.shrink();
+        return _buildMenuItem(category, itemIndex);
       },
-    );
-  }
-
-  Widget _buildMenuTile(
-    String category,
-    int index,
-    Map<String, dynamic> item,
-    int qty,
-  ) {
-    return InkWell(
-      onTap: () {
-        setState(() {
-          item['qty']++;
-        });
-      },
-      child: Column(
-        children: [
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 2,
-              horizontal: 16,
-            ),
-            title: Text(
-              item['name'],
-              style: const TextStyle(
-                fontSize: 14,
-                color: text_color,
-                fontFamily: fontMulishSemiBold,
-              ),
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 2.0),
-              child: Row(
-                children: [
-                  Text(
-                    "₹${item['price'].toStringAsFixed(2)}",
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: secondary_text_color,
-                      fontFamily: fontMulishRegular,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  if (qty > 0)
-                    Text(
-                      "\u00D7$qty",
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.red,
-                        fontFamily: fontMulishBold,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            trailing: qty == 0
-                ? GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        item['qty'] = 1;
-                      });
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.black87, width: 0.5),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        "Add",
-                        style: TextStyle(
-                          color: Colors.black87,
-                          fontWeight: FontWeight.normal,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  )
-                : GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {},
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.remove_circle,
-                            color: Colors.red,
-                          ),
-                          onPressed: () {
-                            if (item['qty'] > 0) {
-                              item['qty']--;
-                              setState(() {});
-                            }
-                          },
-                        ),
-                        Text(
-                          "$qty",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: text_color,
-                            fontFamily: fontMulishSemiBold,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle, color: Colors.green),
-                          onPressed: () {
-                            item['qty']++;
-                            setState(() {});
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-          ),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12),
-            height: 0.5,
-            color: Colors.grey.shade300,
-          ),
-        ],
-      ),
     );
   }
 }
