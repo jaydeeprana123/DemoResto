@@ -75,6 +75,16 @@ class TableItemSelectionController {
     }
     return updated;
   }
+
+  Future<bool> deleteSelected() async {
+    if (_selected.isEmpty) return false;
+    final keys = _selected.toList();
+    final updated = await TableItemServed.removeItems(keys);
+    if (updated) {
+      cancel();
+    }
+    return updated;
+  }
 }
 
 enum TableItemSelectionAction { serve, markPending }
@@ -287,8 +297,16 @@ class _TableItemSelectionActionBarState
         return Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              _actionIcon(
+                icon: Icons.delete_outline,
+                tooltip: count > 0 ? 'Delete ($count)' : 'Delete',
+                color: Colors.red.shade700,
+                onPressed: count == 0 || _submitting
+                    ? null
+                    : () => _confirmDeleteSelected(count),
+              ),
+              const Spacer(),
               _actionIcon(
                 icon: Icons.close,
                 tooltip: 'Cancel',
@@ -350,6 +368,67 @@ class _TableItemSelectionActionBarState
         );
       },
     );
+  }
+
+  Future<void> _confirmDeleteSelected(int count) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Delete selected items?',
+          style: TextStyle(
+            fontFamily: fontMulishBold,
+            fontSize: 17,
+            color: Color(0xFF1A3A5C),
+          ),
+        ),
+        content: Text(
+          count == 1
+              ? 'Are you sure you want to delete the selected item?'
+              : 'Are you sure you want to delete $count selected items?',
+          style: TextStyle(
+            fontFamily: fontMulishRegular,
+            fontSize: 14,
+            color: Colors.grey.shade700,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _submitting = true);
+    try {
+      final updated = await widget.controller.deleteSelected();
+      if (!updated && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not delete items. Please try again.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   Widget _actionIcon({
