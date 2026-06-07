@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/utils/tax_calculator.dart';
 import 'package:demo/features/menu_setup/widgets/setup_page_layout.dart';
+import 'package:demo/features/settings/services/tax_settings_service.dart';
 import 'package:demo/features/transactions/repositories/transactions_repository.dart';
 import 'package:demo/features/transactions/widgets/add_menu_item_sheet.dart';
 import 'package:demo/Styles/my_font.dart';
@@ -31,6 +33,8 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
 
   late List<Map<String, dynamic>> items;
   bool _saving = false;
+  double _cgstPercent = 0;
+  double _sgstPercent = 0;
 
   @override
   void initState() {
@@ -43,6 +47,11 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
 
     items = List<Map<String, dynamic>>.from(widget.transaction['items'] ?? []);
 
+    _cgstPercent =
+        (widget.transaction['cgstPercentage'] as num?)?.toDouble() ?? 0;
+    _sgstPercent =
+        (widget.transaction['sgstPercentage'] as num?)?.toDouble() ?? 0;
+
     subtotalController.text =
         widget.transaction['subtotal']?.toString() ?? '0';
     taxController.text = widget.transaction['tax']?.toString() ?? '0';
@@ -54,6 +63,28 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
 
     _syncTotalsFromItems();
     _alignPaymentFieldsToTotal();
+    _loadTaxSettingsIfNeeded();
+  }
+
+  Future<void> _loadTaxSettingsIfNeeded() async {
+    if (_cgstPercent > 0 || _sgstPercent > 0) return;
+    final settings = await TaxSettingsService.load();
+    if (!mounted) return;
+    setState(() {
+      _cgstPercent = settings.cgstPercentage;
+      _sgstPercent = settings.sgstPercentage;
+      _syncTotalsFromItems();
+      _alignPaymentFieldsToTotal();
+    });
+  }
+
+  TaxBreakdown get _taxBreakdown {
+    final subtotal = int.tryParse(subtotalController.text) ?? 0;
+    return TaxCalculator.calculate(
+      subtotal,
+      cgstPercent: _cgstPercent,
+      sgstPercent: _sgstPercent,
+    );
   }
 
   int get _computedTotal {
@@ -99,11 +130,14 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
       subtotal += qty * price;
     }
 
-    const taxPercent = 8.5;
-    final tax = (subtotal * taxPercent / 100).round();
+    final breakdown = TaxCalculator.calculate(
+      subtotal,
+      cgstPercent: _cgstPercent,
+      sgstPercent: _sgstPercent,
+    );
 
     subtotalController.text = subtotal.toString();
-    taxController.text = tax.toString();
+    taxController.text = breakdown.totalTax.toString();
   }
 
   void _recalculateTotals() {
@@ -179,7 +213,8 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
     _alignPaymentFieldsToTotal();
 
     final subtotal = int.tryParse(subtotalController.text) ?? 0;
-    final tax = int.tryParse(taxController.text) ?? 0;
+    final taxBreakdown = _taxBreakdown;
+    final tax = taxBreakdown.totalTax;
     final discount = int.tryParse(discountController.text) ?? 0;
     final total = _computedTotal;
     final cashAmount = int.tryParse(cashController.text) ?? 0;
@@ -209,6 +244,10 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
       'items': activeItems,
       'subtotal': subtotal,
       'tax': tax,
+      'cgstPercentage': _cgstPercent,
+      'sgstPercentage': _sgstPercent,
+      'cgstAmount': taxBreakdown.cgstAmount,
+      'sgstAmount': taxBreakdown.sgstAmount,
       'discount': discount,
       'total': total,
       'cashAmount': cashAmount,
@@ -524,8 +563,20 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
             ),
             const SizedBox(height: 14),
             _buildReadOnlyRow('Subtotal', subtotalController),
-            const SizedBox(height: 10),
-            _buildReadOnlyRow('Tax (8.5%)', taxController),
+            if (_taxBreakdown.cgstPercent > 0 && _taxBreakdown.cgstAmount > 0) ...[
+              const SizedBox(height: 10),
+              _buildReadOnlyTaxRow(
+                'CGST (${TaxCalculator.formatPercent(_taxBreakdown.cgstPercent)}%)',
+                _taxBreakdown.cgstAmount,
+              ),
+            ],
+            if (_taxBreakdown.sgstPercent > 0 && _taxBreakdown.sgstAmount > 0) ...[
+              const SizedBox(height: 10),
+              _buildReadOnlyTaxRow(
+                'SGST (${TaxCalculator.formatPercent(_taxBreakdown.sgstPercent)}%)',
+                _taxBreakdown.sgstAmount,
+              ),
+            ],
             const SizedBox(height: 10),
             _buildEditableRow(
               'Discount',
@@ -596,6 +647,30 @@ class _EditTransactionPageState extends State<EditTransactionPage> {
         ),
         Text(
           '₹${controller.text}',
+          style: const TextStyle(
+            fontSize: 13,
+            fontFamily: fontMulishSemiBold,
+            color: Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReadOnlyTaxRow(String label, int amount) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontFamily: fontMulishRegular,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        Text(
+          '₹$amount',
           style: const TextStyle(
             fontSize: 13,
             fontFamily: fontMulishSemiBold,

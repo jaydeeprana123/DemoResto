@@ -3,6 +3,7 @@ import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'package:demo/core/utils/tax_calculator.dart';
 import 'package:demo/features/transactions/views/EditTransactionDetailsPage.dart';
 import 'package:demo/Styles/my_font.dart';
 
@@ -70,7 +71,7 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
   Widget build(BuildContext context) {
     final items = (_transaction['items'] as List<dynamic>? ?? []);
     final subtotal = (_transaction['subtotal'] as num?)?.toInt() ?? 0;
-    final tax = (_transaction['tax'] as num?)?.toInt() ?? 0;
+    final taxBreakdown = TaxCalculator.fromTransaction(_transaction);
     final discount = (_transaction['discount'] as num?)?.toInt() ?? 0;
     final total = (_transaction['total'] as num?)?.toInt() ?? 0;
     final cashAmount = (_transaction['cashAmount'] as num?)?.toInt() ?? 0;
@@ -264,8 +265,23 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
             child: Column(
               children: [
                 _summaryRow('Subtotal', '₹$subtotal'),
-                const SizedBox(height: 6),
-                _summaryRow('Tax (8.5%)', '₹$tax'),
+                if (taxBreakdown.cgstPercent > 0 && taxBreakdown.cgstAmount > 0) ...[
+                  const SizedBox(height: 6),
+                  _summaryRow(
+                    'CGST (${TaxCalculator.formatPercent(taxBreakdown.cgstPercent)}%)',
+                    '₹${taxBreakdown.cgstAmount}',
+                  ),
+                ] else if (taxBreakdown.cgstAmount > 0) ...[
+                  const SizedBox(height: 6),
+                  _summaryRow('Tax', '₹${taxBreakdown.cgstAmount}'),
+                ],
+                if (taxBreakdown.sgstPercent > 0 && taxBreakdown.sgstAmount > 0) ...[
+                  const SizedBox(height: 6),
+                  _summaryRow(
+                    'SGST (${TaxCalculator.formatPercent(taxBreakdown.sgstPercent)}%)',
+                    '₹${taxBreakdown.sgstAmount}',
+                  ),
+                ],
                 if (discount > 0) ...[
                   const SizedBox(height: 6),
                   _summaryRow('Discount', '-₹$discount',

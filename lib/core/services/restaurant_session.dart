@@ -115,10 +115,18 @@ class RestaurantSession extends GetxService {
         adminEmail: restaurant.adminEmail,
         address: restaurant.address,
         createdAt: restaurant.createdAt,
+        cgstPercentage: restaurant.cgstPercentage,
+        sgstPercentage: restaurant.sgstPercentage,
       );
     }
 
     return restaurant;
+  }
+
+  Future<void> reloadRestaurant() async {
+    final restaurantId = profile.value?.restaurantId;
+    if (restaurantId == null || restaurantId.isEmpty) return;
+    await _loadRestaurant(restaurantId);
   }
 
   RestaurantAccessInfo evaluateAccess() {
