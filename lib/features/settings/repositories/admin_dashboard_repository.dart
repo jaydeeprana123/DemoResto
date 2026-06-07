@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 
 class PeriodSummary {
   final double amount;
@@ -75,8 +76,7 @@ class AdminDashboardRepository {
   }
 
   Future<({int reserved, int total})> _countReservedTables() async {
-    final snapshot =
-        await FirebaseFirestore.instance.collection('tables').get();
+    final snapshot = await FirestorePaths.scoped('tables').get();
 
     var reserved = 0;
     for (final doc in snapshot.docs) {
@@ -92,8 +92,7 @@ class AdminDashboardRepository {
     DateTime? from,
     DateTime? to,
   ) async {
-    Query<Map<String, dynamic>> query =
-        FirebaseFirestore.instance.collection('transactions');
+    Query<Map<String, dynamic>> query = FirestorePaths.scoped('transactions');
 
     if (from != null && to != null) {
       query = query
@@ -117,8 +116,7 @@ class AdminDashboardRepository {
     DateTime? from,
     DateTime? to,
   ) async {
-    Query<Map<String, dynamic>> query =
-        FirebaseFirestore.instance.collection('expenses');
+    Query<Map<String, dynamic>> query = FirestorePaths.scoped('expenses');
 
     if (from != null && to != null) {
       query = query

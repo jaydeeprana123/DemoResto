@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/features/menu_setup/views/AddMenuItemPage.dart';
 import 'package:demo/features/menu_setup/views/MenuSeederPage.dart';
 import 'package:demo/features/menu_setup/widgets/setup_page_layout.dart';
@@ -25,7 +26,7 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
     setState(() => _isAdding = true);
     try {
       final name = _nameController.text.trim();
-      await FirebaseFirestore.instance.collection('menus').add({
+      await FirestorePaths.scoped('menus').add({
         'name': name,
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -48,7 +49,7 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
     );
     if (confirmed != true || !mounted) return;
 
-    await FirebaseFirestore.instance.collection('menus').doc(docId).delete();
+    await FirestorePaths.scopedDoc('menus', docId).delete();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Category "$name" deleted')),
@@ -153,8 +154,8 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
 
   Widget _buildCategoryList() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('menus')
+      stream: FirestorePaths
+          .scoped('menus')
           .orderBy('createdAt', descending: false)
           .snapshots(),
       builder: (context, snapshot) {

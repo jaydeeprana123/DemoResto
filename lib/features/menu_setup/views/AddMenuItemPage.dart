@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/features/menu_setup/widgets/setup_page_layout.dart';
 import 'package:flutter/material.dart';
 
@@ -30,10 +31,8 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
 
     setState(() => _isAdding = true);
     try {
-      await FirebaseFirestore.instance
-          .collection('menus')
-          .doc(_selectedCategoryId)
-          .collection('items')
+      await FirestorePaths
+          .scopedSubCollection('menus', _selectedCategoryId!, 'items')
           .add({
             'name': _nameController.text.trim(),
             'price': double.tryParse(_priceController.text.trim()) ?? 0.0,
@@ -66,10 +65,8 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
     );
     if (confirmed != true || !mounted) return;
 
-    await FirebaseFirestore.instance
-        .collection('menus')
-        .doc(categoryId)
-        .collection('items')
+    await FirestorePaths
+        .scopedSubCollection('menus', categoryId, 'items')
         .doc(itemId)
         .delete();
   }
@@ -175,8 +172,8 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
 
   Widget _buildCategoryDropdown() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('menus')
+      stream: FirestorePaths
+          .scoped('menus')
           .orderBy('createdAt', descending: false)
           .snapshots(),
       builder: (context, snapshot) {
@@ -252,8 +249,8 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
 
   Widget _buildMenuList() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('menus')
+      stream: FirestorePaths
+          .scoped('menus')
           .orderBy('createdAt', descending: false)
           .snapshots(),
       builder: (context, snapshot) {
@@ -305,10 +302,8 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                   ),
                   children: [
                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: FirebaseFirestore.instance
-                          .collection('menus')
-                          .doc(category.id)
-                          .collection('items')
+                      stream: FirestorePaths
+                          .scopedSubCollection('menus', category.id, 'items')
                           .orderBy('createdAt', descending: false)
                           .snapshots(),
                       builder: (context, itemSnapshot) {

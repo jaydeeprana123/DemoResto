@@ -6,6 +6,7 @@ import 'package:demo/features/ordering/bindings/ordering_binding.dart';
 import 'package:demo/features/settings/bindings/settings_binding.dart';
 import 'package:demo/features/shell/bindings/shell_binding.dart';
 import 'package:demo/features/tables/bindings/tables_binding.dart';
+import 'package:demo/features/super_admin/bindings/super_admin_binding.dart';
 import 'package:demo/features/transactions/bindings/transactions_binding.dart';
 import 'package:get/get.dart';
 
@@ -21,5 +22,6 @@ class AppBinding extends Bindings {
     TransactionsBinding().dependencies();
     OrderingBinding().dependencies();
     SettingsBinding().dependencies();
+    SuperAdminBinding().dependencies();
   }
 }

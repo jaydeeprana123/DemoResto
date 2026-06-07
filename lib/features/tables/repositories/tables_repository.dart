@@ -1,15 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 
 class TablesRepository {
   Stream<QuerySnapshot<Map<String, dynamic>>> watchTables() {
-    return FirebaseFirestore.instance
-        .collection('tables')
+    return FirestorePaths
+        .scoped('tables')
         .orderBy('createdAt', descending: false)
         .snapshots();
   }
 
   Future<void> deleteTable(String docId) {
-    return FirebaseFirestore.instance.collection('tables').doc(docId).delete();
+    return FirestorePaths.scopedDoc('tables', docId).delete();
   }
 
   Future<void> updateTableItems({
@@ -18,8 +19,8 @@ class TablesRepository {
     required bool isBillPaid,
     String overallRemarks = '',
   }) async {
-    final tableQuery = await FirebaseFirestore.instance
-        .collection('tables')
+    final tableQuery = await FirestorePaths
+        .scoped('tables')
         .where('name', isEqualTo: tableName)
         .limit(1)
         .get();
@@ -55,9 +56,6 @@ class TablesRepository {
       updateData['remarks'] = overallRemarks;
     }
 
-    await FirebaseFirestore.instance
-        .collection('tables')
-        .doc(docId)
-        .update(updateData);
+    await FirestorePaths.scopedDoc('tables', docId).update(updateData);
   }
 }

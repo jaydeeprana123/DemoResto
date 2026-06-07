@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:flutter/foundation.dart';
 import 'package:demo/features/settings/utils/export_date_range.dart';
 import 'package:excel/excel.dart';
@@ -148,8 +149,8 @@ class ExportExcelService {
 
   static Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
   _fetchTransactions(ExportDateRange range) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('transactions')
+    final snapshot = await FirestorePaths
+        .scoped('transactions')
         .where(
           'createdAt',
           isGreaterThanOrEqualTo: Timestamp.fromDate(range.from),
@@ -165,8 +166,8 @@ class ExportExcelService {
 
   static Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
   _fetchExpenses(ExportDateRange range) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('expenses')
+    final snapshot = await FirestorePaths
+        .scoped('expenses')
         .where(
           'createdAt',
           isGreaterThanOrEqualTo: Timestamp.fromDate(range.from),

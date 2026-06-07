@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:intl/intl.dart';
 
 int transactionAsInt(dynamic value) {
@@ -61,8 +62,7 @@ class TransactionsRepository {
 
     final batch = FirebaseFirestore.instance.batch();
 
-    final txRef =
-        FirebaseFirestore.instance.collection('transactions').doc(transactionId);
+    final txRef = FirestorePaths.scopedDoc('transactions', transactionId);
     batch.set(
       txRef,
       {
@@ -83,8 +83,7 @@ class TransactionsRepository {
     final deltaOnline = newOnline - oldOnline;
 
     if (deltaTotal != 0 || deltaCash != 0 || deltaOnline != 0) {
-      final dailyRef =
-          FirebaseFirestore.instance.collection('daily_stats').doc(dateKey);
+      final dailyRef = FirestorePaths.scopedDoc('daily_stats', dateKey);
       batch.set(
         dailyRef,
         {
@@ -96,8 +95,7 @@ class TransactionsRepository {
         SetOptions(merge: true),
       );
 
-      final summaryRef =
-          FirebaseFirestore.instance.collection('stats').doc('summary');
+      final summaryRef = FirestorePaths.scopedDoc('stats', 'summary');
       batch.set(
         summaryRef,
         {

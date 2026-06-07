@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ExpensesRepository {
@@ -8,8 +9,8 @@ class ExpensesRepository {
     DateTime? toDate,
   }) {
     if (!isFilterApplied || fromDate == null) {
-      return FirebaseFirestore.instance
-          .collection('expenses')
+      return FirestorePaths
+          .scoped('expenses')
           .orderBy('createdAt', descending: true)
           .snapshots();
     }
@@ -24,8 +25,8 @@ class ExpensesRepository {
         ? DateTime(toDate.year, toDate.month, toDate.day, 23, 59, 59, 999)
         : DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
 
-    return FirebaseFirestore.instance
-        .collection('expenses')
+    return FirestorePaths
+        .scoped('expenses')
         .where(
           'createdAt',
           isGreaterThanOrEqualTo: Timestamp.fromDate(effectiveFrom),
@@ -39,7 +40,7 @@ class ExpensesRepository {
   }
 
   Future<void> deleteExpense(String docId) {
-    return FirebaseFirestore.instance.collection('expenses').doc(docId).delete();
+    return FirestorePaths.scopedDoc('expenses', docId).delete();
   }
 
   Future<void> addExpense({
@@ -50,7 +51,7 @@ class ExpensesRepository {
     required DateTime expenseDate,
   }) {
     final user = FirebaseAuth.instance.currentUser;
-    return FirebaseFirestore.instance.collection('expenses').add({
+    return FirestorePaths.scoped('expenses').add({
       'title': title,
       'amount': amount,
       'category': category,

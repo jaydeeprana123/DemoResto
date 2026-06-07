@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/core/repositories/user_repository.dart';
+import 'package:demo/core/services/restaurant_session.dart';
 import 'package:demo/FinalCartPage.dart';
-import 'package:demo/features/authentication/authentication.dart';
 import 'package:demo/features/kitchen/kitchen.dart';
 import 'package:demo/features/menu_setup/menu_setup.dart';
 import 'package:demo/features/ordering/ordering.dart';
@@ -58,15 +60,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     if (user != null) {
       _listenToTables();
       _loadMenu();
-    } else {
-      signOut();
     }
   }
 
-  signOut() async {
-    await FirebaseAuth.instance.signOut();
-
-    Navigator.push(context, MaterialPageRoute(builder: (_) => LoginPage()));
+  Future<void> signOut() async {
+    await Get.find<UserRepository>().signOut();
   }
 
   @override
@@ -121,8 +119,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
   // Listen to Firestore tables collection changes - UPDATED for flattened structure
   void _listenToTables() {
-    tablesSubscription = FirebaseFirestore.instance
-        .collection('tables')
+    tablesSubscription = FirestorePaths
+        .scoped('tables')
         .orderBy('createdAt', descending: false)
         .snapshots()
         .listen((querySnapshot) {
@@ -251,18 +249,16 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
     try {
       List<Map<String, dynamic>> loadedMenu = [];
-      final menuSnapshot = await FirebaseFirestore.instance
-          .collection('menus')
+      final menuSnapshot = await FirestorePaths
+          .scoped('menus')
           .get();
 
       for (var categoryDoc in menuSnapshot.docs) {
         final categoryId = categoryDoc.id;
         final categoryName = categoryDoc['name'];
 
-        final itemsSnapshot = await FirebaseFirestore.instance
-            .collection('menus')
-            .doc(categoryId)
-            .collection('items')
+        final itemsSnapshot = await FirestorePaths
+            .scopedSubCollection('menus', categoryId, 'items')
             .get();
 
         for (var itemDoc in itemsSnapshot.docs) {
@@ -356,8 +352,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   ]) async {
     if (items.isEmpty) return;
 
-    final existing = await FirebaseFirestore.instance
-        .collection('tables')
+    final existing = await FirestorePaths
+        .scoped('tables')
         .where('name', isEqualTo: tableName)
         .limit(1)
         .get();
@@ -386,10 +382,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     String docId,
   ) async {
     if (docId.isNotEmpty) {
-      await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
+      await FirestorePaths.scoped('tables').doc(docId).delete();
     } else {
-      final query = await FirebaseFirestore.instance
-          .collection('tables')
+      final query = await FirestorePaths
+          .scoped('tables')
           .where('name', isEqualTo: tableName)
           .limit(1)
           .get();
@@ -450,8 +446,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   // Add a new table with empty items list
   Future<void> _addTable(String tableName) async {
     try {
-      final existing = await FirebaseFirestore.instance
-          .collection('tables')
+      final existing = await FirestorePaths
+          .scoped('tables')
           .where('name', isEqualTo: tableName)
           .limit(1)
           .get();
@@ -461,7 +457,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         return;
       }
 
-      await FirebaseFirestore.instance.collection('tables').add({
+      await FirestorePaths.scoped('tables').add({
         'name': tableName,
         'items': [],
         'createdAt': FieldValue.serverTimestamp(),
@@ -485,8 +481,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       print("Table name: $tableName");
       print("Selected items count: ${selectedItems.length}");
 
-      final existing = await FirebaseFirestore.instance
-          .collection('tables')
+      final existing = await FirestorePaths
+          .scoped('tables')
           .where('name', isEqualTo: tableName)
           .limit(1)
           .get();
@@ -525,8 +521,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       }
 
       // Step 2: Add the document to Firestore
-      final docRef = await FirebaseFirestore.instance
-          .collection('tables')
+      final docRef = await FirestorePaths
+          .scoped('tables')
           .add(tableData);
 
       print(
@@ -617,6 +613,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   }
 
   PreferredSizeWidget _buildAppBar() {
+    final restaurantName =
+        Get.find<RestaurantSession>().activeRestaurant.value?.name;
+    final titleText = restaurantName != null && restaurantName.isNotEmpty
+        ? 'Flavor Flow ($restaurantName)'
+        : 'Flavor Flow';
+
     return AppBar(
       backgroundColor: _navy,
       elevation: 0,
@@ -634,27 +636,31 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             ),
           ),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              Text(
-                'Flavor Flow',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontFamily: fontMulishBold,
-                  color: Colors.white,
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  titleText,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontFamily: fontMulishBold,
+                    color: Colors.white,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              Text(
-                'Restaurant Dashboard',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontFamily: fontMulishRegular,
-                  color: Colors.white60,
+                const Text(
+                  'Restaurant Dashboard',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: fontMulishRegular,
+                    color: Colors.white60,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -678,15 +684,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         IconButton(
           icon: const Icon(Icons.logout_rounded, color: Colors.white70),
           tooltip: 'Sign Out',
-          onPressed: () async {
-            await FirebaseAuth.instance.signOut();
-            if (mounted) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => LoginPage()),
-              );
-            }
-          },
+          onPressed: signOut,
         ),
         const SizedBox(width: 4),
       ],
@@ -1029,9 +1027,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         if (paid) {
           showServedDialog(context, tableName, () async {
             if (isTakeAway) {
-              await FirebaseFirestore.instance
-                  .collection('tables')
-                  .doc(docId)
+              await FirestorePaths
+                  .scopedDoc('tables', docId)
                   .delete();
               setState(() {});
             } else {
@@ -1512,7 +1509,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     );
 
     if (confirmed == true) {
-      await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
+      await FirestorePaths.scoped('tables').doc(docId).delete();
 
       ScaffoldMessenger.of(
         context,

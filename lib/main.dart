@@ -1,29 +1,16 @@
 import 'package:demo/bindings/app_binding.dart';
+import 'package:demo/core/firebase/firebase_options.dart';
 import 'package:demo/features/authentication/authentication.dart';
-import 'package:demo/features/shell/shell.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:get/get.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (kIsWeb) {
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: "AIzaSyCVEzgrDcjZOiv7R4QK3IH3kZBfq_Dh1Vo",
-        authDomain: "resto-a0d9a.firebaseapp.com",
-        projectId: "resto-a0d9a",
-        storageBucket: "resto-a0d9a.firebasestorage.app",
-        messagingSenderId: "799838711875",
-        appId: "1:799838711875:web:0fae0ecb393db8cef624f6",
-        measurementId: "G-ZPDSQ8MNJD",
-      ),
-    );
-  } else {
-    await Firebase.initializeApp();
-  }
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   runApp(const MyApp());
 }
@@ -37,7 +24,10 @@ class MyApp extends StatelessWidget {
       title: 'Flavor Flow',
       debugShowCheckedModeBanner: false,
       initialBinding: AppBinding(),
-      theme: ThemeData(primarySwatch: Colors.blue),
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+      ),
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
@@ -45,9 +35,9 @@ class MyApp extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasData) {
-            return const BottomNavigationView();
+            return AuthGateView(key: ValueKey(snapshot.data!.uid));
           }
-          return const LoginPage();
+          return const LoginPage(key: ValueKey('login'));
         },
       ),
     );
