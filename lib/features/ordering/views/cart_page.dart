@@ -929,7 +929,7 @@ class _CartPageState extends State<CartPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      (item['name'] ?? '').toUpperCase(),
+                      (item['name'] ?? ''),
                       style: TextStyle(
                         fontSize: 14,
                         fontFamily: fontMulishBold,

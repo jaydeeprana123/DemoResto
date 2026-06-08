@@ -263,10 +263,10 @@ class TableItemServed {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                name.toUpperCase(),
+                name,
                 style: nameStyle.copyWith(
                   color: served ? Colors.green.shade700 : nameStyle.color,
-                  fontSize: 13,
+
                 ),
               ),
               if (remarks != null && remarks.isNotEmpty)

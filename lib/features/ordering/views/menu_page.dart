@@ -1408,7 +1408,7 @@ class _MenuPageState extends State<MenuPage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    displayName.toUpperCase(),
+                    displayName,
                     style: const TextStyle(
                       fontSize: 14,
                       fontFamily: fontMulishBold,
