@@ -25,6 +25,7 @@ import 'package:demo/models/agent_response.dart';
 class CartPage extends StatefulWidget {
   final String tableName;
   final bool tableNameEditable;
+
   /// When set (e.g. from [MenuPage]), cart title stays in sync with menu edits.
   final TextEditingController? nameController;
   final List<Map<String, dynamic>> menuData; // new items only
@@ -39,7 +40,7 @@ class CartPage extends StatefulWidget {
     bool isBillPaid,
     String tableName,
     String overallRemarks, {
-    bool fromBilling ,
+    bool fromBilling,
     bool fromFinalBilling,
   })
   onConfirm;
@@ -109,7 +110,9 @@ class _CartPageState extends State<CartPage> {
     } else {
       tableNameController = TextEditingController(text: widget.tableName);
     }
-    overallRemarksController = TextEditingController(text: widget.overallRemarks ?? '');
+    overallRemarksController = TextEditingController(
+      text: widget.overallRemarks ?? '',
+    );
     pastItems = widget.pastItems
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
@@ -117,7 +120,10 @@ class _CartPageState extends State<CartPage> {
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
     _remarkControllers = cartItems
-        .map((item) => TextEditingController(text: (item['remarks'] ?? '').toString()))
+        .map(
+          (item) =>
+              TextEditingController(text: (item['remarks'] ?? '').toString()),
+        )
         .toList();
     // Expand remark field if item already has a remark
     _remarkExpanded = cartItems
@@ -168,8 +174,7 @@ class _CartPageState extends State<CartPage> {
       final taxable = subtotal + taxBreakdown.totalTax;
       discountAmount = (taxable - edited).toDouble();
       if (discountAmount < 0) discountAmount = 0;
-      discountPercent =
-          subtotal > 0 ? (discountAmount / subtotal) * 100 : 0;
+      discountPercent = subtotal > 0 ? (discountAmount / subtotal) * 100 : 0;
       discountAmountController.text = discountAmount.toStringAsFixed(0);
       discountPercentController.text = discountPercent.toStringAsFixed(2);
       totalController.text = edited.toString();
@@ -179,10 +184,10 @@ class _CartPageState extends State<CartPage> {
   }
 
   TaxBreakdown get taxBreakdown => TaxCalculator.calculate(
-        subtotal,
-        cgstPercent: _cgstPercent,
-        sgstPercent: _sgstPercent,
-      );
+    subtotal,
+    cgstPercent: _cgstPercent,
+    sgstPercent: _sgstPercent,
+  );
 
   void _onSharedTableNameChanged() {
     if (mounted) setState(() {});
@@ -220,9 +225,7 @@ class _CartPageState extends State<CartPage> {
   }
 
   String _cartSignature(List<Map<String, dynamic>> items) {
-    return items
-        .map((e) => '${e['name']}:${e['qty']}')
-        .join('|');
+    return items.map((e) => '${e['name']}:${e['qty']}').join('|');
   }
 
   void _reloadCartFromMenuData() {
@@ -234,8 +237,10 @@ class _CartPageState extends State<CartPage> {
           .map((item) => Map<String, dynamic>.from(item))
           .toList();
       _remarkControllers = cartItems
-          .map((item) => TextEditingController(
-              text: (item['remarks'] ?? '').toString()))
+          .map(
+            (item) =>
+                TextEditingController(text: (item['remarks'] ?? '').toString()),
+          )
           .toList();
       _remarkExpanded = cartItems
           .map((item) => (item['remarks'] ?? '').toString().isNotEmpty)
@@ -359,10 +364,10 @@ class _CartPageState extends State<CartPage> {
     return itemMap.values.toList();
   }
 
-  double get subtotal => [...pastItems, ...cartItems].fold(
-        0.0,
-        (sum, item) => sum + _lineTotal(item),
-      );
+  double get subtotal => [
+    ...pastItems,
+    ...cartItems,
+  ].fold(0.0, (sum, item) => sum + _lineTotal(item));
 
   Future<void> _extractItemsFromRemarks() async {
     final text = overallRemarksController.text.trim();
@@ -373,8 +378,10 @@ class _CartPageState extends State<CartPage> {
 
     // ── Guard: fullMenu must be populated for accurate matching ──────────────
     if (widget.fullMenu.isEmpty) {
-      debugPrint('[CartPage] ⚠️ fullMenu is EMPTY — cannot match items. '
-          'Make sure CartPage is called with the complete menu list.');
+      debugPrint(
+        '[CartPage] ⚠️ fullMenu is EMPTY — cannot match items. '
+        'Make sure CartPage is called with the complete menu list.',
+      );
       Get.snackbar(
         'Menu Not Loaded',
         'The full menu is not available. Please go back and try again.',
@@ -396,11 +403,16 @@ class _CartPageState extends State<CartPage> {
       // Gemini prompt can disambiguate similar names (e.g. rice vs noodles).
       debugPrint('[CartPage] Extracting items from: "$text"');
       debugPrint('[CartPage] fullMenu has ${widget.fullMenu.length} items');
-      final withCategory =
-          widget.fullMenu.where((m) => (m['category'] ?? '').toString().isNotEmpty).length;
-      debugPrint('[CartPage] Items with category field: $withCategory / ${widget.fullMenu.length}');
+      final withCategory = widget.fullMenu
+          .where((m) => (m['category'] ?? '').toString().isNotEmpty)
+          .length;
+      debugPrint(
+        '[CartPage] Items with category field: $withCategory / ${widget.fullMenu.length}',
+      );
       if (widget.fullMenu.isNotEmpty) {
-        debugPrint('[CartPage] Sample: ${widget.fullMenu.take(3).map((m) => "[${m['category'] ?? ''}] ${m['name']}").join(' | ')}');
+        debugPrint(
+          '[CartPage] Sample: ${widget.fullMenu.take(3).map((m) => "[${m['category'] ?? ''}] ${m['name']}").join(' | ')}',
+        );
       }
 
       final aiService = AiOrderService();
@@ -412,7 +424,7 @@ class _CartPageState extends State<CartPage> {
         Get.snackbar(
           'No Items Found',
           'Could not match any menu items from these remarks. '
-          'Try saying the item name more clearly.',
+              'Try saying the item name more clearly.',
           duration: const Duration(seconds: 4),
         );
         return;
@@ -430,7 +442,10 @@ class _CartPageState extends State<CartPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add Identified Items?', style: TextStyle(fontFamily: fontMulishBold)),
+        title: const Text(
+          'Add Identified Items?',
+          style: TextStyle(fontFamily: fontMulishBold),
+        ),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -439,8 +454,14 @@ class _CartPageState extends State<CartPage> {
             itemBuilder: (context, i) {
               final item = newItems[i];
               return ListTile(
-                title: Text(item.item['name'], style: const TextStyle(fontFamily: fontMulishSemiBold)),
-                subtitle: Text('Qty: ${item.quantity} ${item.remarks.isNotEmpty ? "\u2022 ${item.remarks}" : ""}', style: const TextStyle(fontSize: 12)),
+                title: Text(
+                  item.item['name'],
+                  style: const TextStyle(fontFamily: fontMulishSemiBold),
+                ),
+                subtitle: Text(
+                  'Qty: ${item.quantity} ${item.remarks.isNotEmpty ? "\u2022 ${item.remarks}" : ""}',
+                  style: const TextStyle(fontSize: 12),
+                ),
                 trailing: const Icon(Icons.add_circle, color: Colors.green),
               );
             },
@@ -452,23 +473,32 @@ class _CartPageState extends State<CartPage> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1A3A5C), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1A3A5C),
+              foregroundColor: Colors.white,
+            ),
             onPressed: () {
               setState(() {
                 // We will perform a Full Sync: the remarks are the "Truth"
-                
+
                 // 1. Create a set of identified item names
-                final identifiedNames = newItems.map((ni) => ni.item['name']).toSet();
+                final identifiedNames = newItems
+                    .map((ni) => ni.item['name'])
+                    .toSet();
 
                 // 2. Update or Remove existing items
                 // We iterate backwards to safely remove items if needed
                 for (int i = cartItems.length - 1; i >= 0; i--) {
-                  final cartItemName = cartItems[i]['name'].toString().toLowerCase();
-                  
+                  final cartItemName = cartItems[i]['name']
+                      .toString()
+                      .toLowerCase();
+
                   final match = newItems.firstWhereOrNull(
-                    (ni) => ni.item['name'].toString().toLowerCase() == cartItemName
+                    (ni) =>
+                        ni.item['name'].toString().toLowerCase() ==
+                        cartItemName,
                   );
-                  
+
                   if (match != null) {
                     // Update to match remarks exactly
                     cartItems[i]['qty'] = match.quantity;
@@ -488,18 +518,20 @@ class _CartPageState extends State<CartPage> {
                 for (var ni in newItems) {
                   final niNameLower = ni.item['name'].toString().toLowerCase();
                   final alreadyHandled = cartItems.any(
-                    (ci) => ci['name'].toString().toLowerCase() == niNameLower
+                    (ci) => ci['name'].toString().toLowerCase() == niNameLower,
                   );
                   if (!alreadyHandled) {
                     final newItem = Map<String, dynamic>.from(ni.item);
                     newItem['qty'] = ni.quantity;
                     newItem['remarks'] = ni.remarks;
                     cartItems.add(newItem);
-                    _remarkControllers.add(TextEditingController(text: ni.remarks));
+                    _remarkControllers.add(
+                      TextEditingController(text: ni.remarks),
+                    );
                     _remarkExpanded.add(ni.remarks.isNotEmpty);
                   }
                 }
-                
+
                 _updatePaymentAmounts();
               });
               _notifyCartUpdated();
@@ -529,7 +561,9 @@ class _CartPageState extends State<CartPage> {
     showModalBottomSheet(
       context: context,
       isDismissible: false,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) {
           return Container(
@@ -537,11 +571,23 @@ class _CartPageState extends State<CartPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(isRecording ? 'Listening...' : isTranscribing ? 'Transcribing...' : 'Ready to listen', 
-                  style: const TextStyle(fontFamily: fontMulishBold, fontSize: 18)),
+                Text(
+                  isRecording
+                      ? 'Listening...'
+                      : isTranscribing
+                      ? 'Transcribing...'
+                      : 'Ready to listen',
+                  style: const TextStyle(
+                    fontFamily: fontMulishBold,
+                    fontSize: 18,
+                  ),
+                ),
                 const SizedBox(height: 20),
                 if (recognizedText.isNotEmpty)
-                  Text(recognizedText, style: const TextStyle(fontFamily: fontMulishSemiBold)),
+                  Text(
+                    recognizedText,
+                    style: const TextStyle(fontFamily: fontMulishSemiBold),
+                  ),
                 const SizedBox(height: 30),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -552,7 +598,9 @@ class _CartPageState extends State<CartPage> {
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isRecording ? Colors.red : Colors.green,
+                        backgroundColor: isRecording
+                            ? Colors.red
+                            : Colors.green,
                         foregroundColor: Colors.white,
                       ),
                       onPressed: () async {
@@ -728,8 +776,10 @@ class _CartPageState extends State<CartPage> {
   double get _cartItemsSubtotal =>
       cartItems.fold(0.0, (sum, item) => sum + _lineTotal(item));
 
-  int get _pastItemsQty =>
-      pastItems.fold(0, (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 0));
+  int get _pastItemsQty => pastItems.fold(
+    0,
+    (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 0),
+  );
 
   Widget _buildPastItemsSection() {
     return Column(
@@ -738,7 +788,8 @@ class _CartPageState extends State<CartPage> {
         Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () => setState(() => _pastItemsExpanded = !_pastItemsExpanded),
+            onTap: () =>
+                setState(() => _pastItemsExpanded = !_pastItemsExpanded),
             borderRadius: BorderRadius.circular(10),
             child: Container(
               margin: const EdgeInsets.fromLTRB(10, 6, 10, 4),
@@ -853,8 +904,8 @@ class _CartPageState extends State<CartPage> {
     final qty = (item['qty'] as num?)?.toInt() ?? 0;
     final price = (item['price'] as num?)?.toDouble() ?? 0;
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(left: 10, top: 4, bottom: 4),
+      padding: const EdgeInsets.only(left: 12, top: 10, bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
@@ -873,13 +924,13 @@ class _CartPageState extends State<CartPage> {
               onTap: () => incrementQty(index),
               borderRadius: BorderRadius.circular(8),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
+                padding: EdgeInsets.symmetric(vertical: 2),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item['name'] ?? '',
-                      style: const TextStyle(
+                      (item['name'] ?? '').toUpperCase(),
+                      style: TextStyle(
                         fontSize: 14,
                         fontFamily: fontMulishBold,
                         color: _navy,
@@ -916,8 +967,11 @@ class _CartPageState extends State<CartPage> {
           ),
           Container(
             decoration: BoxDecoration(
-              color: _navy,
-              borderRadius: BorderRadius.circular(20),
+              color: _orange,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(12),
+                bottomLeft: Radius.circular(12),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -928,11 +982,15 @@ class _CartPageState extends State<CartPage> {
                     width: 32,
                     height: 32,
                     alignment: Alignment.center,
-                    child: const Icon(Icons.remove, color: Colors.white, size: 18),
+                    child: const Icon(
+                      Icons.remove,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  padding: const EdgeInsets.only(left: 6, right: 12),
                   child: Text(
                     '$qty',
                     style: const TextStyle(
@@ -942,21 +1000,21 @@ class _CartPageState extends State<CartPage> {
                     ),
                   ),
                 ),
-                GestureDetector(
-                  onTap: () => incrementQty(index),
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      color: _orange,
-                      borderRadius: BorderRadius.horizontal(
-                        right: Radius.circular(20),
-                      ),
-                    ),
-                    child: const Icon(Icons.add, color: Colors.white, size: 18),
-                  ),
-                ),
+                // GestureDetector(
+                //   onTap: () => incrementQty(index),
+                //   child: Container(
+                //     width: 32,
+                //     height: 32,
+                //     alignment: Alignment.center,
+                //     decoration: const BoxDecoration(
+                //       color: _orange,
+                //       borderRadius: BorderRadius.horizontal(
+                //         right: Radius.circular(20),
+                //       ),
+                //     ),
+                //     child: const Icon(Icons.add, color: Colors.white, size: 18),
+                //   ),
+                // ),
               ],
             ),
           ),
@@ -994,53 +1052,58 @@ class _CartPageState extends State<CartPage> {
     final taxes = taxBreakdown;
 
     final scaffold = Scaffold(
-        backgroundColor: const Color(0xFFF5F6FA),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF1A3A5C),
-          elevation: 0,
-          automaticallyImplyLeading: !widget.embedded,
-          iconTheme: const IconThemeData(color: Colors.white),
-          title: Row(
-            children: [
-              const Icon(Icons.shopping_cart_outlined, color: Colors.white70, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                "Cart",
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontFamily: fontMulishSemiBold,
-                  color: Colors.white54,
-                ),
-              ),
-              const Text(
-                " — ",
-                style: TextStyle(fontSize: 15, color: Colors.white38),
-              ),
-              (!widget.tableNameEditable)
-                  ? Text(
-                      tableNameController.text,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontFamily: fontMulishBold,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Expanded(
-                      child: EditableTextField(controller: tableNameController),
-                    ),
-            ],
-          ),
-        ),
-        body: Column(
+      backgroundColor: const Color(0xFFF5F6FA),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1A3A5C),
+        elevation: 0,
+        automaticallyImplyLeading: !widget.embedded,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Row(
           children: [
-            Expanded(
-              child: (pastItems.isEmpty && cartItems.isEmpty)
-                  ? const Center(child: Text('No items in cart'))
-                  : Stack(
-                      children: [
-                        _buildCartList(),
+            const Icon(
+              Icons.shopping_cart_outlined,
+              color: Colors.white70,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              "Cart",
+              style: const TextStyle(
+                fontSize: 15,
+                fontFamily: fontMulishSemiBold,
+                color: Colors.white54,
+              ),
+            ),
+            const Text(
+              " — ",
+              style: TextStyle(fontSize: 15, color: Colors.white38),
+            ),
+            (!widget.tableNameEditable)
+                ? Text(
+                    tableNameController.text,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontFamily: fontMulishBold,
+                      color: Colors.white,
+                    ),
+                  )
+                : Expanded(
+                    child: EditableTextField(controller: tableNameController),
+                  ),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: (pastItems.isEmpty && cartItems.isEmpty)
+                ? const Center(child: Text('No items in cart'))
+                : Stack(
+                    children: [
+                      _buildCartList(),
 
-                       if(widget.showBilling) Align(
+                      if (widget.showBilling)
+                        Align(
                           alignment: Alignment.bottomRight,
                           child: Container(
                             margin: const EdgeInsets.all(22),
@@ -1048,7 +1111,10 @@ class _CartPageState extends State<CartPage> {
                               backgroundColor: const Color(0xFF1A3A5C),
                               foregroundColor: Colors.white,
                               elevation: 6,
-                              icon: const Icon(Icons.receipt_long_outlined, size: 22),
+                              icon: const Icon(
+                                Icons.receipt_long_outlined,
+                                size: 22,
+                              ),
                               label: const Text(
                                 'Billing',
                                 style: TextStyle(
@@ -1063,84 +1129,386 @@ class _CartPageState extends State<CartPage> {
                             ),
                           ),
                         ),
-                      ],
-                    ),
-            ),
-            
-            // Overall Remarks Field
-            // if (cartItems.isNotEmpty)
-            //   Container(
-            //     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            //     child: TextField(
-            //       controller: overallRemarksController,
-            //       maxLines: 12,
-            //       minLines: 5,
-            //       style: const TextStyle(
-            //         fontSize: 14,
-            //         color: Color(0xFF1A3A5C),
-            //         fontFamily: fontMulishSemiBold,
-            //       ),
-            //       decoration: InputDecoration(
-            //         labelText: "Overall Order Remarks",
-            //         labelStyle: const TextStyle(
-            //           fontSize: 12,
-            //           color: Colors.grey,
-            //           fontFamily: fontMulishMedium,
-            //         ),
-            //         hintText: "e.g. Keep it less spicy, add extra parcel boxes...",
-            //         hintStyle: TextStyle(
-            //           fontSize: 13,
-            //           color: Colors.grey.shade400,
-            //           fontFamily: fontMulishRegular,
-            //         ),
-            //         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            //         border: OutlineInputBorder(
-            //           borderRadius: BorderRadius.circular(12),
-            //           borderSide: BorderSide(color: Colors.grey.shade300),
-            //         ),
-            //         focusedBorder: OutlineInputBorder(
-            //           borderRadius: BorderRadius.circular(12),
-            //           borderSide: const BorderSide(color: Color(0xFFf57c35)),
-            //         ),
-            //         filled: true,
-            //         fillColor: Colors.white,
-            //         prefixIcon: Icon(Icons.speaker_notes, color: Colors.grey.shade400, size: 20),
-            //         suffixIcon: Row(
-            //           mainAxisSize: MainAxisSize.min,
-            //           children: [
-            //             IconButton(
-            //               icon: Icon(Icons.mic, color: Colors.red.shade400),
-            //               tooltip: 'Speak more instructions/items',
-            //               onPressed: _startVoiceOrderCart,
-            //             ),
-            //             IconButton(
-            //               icon: const Icon(Icons.auto_awesome, color: Color(0xFFf57c35)),
-            //               tooltip: 'Detect items from remarks',
-            //               onPressed: _extractItemsFromRemarks,
-            //             ),
-            //             const SizedBox(width: 8),
-            //           ],
-            //         ),
-            //       ),
-            //     ),
-            //   ),
+                    ],
+                  ),
+          ),
 
+          // Overall Remarks Field
+          // if (cartItems.isNotEmpty)
+          //   Container(
+          //     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          //     child: TextField(
+          //       controller: overallRemarksController,
+          //       maxLines: 12,
+          //       minLines: 5,
+          //       style: const TextStyle(
+          //         fontSize: 14,
+          //         color: Color(0xFF1A3A5C),
+          //         fontFamily: fontMulishSemiBold,
+          //       ),
+          //       decoration: InputDecoration(
+          //         labelText: "Overall Order Remarks",
+          //         labelStyle: const TextStyle(
+          //           fontSize: 12,
+          //           color: Colors.grey,
+          //           fontFamily: fontMulishMedium,
+          //         ),
+          //         hintText: "e.g. Keep it less spicy, add extra parcel boxes...",
+          //         hintStyle: TextStyle(
+          //           fontSize: 13,
+          //           color: Colors.grey.shade400,
+          //           fontFamily: fontMulishRegular,
+          //         ),
+          //         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          //         border: OutlineInputBorder(
+          //           borderRadius: BorderRadius.circular(12),
+          //           borderSide: BorderSide(color: Colors.grey.shade300),
+          //         ),
+          //         focusedBorder: OutlineInputBorder(
+          //           borderRadius: BorderRadius.circular(12),
+          //           borderSide: const BorderSide(color: Color(0xFFf57c35)),
+          //         ),
+          //         filled: true,
+          //         fillColor: Colors.white,
+          //         prefixIcon: Icon(Icons.speaker_notes, color: Colors.grey.shade400, size: 20),
+          //         suffixIcon: Row(
+          //           mainAxisSize: MainAxisSize.min,
+          //           children: [
+          //             IconButton(
+          //               icon: Icon(Icons.mic, color: Colors.red.shade400),
+          //               tooltip: 'Speak more instructions/items',
+          //               onPressed: _startVoiceOrderCart,
+          //             ),
+          //             IconButton(
+          //               icon: const Icon(Icons.auto_awesome, color: Color(0xFFf57c35)),
+          //               tooltip: 'Detect items from remarks',
+          //               onPressed: _extractItemsFromRemarks,
+          //             ),
+          //             const SizedBox(width: 8),
+          //           ],
+          //         ),
+          //       ),
+          //     ),
+          //   ),
           isBilling
-                ?   (pastItems.isNotEmpty || cartItems.isNotEmpty)?Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+              ? (pastItems.isNotEmpty || cartItems.isNotEmpty)
+                    ? Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
                               children: [
-                                // Payment Mode Selection
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Payment Mode Selection
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            "Payment By",
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              color: secondary_text_color,
+                                              fontFamily: fontMulishSemiBold,
+                                            ),
+                                          ),
+                                        ),
+
+                                        Row(
+                                          children: [
+                                            Radio<String>(
+                                              value: 'Cash',
+                                              groupValue: paymentMode,
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  paymentMode = value!;
+                                                  _updatePaymentAmounts();
+                                                });
+                                              },
+                                            ),
+                                            const Text(
+                                              'Cash',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: text_color,
+                                                fontFamily: fontMulishSemiBold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+
+                                        SizedBox(width: 12),
+                                        Row(
+                                          children: [
+                                            Radio<String>(
+                                              value: 'Online',
+                                              groupValue: paymentMode,
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  paymentMode = value!;
+                                                  _updatePaymentAmounts();
+                                                });
+                                              },
+                                            ),
+                                            const Text(
+                                              'Online',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: text_color,
+                                                fontFamily: fontMulishSemiBold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        SizedBox(width: 12),
+                                        Row(
+                                          children: [
+                                            Radio<String>(
+                                              value: 'Both',
+                                              groupValue: paymentMode,
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  paymentMode = value!;
+                                                  _updatePaymentAmounts();
+                                                });
+                                              },
+                                            ),
+                                            const Text(
+                                              'Both',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: text_color,
+                                                fontFamily: fontMulishSemiBold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+
+                                    const SizedBox(height: 4),
+
+                                    // Cash + Online Inputs (only if Both selected)
+                                    if (paymentMode == 'Both')
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 12.0,
+                                          top: 8,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            // Cash Amount Field
+                                            Expanded(child: SizedBox()),
+
+                                            Expanded(
+                                              child: TextField(
+                                                controller: cashController,
+                                                keyboardType:
+                                                    TextInputType.number,
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  color: secondary_text_color,
+                                                  fontFamily:
+                                                      fontMulishSemiBold,
+                                                ),
+                                                decoration: InputDecoration(
+                                                  labelText: "Cash Amount",
+                                                  labelStyle: const TextStyle(
+                                                    fontSize: 10,
+                                                    color: secondary_text_color,
+                                                    fontFamily:
+                                                        fontMulishMedium,
+                                                  ),
+                                                  hintText: "Enter %",
+                                                  hintStyle: const TextStyle(
+                                                    fontSize: 13,
+                                                    color: Colors.grey,
+                                                    fontFamily:
+                                                        fontMulishRegular,
+                                                  ),
+                                                  isDense: true,
+                                                  contentPadding:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 10,
+                                                        horizontal: 12,
+                                                      ),
+                                                  border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                    borderSide:
+                                                        const BorderSide(
+                                                          color: Colors.grey,
+                                                        ),
+                                                  ),
+                                                  focusedBorder:
+                                                      OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                              color:
+                                                                  Colors.blue,
+                                                            ),
+                                                      ),
+                                                ),
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    int cashVal =
+                                                        int.tryParse(value) ??
+                                                        0;
+                                                    if (cashVal > total)
+                                                      cashVal = total;
+                                                    cashController.text =
+                                                        cashVal.toString();
+                                                    onlineController.text =
+                                                        (total - cashVal)
+                                                            .toString();
+                                                    cashController.selection =
+                                                        TextSelection.fromPosition(
+                                                          TextPosition(
+                                                            offset:
+                                                                cashController
+                                                                    .text
+                                                                    .length,
+                                                          ),
+                                                        );
+                                                  });
+                                                },
+                                              ),
+                                            ),
+
+                                            const SizedBox(width: 8),
+
+                                            // Online Amount Field
+                                            Expanded(
+                                              child: TextField(
+                                                controller: onlineController,
+                                                keyboardType:
+                                                    TextInputType.number,
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  color: secondary_text_color,
+                                                  fontFamily:
+                                                      fontMulishSemiBold,
+                                                ),
+                                                decoration: InputDecoration(
+                                                  labelText: "Online Amount",
+                                                  labelStyle: const TextStyle(
+                                                    fontSize: 10,
+                                                    color: secondary_text_color,
+                                                    fontFamily:
+                                                        fontMulishMedium,
+                                                  ),
+                                                  hintText: "Enter %",
+                                                  hintStyle: const TextStyle(
+                                                    fontSize: 13,
+                                                    color: Colors.grey,
+                                                    fontFamily:
+                                                        fontMulishRegular,
+                                                  ),
+                                                  isDense: true,
+                                                  contentPadding:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 10,
+                                                        horizontal: 12,
+                                                      ),
+                                                  border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                    borderSide:
+                                                        const BorderSide(
+                                                          color: Colors.grey,
+                                                        ),
+                                                  ),
+                                                  focusedBorder:
+                                                      OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                              color:
+                                                                  Colors.blue,
+                                                            ),
+                                                      ),
+                                                ),
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    int onlineVal =
+                                                        int.tryParse(value) ??
+                                                        0;
+                                                    if (onlineVal > total)
+                                                      onlineVal = total;
+                                                    onlineController.text =
+                                                        onlineVal.toString();
+                                                    cashController.text =
+                                                        (total - onlineVal)
+                                                            .toString();
+                                                    onlineController.selection =
+                                                        TextSelection.fromPosition(
+                                                          TextPosition(
+                                                            offset:
+                                                                onlineController
+                                                                    .text
+                                                                    .length,
+                                                          ),
+                                                        );
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
+
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      "Subtotal",
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: secondary_text_color,
+                                        fontFamily: fontMulishSemiBold,
+                                      ),
+                                    ),
+                                    Text(
+                                      "₹${subtotal.toStringAsFixed(0)}",
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: text_color,
+                                        fontFamily: fontMulishSemiBold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                SizedBox(height: 8),
+
+                                TaxSummaryRows(breakdown: taxes),
+
+                                if (taxes.hasTax) SizedBox(height: 8),
+
+                                SizedBox(height: 6),
+
                                 Row(
                                   children: [
+                                    // Discount Percentage
                                     Expanded(
+                                      flex: 2,
                                       child: Text(
-                                        "Payment By",
+                                        "Discount",
                                         style: const TextStyle(
                                           fontSize: 14,
                                           color: secondary_text_color,
@@ -1149,570 +1517,308 @@ class _CartPageState extends State<CartPage> {
                                       ),
                                     ),
 
-                                    Row(
-                                      children: [
-                                        Radio<String>(
-                                          value: 'Cash',
-                                          groupValue: paymentMode,
-                                          onChanged: (value) {
-                                            setState(() {
-                                              paymentMode = value!;
-                                              _updatePaymentAmounts();
-                                            });
-                                          },
+                                    Expanded(
+                                      child: TextField(
+                                        controller: discountPercentController,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: secondary_text_color,
+                                          fontFamily: fontMulishSemiBold,
                                         ),
-                                        const Text(
-                                          'Cash',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: text_color,
-                                            fontFamily: fontMulishSemiBold,
+                                        decoration: InputDecoration(
+                                          labelText: "Discount %",
+                                          labelStyle: const TextStyle(
+                                            fontSize: 10,
+                                            color: secondary_text_color,
+                                            fontFamily: fontMulishMedium,
+                                          ),
+                                          hintText: "Enter %",
+                                          hintStyle: const TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey,
+                                            fontFamily: fontMulishRegular,
+                                          ),
+                                          isDense: true,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                vertical: 10,
+                                                horizontal: 12,
+                                              ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            borderSide: BorderSide(
+                                              color: Colors.grey.shade100,
+                                              width: 0.25,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            borderSide: const BorderSide(
+                                              color: primary_color,
+                                              width: 0.5,
+                                            ),
                                           ),
                                         ),
-                                      ],
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
+                                        onChanged: (value) {
+                                          setState(() {
+                                            discountPercent =
+                                                double.tryParse(value) ?? 0;
+                                            _updateDiscountFromPercent();
+                                          });
+                                        },
+                                      ),
                                     ),
-
-                                    SizedBox(width: 12),
-                                    Row(
-                                      children: [
-                                        Radio<String>(
-                                          value: 'Online',
-                                          groupValue: paymentMode,
-                                          onChanged: (value) {
-                                            setState(() {
-                                              paymentMode = value!;
-                                              _updatePaymentAmounts();
-                                            });
-                                          },
+                                    SizedBox(width: 8),
+                                    // Discount Amount
+                                    Expanded(
+                                      child: TextField(
+                                        controller: discountAmountController,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: secondary_text_color,
+                                          fontFamily: fontMulishSemiBold,
                                         ),
-                                        const Text(
-                                          'Online',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: text_color,
-                                            fontFamily: fontMulishSemiBold,
+                                        decoration: InputDecoration(
+                                          labelText: "Discount ₹",
+                                          labelStyle: const TextStyle(
+                                            fontSize: 10,
+                                            color: secondary_text_color,
+                                            fontFamily: fontMulishMedium,
+                                          ),
+                                          hintText: "Enter ₹",
+                                          hintStyle: const TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey,
+                                            fontFamily: fontMulishRegular,
+                                          ),
+                                          isDense: true,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                vertical: 10,
+                                                horizontal: 12,
+                                              ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            borderSide: const BorderSide(
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            borderSide: const BorderSide(
+                                              color: primary_color,
+                                            ),
                                           ),
                                         ),
-                                      ],
-                                    ),
-                                    SizedBox(width: 12),
-                                    Row(
-                                      children: [
-                                        Radio<String>(
-                                          value: 'Both',
-                                          groupValue: paymentMode,
-                                          onChanged: (value) {
-                                            setState(() {
-                                              paymentMode = value!;
-                                              _updatePaymentAmounts();
-                                            });
-                                          },
-                                        ),
-                                        const Text(
-                                          'Both',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: text_color,
-                                            fontFamily: fontMulishSemiBold,
-                                          ),
-                                        ),
-                                      ],
+                                        keyboardType: TextInputType.number,
+                                        onChanged: (value) {
+                                          setState(() {
+                                            discountAmount =
+                                                double.tryParse(value) ?? 0;
+                                            _updateDiscountFromAmount();
+                                          });
+                                        },
+                                      ),
                                     ),
                                   ],
                                 ),
 
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 12),
 
-                                // Cash + Online Inputs (only if Both selected)
-                                if (paymentMode == 'Both')
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      bottom: 12.0,
-                                      top: 8,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        // Cash Amount Field
-                                        Expanded(child: SizedBox()),
-
-                                        Expanded(
-                                          child: TextField(
-                                            controller: cashController,
-                                            keyboardType: TextInputType.number,
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              color: secondary_text_color,
-                                              fontFamily: fontMulishSemiBold,
-                                            ),
-                                            decoration: InputDecoration(
-                                              labelText: "Cash Amount",
-                                              labelStyle: const TextStyle(
-                                                fontSize: 10,
-                                                color: secondary_text_color,
-                                                fontFamily: fontMulishMedium,
-                                              ),
-                                              hintText: "Enter %",
-                                              hintStyle: const TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.grey,
-                                                fontFamily: fontMulishRegular,
-                                              ),
-                                              isDense: true,
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 10,
-                                                    horizontal: 12,
-                                                  ),
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                borderSide: const BorderSide(
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                              focusedBorder: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                borderSide: const BorderSide(
-                                                  color: Colors.blue,
-                                                ),
-                                              ),
-                                            ),
-                                            onChanged: (value) {
-                                              setState(() {
-                                                int cashVal =
-                                                    int.tryParse(value) ?? 0;
-                                                if (cashVal > total)
-                                                  cashVal = total;
-                                                cashController.text = cashVal
-                                                    .toString();
-                                                onlineController.text =
-                                                    (total - cashVal)
-                                                        .toString();
-                                                cashController.selection =
-                                                    TextSelection.fromPosition(
-                                                      TextPosition(
-                                                        offset: cashController
-                                                            .text
-                                                            .length,
-                                                      ),
-                                                    );
-                                              });
-                                            },
-                                          ),
-                                        ),
-
-                                        const SizedBox(width: 8),
-
-                                        // Online Amount Field
-                                        Expanded(
-                                          child: TextField(
-                                            controller: onlineController,
-                                            keyboardType: TextInputType.number,
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              color: secondary_text_color,
-                                              fontFamily: fontMulishSemiBold,
-                                            ),
-                                            decoration: InputDecoration(
-                                              labelText: "Online Amount",
-                                              labelStyle: const TextStyle(
-                                                fontSize: 10,
-                                                color: secondary_text_color,
-                                                fontFamily: fontMulishMedium,
-                                              ),
-                                              hintText: "Enter %",
-                                              hintStyle: const TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.grey,
-                                                fontFamily: fontMulishRegular,
-                                              ),
-                                              isDense: true,
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 10,
-                                                    horizontal: 12,
-                                                  ),
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                borderSide: const BorderSide(
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                              focusedBorder: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                borderSide: const BorderSide(
-                                                  color: Colors.blue,
-                                                ),
-                                              ),
-                                            ),
-                                            onChanged: (value) {
-                                              setState(() {
-                                                int onlineVal =
-                                                    int.tryParse(value) ?? 0;
-                                                if (onlineVal > total)
-                                                  onlineVal = total;
-                                                onlineController.text =
-                                                    onlineVal.toString();
-                                                cashController.text =
-                                                    (total - onlineVal)
-                                                        .toString();
-                                                onlineController.selection =
-                                                    TextSelection.fromPosition(
-                                                      TextPosition(
-                                                        offset: onlineController
-                                                            .text
-                                                            .length,
-                                                      ),
-                                                    );
-                                              });
-                                            },
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            ),
-
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  "Subtotal",
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: secondary_text_color,
-                                    fontFamily: fontMulishSemiBold,
-                                  ),
-                                ),
-                                Text(
-                                  "₹${subtotal.toStringAsFixed(0)}",
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: text_color,
-                                    fontFamily: fontMulishSemiBold,
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            SizedBox(height: 8),
-
-                            TaxSummaryRows(breakdown: taxes),
-
-                            if (taxes.hasTax) SizedBox(height: 8),
-
-                            SizedBox(height: 6),
-
-                            Row(
-                              children: [
-                                // Discount Percentage
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    "Discount",
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: secondary_text_color,
-                                      fontFamily: fontMulishSemiBold,
-                                    ),
-                                  ),
+                                // Payment Mode Radio
+                                DottedLine(
+                                  dashLength: 2,
+                                  dashGapLength: 6,
+                                  lineThickness: 1,
+                                  dashColor: Colors.black87,
                                 ),
 
-                                Expanded(
-                                  child: TextField(
-                                    controller: discountPercentController,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: secondary_text_color,
-                                      fontFamily: fontMulishSemiBold,
-                                    ),
-                                    decoration: InputDecoration(
-                                      labelText: "Discount %",
-                                      labelStyle: const TextStyle(
-                                        fontSize: 10,
-                                        color: secondary_text_color,
-                                        fontFamily: fontMulishMedium,
-                                      ),
-                                      hintText: "Enter %",
-                                      hintStyle: const TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.grey,
-                                        fontFamily: fontMulishRegular,
-                                      ),
-                                      isDense: true,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            vertical: 10,
-                                            horizontal: 12,
-                                          ),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(
-                                          color: Colors.grey.shade100,
-                                          width: 0.25,
-                                        ),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: primary_color,
-                                          width: 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    onChanged: (value) {
-                                      setState(() {
-                                        discountPercent =
-                                            double.tryParse(value) ?? 0;
-                                        _updateDiscountFromPercent();
-                                      });
-                                    },
-                                  ),
+                                const SizedBox(height: 12),
+
+                                EditableTotalRow(
+                                  total: total,
+                                  isEditing: _isEditingTotal,
+                                  controller: totalController,
+                                  onEditPressed: _startEditingTotal,
+                                  onApplyPressed: _applyManualTotal,
+                                  accentColor: primary_color,
                                 ),
-                                SizedBox(width: 8),
-                                // Discount Amount
-                                Expanded(
-                                  child: TextField(
-                                    controller: discountAmountController,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: secondary_text_color,
-                                      fontFamily: fontMulishSemiBold,
-                                    ),
-                                    decoration: InputDecoration(
-                                      labelText: "Discount ₹",
-                                      labelStyle: const TextStyle(
-                                        fontSize: 10,
-                                        color: secondary_text_color,
-                                        fontFamily: fontMulishMedium,
-                                      ),
-                                      hintText: "Enter ₹",
-                                      hintStyle: const TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.grey,
-                                        fontFamily: fontMulishRegular,
-                                      ),
-                                      isDense: true,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            vertical: 10,
-                                            horizontal: 12,
-                                          ),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: primary_color,
-                                        ),
-                                      ),
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        discountAmount =
-                                            double.tryParse(value) ?? 0;
-                                        _updateDiscountFromAmount();
-                                      });
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            // Payment Mode Radio
-                            DottedLine(
-                              dashLength: 2,
-                              dashGapLength: 6,
-                              lineThickness: 1,
-                              dashColor: Colors.black87,
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            EditableTotalRow(
-                              total: total,
-                              isEditing: _isEditingTotal,
-                              controller: totalController,
-                              onEditPressed: _startEditingTotal,
-                              onApplyPressed: _applyManualTotal,
-                              accentColor: primary_color,
-                            ),
-                            // const SizedBox(height: 8),
-                          ],
-                        ),
-                      ),
-
-                      Align(
-                        alignment: Alignment.bottomCenter,
-                        child: InkWell(
-                          onTap: () async {
-                            await _completeBilling();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            color: primary_color,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Expanded(
-                                  child: Row(
-                                    children: [
-                                      SvgPicture.asset(
-                                        icon_bill,
-                                        width: 24,
-                                        color: Colors.white,
-                                      ),
-
-                                      SizedBox(width: 6),
-
-                                      Text(
-                                        "Confirm & Billing",
-                                        style: const TextStyle(
-                                          fontSize: 15,
-                                          color: Colors.white,
-                                          fontFamily: fontMulishSemiBold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                Icon(
-                                  Icons.arrow_forward_ios,
-                                  color: Colors.white,
-                                ),
-
-                                // ElevatedButton(
-                                //   onPressed: () {
-                                //     final selectedItems = <Map<String, dynamic>>[];
-                                //     menuData.forEach((category, items) {
-                                //       selectedItems.addAll(
-                                //         items.where((item) => item['qty'] > 0),
-                                //       );
-                                //     });
-                                //
-                                //     // Send selected items to cart or callback
-                                //
-                                //
-                                //     if(widget.tableName == "Take Away"){
-                                //       Navigator.push(
-                                //         context,
-                                //         MaterialPageRoute(
-                                //           builder: (_) => CartPageForTakeAway(
-                                //             tableName: tableNameController.text.trim(),
-                                //             menuData: selectedItems,
-                                //             onConfirm: widget.onConfirm,
-                                //           ),
-                                //         ),
-                                //       );
-                                //     }else{
-                                //       Navigator.push(
-                                //         context,
-                                //         MaterialPageRoute(
-                                //           builder: (_) => CartPage(
-                                //             tableName: tableNameController.text.trim(),
-                                //             menuData: selectedItems,
-                                //             onConfirm: widget.onConfirm,
-                                //           ),
-                                //         ),
-                                //       );
-                                //     }
-                                //
-                                //
-                                //   },
-                                //   child: const Text("View Cart"),
-                                // ),
+                                // const SizedBox(height: 8),
                               ],
                             ),
                           ),
-                        ),
-                      ),
-                    ],
-                  ):SizedBox()
-                : (cartItems.isNotEmpty)?Align(
-                    alignment: Alignment.bottomCenter,
-                    child: InkWell(
-                      onTap: () {
-                        widget.onConfirm(
-                          cartItems,
-                          false,
-                          tableNameController.text,
-                          overallRemarksController.text.trim(),
-                        );
-                        _closeAfterOrder(routePops: 2);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        color: primary_color,
-                        child: Row(
-                          children: [
-                            SvgPicture.asset(
-                              icon_cooking,
-                              width: 32,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 6),
-                            const Expanded(
-                              child: Text(
-                                "Send to Kitchen",
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.white,
-                                  fontFamily: fontMulishSemiBold,
+
+                          Align(
+                            alignment: Alignment.bottomCenter,
+                            child: InkWell(
+                              onTap: () async {
+                                await _completeBilling();
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                color: primary_color,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          SvgPicture.asset(
+                                            icon_bill,
+                                            width: 24,
+                                            color: Colors.white,
+                                          ),
+
+                                          SizedBox(width: 6),
+
+                                          Text(
+                                            "Confirm & Billing",
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              color: Colors.white,
+                                              fontFamily: fontMulishSemiBold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    Icon(
+                                      Icons.arrow_forward_ios,
+                                      color: Colors.white,
+                                    ),
+
+                                    // ElevatedButton(
+                                    //   onPressed: () {
+                                    //     final selectedItems = <Map<String, dynamic>>[];
+                                    //     menuData.forEach((category, items) {
+                                    //       selectedItems.addAll(
+                                    //         items.where((item) => item['qty'] > 0),
+                                    //       );
+                                    //     });
+                                    //
+                                    //     // Send selected items to cart or callback
+                                    //
+                                    //
+                                    //     if(widget.tableName == "Take Away"){
+                                    //       Navigator.push(
+                                    //         context,
+                                    //         MaterialPageRoute(
+                                    //           builder: (_) => CartPageForTakeAway(
+                                    //             tableName: tableNameController.text.trim(),
+                                    //             menuData: selectedItems,
+                                    //             onConfirm: widget.onConfirm,
+                                    //           ),
+                                    //         ),
+                                    //       );
+                                    //     }else{
+                                    //       Navigator.push(
+                                    //         context,
+                                    //         MaterialPageRoute(
+                                    //           builder: (_) => CartPage(
+                                    //             tableName: tableNameController.text.trim(),
+                                    //             menuData: selectedItems,
+                                    //             onConfirm: widget.onConfirm,
+                                    //           ),
+                                    //         ),
+                                    //       );
+                                    //     }
+                                    //
+                                    //
+                                    //   },
+                                    //   child: const Text("View Cart"),
+                                    // ),
+                                  ],
                                 ),
                               ),
                             ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Subtotal',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.white.withValues(alpha: 0.85),
-                                    fontFamily: fontMulishRegular,
-                                  ),
-                                ),
-                                Text(
-                                  '₹${_cartItemsSubtotal.toStringAsFixed(0)}',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.white,
-                                    fontFamily: fontMulishBold,
-                                  ),
-                                ),
-                              ],
+                          ),
+                        ],
+                      )
+                    : SizedBox()
+              : (cartItems.isNotEmpty)
+              ? Align(
+                  alignment: Alignment.bottomCenter,
+                  child: InkWell(
+                    onTap: () {
+                      widget.onConfirm(
+                        cartItems,
+                        false,
+                        tableNameController.text,
+                        overallRemarksController.text.trim(),
+                      );
+                      _closeAfterOrder(routePops: 2);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      color: primary_color,
+                      child: Row(
+                        children: [
+                          SvgPicture.asset(
+                            icon_cooking,
+                            width: 32,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 6),
+                          const Expanded(
+                            child: Text(
+                              "Send to Kitchen",
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.white,
+                                fontFamily: fontMulishSemiBold,
+                              ),
                             ),
-                            const SizedBox(width: 8),
-                            const Icon(
-                              Icons.arrow_forward_ios,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                          ],
-                        ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Subtotal',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                  fontFamily: fontMulishRegular,
+                                ),
+                              ),
+                              Text(
+                                '₹${_cartItemsSubtotal.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                  fontFamily: fontMulishBold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.arrow_forward_ios,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ],
                       ),
                     ),
-                  ):SizedBox(),
-          ],
-        ),
-      );
+                  ),
+                )
+              : SizedBox(),
+        ],
+      ),
+    );
 
     if (widget.embedded) return scaffold;
 
@@ -2152,7 +2258,8 @@ class _CartPageState extends State<CartPage> {
 
                                     TaxSummaryRows(breakdown: taxBreakdown),
 
-                                    if (taxBreakdown.hasTax) const SizedBox(height: 8),
+                                    if (taxBreakdown.hasTax)
+                                      const SizedBox(height: 8),
 
                                     const SizedBox(height: 6),
 
