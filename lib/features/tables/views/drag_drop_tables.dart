@@ -124,15 +124,18 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         .scoped('tables')
         .orderBy('createdAt', descending: false)
         .snapshots()
-        .listen((querySnapshot) {
-          Map<String, List<List<Map<String, dynamic>>>> updatedTables = {};
-          final Map<String, List<int>> updatedFirestoreGroupIndices = {};
+        .listen(_onTablesSnapshot);
+  }
 
-          final Map<String, Timestamp?> updatedCreatedAt = {};
-          final Map<String, bool> updatedIsPaid = {};
-          final Map<String, String> updatedDocIds = {};
+  void _onTablesSnapshot(QuerySnapshot<Map<String, dynamic>> querySnapshot) {
+    Map<String, List<List<Map<String, dynamic>>>> updatedTables = {};
+    final Map<String, List<int>> updatedFirestoreGroupIndices = {};
 
-          for (var doc in querySnapshot.docs) {
+    final Map<String, Timestamp?> updatedCreatedAt = {};
+    final Map<String, bool> updatedIsPaid = {};
+    final Map<String, String> updatedDocIds = {};
+
+    for (var doc in querySnapshot.docs) {
             final tableName = doc['name'] as String;
             final data = doc.data();
             updatedCreatedAt[tableName] = data['createdAt'] as Timestamp?;
@@ -224,22 +227,26 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             );
           }
 
-          setState(() {
-            tables = updatedTables;
-            _firestoreGroupIndices
-              ..clear()
-              ..addAll(updatedFirestoreGroupIndices);
-            tableCreatedAt
-              ..clear()
-              ..addAll(updatedCreatedAt);
-            tableIsPaid
-              ..clear()
-              ..addAll(updatedIsPaid);
-            tableDocIds
-              ..clear()
-              ..addAll(updatedDocIds);
-          });
-        });
+    void applySnapshot() {
+      if (!mounted) return;
+      setState(() {
+        tables = updatedTables;
+        _firestoreGroupIndices
+          ..clear()
+          ..addAll(updatedFirestoreGroupIndices);
+        tableCreatedAt
+          ..clear()
+          ..addAll(updatedCreatedAt);
+        tableIsPaid
+          ..clear()
+          ..addAll(updatedIsPaid);
+        tableDocIds
+          ..clear()
+          ..addAll(updatedDocIds);
+      });
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => applySnapshot());
   }
 
   // Load menu data from Firestore
@@ -302,6 +309,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         groups: groups,
         isBillPaid: isBillPaid,
         overallRemarks: overallRemarks,
+        docId: tableDocIds[tableName],
       );
     } catch (e) {
       print("ERROR: Failed to update Firestore: $e");
@@ -1078,6 +1086,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               menuList: menu,
               tableName: nextName,
               tableNameEditable: true,
+              existingOrderNames: tables.keys.toSet(),
               initialItems: [],
               showBilling: true,
               isFromFinalBilling: false,
@@ -1299,6 +1308,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 menuList: menu,
                 tableName: tableName,
                 tableNameEditable: false,
+                existingOrderNames: tables.keys.toSet(),
                 initialItems: [],
                 pastItems: <Map<String, dynamic>>[],
                 showBilling: !hasItems,
@@ -1372,6 +1382,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                       menuList: menu,
                       tableName: tableName,
                       tableNameEditable: false,
+                      existingOrderNames: tables.keys.toSet(),
                       initialItems: [],
                       pastItems: pastItems,
                       showBilling: !hasItems,
@@ -1472,6 +1483,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                               menuList: menu,
                               tableName: tableName,
                               tableNameEditable: false,
+                              existingOrderNames: tables.keys.toSet(),
                               initialItems: List<Map<String, dynamic>>.from(
                                 lastGroup,
                               ),
@@ -1518,19 +1530,22 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                                   menuData: merged,
                                   totalMenuList: menu,
                                   tableName: tableName,
-                                  onConfirm: (_) {},
+                                  onConfirm: (_) async {
+                                    if (isTakeAway) {
+                                      await _deleteTakeAwayAfterFinalBilling(
+                                        tableName,
+                                        docId,
+                                      );
+                                    } else {
+                                      await _clearTableAfterFinalBilling(
+                                        tableName,
+                                      );
+                                    }
+                                  },
                                 ),
                               ),
                             );
                         if (confirmedItems == null) return;
-                        if (isTakeAway) {
-                          await _deleteTakeAwayAfterFinalBilling(
-                            tableName,
-                            docId,
-                          );
-                        } else {
-                          await _clearTableAfterFinalBilling(tableName);
-                        }
                       }),
                     // PAID pill
                     if (paid)

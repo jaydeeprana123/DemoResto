@@ -5,11 +5,15 @@ import 'package:demo/features/ordering/widgets/editable_total_row.dart';
 import 'package:demo/features/ordering/widgets/tax_summary_rows.dart';
 import 'package:demo/features/settings/services/tax_settings_service.dart';
 import 'package:dotted_line/dotted_line.dart';
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import 'package:demo/features/ordering/widgets/billing_progress_dialog.dart';
+import 'package:demo/features/transactions/repositories/transactions_repository.dart';
 import 'package:demo/features/ordering/services/food_bill_pdf_service.dart';
 import 'package:demo/features/shell/shell.dart';
 import 'package:demo/features/ordering/views/menu_page.dart';
@@ -22,7 +26,8 @@ class FinalBillingView extends StatefulWidget {
   final String tableName;
   final List<Map<String, dynamic>> menuData;
   final List<Map<String, dynamic>> totalMenuList; // Passed from previous page
-  final void Function(List<Map<String, dynamic>> selectedItems) onConfirm;
+  final Future<void> Function(List<Map<String, dynamic>> selectedItems)
+      onConfirm;
 
 
 
@@ -205,7 +210,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
-          "Cart - ${widget.tableName}",
+          "Billing - ${widget.tableName}",
           style: const TextStyle(fontSize: 16, fontFamily: fontMulishBold, color: Colors.white),
         ),
         actions: [
@@ -905,57 +910,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
               Align(
                 alignment: Alignment.bottomCenter,
                 child: InkWell(
-                  onTap: () async {
-                    final cash = int.tryParse(cashController.text) ?? 0;
-                    final online = int.tryParse(onlineController.text) ?? 0;
-
-                    final confirmedItems = cartItems
-                        .map((e) => Map<String, dynamic>.from(e))
-                        .toList();
-
-                    final taxes = taxBreakdown;
-                    final taxAmount = taxes.totalTax;
-                    final txId = await addTransactionToFirestore(
-                      items: confirmedItems,
-                      tableName: widget.tableName,
-                      subtotal: subtotal.round(),
-                      tax: taxAmount,
-                      cgstPercentage: _cgstPercent,
-                      sgstPercentage: _sgstPercent,
-                      cgstAmount: taxes.cgstAmount,
-                      sgstAmount: taxes.sgstAmount,
-                      discount: discountAmount.round(),
-                      total: total,
-                      cashAmount: cash,
-                      onlineAmount: online,
-                    );
-
-                    if (context.mounted) {
-                      await FoodBillPdfService.generateAndPrintIfEnabled(
-                        context: context,
-                        data: FoodBillPdfData(
-                          tableName: widget.tableName,
-                          items: confirmedItems,
-                          subtotal: subtotal.round(),
-                          tax: taxAmount,
-                          cgstPercentage: _cgstPercent,
-                          sgstPercentage: _sgstPercent,
-                          cgstAmount: taxes.cgstAmount,
-                          sgstAmount: taxes.sgstAmount,
-                          discount: discountAmount.round(),
-                          total: total,
-                          cashAmount: cash,
-                          onlineAmount: online,
-                          invoiceNumber: txId,
-                        ),
-                      );
-                    }
-
-                    widget.onConfirm(confirmedItems);
-
-                    if (!context.mounted) return;
-                    Navigator.pop(context, confirmedItems);
-                  },
+                  onTap: _confirmAndBill,
                   child: Container(
                     margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1011,6 +966,78 @@ class _FinalBillingViewState extends State<FinalBillingView> {
 );
   }
 
+  Future<void> _confirmAndBill() async {
+    BillingProgressDialog.show(context);
+
+    final confirmedItems = cartItems
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+
+    FoodBillPdfData? receiptData;
+
+    try {
+      final cash = int.tryParse(cashController.text) ?? 0;
+      final online = int.tryParse(onlineController.text) ?? 0;
+
+      final taxes = taxBreakdown;
+      final taxAmount = taxes.totalTax;
+      final txId = await addTransactionToFirestore(
+        items: confirmedItems,
+        tableName: widget.tableName,
+        subtotal: subtotal.round(),
+        tax: taxAmount,
+        cgstPercentage: _cgstPercent,
+        sgstPercentage: _sgstPercent,
+        cgstAmount: taxes.cgstAmount,
+        sgstAmount: taxes.sgstAmount,
+        discount: discountAmount.round(),
+        total: total,
+        cashAmount: cash,
+        onlineAmount: online,
+        quiet: true,
+      );
+
+      await widget.onConfirm(confirmedItems);
+
+      receiptData = FoodBillPdfData(
+        tableName: widget.tableName,
+        items: confirmedItems,
+        subtotal: subtotal.round(),
+        tax: taxAmount,
+        cgstPercentage: _cgstPercent,
+        sgstPercentage: _sgstPercent,
+        cgstAmount: taxes.cgstAmount,
+        sgstAmount: taxes.sgstAmount,
+        discount: discountAmount.round(),
+        total: total,
+        cashAmount: cash,
+        onlineAmount: online,
+        invoiceNumber: txId,
+      );
+    } catch (e, stack) {
+      debugPrint('[FinalBillingView] Billing failed: $e\n$stack');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Billing failed: $e')),
+        );
+      }
+      return;
+    } finally {
+      if (mounted) {
+        BillingProgressDialog.hide(context);
+      }
+    }
+
+    if (!mounted) return;
+
+    final receipt = receiptData;
+    Navigator.of(context).pop(confirmedItems);
+
+    if (receipt != null) {
+      unawaited(FoodBillPdfService.openReceiptIfEnabled(receipt));
+    }
+  }
+
   Future<String?> addTransactionToFirestore({
     required List<Map<String, dynamic>> items,
     required String tableName,
@@ -1024,64 +1051,33 @@ class _FinalBillingViewState extends State<FinalBillingView> {
     required int total,
     required int cashAmount,
     required int onlineAmount,
+    bool quiet = false,
   }) async {
     try {
-      final now = DateTime.now();
-      final dateKey = DateFormat("yyyy-MM-dd").format(now);
-
-      final batch = FirebaseFirestore.instance.batch();
-
-      // 1️⃣ Add transaction
-      final txRef = FirestorePaths.scoped('transactions').doc();
-      batch.set(txRef, {
-        "table": tableName,
-        "items": items
-            .map(
-              (e) => {
-                "name": e["name"],
-                "qty": e["qty"],
-                "price": (e["price"]).round(), // convert to int
-                "total": ((e["qty"]) * (e["price"])).round(),
-              },
-            )
-            .toList(),
-        "subtotal": subtotal,
-        "tax": tax,
-        "cgstPercentage": cgstPercentage,
-        "sgstPercentage": sgstPercentage,
-        "cgstAmount": cgstAmount,
-        "sgstAmount": sgstAmount,
-        "discount": discount,
-        "total": total,
-        "cashAmount": cashAmount,
-        "onlineAmount": onlineAmount,
-        "createdAt": FieldValue.serverTimestamp(),
-      });
-
-      // 2️⃣ Update daily_stats
-      final dailyRef = FirestorePaths.scopedDoc('daily_stats', dateKey);
-      batch.set(dailyRef, {
-        "revenue": FieldValue.increment(total),
-        "totalCash": FieldValue.increment(cashAmount),
-        "totalOnline": FieldValue.increment(onlineAmount),
-        "transactions": FieldValue.increment(1),
-        "lastUpdated": FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      // 3️⃣ Update global summary
-      final summaryRef = FirestorePaths.scopedDoc('stats', 'summary');
-      batch.set(summaryRef, {
-        "totalRevenue": FieldValue.increment(total),
-        "totalTransactions": FieldValue.increment(1),
-        "lastUpdated": FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      // 4️⃣ Commit batch
-      await batch.commit();
-      Get.snackbar("Successfull", "Transaction saved successfully!");
-      return txRef.id;
+      final result = await Get.find<TransactionsRepository>().createTransaction(
+        items: items,
+        tableName: tableName,
+        subtotal: subtotal,
+        tax: tax,
+        cgstPercentage: cgstPercentage,
+        sgstPercentage: sgstPercentage,
+        cgstAmount: cgstAmount,
+        sgstAmount: sgstAmount,
+        discount: discount,
+        total: total,
+        cashAmount: cashAmount,
+        onlineAmount: onlineAmount,
+      );
+      if (result == null) {
+        if (!quiet) Get.snackbar('Error', 'Transaction not saved');
+        return null;
+      }
+      if (!quiet) {
+        Get.snackbar('Successfull', 'Transaction saved successfully!');
+      }
+      return result.billId;
     } catch (e) {
-      Get.snackbar("Error", "Transaction not saved");
+      if (!quiet) Get.snackbar('Error', 'Transaction not saved');
       return null;
     }
   }

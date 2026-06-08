@@ -7,8 +7,12 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import 'package:demo/core/utils/platform_utils.dart';
+import 'package:demo/features/ordering/services/food_bill_pdf_io.dart'
+    if (dart.library.html) 'package:demo/features/ordering/services/food_bill_pdf_io_stub.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/core/utils/tax_calculator.dart';
+import 'package:get/get.dart';
 
 class FoodBillPdfData {
   const FoodBillPdfData({
@@ -43,50 +47,162 @@ class FoodBillPdfData {
 }
 
 class FoodBillPdfService {
+  static const _restaurantAddress =
+      '05, Ground Floor, Ayesha Complex, Tandalja, Opposite JP Police Station, Diwalipura, Vadodara';
+  static const _restaurantPhone = '+91 85113 33998';
+
+  static pw.Font? _cachedFont;
+  static pw.MemoryImage? _cachedRestaurantLogo;
+  static pw.MemoryImage? _cachedPoweredByLogo;
+
+  /// Preloads PDF assets once so later bills build faster.
+  static Future<void> warmUpAssets({bool includeLogos = false}) async {
+    await _loadFont();
+    if (includeLogos) {
+      await _loadLogos();
+    }
+  }
+
+  static Future<pw.Font> _loadFont() async {
+    if (_cachedFont != null) return _cachedFont!;
+    final fontData = await rootBundle.load('assets/fonts/NotoSans-Regular.ttf');
+    _cachedFont = pw.Font.ttf(fontData);
+    return _cachedFont!;
+  }
+
+  static Future<void> _loadLogos() async {
+    if (_cachedRestaurantLogo == null) {
+      final restaurantLogoBytes = await _loadAssetBytes(
+        'assets/images/restaurant_bill_logo.png',
+      );
+      _cachedRestaurantLogo = pw.MemoryImage(restaurantLogoBytes);
+    }
+    if (_cachedPoweredByLogo == null) {
+      final poweredByLogoBytes = await _tryLoadAssetBytes(
+        'assets/images/logo.png',
+      );
+      if (poweredByLogoBytes != null) {
+        _cachedPoweredByLogo = pw.MemoryImage(poweredByLogoBytes);
+      }
+    }
+  }
+
   static Future<void> generateAndPrintIfEnabled({
     required BuildContext context,
     required FoodBillPdfData data,
+    bool showProgressDialog = true,
   }) async {
     if (!await PrintSettings.getPrintPdfEnabled()) return;
     if (!context.mounted) return;
 
     final printerType = await PrintSettings.getPrinterType();
+    final includeLogos = await PrintSettings.getBillPdfIncludeLogos();
+    await warmUpAssets(includeLogos: includeLogos);
     final pageFormat = PrintSettings.receiptPageFormat(
       printerType,
       itemCount: data.items.length,
       hasDiscount: data.discount > 0,
       hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
       hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
+      includeLogos: includeLogos,
     );
 
-    _showLoadingDialog(context, printerType);
+    if (showProgressDialog) {
+      _showLoadingDialog(context, printerType);
+    }
     try {
-      final pdfBytes = await _buildPdf(data, printerType, pageFormat);
-      if (!context.mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-
-      final sentToTvs = await _tryDirectTvsPrint(
-        pdfBytes: pdfBytes,
-        pageFormat: pageFormat,
+      await _deliverReceipt(
+        data: data,
         printerType: printerType,
-        invoiceNumber: data.invoiceNumber,
+        pageFormat: pageFormat,
+        includeLogos: includeLogos,
       );
-
-      if (!sentToTvs) {
-        await Printing.layoutPdf(
-          onLayout: (_) async => pdfBytes,
-          name: 'pos_bill_${data.invoiceNumber ?? 'receipt'}.pdf',
-          format: pageFormat,
-          usePrinterSettings: true,
-        );
-      }
     } catch (e) {
       if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+        if (showProgressDialog &&
+            Navigator.of(context, rootNavigator: true).canPop()) {
+          Navigator.of(context, rootNavigator: true).pop();
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Could not print POS receipt: $e')),
         );
       }
+    } finally {
+      if (showProgressDialog &&
+          context.mounted &&
+          Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
+  }
+
+  /// Opens/saves receipt after billing without needing a [BuildContext].
+  /// Call after navigating away so the dashboard stays visible.
+  static Future<void> openReceiptIfEnabled(FoodBillPdfData data) async {
+    if (!await PrintSettings.getPrintPdfEnabled()) return;
+
+    try {
+      final printerType = await PrintSettings.getPrinterType();
+      final includeLogos = await PrintSettings.getBillPdfIncludeLogos();
+      await warmUpAssets(includeLogos: includeLogos);
+      final pageFormat = PrintSettings.receiptPageFormat(
+        printerType,
+        itemCount: data.items.length,
+        hasDiscount: data.discount > 0,
+        hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
+        hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
+        includeLogos: includeLogos,
+      );
+      await _deliverReceipt(
+        data: data,
+        printerType: printerType,
+        pageFormat: pageFormat,
+        includeLogos: includeLogos,
+      );
+    } catch (e) {
+      Get.snackbar('Receipt', 'Could not open receipt: $e');
+    }
+  }
+
+  static Future<void> _deliverReceipt({
+    required FoodBillPdfData data,
+    required PosPrinterType printerType,
+    required PdfPageFormat pageFormat,
+    required bool includeLogos,
+  }) async {
+    final pdfBytes = await _buildPdf(
+      data,
+      printerType,
+      pageFormat,
+      includeLogos: includeLogos,
+    );
+    final fileName = 'pos_bill_${data.invoiceNumber ?? 'receipt'}.pdf';
+
+    if (isDesktopPlatform) {
+      final path = await writeReceiptPdfFile(pdfBytes, fileName);
+      await openReceiptPdfFile(path);
+      Get.snackbar(
+        'Receipt saved',
+        'Documents/Flavor Flow Receipts/$fileName',
+        duration: const Duration(seconds: 3),
+      );
+      return;
+    }
+
+    final sentToTvs = await _tryDirectTvsPrint(
+      pdfBytes: pdfBytes,
+      pageFormat: pageFormat,
+      printerType: printerType,
+      invoiceNumber: data.invoiceNumber,
+    );
+
+    if (!sentToTvs) {
+      await Printing.layoutPdf(
+        onLayout: (_) async => pdfBytes,
+        name: fileName,
+        format: pageFormat,
+        usePrinterSettings: true,
+      );
     }
   }
 
@@ -98,6 +214,7 @@ class FoodBillPdfService {
     String? invoiceNumber,
   }) async {
     if (printerType != PosPrinterType.tvs80) return false;
+    if (isDesktopPlatform) return false;
 
     try {
       final printers = await Printing.listPrinters();
@@ -123,6 +240,7 @@ class FoodBillPdfService {
     }
   }
 
+  /// Saves the PDF to disk and opens it in the default viewer (Windows/macOS/Linux).
   static void _showLoadingDialog(
     BuildContext context,
     PosPrinterType printerType,
@@ -173,19 +291,11 @@ class FoodBillPdfService {
   static Future<Uint8List> _buildPdf(
     FoodBillPdfData data,
     PosPrinterType printerType,
-    PdfPageFormat pageFormat,
-  ) async {
+    PdfPageFormat pageFormat, {
+    required bool includeLogos,
+  }) async {
     final pdf = pw.Document();
-    final fontData = await rootBundle.load('assets/fonts/NotoSans-Regular.ttf');
-    final regular = pw.Font.ttf(fontData);
-
-    final restaurantLogoBytes = await _loadAssetBytes(
-      'assets/images/restaurant_bill_logo.png',
-    );
-    final poweredByLogoBytes = await _loadAssetBytes('assets/images/logo.png');
-
-    final restaurantLogo = pw.MemoryImage(restaurantLogoBytes);
-    final poweredByLogo = pw.MemoryImage(poweredByLogoBytes);
+    final regular = await _loadFont();
 
     final now = DateTime.now();
     final invoiceNo = _formatInvoiceNumber(data.invoiceNumber, now);
@@ -214,27 +324,49 @@ class FoodBillPdfService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
-              pw.Center(
-                child: pw.Image(
-                  restaurantLogo,
-                  width: logoWidth * PdfPageFormat.mm,
-                  fit: pw.BoxFit.contain,
+              if (includeLogos && _cachedRestaurantLogo != null) ...[
+                pw.Center(
+                  child: pw.Image(
+                    _cachedRestaurantLogo!,
+                    width: logoWidth * PdfPageFormat.mm,
+                    fit: pw.BoxFit.contain,
+                  ),
                 ),
-              ),
-              pw.SizedBox(height: 6),
+                pw.SizedBox(height: 6),
+              ],
               pw.Center(
                 child: pw.Text(
-                  'FOOD BILL',
+                  'AL - HAADI',
                   style: labelStyle(size: headerSize, isBold: true),
                 ),
               ),
-              pw.SizedBox(height: 8),
+              pw.SizedBox(height: 4),
+              pw.Center(
+                child: pw.Text(
+                  _restaurantAddress,
+                  textAlign: pw.TextAlign.center,
+                  style: labelStyle(size: baseSize - 1),
+                ),
+              ),
+              pw.SizedBox(height: 2),
+              pw.Center(
+                child: pw.Text(
+                  _restaurantPhone,
+                  style: labelStyle(size: baseSize - 1),
+                ),
+              ),
+              pw.SizedBox(height: 6),
               pw.Text('Table: ${data.tableName}', style: labelStyle()),
               pw.SizedBox(height: 4),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('Invoice #: $invoiceNo', style: labelStyle()),
+                  pw.Expanded(
+                    child: pw.Text(
+                      'Bill ID: $invoiceNo',
+                      style: labelStyle(isBold: true),
+                    ),
+                  ),
                   pw.Text('Date $dateText', style: labelStyle()),
                 ],
               ),
@@ -308,12 +440,14 @@ class FoodBillPdfService {
                       'Powered By',
                       style: labelStyle(size: baseSize - 1),
                     ),
-                    pw.SizedBox(height: 4),
-                    pw.Image(
-                      poweredByLogo,
-                      width: isNarrow ? 22 : 28,
-                      height: isNarrow ? 22 : 28,
-                    ),
+                    if (includeLogos && _cachedPoweredByLogo != null) ...[
+                      pw.SizedBox(height: 4),
+                      pw.Image(
+                        _cachedPoweredByLogo!,
+                        width: isNarrow ? 22 : 28,
+                        height: isNarrow ? 22 : 28,
+                      ),
+                    ],
                     pw.SizedBox(height: 2),
                     pw.Text(
                       'Flavor Flow',
@@ -332,13 +466,30 @@ class FoodBillPdfService {
   }
 
   static Future<Uint8List> _loadAssetBytes(String path) async {
-    final data = await rootBundle.load(path);
-    return data.buffer.asUint8List();
+    final data = await _tryLoadAssetBytes(path);
+    if (data == null) {
+      throw FlutterError('Unable to load asset: $path');
+    }
+    return data;
+  }
+
+  static Future<Uint8List?> _tryLoadAssetBytes(String path) async {
+    try {
+      final data = await rootBundle.load(path);
+      return data.buffer.asUint8List();
+    } catch (_) {
+      return null;
+    }
   }
 
   static String _formatInvoiceNumber(String? id, DateTime now) {
-    if (id != null && id.length >= 4) {
-      return id.substring(id.length - 4).toUpperCase();
+    if (id != null && id.trim().isNotEmpty) {
+      final trimmed = id.trim();
+      if (trimmed.startsWith('BILL-')) return trimmed;
+      if (trimmed.length >= 4) {
+        return trimmed.substring(trimmed.length - 4).toUpperCase();
+      }
+      return trimmed.toUpperCase();
     }
     return DateFormat('HHmm').format(now);
   }
@@ -357,58 +508,87 @@ class FoodBillPdfService {
     );
   }
 
+  static ({double qty, double rate, double amt}) _columnWidths(bool isNarrow) {
+    return (
+      qty: isNarrow ? 18.0 : 22.0,
+      rate: isNarrow ? 32.0 : 38.0,
+      amt: isNarrow ? 36.0 : 42.0,
+    );
+  }
+
+  static pw.Widget _itemTableRow({
+    required pw.TextStyle Function({double? size, bool isBold}) labelStyle,
+    required bool isNarrow,
+    required double headerSize,
+    pw.Widget? itemCell,
+    String? qty,
+    String? rate,
+    String? amt,
+    bool numericBold = false,
+    bool amtBold = false,
+    double verticalPadding = 2,
+  }) {
+    final widths = _columnWidths(isNarrow);
+
+    pw.Widget numericCell(String text, double width, {bool isBold = false}) {
+      return pw.SizedBox(
+        width: width,
+        child: pw.Align(
+          alignment: pw.Alignment.centerRight,
+          child: pw.Text(
+            text,
+            style: labelStyle(
+              size: headerSize,
+              isBold: isBold,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return pw.Padding(
+      padding: pw.EdgeInsets.symmetric(vertical: verticalPadding),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Expanded(
+            flex: 4,
+            child: itemCell ??
+                pw.SizedBox(
+                  height: headerSize + 2,
+                ),
+          ),
+          if (qty != null) numericCell(qty, widths.qty, isBold: numericBold),
+          if (rate != null) numericCell(rate, widths.rate, isBold: numericBold),
+          if (amt != null)
+            numericCell(
+              amt,
+              widths.amt,
+              isBold: amtBold || numericBold,
+            ),
+        ],
+      ),
+    );
+  }
+
   static pw.Widget _tableHeader(
     pw.TextStyle Function({double? size, bool isBold}) labelStyle, {
     required bool isNarrow,
   }) {
     final headerSize = isNarrow ? 6.0 : 7.0;
-    final qtyWidth = isNarrow ? 18.0 : 22.0;
-    final rateWidth = isNarrow ? 32.0 : 38.0;
-    final amtWidth = isNarrow ? 36.0 : 42.0;
 
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2),
-      child: pw.Row(
-        children: [
-          pw.Expanded(
-            flex: 4,
-            child: pw.Text(
-              'ITEM',
-              style: labelStyle(size: headerSize, isBold: true),
-            ),
-          ),
-          pw.SizedBox(
-            width: qtyWidth,
-            child: pw.Align(
-              alignment: pw.Alignment.centerRight,
-              child: pw.Text(
-                'QTY',
-                style: labelStyle(size: headerSize, isBold: true),
-              ),
-            ),
-          ),
-          pw.SizedBox(
-            width: rateWidth,
-            child: pw.Align(
-              alignment: pw.Alignment.centerRight,
-              child: pw.Text(
-                'RATE',
-                style: labelStyle(size: headerSize, isBold: true),
-              ),
-            ),
-          ),
-          pw.SizedBox(
-            width: amtWidth,
-            child: pw.Align(
-              alignment: pw.Alignment.centerRight,
-              child: pw.Text(
-                'AMT',
-                style: labelStyle(size: headerSize, isBold: true),
-              ),
-            ),
-          ),
-        ],
+    return _itemTableRow(
+      labelStyle: labelStyle,
+      isNarrow: isNarrow,
+      headerSize: headerSize,
+      itemCell: pw.Text(
+        'ITEM',
+        style: labelStyle(size: headerSize, isBold: true),
       ),
+      qty: 'QTY',
+      rate: 'RATE',
+      amt: 'AMT',
+      numericBold: true,
     );
   }
 
@@ -423,51 +603,22 @@ class FoodBillPdfService {
         0;
     final lineTotal = price * qty;
     final name = item['name']?.toString() ?? '-';
-    final qtyWidth = isNarrow ? 18.0 : 22.0;
-    final rateWidth = isNarrow ? 32.0 : 38.0;
-    final amtWidth = isNarrow ? 36.0 : 42.0;
+    final rowSize = isNarrow ? 7.0 : 8.0;
 
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 3),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(name, style: labelStyle(), maxLines: 2),
-          pw.SizedBox(height: 2),
-          pw.Row(
-            children: [
-               pw.Spacer(),
-              pw.SizedBox(
-                width: qtyWidth,
-                child: pw.Align(
-                  alignment: pw.Alignment.centerRight,
-                  child: pw.Text('$qty', style: labelStyle()),
-                ),
-              ),
-              pw.SizedBox(
-                width: rateWidth,
-                child: pw.Align(
-                  alignment: pw.Alignment.centerRight,
-                  child: pw.Text(
-                    _formatMoney(price),
-                    style: labelStyle(),
-                  ),
-                ),
-              ),
-              pw.SizedBox(
-                width: amtWidth,
-                child: pw.Align(
-                  alignment: pw.Alignment.centerRight,
-                  child: pw.Text(
-                    _formatMoney(lineTotal),
-                    style: labelStyle(isBold: true),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+    return _itemTableRow(
+      labelStyle: labelStyle,
+      isNarrow: isNarrow,
+      headerSize: rowSize,
+      verticalPadding: isNarrow ? 2 : 3,
+      itemCell: pw.Text(
+        name,
+        style: labelStyle(size: rowSize),
+        maxLines: 3,
       ),
+      qty: '$qty',
+      rate: _formatMoney(price),
+      amt: _formatMoney(lineTotal),
+      amtBold: true,
     );
   }
 

@@ -26,10 +26,12 @@ extension PosPrinterTypeLabel on PosPrinterType {
 class PrintSettings {
   static const _keyPrintPdfEnabled = 'print_pdf_enabled';
   static const _keyPrinterType = 'pos_printer_type';
+  static const _keyBillPdfIncludeLogos = 'bill_pdf_include_logos';
 
   static final ValueNotifier<bool> printPdfEnabled = ValueNotifier(false);
   static final ValueNotifier<PosPrinterType> printerType =
       ValueNotifier(PosPrinterType.tvs80);
+  static final ValueNotifier<bool> billPdfIncludeLogos = ValueNotifier(false);
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -37,6 +39,8 @@ class PrintSettings {
     printerType.value = _parsePrinterType(
       prefs.getString(_keyPrinterType),
     );
+    billPdfIncludeLogos.value =
+        prefs.getBool(_keyBillPdfIncludeLogos) ?? false;
   }
 
   static Future<bool> getPrintPdfEnabled() async {
@@ -61,6 +65,17 @@ class PrintSettings {
     printerType.value = value;
   }
 
+  static Future<bool> getBillPdfIncludeLogos() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyBillPdfIncludeLogos) ?? false;
+  }
+
+  static Future<void> setBillPdfIncludeLogos(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyBillPdfIncludeLogos, value);
+    billPdfIncludeLogos.value = value;
+  }
+
   static PosPrinterType _parsePrinterType(String? raw) {
     return PosPrinterType.values.firstWhere(
       (e) => e.name == raw,
@@ -76,17 +91,20 @@ class PrintSettings {
     bool hasDiscount = false,
     bool hasPaymentLines = false,
     bool hasTaxLines = false,
+    bool includeLogos = false,
   }) {
     final widthMm = type == PosPrinterType.narrow58 ? 57.0 : 80.0;
     final margins = _marginsFor(type);
 
-    var heightMm = 102.0;
+    var heightMm = includeLogos ? 102.0 : 88.0;
+    heightMm += 14.0; // restaurant address + phone
     heightMm += itemCount * 12.0;
     heightMm += 30.0;
     if (hasTaxLines) heightMm += 12.0;
     if (hasDiscount) heightMm += 6.0;
     if (hasPaymentLines) heightMm += 12.0;
     heightMm += 24.0;
+    if (!includeLogos) heightMm -= 10.0;
 
     return PdfPageFormat(
       widthMm * PdfPageFormat.mm,

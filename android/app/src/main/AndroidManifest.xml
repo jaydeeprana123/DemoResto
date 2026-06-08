@@ -6,7 +6,7 @@
 
 
     <application
-        android:label="demo"
+        android:label="Flavor Flow"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">

@@ -8,6 +8,7 @@ import 'package:demo/services/restaurant_agent_service.dart';
 import 'package:demo/models/agent_response.dart';
 
 import 'package:demo/core/utils/table_name_utils.dart';
+import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/features/ordering/views/cart_page.dart';
 import 'package:demo/features/ordering/views/final_billing_view.dart';
 import 'package:demo/features/ordering/utils/menu_item_variants.dart';
@@ -43,6 +44,8 @@ class MenuPage extends StatefulWidget {
   /// Clears dine-in table items or deletes a take-away order (no transaction).
   final Future<void> Function(String tableName)? onDeleteTable;
 
+  final Set<String> existingOrderNames;
+
   const MenuPage({
     required this.onConfirm,
     required this.menuList,
@@ -51,6 +54,7 @@ class MenuPage extends StatefulWidget {
     required this.showBilling,
     required this.isFromFinalBilling,
     this.onDeleteTable,
+    this.existingOrderNames = const {},
     this.initialItems = const [],
     this.pastItems = const [],
     Key? key,
@@ -287,7 +291,7 @@ class _MenuPageState extends State<MenuPage>
   Widget _buildCategorySidebar(List<String> categories, int activeIndex) {
     if (categories.isEmpty) return const SizedBox.shrink();
 
-    final sidebarWidth = kIsWeb ? 132.0 : 108.0;
+    final sidebarWidth = useWideMenuLayout ? 132.0 : 108.0;
 
     return Container(
       width: sidebarWidth,
@@ -1701,7 +1705,8 @@ class _MenuPageState extends State<MenuPage>
     return total;
   }
 
-  bool get _useWebSideCart => kIsWeb && !widget.isFromFinalBilling;
+  bool get _useWebSideCart =>
+      useWideMenuLayout && !widget.isFromFinalBilling;
 
   List<Map<String, dynamic>> _getSelectedItems() {
     final selectedItems = <Map<String, dynamic>>[];
@@ -1838,22 +1843,39 @@ class _MenuPageState extends State<MenuPage>
           menuData: merged,
           totalMenuList: widget.menuList,
           tableName: tableNameController.text.trim(),
-          onConfirm: (_) {},
+          onConfirm: (confirmedItems) => widget.onConfirm(
+            confirmedItems,
+            false,
+            tableNameController.text.trim(),
+            _overallRemarks,
+            fromFinalBilling: true,
+          ),
         ),
       ),
     );
 
     if (!mounted || confirmedItems == null) return;
 
-    await widget.onConfirm(
-      confirmedItems,
-      false,
-      tableNameController.text.trim(),
-      _overallRemarks,
-      fromFinalBilling: true,
-    );
-
     if (mounted) Navigator.pop(context);
+  }
+
+  void _popMenuAfterBilling() {
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    }
+  }
+
+  void _popCartAndMenuAfterBilling() {
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    }
+    if (navigator.canPop()) {
+      navigator.pop();
+    }
   }
 
   void _openCartPage() {
@@ -1877,6 +1899,8 @@ class _MenuPageState extends State<MenuPage>
           overallRemarks: _overallRemarks,
           onConfirm: widget.onConfirm,
           showBilling: widget.showBilling,
+          existingOrderNames: widget.existingOrderNames,
+          onBillingFinished: _popCartAndMenuAfterBilling,
         ),
       ),
     ).then((onValue) {
@@ -1940,7 +1964,9 @@ class _MenuPageState extends State<MenuPage>
       overallRemarks: _overallRemarks,
       onConfirm: widget.onConfirm,
       showBilling: widget.showBilling,
+      existingOrderNames: widget.existingOrderNames,
       onCartUpdated: _syncFromCart,
+      onBillingFinished: _popMenuAfterBilling,
     );
   }
 
@@ -2056,12 +2082,12 @@ class _MenuPageState extends State<MenuPage>
               onPressed: _openFinalBilling,
               tooltip: 'Billing',
             ),
-          if (!isNameEdit)
-            IconButton(
-              icon: const Icon(Icons.mic, color: Colors.redAccent),
-              onPressed: _startVoiceOrder,
-              tooltip: "Voice Order",
-            ),
+          // if (!isNameEdit)
+          //   IconButton(
+          //     icon: const Icon(Icons.mic, color: Colors.redAccent),
+          //     onPressed: _startVoiceOrder,
+          //     tooltip: "Voice Order",
+          //   ),
           if (!isNameEdit)
             IconButton(
               icon: Icon(

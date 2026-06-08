@@ -1,3 +1,4 @@
+import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/features/menu_setup/menu_setup.dart';
 import 'package:demo/features/settings/controllers/settings_controller.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
@@ -321,7 +322,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                     subtitle: Text(
-                      'Print POS receipt on Confirm & Billing',
+                      isDesktopPlatform
+                          ? 'Opens the bill PDF in your default viewer after billing'
+                          : 'Print POS receipt on Confirm & Billing',
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                     ),
                     value: _settings.printPdfEnabled.value,
@@ -383,6 +386,40 @@ class _SettingsPageState extends State<SettingsPage> {
                           await _settings.setPrinterType(value);
                         },
                       ),
+                    ),
+                  ),
+                if (_settings.printPdfEnabled.value)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: SwitchListTile(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      secondary: CircleAvatar(
+                        backgroundColor: _orange.withOpacity(0.12),
+                        child: const Icon(Icons.image_outlined, color: _orange),
+                      ),
+                      title: const Text(
+                        'Logos on bill PDF',
+                        style: TextStyle(
+                          fontFamily: fontMulishSemiBold,
+                          fontSize: 15,
+                          color: _navy,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Off is faster — text-only bill header and footer',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                      value: _settings.billPdfIncludeLogos.value,
+                      activeColor: _orange,
+                      onChanged: (value) async {
+                        if (value == null) return;
+                        await _settings.setBillPdfIncludeLogos(value);
+                      },
                     ),
                   ),
                 const SizedBox(height: 20),
