@@ -12,33 +12,6 @@ import 'package:demo/Styles/my_font.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 const List<Map<String, dynamic>> _alHaadiMenu = [
   {
-    'category': 'Hamara Specials',
-    'items': [
-      {'name': 'Alfaham Tukda Rice', 'halfPrice': 450.0, 'fullPrice': 800.0},
-      {'name': 'Fish Tukda Rice', 'price': 800.0},
-      {'name': 'Arabic Rice', 'halfPrice': 220.0, 'fullPrice': 320.0},
-      {'name': 'Char Bag Rice', 'halfPrice': 220.0, 'fullPrice': 320.0},
-      {'name': 'Garden Rice', 'halfPrice': 220.0, 'fullPrice': 320.0},
-      {'name': 'Afghani Dum Rice', 'halfPrice': 270.0, 'fullPrice': 370.0},
-      {'name': 'Gulmarg Rice', 'halfPrice': 270.0, 'fullPrice': 370.0},
-      {'name': 'Helmet Rice', 'price': 220.0},
-      {'name': 'Tripple Rice', 'price': 320.0},
-      {'name': 'Chicken Tikka Rice', 'price': 250.0},
-      {'name': 'Popcorn Rice', 'price': 220.0},
-    ],
-  },
-  {
-    'category': 'Soups',
-    'items': [
-      {'name': 'Chicken Hot & Sour Soup', 'price': 120.0},
-      {'name': 'Chicken Garlic Soup', 'price': 120.0},
-      {'name': 'Chicken Manchaw Soup', 'price': 120.0},
-      {'name': 'Chicken Ginger Soup', 'price': 120.0},
-      {'name': 'Chicken Thukpa Soup', 'price': 130.0},
-      {'name': 'Lung Fung Soup', 'price': 130.0},
-    ],
-  },
-  {
     'category': 'Crispy Starters',
     'items': [
       {'name': 'Crispy Chicken Popcorn (14 pcs)', 'price': 130.0},
@@ -52,6 +25,54 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Crispy Chicken Drumsticks (2 pcs)', 'price': 130.0},
     ],
   },
+
+  {
+    'category': 'Crispy Shawarmas',
+    'items': [
+      {'name': 'Crispy Samoli (Bun)', 'price': 70.0},
+      {'name': 'Crispy Lebnani (Chapati)', 'price': 80.0},
+      {'name': 'Crispy Khaboos (Pita)', 'price': 90.0},
+      {'name': 'Crispy Open Shawarma (450ml)', 'price': 190.0},
+
+    ],
+  },
+  {
+    'category': 'Regular Shawarmas',
+    'items': [
+      {'name': 'Samoli (Bun)', 'price': 60.0},
+      {'name': 'Lebnani (Chapati)', 'price': 70.0},
+      {'name': 'Khaboos (Pita)', 'price': 80.0},
+      {'name': 'Open Shawarma (450ml)', 'price': 190.0},
+    ],
+  },
+
+
+  {
+    'category': 'Crispy Burgers',
+    'items': [
+      {'name': 'Veg Burger', 'price': 70.0},
+      {'name': 'Crispy Chicken Burger', 'price': 80.0},
+      {'name': 'Crispy Peri Peri Burger', 'price': 90.0},
+      {'name': 'Crispy Makhni Burger', 'price': 90.0},
+      {'name': 'Crispy Tandoori Burger', 'price': 90.0},
+      {'name': 'Crispy Schezwan Burger', 'price': 90.0},
+      {'name': 'Crispy Cheezy Burger', 'price': 100.0},
+      {'name': 'Crispy Tangy Burger', 'price': 100.0},
+      {'name': 'Al Haadi Special Burger', 'price': 130.0},
+    ],
+  },
+
+
+  {
+    'category': 'French Fries',
+    'items': [
+      {'name': 'Salted Fries', 'price': 70.0},
+      {'name': 'Peri Peri Fries', 'price': 80.0},
+      {'name': 'Cheezy Fries', 'price': 90.0},
+    ],
+  },
+
+
   {
     'category': 'Chinese Starters',
     'items': [
@@ -64,6 +85,8 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Popcorn Chilly', 'halfPrice': 170.0, 'fullPrice': 270.0},
     ],
   },
+
+
   {
     'category': 'Tikka Khazana',
     'items': [
@@ -78,6 +101,8 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Fish Tikka', 'price': 300.0},
     ],
   },
+
+
   {
     'category': 'Chicken Alfaham',
     'items': [
@@ -92,8 +117,23 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Peri Peri Grill Chicken', 'halfPrice': 320.0, 'fullPrice': 570.0},
     ],
   },
+
+
   {
-    'category': 'Chicken Rice',
+    'category': 'Soups',
+    'items': [
+      {'name': 'Chicken Hot & Sour Soup', 'price': 120.0},
+      {'name': 'Chicken Garlic Soup', 'price': 120.0},
+      {'name': 'Chicken Manchaw Soup', 'price': 120.0},
+      {'name': 'Chicken Ginger Soup', 'price': 120.0},
+      {'name': 'Chicken Thukpa Soup', 'price': 130.0},
+      {'name': 'Lung Fung Soup', 'price': 130.0},
+    ],
+  },
+
+
+  {
+    'category': 'Rice',
     'items': [
       {'name': 'Chicken Fried Rice', 'halfPrice': 110.0, 'fullPrice': 170.0},
       {'name': 'Chicken Hakka Rice', 'halfPrice': 120.0, 'fullPrice': 190.0},
@@ -108,8 +148,10 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Egg Fried Rice', 'halfPrice': 70.0, 'fullPrice': 120.0},
     ],
   },
+
+
   {
-    'category': 'Chicken Noodles',
+    'category': 'Noodles',
     'items': [
       {'name': 'Chicken Fried Noodles', 'halfPrice': 110.0, 'fullPrice': 170.0},
       {'name': 'Chicken Hakka Noodles', 'halfPrice': 120.0, 'fullPrice': 190.0},
@@ -124,6 +166,8 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Egg Fried Noodles', 'halfPrice': 70.0, 'fullPrice': 120.0},
     ],
   },
+
+
   {
     'category': 'Veg Rice',
     'items': [
@@ -147,6 +191,8 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Hakka Noodle', 'halfPrice': 80.0, 'fullPrice': 140.0},
     ],
   },
+
+
   {
     'category': 'Mix Bhel',
     'items': [
@@ -161,41 +207,27 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Egg Fried Bhel', 'halfPrice': 70.0, 'fullPrice': 120.0},
     ],
   },
+
+
+
   {
-    'category': 'Burgers',
+    'category': 'Hamara Specials',
     'items': [
-      {'name': 'Veg Burger', 'price': 70.0},
-      {'name': 'Crispy Chicken Burger', 'price': 80.0},
-      {'name': 'Crispy Peri Peri Burger', 'price': 90.0},
-      {'name': 'Crispy Makhni Burger', 'price': 90.0},
-      {'name': 'Crispy Tandoori Burger', 'price': 90.0},
-      {'name': 'Crispy Schezwan Burger', 'price': 90.0},
-      {'name': 'Crispy Cheezy Burger', 'price': 100.0},
-      {'name': 'Crispy Tangy Burger', 'price': 100.0},
-      {'name': 'Al Haadi Special Burger', 'price': 130.0},
+      {'name': 'Alfaham Tukda Rice', 'halfPrice': 450.0, 'fullPrice': 800.0},
+      {'name': 'Fish Tukda Rice', 'price': 800.0},
+      {'name': 'Arabic Rice', 'halfPrice': 220.0, 'fullPrice': 320.0},
+      {'name': 'Char Bag Rice', 'halfPrice': 220.0, 'fullPrice': 320.0},
+      {'name': 'Garden Rice', 'halfPrice': 220.0, 'fullPrice': 320.0},
+      {'name': 'Afghani Dum Rice', 'halfPrice': 270.0, 'fullPrice': 370.0},
+      {'name': 'Gulmarg Rice', 'halfPrice': 270.0, 'fullPrice': 370.0},
+      {'name': 'Helmet Rice', 'price': 220.0},
+      {'name': 'Tripple Rice', 'price': 320.0},
+      {'name': 'Chicken Tikka Rice', 'price': 250.0},
+      {'name': 'Popcorn Rice', 'price': 220.0},
     ],
   },
-  {
-    'category': 'Shawarmas',
-    'items': [
-      {'name': 'Crispy Samoli (Bun)', 'price': 70.0},
-      {'name': 'Crispy Lebnani (Chapati)', 'price': 80.0},
-      {'name': 'Crispy Khaboos (Pita)', 'price': 90.0},
-      {'name': 'Crispy Open Shawarma (450ml)', 'price': 190.0},
-      {'name': 'Samoli (Bun)', 'price': 60.0},
-      {'name': 'Lebnani (Chapati)', 'price': 70.0},
-      {'name': 'Khaboos (Pita)', 'price': 80.0},
-      {'name': 'Open Shawarma (450ml)', 'price': 190.0},
-    ],
-  },
-  {
-    'category': 'Fries',
-    'items': [
-      {'name': 'Salted Fries', 'price': 70.0},
-      {'name': 'Peri Peri Fries', 'price': 80.0},
-      {'name': 'Cheezy Fries', 'price': 90.0},
-    ],
-  },
+
+
   {
     'category': 'Soda',
     'items': [
@@ -286,25 +318,28 @@ class _MenuSeederPageState extends State<MenuSeederPage> {
       }
       _log_('✅ Cleared ${existing.docs.length} old categories.');
 
-      // ── Step 2: Insert new categories + items ─────────────────────────────
-      for (final categoryData in _alHaadiMenu) {
+      // ── Step 2: Insert categories + items in _alHaadiMenu order ───────────
+      for (var catIndex = 0; catIndex < _alHaadiMenu.length; catIndex++) {
+        final categoryData = _alHaadiMenu[catIndex];
         final categoryName = categoryData['category'] as String;
         final items = categoryData['items'] as List<Map<String, dynamic>>;
 
-        _log_('📂 Adding category: $categoryName...');
+        _log_('📂 [$catIndex] $categoryName');
 
-        // Add category doc
         final catRef = await FirestorePaths.scoped('menus').add({
           'name': categoryName,
+          'sortOrder': catIndex,
           'createdAt': FieldValue.serverTimestamp(),
         });
 
         setState(() => _categoriesAdded++);
 
-        // Add each item as subcollection
-        for (final item in items) {
+        for (var itemIndex = 0; itemIndex < items.length; itemIndex++) {
+          final item = items[itemIndex];
+          final itemName = item['name'] as String;
           final payload = <String, dynamic>{
-            'name': item['name'] as String,
+            'name': itemName,
+            'sortOrder': itemIndex,
             'createdAt': FieldValue.serverTimestamp(),
           };
 
@@ -319,10 +354,10 @@ class _MenuSeederPageState extends State<MenuSeederPage> {
           await FirestorePaths
               .scopedSubCollection('menus', catRef.id, 'items')
               .add(payload);
+
+          _log_('    • $itemName');
           setState(() => _itemsAdded++);
         }
-
-        _log_('  ✔ Added ${items.length} items to $categoryName');
       }
 
       _log_('🎉 Done! $_categoriesAdded categories, $_itemsAdded items imported.');

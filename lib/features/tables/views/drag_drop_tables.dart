@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/utils/table_name_utils.dart';
+import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/repositories/user_repository.dart';
 import 'package:demo/core/services/restaurant_session.dart';
@@ -261,16 +262,21 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           .scoped('menus')
           .get();
 
-      for (var categoryDoc in menuSnapshot.docs) {
+      final categoryDocs = sortMenuDocs(menuSnapshot.docs);
+
+      for (var categoryDoc in categoryDocs) {
         final categoryId = categoryDoc.id;
         final categoryName = categoryDoc['name'];
+        final categorySortOrder =
+            (categoryDoc.data()['sortOrder'] as num?)?.toInt() ?? 9999;
 
         final itemsSnapshot = await FirestorePaths
             .scopedSubCollection('menus', categoryId, 'items')
             .get();
 
-        for (var itemDoc in itemsSnapshot.docs) {
+        for (var itemDoc in sortMenuDocs(itemsSnapshot.docs)) {
           final data = itemDoc.data();
+          final itemSortOrder = (data['sortOrder'] as num?)?.toInt() ?? 9999;
           loadedMenu.add({
             "category": categoryName,
             "name": data['name'],
@@ -279,6 +285,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             if (data.containsKey('fullPrice')) "fullPrice": data['fullPrice'],
             "categoryId": categoryId,
             "itemId": itemDoc.id,
+            "categorySortOrder": categorySortOrder,
+            "itemSortOrder": itemSortOrder,
             "qty": 1,
           });
         }

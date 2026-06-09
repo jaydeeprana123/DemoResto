@@ -1,4 +1,5 @@
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
 import 'package:demo/features/menu_setup/widgets/setup_page_layout.dart';
 import 'package:demo/features/transactions/repositories/transactions_repository.dart';
 import 'package:demo/Styles/my_font.dart';
@@ -32,14 +33,17 @@ class _AddMenuItemSheetState extends State<AddMenuItemSheet> {
     try {
       final menuSnapshot = await FirestorePaths.scoped('menus').get();
       final grouped = <String, List<Map<String, dynamic>>>{};
+      final categoryOrder = <String, int>{};
 
-      for (final categoryDoc in menuSnapshot.docs) {
+      for (final categoryDoc in sortMenuDocs(menuSnapshot.docs)) {
         final categoryName = categoryDoc.data()['name']?.toString() ?? 'Menu';
+        categoryOrder[categoryName] =
+            (categoryDoc.data()['sortOrder'] as num?)?.toInt() ?? 9999;
         final itemsSnapshot = await FirestorePaths
             .scopedSubCollection('menus', categoryDoc.id, 'items')
             .get();
 
-        for (final itemDoc in itemsSnapshot.docs) {
+        for (final itemDoc in sortMenuDocs(itemsSnapshot.docs)) {
           final data = itemDoc.data();
           grouped.putIfAbsent(categoryName, () => []).add({
             'name': data['name']?.toString() ?? '',
@@ -48,11 +52,20 @@ class _AddMenuItemSheetState extends State<AddMenuItemSheet> {
         }
       }
 
+      final sortedGrouped = <String, List<Map<String, dynamic>>>{};
+      final sortedNames = grouped.keys.toList()
+        ..sort(
+          (a, b) => (categoryOrder[a] ?? 9999).compareTo(categoryOrder[b] ?? 9999),
+        );
+      for (final name in sortedNames) {
+        sortedGrouped[name] = grouped[name]!;
+      }
+
       if (!mounted) return;
       setState(() {
         _menuByCategory
           ..clear()
-          ..addAll(grouped);
+          ..addAll(sortedGrouped);
         _loading = false;
       });
     } catch (e) {

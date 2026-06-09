@@ -65,12 +65,35 @@ class MenuItemVariants {
       byCategory.putIfAbsent(category, () => []).add(Map<String, dynamic>.from(item));
     }
 
+    final categories = byCategory.keys.toList()
+      ..sort((a, b) {
+        final aOrder = _categorySortOrder(byCategory[a]!);
+        final bOrder = _categorySortOrder(byCategory[b]!);
+        return aOrder.compareTo(bOrder);
+      });
+
     final normalized = <Map<String, dynamic>>[];
-    for (final entry in byCategory.entries) {
-      normalized.addAll(_normalizeCategoryItems(entry.value, entry.key));
+    for (final category in categories) {
+      final items = List<Map<String, dynamic>>.from(byCategory[category]!)
+        ..sort(
+          (a, b) =>
+              _itemSortOrder(a).compareTo(_itemSortOrder(b)),
+        );
+      normalized.addAll(_normalizeCategoryItems(items, category));
     }
     return normalized;
   }
+
+  static int _categorySortOrder(List<Map<String, dynamic>> items) {
+    for (final item in items) {
+      final order = item['categorySortOrder'] as int?;
+      if (order != null) return order;
+    }
+    return 9999;
+  }
+
+  static int _itemSortOrder(Map<String, dynamic> item) =>
+      item['itemSortOrder'] as int? ?? 9999;
 
   static List<Map<String, dynamic>> _normalizeCategoryItems(
     List<Map<String, dynamic>> items,
@@ -208,6 +231,10 @@ class MenuItemVariants {
     return {
       'category': category,
       'categoryId': halfSource['categoryId'] ?? fullSource['categoryId'],
+      if (halfSource['categorySortOrder'] != null)
+        'categorySortOrder': halfSource['categorySortOrder'],
+      if (halfSource['itemSortOrder'] != null)
+        'itemSortOrder': halfSource['itemSortOrder'],
       'displayName': baseName,
       'name': baseName,
       'hasVariants': true,

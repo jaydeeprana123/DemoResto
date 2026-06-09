@@ -12,6 +12,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import 'package:demo/core/utils/table_name_utils.dart';
+import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/Styles/my_icons.dart';
@@ -785,7 +786,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   }
 
   bool get _isMobileGridLayout =>
-      _isMobileKitchenScreen && _mobileLayoutIsGrid;
+      _isMobileKitchenScreen &&
+      _mobileLayoutIsGrid &&
+      !_isTabletKitchenScreen;
 
   EdgeInsets get _kitchenGridPadding => _isMobileGridLayout
       ? const EdgeInsets.only(top: 6, bottom: 6)
@@ -985,10 +988,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       context: context,
       builder: (BuildContext context) {
         return StreamBuilder<QuerySnapshot>(
-          stream: FirestorePaths
-              .scoped('menus')
-              .orderBy('createdAt', descending: false)
-              .snapshots(),
+          stream: FirestorePaths.scoped('menus').snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const AlertDialog(
@@ -1018,7 +1018,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               );
             }
 
-            final categories = snapshot.data!.docs;
+            final categories = sortMenuDocs(
+              snapshot.data!.docs
+                  .map(
+                    (d) => d as QueryDocumentSnapshot<Map<String, dynamic>>,
+                  )
+                  .toList(),
+            );
 
             return StatefulBuilder(
               builder: (context, setDialogState) {
@@ -1158,13 +1164,24 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
 
+  bool get _isTabletKitchenScreen =>
+      MediaQuery.sizeOf(context).shortestSide >= 600;
+
   bool get _isMobileKitchenScreen =>
       _isNativeMobile || MediaQuery.sizeOf(context).width < 600;
 
   int _kitchenCrossAxisCount(double screenW) {
     if (_isMobileKitchenScreen) {
-      return _mobileLayoutIsGrid ? 2 : 1;
+      if (!_mobileLayoutIsGrid) return 1;
+      if (_isTabletKitchenScreen) {
+        return _responsiveKitchenColumns(screenW);
+      }
+      return 2;
     }
+    return _responsiveKitchenColumns(screenW);
+  }
+
+  int _responsiveKitchenColumns(double screenW) {
     if (screenW > 1200) return 5;
     if (screenW > 900) return 4;
     if (screenW > 600) return 3;
@@ -1219,7 +1236,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           ),
           option(
             icon: Icons.grid_view_rounded,
-            tooltip: 'Grid view (2 columns)',
+            tooltip: _isTabletKitchenScreen
+                ? 'Grid view (responsive columns)'
+                : 'Grid view (2 columns)',
             selected: _mobileLayoutIsGrid,
             isGrid: true,
           ),

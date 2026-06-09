@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
 import 'package:demo/features/menu_setup/widgets/setup_page_layout.dart';
 import 'package:flutter/material.dart';
 
@@ -31,13 +32,18 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
 
     setState(() => _isAdding = true);
     try {
-      await FirestorePaths
-          .scopedSubCollection('menus', _selectedCategoryId!, 'items')
-          .add({
-            'name': _nameController.text.trim(),
-            'price': double.tryParse(_priceController.text.trim()) ?? 0.0,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
+      final itemsRef = FirestorePaths.scopedSubCollection(
+        'menus',
+        _selectedCategoryId!,
+        'items',
+      );
+      final sortOrder = await nextSortOrder(itemsRef);
+      await itemsRef.add({
+        'name': _nameController.text.trim(),
+        'price': double.tryParse(_priceController.text.trim()) ?? 0.0,
+        'sortOrder': sortOrder,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
       _nameController.clear();
       _priceController.clear();
@@ -172,10 +178,7 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
 
   Widget _buildCategoryDropdown() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirestorePaths
-          .scoped('menus')
-          .orderBy('createdAt', descending: false)
-          .snapshots(),
+      stream: FirestorePaths.scoped('menus').snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
@@ -193,7 +196,7 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
           );
         }
 
-        final categories = snapshot.data?.docs ?? [];
+        final categories = sortMenuDocs(snapshot.data?.docs ?? []);
 
         if (categories.isEmpty) {
           return SetupPageStyle.listCard(
@@ -249,10 +252,7 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
 
   Widget _buildMenuList() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirestorePaths
-          .scoped('menus')
-          .orderBy('createdAt', descending: false)
-          .snapshots(),
+      stream: FirestorePaths.scoped('menus').snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -260,7 +260,7 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
           );
         }
 
-        final categories = snapshot.data?.docs ?? [];
+        final categories = sortMenuDocs(snapshot.data?.docs ?? []);
 
         if (categories.isEmpty) {
           return SetupPageStyle.emptyState(
@@ -304,7 +304,6 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                       stream: FirestorePaths
                           .scopedSubCollection('menus', category.id, 'items')
-                          .orderBy('createdAt', descending: false)
                           .snapshots(),
                       builder: (context, itemSnapshot) {
                         if (itemSnapshot.connectionState ==
@@ -324,7 +323,8 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                           );
                         }
 
-                        final items = itemSnapshot.data?.docs ?? [];
+                        final items =
+                            sortMenuDocs(itemSnapshot.data?.docs ?? []);
 
                         if (items.isEmpty) {
                           return Padding(
