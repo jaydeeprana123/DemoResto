@@ -1811,6 +1811,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         TableItemSelectionActionBar(
                           docId: docId,
                           controller: _itemSelection,
+                          showDeleteButton:
+                              Get.find<RestaurantSession>()
+                                  .profile
+                                  .value
+                                  ?.isAdmin ??
+                              false,
                         ),
 
                         // Total row
