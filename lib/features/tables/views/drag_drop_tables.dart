@@ -1324,6 +1324,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     );
   }
 
+  double _tableOrderTotal(List<List<Map<String, dynamic>>> groups) {
+    return groups.expand((g) => g).fold<double>(0, (sum, item) {
+      final qty = (item['qty'] as num?)?.toInt() ?? 0;
+      final price = (item['price'] as num?)?.toDouble() ?? 0;
+      return sum + qty * price;
+    });
+  }
+
   // ── Redesigned table card ────────────────────────────────────────────────
   Widget _buildTableCardWithContent(
     String tableName,
@@ -1352,6 +1360,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           0,
           (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 1),
         );
+    final tableTotal = _tableOrderTotal(groups);
 
     return InkWell(
       onTap: ()async{
@@ -1523,6 +1532,34 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    if (hasItems)
+                      Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          '₹${tableTotal.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            color: _orange,
+                            fontSize: 14,
+                            fontFamily: fontMulishBold,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
                     // Action icons
                     if (hasItems && !paid)
                       _cardIconBtn(Icons.edit_outlined, () async {
@@ -1765,11 +1802,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                                 horizontal: 8,
                               ),
                               child: Text(
-                                '$totalQty item${totalQty != 1 ? 's' : ''}',
+                                hasItems
+                                    ? '$totalQty item${totalQty != 1 ? 's' : ''} · ₹${tableTotal.toStringAsFixed(0)}'
+                                    : '$totalQty item${totalQty != 1 ? 's' : ''}',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey.shade500,
-                                  fontFamily: fontMulishSemiBold,
+                                  color: Colors.grey.shade800,
+                                  fontFamily: fontMulishBold,
                                 ),
                               ),
                             ),
