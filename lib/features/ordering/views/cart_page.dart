@@ -238,7 +238,104 @@ class _CartPageState extends State<CartPage> {
   }
 
   String _cartSignature(List<Map<String, dynamic>> items) {
-    return items.map((e) => '${e['name']}:${e['qty']}').join('|');
+    return items
+        .map((e) => '${e['name']}:${e['qty']}:${e['remarks'] ?? ''}')
+        .join('|');
+  }
+
+  void _syncItemRemarksFromControllers() {
+    for (var i = 0; i < cartItems.length; i++) {
+      final text = _remarkControllers[i].text.trim();
+      if (text.isEmpty) {
+        cartItems[i].remove('remarks');
+      } else {
+        cartItems[i]['remarks'] = text;
+      }
+    }
+  }
+
+  void _showCommentSheet(int index) {
+    final item = cartItems[index];
+    final ctrl = _remarkControllers[index];
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              item['name']?.toString() ?? '',
+              style: const TextStyle(
+                fontSize: 15,
+                fontFamily: fontMulishBold,
+                color: _navy,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              maxLines: 3,
+              minLines: 1,
+              decoration: InputDecoration(
+                hintText: 'e.g. less spicy, no onion, extra sauce…',
+                hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                prefixIcon: Icon(
+                  Icons.chat_bubble_outline,
+                  color: Colors.orange.shade600,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: _orange, width: 1.5),
+                ),
+                filled: true,
+                fillColor: Colors.orange.shade50,
+              ),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _syncItemRemarksFromControllers();
+                    _remarkExpanded[index] = ctrl.text.trim().isNotEmpty;
+                  });
+                  _notifyCartUpdated();
+                  Navigator.pop(ctx);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _navy,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+                child: const Text(
+                  'Save Comment',
+                  style: TextStyle(fontFamily: fontMulishBold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _reloadCartFromMenuData() {
@@ -265,6 +362,7 @@ class _CartPageState extends State<CartPage> {
 
   void _notifyCartUpdated() {
     if (!widget.embedded || widget.onCartUpdated == null) return;
+    _syncItemRemarksFromControllers();
     widget.onCartUpdated!(
       cartItems.map((e) => Map<String, dynamic>.from(e)).toList(),
     );
@@ -347,6 +445,7 @@ class _CartPageState extends State<CartPage> {
   }
 
   Future<void> _completeBilling({BuildContext? sheetContext}) async {
+    _syncItemRemarksFromControllers();
     final billItems = _allBillableItems
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
@@ -820,39 +919,57 @@ class _CartPageState extends State<CartPage> {
 
   Widget _buildPastItemRow(Map<String, dynamic> item) {
     final qty = (item['qty'] as num?)?.toInt() ?? 0;
+    final remark = (item['remarks'] ?? '').toString();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
-              item['name'] ?? '',
-              style: TextStyle(
-                fontSize: 13,
-                fontFamily: fontMulishRegular,
-                color: Colors.grey.shade800,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  item['name'] ?? '',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontFamily: fontMulishRegular,
+                    color: Colors.grey.shade800,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+              Text(
+                '×$qty',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  fontFamily: fontMulishSemiBold,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '₹${_lineTotal(item).toStringAsFixed(0)}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontFamily: fontMulishSemiBold,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ],
           ),
-          Text(
-            '×$qty',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey.shade600,
-              fontFamily: fontMulishSemiBold,
+          if (remark.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '* $remark',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: fontMulishSemiBold,
+                  color: Colors.red.shade400,
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            '₹${_lineTotal(item).toStringAsFixed(0)}',
-            style: TextStyle(
-              fontSize: 13,
-              fontFamily: fontMulishSemiBold,
-              color: Colors.grey.shade700,
-            ),
-          ),
         ],
       ),
     );
@@ -991,9 +1108,11 @@ class _CartPageState extends State<CartPage> {
     final item = cartItems[index];
     final qty = (item['qty'] as num?)?.toInt() ?? 0;
     final price = (item['price'] as num?)?.toDouble() ?? 0;
+    final remark = _remarkControllers[index].text.trim();
+    final hasRemark = remark.isNotEmpty;
     return Container(
       margin: const EdgeInsets.only(left: 10, top: 4, bottom: 4),
-      padding: const EdgeInsets.only(left: 12, top: 10, bottom: 10),
+      padding: const EdgeInsets.only(left: 12, top: 10, bottom: 10, right: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
@@ -1006,55 +1125,86 @@ class _CartPageState extends State<CartPage> {
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: InkWell(
-              onTap: () => incrementQty(index),
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 2),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      (item['name'] ?? ''),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontFamily: fontMulishBold,
-                        color: _navy,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
+                  onTap: () => incrementQty(index),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '₹${price.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade600,
-                            fontFamily: fontMulishRegular,
+                          (item['name'] ?? ''),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontFamily: fontMulishBold,
+                            color: _navy,
                           ),
                         ),
-                        if (qty > 0) ...[
-                          const SizedBox(width: 8),
-                          Text(
-                            '×$qty',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: _orange,
-                              fontFamily: fontMulishSemiBold,
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(
+                              '₹${price.toStringAsFixed(0)}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                                fontFamily: fontMulishRegular,
+                              ),
                             ),
-                          ),
-                        ],
+                            if (qty > 0) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                '×$qty',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: _orange,
+                                  fontFamily: fontMulishSemiBold,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                if (hasRemark)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '* $remark',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: fontMulishSemiBold,
+                        color: Colors.red.shade400,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => _showCommentSheet(index),
+            tooltip: hasRemark ? 'Edit comment' : 'Add comment',
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            icon: Icon(
+              hasRemark ? Icons.chat_bubble : Icons.chat_bubble_outline,
+              size: 20,
+              color: hasRemark ? _orange : Colors.grey.shade500,
             ),
           ),
           Container(
-            decoration: BoxDecoration(
+            margin: EdgeInsets.only(left: 16),
+            decoration: const BoxDecoration(
               color: _navy,
               borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(12),
@@ -1088,21 +1238,6 @@ class _CartPageState extends State<CartPage> {
                     ),
                   ),
                 ),
-                // GestureDetector(
-                //   onTap: () => incrementQty(index),
-                //   child: Container(
-                //     width: 32,
-                //     height: 32,
-                //     alignment: Alignment.center,
-                //     decoration: const BoxDecoration(
-                //       color: _orange,
-                //       borderRadius: BorderRadius.horizontal(
-                //         right: Radius.circular(20),
-                //       ),
-                //     ),
-                //     child: const Icon(Icons.add, color: Colors.white, size: 18),
-                //   ),
-                // ),
               ],
             ),
           ),
@@ -1841,8 +1976,11 @@ class _CartPageState extends State<CartPage> {
                   child: InkWell(
                     onTap: () async {
                       if (!await _ensureTakeAwayName()) return;
+                      _syncItemRemarksFromControllers();
                       widget.onConfirm(
-                        cartItems,
+                        cartItems
+                            .map((e) => Map<String, dynamic>.from(e))
+                            .toList(),
                         false,
                         tableNameController.text.trim(),
                         overallRemarksController.text.trim(),
