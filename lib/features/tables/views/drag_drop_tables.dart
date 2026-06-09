@@ -7,7 +7,9 @@ import 'package:demo/core/services/restaurant_session.dart';
 import 'package:demo/FinalCartPage.dart';
 import 'package:demo/features/kitchen/kitchen.dart';
 import 'package:demo/features/menu_setup/menu_setup.dart';
-import 'package:demo/features/ordering/ordering.dart';
+import 'package:demo/features/ordering/views/menu_page.dart';
+import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
+import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/views/AddTablePage.dart';
@@ -369,6 +371,51 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       true,
       overallRemarks,
       transactionId,
+    );
+  }
+
+  Future<void> _openDashboardBilling({
+    required String tableName,
+    required String docId,
+    required List<List<Map<String, dynamic>>> groups,
+    required bool isTakeAway,
+  }) async {
+    final merged = _mergeItemsByNameAndCategory(
+      groups.expand((g) => g).toList(),
+    );
+    if (merged.isEmpty) return;
+
+    final tableTotal = _tableOrderTotal(groups);
+
+    final mode = await showTableBillingModeDialog(
+      context,
+      total: tableTotal,
+      tableName: tableName,
+    );
+    if (mode == null || !mounted) return;
+
+    await TableBillingSheet.show(
+      context,
+      tableName: tableName,
+      items: merged,
+      mode: mode,
+      onSubmit: (submission) async {
+        switch (submission.mode) {
+          case TableBillingMode.paid:
+            if (isTakeAway) {
+              await _deleteTakeAwayAfterFinalBilling(tableName, docId);
+            } else {
+              await _clearTableAfterFinalBilling(tableName);
+            }
+          case TableBillingMode.paidWithoutServing:
+            await _applyBillingToTable(
+              tableName,
+              submission.items,
+              '',
+              submission.documentId,
+            );
+        }
+      },
     );
   }
 
@@ -1616,34 +1663,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                       }),
                     // Billing icon — only when items exist and not paid
                     if (hasItems && !paid)
-                      _cardIconBtn(Icons.receipt_long_outlined, () async {
-                        final merged = _mergeItemsByNameAndCategory(
-                          groups.expand((g) => g).toList(),
+                      _cardIconBtn(Icons.receipt_long_outlined, () {
+                        _openDashboardBilling(
+                          tableName: tableName,
+                          docId: docId,
+                          groups: groups,
+                          isTakeAway: isTakeAway,
                         );
-                        final confirmedItems =
-                            await Navigator.push<List<Map<String, dynamic>>>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => FinalBillingView(
-                                  menuData: merged,
-                                  totalMenuList: menu,
-                                  tableName: tableName,
-                                  onConfirm: (_) async {
-                                    if (isTakeAway) {
-                                      await _deleteTakeAwayAfterFinalBilling(
-                                        tableName,
-                                        docId,
-                                      );
-                                    } else {
-                                      await _clearTableAfterFinalBilling(
-                                        tableName,
-                                      );
-                                    }
-                                  },
-                                ),
-                              ),
-                            );
-                        if (confirmedItems == null) return;
                       }),
                     // PAID pill — admin double-tap to reverse billing
                     if (paid)
