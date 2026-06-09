@@ -29,6 +29,7 @@ class MenuPage extends StatefulWidget {
     String overallRemarks, {
     bool fromBilling,
     bool fromFinalBilling,
+    String? transactionId,
   })
   onConfirm;
   final List<Map<String, dynamic>> menuList; // Passed from previous page

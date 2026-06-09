@@ -17,7 +17,7 @@ import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:demo/features/kitchen/services/kitchen_settings.dart';
-import 'package:demo/features/ordering/ordering.dart';
+import 'package:demo/features/transactions/services/reverse_billing_service.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
@@ -338,6 +338,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     List<dynamic>? itemsFromDb, {
     required bool isPaid,
     required String docId,
+    String? lastTransactionId,
   }) {
     List<TableGroup> groups = [];
     if (itemsFromDb == null) return groups;
@@ -378,6 +379,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           docId: docId,
           isPaid: isPaid,
           groupIndex: index,
+          lastTransactionId: lastTransactionId,
         ),
       );
     });
@@ -487,6 +489,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             docId: group.docId,
             isPaid: group.isPaid,
             groupIndex: group.groupIndex,
+            lastTransactionId: group.lastTransactionId,
           );
         })
         .whereType<TableGroup>()
@@ -534,6 +537,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             docId: group.docId,
             isPaid: group.isPaid,
             groupIndex: group.groupIndex,
+            lastTransactionId: group.lastTransactionId,
           );
         })
         .whereType<TableGroup>()
@@ -599,6 +603,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       final data = doc.data();
       final tableName = (data['name'] ?? 'Unknown Table') as String;
       final isPaid = data['isPaid'] == true;
+      final lastTransactionId = data['lastTransactionId']?.toString();
       final itemsFromDb =
           data.containsKey('items') ? (data['items'] as List<dynamic>?) : null;
       updatedGroups.addAll(
@@ -607,6 +612,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           itemsFromDb,
           isPaid: isPaid,
           docId: doc.id,
+          lastTransactionId: lastTransactionId,
         ),
       );
     }
@@ -902,11 +908,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           tableName: group.tableName,
           docId: group.docId,
           isPaid: group.isPaid,
+          lastTransactionId: group.lastTransactionId,
           batches: [group],
         );
       } else {
         map[group.docId]!.batches.add(group);
         if (group.isPaid) map[group.docId]!.isPaid = true;
+        if (group.lastTransactionId != null &&
+            group.lastTransactionId!.isNotEmpty) {
+          map[group.docId]!.lastTransactionId = group.lastTransactionId;
+        }
       }
     }
 
@@ -959,6 +970,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             docId: group.docId,
             isPaid: group.isPaid,
             groupIndex: group.groupIndex,
+            lastTransactionId: group.lastTransactionId,
           );
         })
         .whereType<TableGroup>()
@@ -1443,8 +1455,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                   group.isPaid,
                   queueNumber,
                   isNext: isNext,
-                  onPaidTap: group.isPaid
-                      ? () => _markTableServed(group.tableName, group.docId)
+                  onPaidDoubleTap: group.isPaid
+                      ? () => ReverseBillingService.showReverseBillingDialog(
+                          context,
+                          tableName: group.tableName,
+                          docId: group.docId,
+                          transactionId: group.lastTransactionId,
+                        )
                       : null,
                   compact: _isMobileGridLayout,
                 ),
@@ -1539,13 +1556,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                   tableCard.isPaid,
                   queueNumber,
                   isNext: isNext,
-                  onPaidTap: tableCard.isPaid
-                      ? () => _markTableServed(
-                          tableCard.tableName,
-                          tableCard.docId,
+                  onPaidDoubleTap: tableCard.isPaid
+                      ? () => ReverseBillingService.showReverseBillingDialog(
+                          context,
+                          tableName: tableCard.tableName,
+                          docId: tableCard.docId,
+                          transactionId: tableCard.lastTransactionId,
                         )
                       : null,
-                  useDoubleTapForPaid: true,
                   compact: _isMobileGridLayout,
                 ),
                 Padding(
@@ -1697,8 +1715,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     bool isPaid,
     int queueNumber, {
     bool isNext = false,
-    VoidCallback? onPaidTap,
-    bool useDoubleTapForPaid = false,
+    VoidCallback? onPaidDoubleTap,
     bool compact = false,
   }) {
     final paid = isPaid == true;
@@ -1784,19 +1801,22 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               ),
             ),
           if (paid)
-            Container(
-              margin: const EdgeInsets.only(left: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.green.shade700,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                "PAID",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontFamily: fontMulishBold,
+            GestureDetector(
+              onDoubleTap: onPaidDoubleTap,
+              child: Container(
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade700,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  "PAID",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontFamily: fontMulishBold,
+                  ),
                 ),
               ),
             ),
@@ -1804,14 +1824,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       ),
     );
 
-    if (onPaidTap == null) return header;
-
-    return GestureDetector(
-      onTap: useDoubleTapForPaid ? null : onPaidTap,
-      onDoubleTap: useDoubleTapForPaid ? onPaidTap : null,
-      behavior: HitTestBehavior.opaque,
-      child: header,
-    );
+    return header;
   }
 
   Widget _buildTimeBar(DateTime time, bool isDelayed, {bool compact = false}) {
@@ -2034,6 +2047,7 @@ class TableGroup {
   final String docId;
   final bool isPaid;
   final int groupIndex;
+  final String? lastTransactionId;
 
   TableGroup(
     this.tableName,
@@ -2043,6 +2057,7 @@ class TableGroup {
     required this.docId,
     required this.isPaid,
     required this.groupIndex,
+    this.lastTransactionId,
   });
 }
 
@@ -2050,12 +2065,14 @@ class KitchenTableCard {
   final String tableName;
   final String docId;
   bool isPaid;
+  String? lastTransactionId;
   final List<TableGroup> batches;
 
   KitchenTableCard({
     required this.tableName,
     required this.docId,
     required this.isPaid,
+    this.lastTransactionId,
     required this.batches,
   });
 }

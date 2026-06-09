@@ -311,4 +311,55 @@ class TransactionsRepository {
     updated['cashAmount'] = newCash;
     updated['onlineAmount'] = newOnline;
   }
+
+  Future<void> deleteTransaction(String transactionId) async {
+    final txRef = FirestorePaths.scopedDoc('transactions', transactionId);
+    final snap = await txRef.get();
+    if (!snap.exists) {
+      throw Exception('Transaction not found.');
+    }
+
+    final data = snap.data()!;
+    final total = transactionAsInt(data['total']);
+    final cash = transactionAsInt(data['cashAmount']);
+    final online = transactionAsInt(data['onlineAmount']);
+    final createdAt = data['createdAt'];
+    final DateTime txDate = createdAt is Timestamp
+        ? createdAt.toDate()
+        : DateTime.now();
+    final dateKey = DateFormat('yyyy-MM-dd').format(txDate);
+
+    final batch = FirebaseFirestore.instance.batch();
+    batch.delete(txRef);
+
+    final dailyRef = FirestorePaths.scopedDoc('daily_stats', dateKey);
+    batch.set(
+      dailyRef,
+      {
+        'revenue': FieldValue.increment(-total),
+        'totalCash': FieldValue.increment(-cash),
+        'totalOnline': FieldValue.increment(-online),
+        'transactions': FieldValue.increment(-1),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    final summaryRef = FirestorePaths.scopedDoc('stats', 'summary');
+    batch.set(
+      summaryRef,
+      {
+        'totalRevenue': FieldValue.increment(-total),
+        'totalTransactions': FieldValue.increment(-1),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    try {
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw Exception(e.message ?? 'Failed to delete transaction (${e.code}).');
+    }
+  }
 }

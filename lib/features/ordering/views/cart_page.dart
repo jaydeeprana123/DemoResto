@@ -49,6 +49,7 @@ class CartPage extends StatefulWidget {
     String overallRemarks, {
     bool fromBilling,
     bool fromFinalBilling,
+    String? transactionId,
   })
   onConfirm;
 
@@ -467,7 +468,7 @@ class _CartPageState extends State<CartPage> {
       final tableName = tableNameController.text.trim();
       final remarks = overallRemarksController.text.trim();
 
-      final txId = await addTransactionToFirestore(
+      final txResult = await addTransactionToFirestore(
         items: billItems,
         tableName: tableName,
         subtotal: subtotal.round(),
@@ -489,6 +490,7 @@ class _CartPageState extends State<CartPage> {
         tableName,
         remarks,
         fromBilling: true,
+        transactionId: txResult?.documentId,
       );
 
       receiptData = FoodBillPdfData(
@@ -504,7 +506,7 @@ class _CartPageState extends State<CartPage> {
         total: total,
         cashAmount: cash,
         onlineAmount: online,
-        invoiceNumber: txId,
+        invoiceNumber: txResult?.billId,
       );
     } catch (e, stack) {
       debugPrint('[CartPage] Billing failed: $e\n$stack');
@@ -2059,7 +2061,7 @@ class _CartPageState extends State<CartPage> {
     );
   }
 
-  Future<String?> addTransactionToFirestore({
+  Future<({String billId, String documentId})?> addTransactionToFirestore({
     required List<Map<String, dynamic>> items,
     required String tableName,
     required int subtotal,
@@ -2096,7 +2098,7 @@ class _CartPageState extends State<CartPage> {
       if (!quiet) {
         Get.snackbar('Successfull', 'Transaction saved successfully!');
       }
-      return result.billId;
+      return (billId: result.billId, documentId: result.documentId);
     } catch (e) {
       Get.snackbar('Error', 'Transaction not saved: $e');
       return null;
