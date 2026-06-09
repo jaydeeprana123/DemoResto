@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/core/services/restaurant_session.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -1492,6 +1493,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                           TableItemSelectionActionBar(
                             docId: group.docId,
                             controller: _itemSelection,
+                            showDeleteButton:
+                                Get.find<RestaurantSession>()
+                                    .profile
+                                    .value
+                                    ?.isAdmin ??
+                                false,
                             action: _showServeOrderScreen &&
                                     _kitchenOrderTabIndex == 1
                                 ? TableItemSelectionAction.markPending
@@ -1646,6 +1653,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                           TableItemSelectionActionBar(
                             docId: tableCard.docId,
                             controller: _itemSelection,
+                            showDeleteButton:
+                                Get.find<RestaurantSession>()
+                                    .profile
+                                    .value
+                                    ?.isAdmin ??
+                                false,
                             action: _showServeOrderScreen &&
                                     _kitchenOrderTabIndex == 1
                                 ? TableItemSelectionAction.markPending
