@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/core/utils/platform_utils.dart';
 import 'package:intl/intl.dart';
 
 int transactionAsInt(dynamic value) {
@@ -30,6 +31,196 @@ List<Map<String, dynamic>> normalizeTransactionItems(
 }
 
 class TransactionsRepository {
+  Future<({String documentId, String billId})?> createTransaction({
+    required List<Map<String, dynamic>> items,
+    required String tableName,
+    required int subtotal,
+    required int tax,
+    required double cgstPercentage,
+    required double sgstPercentage,
+    required int cgstAmount,
+    required int sgstAmount,
+    required int discount,
+    required int total,
+    required int cashAmount,
+    required int onlineAmount,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final dateKey = DateFormat('yyyy-MM-dd').format(now);
+      final billDateKey = DateFormat('yyyyMMdd').format(now);
+      final txRef = FirestorePaths.scoped('transactions').doc();
+      final counterRef = FirestorePaths.scopedDoc('bill_counters', billDateKey);
+      final dailyRef = FirestorePaths.scopedDoc('daily_stats', dateKey);
+      final summaryRef = FirestorePaths.scopedDoc('stats', 'summary');
+      final normalizedItems = normalizeTransactionItems(items);
+      if (normalizedItems.isEmpty) {
+        throw Exception('Transaction must have at least one item with quantity.');
+      }
+
+      if (isDesktopPlatform) {
+        return _createTransactionWithBatch(
+          txRef: txRef,
+          counterRef: counterRef,
+          dailyRef: dailyRef,
+          summaryRef: summaryRef,
+          billDateKey: billDateKey,
+          tableName: tableName,
+          normalizedItems: normalizedItems,
+          subtotal: subtotal,
+          tax: tax,
+          cgstPercentage: cgstPercentage,
+          sgstPercentage: sgstPercentage,
+          cgstAmount: cgstAmount,
+          sgstAmount: sgstAmount,
+          discount: discount,
+          total: total,
+          cashAmount: cashAmount,
+          onlineAmount: onlineAmount,
+        );
+      }
+
+      return await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final counterSnap = await transaction.get(counterRef);
+        final next = ((counterSnap.data()?['seq'] as num?)?.toInt() ?? 0) + 1;
+        final billId = 'BILL-$billDateKey-${next.toString().padLeft(4, '0')}';
+
+        transaction.set(
+          counterRef,
+          {
+            'seq': next,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+
+        transaction.set(txRef, {
+          'billId': billId,
+          'table': tableName,
+          'items': normalizedItems,
+          'subtotal': subtotal,
+          'tax': tax,
+          'cgstPercentage': cgstPercentage,
+          'sgstPercentage': sgstPercentage,
+          'cgstAmount': cgstAmount,
+          'sgstAmount': sgstAmount,
+          'discount': discount,
+          'total': total,
+          'cashAmount': cashAmount,
+          'onlineAmount': onlineAmount,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        transaction.set(
+          dailyRef,
+          {
+            'revenue': FieldValue.increment(total),
+            'totalCash': FieldValue.increment(cashAmount),
+            'totalOnline': FieldValue.increment(onlineAmount),
+            'transactions': FieldValue.increment(1),
+            'lastUpdated': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+
+        transaction.set(
+          summaryRef,
+          {
+            'totalRevenue': FieldValue.increment(total),
+            'totalTransactions': FieldValue.increment(1),
+            'lastUpdated': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+
+        return (documentId: txRef.id, billId: billId);
+      });
+    } on FirebaseException catch (e) {
+      throw Exception(e.message ?? 'Failed to save transaction (${e.code}).');
+    } catch (e) {
+      throw Exception('Failed to save transaction: $e');
+    }
+  }
+
+  /// Batch write avoids [runTransaction] on desktop where it can crash the
+  /// Firebase C++ plugin when query listeners are active.
+  Future<({String documentId, String billId})> _createTransactionWithBatch({
+    required DocumentReference<Map<String, dynamic>> txRef,
+    required DocumentReference<Map<String, dynamic>> counterRef,
+    required DocumentReference<Map<String, dynamic>> dailyRef,
+    required DocumentReference<Map<String, dynamic>> summaryRef,
+    required String billDateKey,
+    required String tableName,
+    required List<Map<String, dynamic>> normalizedItems,
+    required int subtotal,
+    required int tax,
+    required double cgstPercentage,
+    required double sgstPercentage,
+    required int cgstAmount,
+    required int sgstAmount,
+    required int discount,
+    required int total,
+    required int cashAmount,
+    required int onlineAmount,
+  }) async {
+    final counterSnap = await counterRef.get();
+    final next = ((counterSnap.data()?['seq'] as num?)?.toInt() ?? 0) + 1;
+    final billId = 'BILL-$billDateKey-${next.toString().padLeft(4, '0')}';
+
+    final batch = FirebaseFirestore.instance.batch();
+
+    batch.set(
+      counterRef,
+      {
+        'seq': next,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    batch.set(txRef, {
+      'billId': billId,
+      'table': tableName,
+      'items': normalizedItems,
+      'subtotal': subtotal,
+      'tax': tax,
+      'cgstPercentage': cgstPercentage,
+      'sgstPercentage': sgstPercentage,
+      'cgstAmount': cgstAmount,
+      'sgstAmount': sgstAmount,
+      'discount': discount,
+      'total': total,
+      'cashAmount': cashAmount,
+      'onlineAmount': onlineAmount,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    batch.set(
+      dailyRef,
+      {
+        'revenue': FieldValue.increment(total),
+        'totalCash': FieldValue.increment(cashAmount),
+        'totalOnline': FieldValue.increment(onlineAmount),
+        'transactions': FieldValue.increment(1),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    batch.set(
+      summaryRef,
+      {
+        'totalRevenue': FieldValue.increment(total),
+        'totalTransactions': FieldValue.increment(1),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    await batch.commit();
+    return (documentId: txRef.id, billId: billId);
+  }
+
   Future<void> updateTransaction({
     required String transactionId,
     required Map<String, dynamic> previous,

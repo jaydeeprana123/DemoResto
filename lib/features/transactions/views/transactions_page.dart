@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/features/transactions/services/transaction_bill_service.dart';
 import 'package:demo/features/transactions/views/transaction_details_page.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
@@ -22,6 +23,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
   final TextEditingController fromController = TextEditingController();
   final TextEditingController toController = TextEditingController();
+  final TextEditingController searchController = TextEditingController();
+  String _searchQuery = '';
 
   bool isFilterApplied = false;
   double grandTotal = 0.0;
@@ -49,7 +52,24 @@ class _TransactionsPageState extends State<TransactionsPage> {
   void dispose() {
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
+    searchController.dispose();
     super.dispose();
+  }
+
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> get _filteredTransactions {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return transactions;
+    return transactions.where((doc) {
+      final data = doc.data();
+      final billId = TransactionBillService.displayBillId(
+        data,
+        documentId: doc.id,
+      ).toLowerCase();
+      final table = (data['table'] ?? '').toString().toLowerCase();
+      return billId.contains(q) ||
+          table.contains(q) ||
+          doc.id.toLowerCase().contains(q);
+    }).toList();
   }
 
   void _scrollListener() {
@@ -461,19 +481,70 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
           const Divider(height: 1),
 
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+            child: TextField(
+              controller: searchController,
+              onChanged: (value) => setState(() => _searchQuery = value),
+              decoration: InputDecoration(
+                hintText: 'Search by Bill ID, table, or reference...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: () {
+                          searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                isDense: true,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFFf57c35), width: 1.5),
+                ),
+              ),
+              style: const TextStyle(
+                fontSize: 14,
+                fontFamily: fontMulishSemiBold,
+              ),
+            ),
+          ),
+
           // Grouped list (unchanged layout, paginated)
           Expanded(
             child: transactions.isEmpty && isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : transactions.isEmpty
-                ? const Center(child: Text("No transactions found"))
+                : _filteredTransactions.isEmpty
+                ? Center(
+                    child: Text(
+                      _searchQuery.isEmpty
+                          ? 'No transactions found'
+                          : 'No transactions match "$_searchQuery"',
+                    ),
+                  )
                 : ListView.builder(
                     controller: _scrollController,
-                    itemCount: transactions.length + 1,
+                    itemCount: _filteredTransactions.length + 1,
                     itemBuilder: (context, index) {
-                      if (index < transactions.length) {
-                        final data = transactions[index].data();
-                        final tableName = data["table"] ?? "Unknown";
+                      if (index < _filteredTransactions.length) {
+                        final doc = _filteredTransactions[index];
+                        final data = doc.data();
+                        final tableName = data['table'] ?? 'Unknown';
+                        final billId = TransactionBillService.displayBillId(
+                          data,
+                          documentId: doc.id,
+                        );
                         final cashAmount = (data["cashAmount"] as int?) ?? 0;
                         final onlineAmount =
                             (data["onlineAmount"] as int?) ?? 0;
@@ -488,7 +559,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                         // show date header for first item or when date changes
                         bool showDateHeader = true;
                         if (index > 0) {
-                          final prevData = transactions[index - 1].data();
+                          final prevData = _filteredTransactions[index - 1].data();
                           final prevDateTime =
                               (prevData["createdAt"] as Timestamp?)?.toDate();
                           final prevDateKey = prevDateTime != null
@@ -543,14 +614,13 @@ class _TransactionsPageState extends State<TransactionsPage> {
                               ),
                             InkWell(
                               onTap: () async {
-                                final doc = transactions[index];
                                 final result =
                                     await Navigator.push<Map<String, dynamic>>(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => TransactionDetailsPage(
                                       transactionId: doc.id,
-                                      transaction: doc.data(),
+                                      transaction: data,
                                     ),
                                   ),
                                 );
@@ -611,6 +681,15 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                               fontSize: 15,
                                               fontFamily: fontMulishBold,
                                               color: Color(0xFF1A3A5C),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            billId,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade600,
+                                              fontFamily: fontMulishSemiBold,
                                             ),
                                           ),
                                           const SizedBox(height: 3),

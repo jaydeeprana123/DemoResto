@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
 import 'package:demo/features/menu_setup/views/AddMenuItemPage.dart';
 import 'package:demo/features/menu_setup/views/MenuSeederPage.dart';
 import 'package:demo/features/menu_setup/widgets/setup_page_layout.dart';
@@ -26,8 +27,10 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
     setState(() => _isAdding = true);
     try {
       final name = _nameController.text.trim();
+      final sortOrder = await nextSortOrder(FirestorePaths.scoped('menus'));
       await FirestorePaths.scoped('menus').add({
         'name': name,
+        'sortOrder': sortOrder,
         'createdAt': FieldValue.serverTimestamp(),
       });
       _nameController.clear();
@@ -154,10 +157,7 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
 
   Widget _buildCategoryList() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirestorePaths
-          .scoped('menus')
-          .orderBy('createdAt', descending: false)
-          .snapshots(),
+      stream: FirestorePaths.scoped('menus').snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -173,7 +173,7 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
           );
         }
 
-        final categories = snapshot.data!.docs;
+        final categories = sortMenuDocs(snapshot.data!.docs);
 
         return ListView.separated(
           itemCount: categories.length,

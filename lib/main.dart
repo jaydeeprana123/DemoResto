@@ -1,5 +1,6 @@
 import 'package:demo/bindings/app_binding.dart';
 import 'package:demo/core/firebase/firebase_options.dart';
+import 'package:demo/core/firestore/firestore_desktop_config.dart';
 import 'package:demo/features/authentication/authentication.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await configureFirestoreForPlatform();
 
   runApp(const MyApp());
 }

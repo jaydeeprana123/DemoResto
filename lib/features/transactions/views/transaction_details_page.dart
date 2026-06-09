@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'package:demo/core/utils/tax_calculator.dart';
+import 'package:demo/features/ordering/services/food_bill_pdf_service.dart';
+import 'package:demo/features/settings/services/print_settings.dart';
+import 'package:demo/features/transactions/services/transaction_bill_service.dart';
 import 'package:demo/features/transactions/views/EditTransactionDetailsPage.dart';
 import 'package:demo/Styles/my_font.dart';
 
@@ -67,6 +70,59 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
     );
   }
 
+  Future<void> _generateBillPdf() async {
+    final items = (_transaction['items'] as List<dynamic>? ?? [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No items to print on this bill.')),
+      );
+      return;
+    }
+
+    if (!await PrintSettings.getPrintPdfEnabled()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enable PDF printing in Settings to generate bills.'),
+        ),
+      );
+      return;
+    }
+
+    final subtotal = (_transaction['subtotal'] as num?)?.toInt() ?? 0;
+    final taxBreakdown = TaxCalculator.fromTransaction(_transaction);
+    final discount = (_transaction['discount'] as num?)?.toInt() ?? 0;
+    final total = (_transaction['total'] as num?)?.toInt() ?? 0;
+    final cashAmount = (_transaction['cashAmount'] as num?)?.toInt() ?? 0;
+    final onlineAmount = (_transaction['onlineAmount'] as num?)?.toInt() ?? 0;
+    final tableName = (_transaction['table'] ?? 'Unknown').toString();
+    final billId = TransactionBillService.displayBillId(
+      _transaction,
+      documentId: widget.transactionId,
+    );
+
+    await FoodBillPdfService.generateAndPrintIfEnabled(
+      context: context,
+      data: FoodBillPdfData(
+        tableName: tableName,
+        items: items,
+        subtotal: subtotal,
+        tax: taxBreakdown.totalTax,
+        cgstPercentage: taxBreakdown.cgstPercent,
+        sgstPercentage: taxBreakdown.sgstPercent,
+        cgstAmount: taxBreakdown.cgstAmount,
+        sgstAmount: taxBreakdown.sgstAmount,
+        discount: discount,
+        total: total,
+        cashAmount: cashAmount,
+        onlineAmount: onlineAmount,
+        invoiceNumber: billId,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = (_transaction['items'] as List<dynamic>? ?? []);
@@ -77,6 +133,10 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
     final cashAmount = (_transaction['cashAmount'] as num?)?.toInt() ?? 0;
     final onlineAmount = (_transaction['onlineAmount'] as num?)?.toInt() ?? 0;
     final tableName = _transaction['table'] ?? 'Unknown';
+    final billId = TransactionBillService.displayBillId(
+      _transaction,
+      documentId: widget.transactionId,
+    );
     final dateTime = (_transaction['createdAt'] as Timestamp?)?.toDate();
 
     return PopScope(
@@ -104,6 +164,11 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.receipt_long_outlined, color: Colors.white),
+            tooltip: 'Generate Bill PDF',
+            onPressed: _generateBillPdf,
+          ),
+          IconButton(
             icon: const Icon(Icons.edit_outlined, color: Color(0xFFf57c35)),
             onPressed: _openEdit,
           ),
@@ -128,13 +193,27 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    tableName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontFamily: fontMulishBold,
-                      color: Colors.white,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tableName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontFamily: fontMulishBold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Bill ID: $billId',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontFamily: fontMulishSemiBold,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (dateTime != null)
@@ -328,6 +407,30 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
                       _paymentPill(Icons.phone_android,
                           'Online ₹$onlineAmount', Colors.blue),
                   ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: items.isEmpty ? null : _generateBillPdf,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFf57c35),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.shade300,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
+                    label: const Text(
+                      'Generate Bill PDF',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontFamily: fontMulishBold,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

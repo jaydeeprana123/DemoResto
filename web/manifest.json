@@ -1,11 +1,11 @@
 {
-    "name": "demo",
-    "short_name": "demo",
+    "name": "Flavor Flow",
+    "short_name": "Flavor Flow",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#2B5494",
+    "theme_color": "#2B5494",
+    "description": "Flavor Flow restaurant POS.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

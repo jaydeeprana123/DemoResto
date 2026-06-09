@@ -11,10 +11,11 @@ class SettingsController extends GetxController {
 
   final userRole = Rxn<String>();
   final isLoadingRole = true.obs;
-  final kitchenShowTableAllOrders = false.obs;
-  final kitchenShowServeOrderScreen = true.obs;
+  final kitchenShowTableAllOrders = true.obs;
+  final kitchenShowServeOrderScreen = false.obs;
   final printPdfEnabled = false.obs;
   final printerType = PosPrinterType.tvs80.obs;
+  final billPdfIncludeLogos = false.obs;
   final cgstPercentage = 0.0.obs;
   final sgstPercentage = 0.0.obs;
   final isSavingTaxSettings = false.obs;
@@ -51,11 +52,17 @@ class SettingsController extends GetxController {
   Future<void> loadPrintSettings() async {
     printPdfEnabled.value = await PrintSettings.getPrintPdfEnabled();
     printerType.value = await PrintSettings.getPrinterType();
+    billPdfIncludeLogos.value = await PrintSettings.getBillPdfIncludeLogos();
   }
 
   Future<void> setPrintPdfEnabled(bool value) async {
     await PrintSettings.setPrintPdfEnabled(value);
     printPdfEnabled.value = value;
+  }
+
+  Future<void> setBillPdfIncludeLogos(bool value) async {
+    await PrintSettings.setBillPdfIncludeLogos(value);
+    billPdfIncludeLogos.value = value;
   }
 
   Future<void> setPrinterType(PosPrinterType value) async {

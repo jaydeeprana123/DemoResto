@@ -266,6 +266,7 @@ class TableItemServed {
                 name,
                 style: nameStyle.copyWith(
                   color: served ? Colors.green.shade700 : nameStyle.color,
+
                 ),
               ),
               if (remarks != null && remarks.isNotEmpty)

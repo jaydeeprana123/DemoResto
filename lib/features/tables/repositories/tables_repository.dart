@@ -18,16 +18,20 @@ class TablesRepository {
     required List<List<Map<String, dynamic>>> groups,
     required bool isBillPaid,
     String overallRemarks = '',
+    String? docId,
   }) async {
-    final tableQuery = await FirestorePaths
-        .scoped('tables')
-        .where('name', isEqualTo: tableName)
-        .limit(1)
-        .get();
+    var resolvedDocId = docId?.trim();
+    if (resolvedDocId == null || resolvedDocId.isEmpty) {
+      final tableQuery = await FirestorePaths
+          .scoped('tables')
+          .where('name', isEqualTo: tableName)
+          .limit(1)
+          .get();
 
-    if (tableQuery.docs.isEmpty) return;
+      if (tableQuery.docs.isEmpty) return;
+      resolvedDocId = tableQuery.docs.first.id;
+    }
 
-    final docId = tableQuery.docs.first.id;
     final flattenedItems = <Map<String, dynamic>>[];
 
     for (var groupIndex = 0; groupIndex < groups.length; groupIndex++) {
@@ -56,6 +60,6 @@ class TablesRepository {
       updateData['remarks'] = overallRemarks;
     }
 
-    await FirestorePaths.scopedDoc('tables', docId).update(updateData);
+    await FirestorePaths.scopedDoc('tables', resolvedDocId).update(updateData);
   }
 }
