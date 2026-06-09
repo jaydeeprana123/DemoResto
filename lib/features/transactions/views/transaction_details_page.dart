@@ -7,6 +7,7 @@ import 'package:demo/core/utils/tax_calculator.dart';
 import 'package:demo/features/ordering/services/food_bill_pdf_service.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/features/transactions/services/transaction_bill_service.dart';
+import 'package:demo/features/transactions/services/transaction_delete_service.dart';
 import 'package:demo/features/transactions/views/EditTransactionDetailsPage.dart';
 import 'package:demo/Styles/my_font.dart';
 
@@ -123,6 +124,22 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
     );
   }
 
+  Future<void> _deleteTransaction() async {
+    final billId = TransactionBillService.displayBillId(
+      _transaction,
+      documentId: widget.transactionId,
+    );
+    final tableName = (_transaction['table'] ?? 'Unknown').toString();
+    final deleted = await TransactionDeleteService.showDeleteDialog(
+      context,
+      transactionId: widget.transactionId,
+      tableName: tableName,
+      billId: billId,
+    );
+    if (!mounted || !deleted) return;
+    Navigator.pop(context, {'deleted': true});
+  }
+
   @override
   Widget build(BuildContext context) {
     final items = (_transaction['items'] as List<dynamic>? ?? []);
@@ -163,6 +180,12 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
           ),
         ),
         actions: [
+          if (TransactionDeleteService.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              tooltip: 'Delete transaction',
+              onPressed: _deleteTransaction,
+            ),
           IconButton(
             icon: const Icon(Icons.receipt_long_outlined, color: Colors.white),
             tooltip: 'Generate Bill PDF',

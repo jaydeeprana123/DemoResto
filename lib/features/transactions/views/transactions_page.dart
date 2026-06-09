@@ -625,7 +625,10 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                   ),
                                 );
                                 if (result != null && mounted) {
-                                  await _reloadAfterTransactionEdit();
+                                  if (result['deleted'] == true ||
+                                      result.containsKey('transaction')) {
+                                    await _reloadAfterTransactionEdit();
+                                  }
                                 }
                               },
                               child: Container(
