@@ -325,6 +325,8 @@ class MenuItemVariants {
         }
       }
       variant['qty'] = existing != null ? existing['qty'] : 0;
+      final remark = existing?['remarks']?.toString() ?? '';
+      if (remark.isNotEmpty) item['remarks'] = remark;
     }
   }
 
