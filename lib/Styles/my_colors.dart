@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 
+
+
+const halfTransparentWhite = Color(0x80ffffff);
 const whiteffffff = Color(0xFFffffff);
 const lightGreenF8Fbff = Color(0xFFf8fbff);
 const blue_3093bb = Color(0xFF3093bb);

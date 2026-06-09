@@ -54,7 +54,7 @@ class EditableTotalRow extends StatelessWidget {
             else
               Text(
                 '₹$total',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
               ),
             IconButton(
               visualDensity: VisualDensity.compact,

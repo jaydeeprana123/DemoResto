@@ -19,6 +19,8 @@ class TablesRepository {
     required bool isBillPaid,
     String overallRemarks = '',
     String? docId,
+    String? lastTransactionId,
+    bool clearLastTransactionId = false,
   }) async {
     var resolvedDocId = docId?.trim();
     if (resolvedDocId == null || resolvedDocId.isEmpty) {
@@ -59,7 +61,20 @@ class TablesRepository {
     if (overallRemarks.isNotEmpty) {
       updateData['remarks'] = overallRemarks;
     }
+    if (lastTransactionId != null && lastTransactionId.isNotEmpty) {
+      updateData['lastTransactionId'] = lastTransactionId;
+    } else if (clearLastTransactionId) {
+      updateData['lastTransactionId'] = FieldValue.delete();
+    }
 
     await FirestorePaths.scopedDoc('tables', resolvedDocId).update(updateData);
+  }
+
+  Future<void> markTableUnpaid(String docId) {
+    return FirestorePaths.scopedDoc('tables', docId).update({
+      'isPaid': false,
+      'lastTransactionId': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 }

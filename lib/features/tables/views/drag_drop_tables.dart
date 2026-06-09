@@ -7,12 +7,14 @@ import 'package:demo/core/services/restaurant_session.dart';
 import 'package:demo/FinalCartPage.dart';
 import 'package:demo/features/kitchen/kitchen.dart';
 import 'package:demo/features/menu_setup/menu_setup.dart';
-import 'package:demo/features/ordering/ordering.dart';
+import 'package:demo/features/ordering/views/menu_page.dart';
+import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
+import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/views/AddTablePage.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
-import 'package:demo/features/transactions/transactions.dart';
+import 'package:demo/features/transactions/services/reverse_billing_service.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -40,6 +42,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   final Map<String, Timestamp?> tableCreatedAt = {};
   final Map<String, bool> tableIsPaid = {};
   final Map<String, String> tableDocIds = {};
+  final Map<String, String> tableTransactionIds = {};
   final Map<String, List<int>> _firestoreGroupIndices = {};
   final TableItemSelectionController _itemSelection =
       TableItemSelectionController();
@@ -135,6 +138,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     final Map<String, Timestamp?> updatedCreatedAt = {};
     final Map<String, bool> updatedIsPaid = {};
     final Map<String, String> updatedDocIds = {};
+    final Map<String, String> updatedTransactionIds = {};
 
     for (var doc in querySnapshot.docs) {
             final tableName = doc['name'] as String;
@@ -142,6 +146,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             updatedCreatedAt[tableName] = data['createdAt'] as Timestamp?;
             updatedIsPaid[tableName] = data['isPaid'] == true;
             updatedDocIds[tableName] = doc.id;
+            final txId = data['lastTransactionId']?.toString();
+            if (txId != null && txId.isNotEmpty) {
+              updatedTransactionIds[tableName] = txId;
+            }
             final List<dynamic>? itemsFromDb = doc.data().containsKey('items')
                 ? doc['items']
                 : null;
@@ -244,6 +252,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         tableDocIds
           ..clear()
           ..addAll(updatedDocIds);
+        tableTransactionIds
+          ..clear()
+          ..addAll(updatedTransactionIds);
       });
     }
 
@@ -310,6 +321,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     List<List<Map<String, dynamic>>> groups,
     bool isBillPaid, [
     String overallRemarks = '',
+    String? lastTransactionId,
+    bool clearLastTransactionId = false,
   ]) async {
     try {
       await Get.find<TablesRepository>().updateTableItems(
@@ -318,7 +331,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         isBillPaid: isBillPaid,
         overallRemarks: overallRemarks,
         docId: tableDocIds[tableName],
+        lastTransactionId: lastTransactionId,
+        clearLastTransactionId: clearLastTransactionId,
       );
+      if (clearLastTransactionId) {
+        tableTransactionIds.remove(tableName);
+      } else if (lastTransactionId != null && lastTransactionId.isNotEmpty) {
+        tableTransactionIds[tableName] = lastTransactionId;
+      }
     } catch (e) {
       print("ERROR: Failed to update Firestore: $e");
       if (e is FirebaseException) {
@@ -333,6 +353,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     String tableName,
     List<Map<String, dynamic>> confirmedItems, [
     String overallRemarks = '',
+    String? transactionId,
   ]) async {
     if (confirmedItems.isEmpty) return;
 
@@ -349,6 +370,52 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       [stampedGroup],
       true,
       overallRemarks,
+      transactionId,
+    );
+  }
+
+  Future<void> _openDashboardBilling({
+    required String tableName,
+    required String docId,
+    required List<List<Map<String, dynamic>>> groups,
+    required bool isTakeAway,
+  }) async {
+    final merged = _mergeItemsByNameAndCategory(
+      groups.expand((g) => g).toList(),
+    );
+    if (merged.isEmpty) return;
+
+    final tableTotal = _tableOrderTotal(groups);
+
+    final mode = await showTableBillingModeDialog(
+      context,
+      total: tableTotal,
+      tableName: tableName,
+    );
+    if (mode == null || !mounted) return;
+
+    await TableBillingSheet.show(
+      context,
+      tableName: tableName,
+      items: merged,
+      mode: mode,
+      onSubmit: (submission) async {
+        switch (submission.mode) {
+          case TableBillingMode.paid:
+            if (isTakeAway) {
+              await _deleteTakeAwayAfterFinalBilling(tableName, docId);
+            } else {
+              await _clearTableAfterFinalBilling(tableName);
+            }
+          case TableBillingMode.paidWithoutServing:
+            await _applyBillingToTable(
+              tableName,
+              submission.items,
+              '',
+              submission.documentId,
+            );
+        }
+      },
     );
   }
 
@@ -369,6 +436,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     String tableName,
     List<Map<String, dynamic>> items, [
     String overallRemarks = '',
+    String? transactionId,
   ]) async {
     if (items.isEmpty) return;
 
@@ -380,8 +448,26 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
     if (existing.docs.isEmpty) {
       await _addTableAndUpdateItems(tableName, items, true, overallRemarks);
+      if (transactionId != null && transactionId.isNotEmpty) {
+        final docRef = await FirestorePaths
+            .scoped('tables')
+            .where('name', isEqualTo: tableName)
+            .limit(1)
+            .get();
+        if (docRef.docs.isNotEmpty) {
+          await FirestorePaths.scopedDoc('tables', docRef.docs.first.id).update({
+            'lastTransactionId': transactionId,
+          });
+          tableTransactionIds[tableName] = transactionId;
+        }
+      }
     } else {
-      await _applyBillingToTable(tableName, items, overallRemarks);
+      await _applyBillingToTable(
+        tableName,
+        items,
+        overallRemarks,
+        transactionId,
+      );
     }
 
     final stampedGroup = _stampGroupAddedAt(
@@ -600,6 +686,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     required bool fromBilling,
     required bool fromFinalBilling,
     bool editingLastGroup = false,
+    String? transactionId,
   }) async {
     var activeGroups = groups;
     var activeDocId = docId;
@@ -628,7 +715,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     }
 
     if (fromBilling) {
-      await _applyBillingToTable(tName, items, overallRemarks);
+      await _applyBillingToTable(
+        tName,
+        items,
+        overallRemarks,
+        transactionId,
+      );
       return;
     }
 
@@ -1107,12 +1199,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                     String overallRemarks, {
                     bool fromBilling = false,
                     bool fromFinalBilling = false,
+                    String? transactionId,
                   }) async {
                     if (fromBilling || fromFinalBilling) {
                       await _billTakeAwayOrder(
                         tableName,
                         selectedItems,
                         overallRemarks,
+                        transactionId,
                       );
                       return;
                     }
@@ -1277,6 +1371,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     );
   }
 
+  double _tableOrderTotal(List<List<Map<String, dynamic>>> groups) {
+    return groups.expand((g) => g).fold<double>(0, (sum, item) {
+      final qty = (item['qty'] as num?)?.toInt() ?? 0;
+      final price = (item['price'] as num?)?.toDouble() ?? 0;
+      return sum + qty * price;
+    });
+  }
+
   // ── Redesigned table card ────────────────────────────────────────────────
   Widget _buildTableCardWithContent(
     String tableName,
@@ -1305,6 +1407,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           0,
           (sum, item) => sum + ((item['qty'] as num?)?.toInt() ?? 1),
         );
+    final tableTotal = _tableOrderTotal(groups);
 
     return InkWell(
       onTap: ()async{
@@ -1331,6 +1434,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                     overallRemarks, {
                   bool fromBilling = false,
                   bool fromFinalBilling = false,
+                  String? transactionId,
                 }) => _handleMenuPageConfirm(
                   originalName: tableName,
                   groups: groups,
@@ -1341,6 +1445,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                   overallRemarks: overallRemarks,
                   fromBilling: fromBilling,
                   fromFinalBilling: fromFinalBilling,
+                  transactionId: transactionId,
                 ),
               ),
             ),
@@ -1405,6 +1510,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                           overallRemarks, {
                         bool fromBilling = false,
                         bool fromFinalBilling = false,
+                        String? transactionId,
                       }) => _handleMenuPageConfirm(
                         originalName: tableName,
                         groups: groups,
@@ -1415,6 +1521,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         overallRemarks: overallRemarks,
                         fromBilling: fromBilling,
                         fromFinalBilling: fromFinalBilling,
+                        transactionId: transactionId,
                       ),
                     ),
                   ),
@@ -1472,6 +1579,34 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    if (hasItems)
+                      Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          '₹${tableTotal.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            color: _orange,
+                            fontSize: 14,
+                            fontFamily: fontMulishBold,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
                     // Action icons
                     if (hasItems && !paid)
                       _cardIconBtn(Icons.edit_outlined, () async {
@@ -1508,6 +1643,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                                     overallRemarks, {
                                     bool fromBilling = false,
                                     bool fromFinalBilling = false,
+                                    String? transactionId,
                                   }) => _handleMenuPageConfirm(
                                     originalName: tableName,
                                     groups: groups,
@@ -1519,6 +1655,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                                     fromBilling: fromBilling,
                                     fromFinalBilling: fromFinalBilling,
                                     editingLastGroup: true,
+                                    transactionId: transactionId,
                                   ),
                             ),
                           ),
@@ -1526,52 +1663,40 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                       }),
                     // Billing icon — only when items exist and not paid
                     if (hasItems && !paid)
-                      _cardIconBtn(Icons.receipt_long_outlined, () async {
-                        final merged = _mergeItemsByNameAndCategory(
-                          groups.expand((g) => g).toList(),
+                      _cardIconBtn(Icons.receipt_long_outlined, () {
+                        _openDashboardBilling(
+                          tableName: tableName,
+                          docId: docId,
+                          groups: groups,
+                          isTakeAway: isTakeAway,
                         );
-                        final confirmedItems =
-                            await Navigator.push<List<Map<String, dynamic>>>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => FinalBillingView(
-                                  menuData: merged,
-                                  totalMenuList: menu,
-                                  tableName: tableName,
-                                  onConfirm: (_) async {
-                                    if (isTakeAway) {
-                                      await _deleteTakeAwayAfterFinalBilling(
-                                        tableName,
-                                        docId,
-                                      );
-                                    } else {
-                                      await _clearTableAfterFinalBilling(
-                                        tableName,
-                                      );
-                                    }
-                                  },
-                                ),
-                              ),
-                            );
-                        if (confirmedItems == null) return;
                       }),
-                    // PAID pill
+                    // PAID pill — admin double-tap to reverse billing
                     if (paid)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 3,
+                      GestureDetector(
+                        onDoubleTap: () => ReverseBillingService
+                            .showReverseBillingDialog(
+                          context,
+                          tableName: tableName,
+                          docId: docId,
+                          transactionId: tableTransactionIds[tableName],
                         ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'PAID',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontSize: 11,
-                            fontFamily: fontMulishBold,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            'PAID',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontSize: 11,
+                              fontFamily: fontMulishBold,
+                            ),
                           ),
                         ),
                       ),
@@ -1703,11 +1828,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                                 horizontal: 8,
                               ),
                               child: Text(
-                                '$totalQty item${totalQty != 1 ? 's' : ''}',
+                                hasItems
+                                    ? '$totalQty item${totalQty != 1 ? 's' : ''} · ₹${tableTotal.toStringAsFixed(0)}'
+                                    : '$totalQty item${totalQty != 1 ? 's' : ''}',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey.shade500,
-                                  fontFamily: fontMulishSemiBold,
+                                  color: Colors.grey.shade800,
+                                  fontFamily: fontMulishBold,
                                 ),
                               ),
                             ),
