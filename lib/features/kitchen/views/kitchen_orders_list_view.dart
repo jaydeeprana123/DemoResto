@@ -69,7 +69,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   static final Color _updateBlinkColor = Colors.yellow.shade300;
   static final Color _delayedItemBackground = Color(0xFFFFEBEE); // light red
   static final Color _delayedItemBlinkBackground = Color(0xFFFFCDD2);
-  static const int _delayThresholdMinutes = 5;
+  static const int _delayThresholdMinutes = 15;
   static const int _delayedBlinkPulseCount = 7;
 
   Set<int> _delayedBlinkGroupKeys = {};
