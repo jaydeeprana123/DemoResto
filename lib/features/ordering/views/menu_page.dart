@@ -9,12 +9,14 @@ import 'package:demo/models/agent_response.dart';
 
 import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/core/utils/platform_utils.dart';
+import 'package:demo/core/services/restaurant_session.dart';
 import 'package:demo/features/ordering/views/cart_page.dart';
 import 'package:demo/features/ordering/views/final_billing_view.dart';
 import 'package:demo/features/ordering/utils/menu_item_variants.dart';
 import 'package:demo/MyWidgets/EditableTextField.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
+import 'package:get/get.dart';
 
 // ── Brand colours (shared across screens) ─────────────────────────────────
 const _kNavy = Color(0xFF1A3A5C);
@@ -1770,6 +1772,9 @@ class _MenuPageState extends State<MenuPage>
 
   bool get _canEditTableName => !widget.isFromFinalBilling;
 
+  bool get _canGenerateBill =>
+      Get.find<RestaurantSession>().profile.value?.isAdmin ?? false;
+
   bool get _canDeleteTable =>
       !widget.isFromFinalBilling &&
       !isNameEdit &&
@@ -1899,7 +1904,7 @@ class _MenuPageState extends State<MenuPage>
           fullMenu: widget.menuList,
           overallRemarks: _overallRemarks,
           onConfirm: widget.onConfirm,
-          showBilling: widget.showBilling,
+          showBilling: widget.showBilling && _canGenerateBill,
           existingOrderNames: widget.existingOrderNames,
           onBillingFinished: _popCartAndMenuAfterBilling,
         ),
@@ -1964,7 +1969,7 @@ class _MenuPageState extends State<MenuPage>
       fullMenu: widget.menuList,
       overallRemarks: _overallRemarks,
       onConfirm: widget.onConfirm,
-      showBilling: widget.showBilling,
+      showBilling: widget.showBilling && _canGenerateBill,
       existingOrderNames: widget.existingOrderNames,
       onCartUpdated: _syncFromCart,
       onBillingFinished: _popMenuAfterBilling,
@@ -2073,6 +2078,7 @@ class _MenuPageState extends State<MenuPage>
             ),
           if (!isNameEdit &&
               _hasOrderItems &&
+              _canGenerateBill &&
               !widget.showBilling &&
               !widget.isFromFinalBilling)
             IconButton(

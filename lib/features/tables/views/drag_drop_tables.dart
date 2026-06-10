@@ -1227,6 +1227,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
   bool _isTakeAway(String name) => isTakeAwayOrderName(name);
 
+  bool get _isAdmin =>
+      Get.find<RestaurantSession>().profile.value?.isAdmin ?? false;
+
   String _shortDisplayName(String tableName) {
     if (tableName.startsWith('Table ')) {
       final num = tableName.substring('Table '.length).trim();
@@ -1661,8 +1664,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                           ),
                         );
                       }),
-                    // Billing icon — only when items exist and not paid
-                    if (hasItems && !paid)
+                    // Billing icon — admin only, when items exist and not paid
+                    if (hasItems && !paid && _isAdmin)
                       _cardIconBtn(Icons.receipt_long_outlined, () {
                         _openDashboardBilling(
                           tableName: tableName,
@@ -1811,6 +1814,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         TableItemSelectionActionBar(
                           docId: docId,
                           controller: _itemSelection,
+                          showDeleteButton:
+                              Get.find<RestaurantSession>()
+                                  .profile
+                                  .value
+                                  ?.isAdmin ??
+                              false,
                         ),
 
                         // Total row

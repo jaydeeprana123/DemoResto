@@ -267,11 +267,13 @@ class TableItemSelectionActionBar extends StatefulWidget {
     required this.docId,
     required this.controller,
     this.action = TableItemSelectionAction.serve,
+    this.showDeleteButton = true,
   });
 
   final String docId;
   final TableItemSelectionController controller;
   final TableItemSelectionAction action;
+  final bool showDeleteButton;
 
   @override
   State<TableItemSelectionActionBar> createState() =>
@@ -298,14 +300,15 @@ class _TableItemSelectionActionBarState
           padding: const EdgeInsets.only(top: 8),
           child: Row(
             children: [
-              _actionIcon(
-                icon: Icons.delete_outline,
-                tooltip: count > 0 ? 'Delete ($count)' : 'Delete',
-                color: Colors.red.shade700,
-                onPressed: count == 0 || _submitting
-                    ? null
-                    : () => _confirmDeleteSelected(count),
-              ),
+              if (widget.showDeleteButton)
+                _actionIcon(
+                  icon: Icons.delete_outline,
+                  tooltip: count > 0 ? 'Delete ($count)' : 'Delete',
+                  color: Colors.red.shade700,
+                  onPressed: count == 0 || _submitting
+                      ? null
+                      : () => _confirmDeleteSelected(count),
+                ),
               const Spacer(),
               _actionIcon(
                 icon: Icons.close,
