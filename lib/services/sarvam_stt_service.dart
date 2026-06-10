@@ -37,6 +37,9 @@ class SarvamSttService {
 
   // ── Record ────────────────────────────────────────────────────────────────
 
+  /// Returns true when voice recording is supported on this platform.
+  bool get isSupported => !kIsWeb;
+
   /// Check and request microphone permission.
   Future<bool> hasPermission() async {
     return await _recorder.hasPermission();
@@ -47,7 +50,7 @@ class SarvamSttService {
   Future<bool> startRecording() async {
     // path_provider / record are not supported on web
     if (kIsWeb) {
-      debugPrint('[SarvamSTT] Voice recording not supported on web platform.');
+      debugPrint('[SarvamSTT] Voice recording is not supported on web.');
       return false;
     }
     if (_isRecording) return true;

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
-import 'package:demo/services/sarvam_stt_service.dart';
+import 'package:demo/features/ordering/controllers/speech_order_controller.dart';
 import 'package:demo/services/ai_order_service.dart';
 import 'package:demo/services/restaurant_agent_service.dart';
 import 'package:demo/models/agent_response.dart';
@@ -85,8 +85,8 @@ class _MenuPageState extends State<MenuPage>
   bool showAllCategories = true; // Track if "All" is selected
   int _selectedCategoryIndex = 0;
 
-  // Voice AI — Sarvam STT
-  final SarvamSttService _sttService = SarvamSttService();
+  // Voice AI — Sarvam STT + fuzzy/AI order parsing
+  late final SpeechOrderController _voiceOrder;
   bool _isRecording = false;
   bool _isTranscribing = false; // true while Sarvam API is working
   bool _isProcessing = false; // true while Agent is working
@@ -147,6 +147,7 @@ class _MenuPageState extends State<MenuPage>
     }
 
     _loadSelectedCategories();
+    _voiceOrder = Get.find<SpeechOrderController>();
     WidgetsBinding.instance.addPostFrameCallback((_) => _syncStockStatus());
   }
 
@@ -477,7 +478,7 @@ class _MenuPageState extends State<MenuPage>
       _,
     ) async {
       if (!_isRecording || !mounted) return;
-      final amp = await _sttService.getAmplitude();
+      final amp = await _voiceOrder.pollAmplitude();
       // Normalize from dBFS (-160..0) to 0..1
       final normalized = ((amp + 50) / 50).clamp(0.0, 1.0);
       _sheetSetState?.call(() => _currentAmplitude = normalized);
@@ -486,6 +487,7 @@ class _MenuPageState extends State<MenuPage>
 
   void _startVoiceOrder() async {
     // Reset all voice state
+    _voiceOrder.resetSession();
     _recognizedText = '';
     _isRecording = false;
     _isTranscribing = false;
@@ -497,7 +499,7 @@ class _MenuPageState extends State<MenuPage>
     _amplitudeTimer?.cancel();
 
     // Check mic permission
-    final hasPerms = await _sttService.hasPermission();
+    final hasPerms = await _voiceOrder.ensureMicrophonePermission();
     if (!hasPerms) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -525,13 +527,16 @@ class _MenuPageState extends State<MenuPage>
               if (kIsWeb) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('🎤 Voice ordering requires the mobile app.'),
+                    content: Text(
+                      'Voice ordering is not supported in the web browser. '
+                      'Use the mobile or desktop app.',
+                    ),
                     backgroundColor: Color(0xFF1A3A5C),
                   ),
                 );
                 return;
               }
-              final started = await _sttService.startRecording();
+              final started = await _voiceOrder.startRecording();
               if (!started) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -568,7 +573,7 @@ class _MenuPageState extends State<MenuPage>
               });
 
               // Stop recording & transcribe via Sarvam AI
-              final transcript = await _sttService.stopAndTranscribe();
+              final transcript = await _voiceOrder.stopAndTranscribe();
 
               if (transcript == null || transcript.trim().isEmpty) {
                 setSheetState(() => _isTranscribing = false);
@@ -598,7 +603,7 @@ class _MenuPageState extends State<MenuPage>
             void cancel() async {
               _recordingTimer?.cancel();
               _amplitudeTimer?.cancel();
-              await _sttService.cancelRecording();
+              await _voiceOrder.cancelRecording();
               setSheetState(() {
                 _isRecording = false;
                 _isTranscribing = false;
@@ -936,7 +941,7 @@ class _MenuPageState extends State<MenuPage>
       _recordingTimer?.cancel();
       _amplitudeTimer?.cancel();
       _sheetSetState = null;
-      _sttService.cancelRecording();
+      _voiceOrder.cancelRecording();
     });
   }
 
@@ -958,8 +963,8 @@ class _MenuPageState extends State<MenuPage>
 
     late AgentResponse response;
     try {
-      response = await _agentService.handleInput(
-        userText: text,
+      response = await _voiceOrder.processOrder(
+        transcript: text,
         menuItems: allItems,
       );
     } catch (e) {
@@ -1015,7 +1020,7 @@ class _MenuPageState extends State<MenuPage>
   void _applyOrderResults(List<OrderResult> results) {
     setState(() {
       for (final r in results) {
-        final itemName = r.item['name'];
+        final itemName = r.applyName ?? r.item['name'];
         for (final category in menuData.keys) {
           for (final item in menuData[category]!) {
             MenuItemVariants.applyOrderToItem(
@@ -2198,12 +2203,12 @@ class _MenuPageState extends State<MenuPage>
               onPressed: _openFinalBilling,
               tooltip: 'Billing',
             ),
-          // if (!isNameEdit)
-          //   IconButton(
-          //     icon: const Icon(Icons.mic, color: Colors.redAccent),
-          //     onPressed: _startVoiceOrder,
-          //     tooltip: "Voice Order",
-          //   ),
+          if (!isNameEdit)
+            IconButton(
+              icon: const Icon(Icons.mic, color: Colors.redAccent),
+              onPressed: _startVoiceOrder,
+              tooltip: 'Voice Order',
+            ),
           if (!isNameEdit)
             IconButton(
               icon: Icon(

@@ -65,11 +65,10 @@ class RestaurantAgentService {
       // No prior order in memory — fall through to normal parse
     }
 
-    // 4. Filter menu to top-30 relevant items (faster + more accurate AI)
-    // Use full menu for max accuracy (Gemini handles large context easily)
-    final filteredMenu = menuItems;
+    // 4. Filter menu to top relevant items for faster AI when menu is large
+    final filteredMenu = filterMenuByContext(text, menuItems);
 
-    // 5. Parse via AiOrderService (Gemini → local fallback)
+    // 5. Parse via AiOrderService (local fuzzy first, Gemini fallback)
     List<OrderResult> results;
     try {
       results = await _aiService.parseOrder(text, filteredMenu);
@@ -274,6 +273,7 @@ class RestaurantAgentService {
         item: r.item,
         quantity: r.quantity,
         remarks: parts.join(', '),
+        applyName: r.applyName,
       );
     }).toList();
   }
