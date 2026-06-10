@@ -5,6 +5,7 @@ import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/features/settings/views/AdminDashboardPage.dart';
 import 'package:demo/features/settings/views/ExpensesPage.dart';
 import 'package:demo/features/settings/views/staff_list_view.dart';
+import 'package:demo/features/settings/views/stock_management_page.dart';
 import 'package:demo/features/settings/views/ExportPage.dart';
 import 'package:demo/features/tables/tables.dart';
 import 'package:demo/features/transactions/transactions.dart';
@@ -179,6 +180,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     subtitle: 'Add staff, send password reset & remove access',
                     onTap: () => Get.to(() => const StaffListView()),
                   ),
+                _SettingsTile(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'Stock Management',
+                  subtitle: 'Mark menu items in stock or out of stock',
+                  onTap: () => Get.to(() => const StockManagementPage()),
+                ),
                 const SizedBox(height: 20),
                 const Text(
                   'Billing',

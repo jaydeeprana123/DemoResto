@@ -27,7 +27,7 @@ class MenuSetupRepository {
   }) {
     return FirestorePaths
         .scopedSubCollection('menus', categoryId, 'items')
-        .add({'name': name, 'price': price});
+        .add({'name': name, 'price': price, 'inStock': true});
   }
 
   Future<void> updateItem({

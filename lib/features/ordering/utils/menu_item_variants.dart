@@ -84,6 +84,12 @@ class MenuItemVariants {
     return normalized;
   }
 
+  /// Normalizes items within a single category (merges Half/Full pairs).
+  static List<Map<String, dynamic>> normalizeCategoryItems(
+    List<Map<String, dynamic>> items,
+    String category,
+  ) => _normalizeCategoryItems(items, category);
+
   static int _categorySortOrder(List<Map<String, dynamic>> items) {
     for (final item in items) {
       final order = item['categorySortOrder'] as int?;
@@ -208,14 +214,26 @@ class MenuItemVariants {
         )
         .toList();
 
+    final withIds = variants
+        .map(
+          (v) => {
+            ...v,
+            if (v['categoryId'] == null && item['categoryId'] != null)
+              'categoryId': item['categoryId'],
+            if (v['itemId'] == null && item['itemId'] != null)
+              'itemId': item['itemId'],
+          },
+        )
+        .toList();
+
     return {
       ...item,
       'category': category,
       'displayName': baseName,
       'name': baseName,
       'hasVariants': true,
-      'variants': variants,
-      'price': (variants.first['price'] as num?) ?? 0,
+      'variants': withIds,
+      'price': (withIds.first['price'] as num?) ?? 0,
       'qty': 0,
     };
   }
@@ -231,6 +249,7 @@ class MenuItemVariants {
     return {
       'category': category,
       'categoryId': halfSource['categoryId'] ?? fullSource['categoryId'],
+      'itemId': halfSource['itemId'] ?? fullSource['itemId'],
       if (halfSource['categorySortOrder'] != null)
         'categorySortOrder': halfSource['categorySortOrder'],
       if (halfSource['itemSortOrder'] != null)
@@ -242,6 +261,8 @@ class MenuItemVariants {
       'fullPrice': fullPrice,
       'price': halfPrice,
       'qty': 0,
+      'inStock':
+          halfSource['inStock'] != false && fullSource['inStock'] != false,
       'variants': [
         _variantLine('Half', halfPrice, halfSource, baseName),
         _variantLine('Full', fullPrice, fullSource, baseName),
