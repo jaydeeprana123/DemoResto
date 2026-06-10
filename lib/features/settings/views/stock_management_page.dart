@@ -7,6 +7,37 @@ import 'package:get/get.dart';
 const _navy = Color(0xFF1A3A5C);
 const _orange = Color(0xFFf57c35);
 
+class _CategoryStockGroup {
+  const _CategoryStockGroup({
+    required this.categoryId,
+    required this.categoryName,
+    required this.items,
+  });
+
+  final String categoryId;
+  final String categoryName;
+  final List<MenuStockEntry> items;
+}
+
+List<_CategoryStockGroup> _groupItemsByCategory(List<MenuStockEntry> items) {
+  final groups = <String, _CategoryStockGroup>{};
+  final order = <String>[];
+
+  for (final item in items) {
+    if (!groups.containsKey(item.categoryId)) {
+      order.add(item.categoryId);
+      groups[item.categoryId] = _CategoryStockGroup(
+        categoryId: item.categoryId,
+        categoryName: item.categoryName,
+        items: [],
+      );
+    }
+    groups[item.categoryId]!.items.add(item);
+  }
+
+  return order.map((id) => groups[id]!).toList();
+}
+
 class StockManagementPage extends StatelessWidget {
   const StockManagementPage({super.key});
 
@@ -73,6 +104,8 @@ class StockManagementPage extends StatelessWidget {
             );
           }
 
+          final categoryGroups = _groupItemsByCategory(items);
+
           return Column(
             children: [
               Obx(() {
@@ -119,24 +152,79 @@ class StockManagementPage extends StatelessWidget {
               Expanded(
                 child: ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                  itemCount: items.length,
+                  itemCount: categoryGroups.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
-                    final item = items[index];
-                    return Obx(() {
-                      final selected =
-                          controller.selectedKeys.contains(item.key);
-                      return _StockItemCard(
-                        item: item,
-                        selected: selected,
-                        onChanged: controller.isLoading.value
-                            ? null
-                            : (value) => controller.toggleSelection(
-                                  item.key,
-                                  selected: value,
-                                ),
-                      );
-                    });
+                    final group = categoryGroups[index];
+                    final outOfStockCount =
+                        group.items.where((e) => !e.inStock).length;
+
+                    return Card(
+                      elevation: 1,
+                      clipBehavior: Clip.antiAlias,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Theme(
+                        data: Theme.of(context).copyWith(
+                          dividerColor: Colors.transparent,
+                        ),
+                        child: ExpansionTile(
+                          key: PageStorageKey<String>(group.categoryId),
+                          tilePadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          childrenPadding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _navy.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.restaurant_menu_outlined,
+                              color: _navy,
+                              size: 20,
+                            ),
+                          ),
+                          title: Text(
+                            group.categoryName,
+                            style: MyFont.semiBold(15, color: _navy),
+                          ),
+                          subtitle: Text(
+                            outOfStockCount > 0
+                                ? '${group.items.length} items · '
+                                    '$outOfStockCount out of stock'
+                                : '${group.items.length} items',
+                            style: MyFont.regular(12, color: Colors.grey.shade600),
+                          ),
+                          iconColor: _orange,
+                          collapsedIconColor: _navy,
+                          children: [
+                            for (var i = 0; i < group.items.length; i++) ...[
+                              if (i > 0) const SizedBox(height: 6),
+                              Obx(() {
+                                final item = group.items[i];
+                                final selected =
+                                    controller.selectedKeys.contains(item.key);
+                                return _StockItemCard(
+                                  item: item,
+                                  selected: selected,
+                                  showCategory: false,
+                                  onChanged: controller.isLoading.value
+                                      ? null
+                                      : (value) => controller.toggleSelection(
+                                            item.key,
+                                            selected: value,
+                                          ),
+                                );
+                              }),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
                   },
                 ),
               ),
@@ -239,19 +327,22 @@ class _StockItemCard extends StatelessWidget {
     required this.item,
     required this.selected,
     required this.onChanged,
+    this.showCategory = true,
   });
 
   final MenuStockEntry item;
   final bool selected;
   final ValueChanged<bool?>? onChanged;
+  final bool showCategory;
 
   @override
   Widget build(BuildContext context) {
     final outOfStock = !item.inStock;
 
     return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      color: const Color(0xFFF8F9FB),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Row(
@@ -269,13 +360,21 @@ class _StockItemCard extends StatelessWidget {
                     item.name,
                     style: MyFont.semiBold(15, color: _navy),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item.hasVariants
-                        ? '${item.categoryName} · Half / Full'
-                        : item.categoryName,
-                    style: MyFont.regular(12, color: Colors.grey.shade600),
-                  ),
+                  if (showCategory) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      item.hasVariants
+                          ? '${item.categoryName} · Half / Full'
+                          : item.categoryName,
+                      style: MyFont.regular(12, color: Colors.grey.shade600),
+                    ),
+                  ] else if (item.hasVariants) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Half / Full',
+                      style: MyFont.regular(12, color: Colors.grey.shade600),
+                    ),
+                  ],
                 ],
               ),
             ),

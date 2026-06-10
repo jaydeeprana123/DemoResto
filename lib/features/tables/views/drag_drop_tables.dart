@@ -52,6 +52,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   final user = FirebaseAuth.instance.currentUser;
   int tableNo = 0;
   String selectedTab = 'All'; // 👈 Add this variable at class level
+  final Set<String> _tableFilterSelection = {};
   StreamSubscription<QuerySnapshot>? tablesSubscription;
   Timer? _timeRefreshTimer;
 
@@ -947,6 +948,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               Expanded(
                 child: tables.isEmpty
                     ? _buildEmptyState()
+                    : _filteredTableKeys().isEmpty
+                    ? _buildFilterEmptyState()
                     : RefreshIndicator(
                         color: _orange,
                         onRefresh: () async => _loadMenu(),
@@ -1044,6 +1047,20 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         ],
       ),
       actions: [
+        IconButton(
+          icon: Icon(
+            _tableFilterSelection.isNotEmpty
+                ? Icons.filter_alt_rounded
+                : Icons.filter_list_rounded,
+            color: _tableFilterSelection.isNotEmpty
+                ? _orange
+                : Colors.white70,
+          ),
+          tooltip: _tableFilterSelection.isEmpty
+              ? 'Filter tables'
+              : 'Filter active (${_tableFilterSelection.length} selected)',
+          onPressed: _showTableFilterSheet,
+        ),
         Container(
           margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -1109,6 +1126,272 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           }).toList(),
         ),
       ),
+    );
+  }
+
+  Widget _buildFilterEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.filter_alt_off_outlined,
+                size: 56, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            const Text(
+              'No matching tables',
+              style: TextStyle(
+                fontSize: 18,
+                fontFamily: fontMulishBold,
+                color: _navy,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _tableFilterSelection.isEmpty
+                  ? 'Nothing to show for this tab.'
+                  : 'Your filter has no tables on this tab.\n'
+                      'Tap the filter icon to change your selection.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontFamily: fontMulishRegular,
+                color: Colors.grey.shade500,
+              ),
+            ),
+            if (_tableFilterSelection.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => setState(_tableFilterSelection.clear),
+                icon: const Icon(Icons.clear_all),
+                label: const Text('Clear filter'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _navy,
+                  side: const BorderSide(color: _navy),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<String> _allTableKeysSorted() {
+    final tableKeys =
+        tables.keys.where((key) => key.startsWith('Table ')).toList()
+          ..sort(_compareTableNumber);
+    final takeAwayKeys = tables.keys.where(_isTakeAway).toList()
+      ..sort(_compareByCreatedAt);
+    final otherKeys =
+        tables.keys
+            .where((key) => !key.startsWith('Table ') && !_isTakeAway(key))
+            .toList()
+          ..sort();
+    return [...tableKeys, ...takeAwayKeys, ...otherKeys];
+  }
+
+  Future<void> _showTableFilterSheet() async {
+    final allKeys = _allTableKeysSorted();
+    if (allKeys.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No tables available to filter.')),
+      );
+      return;
+    }
+
+    final dineInKeys =
+        allKeys.where((key) => key.startsWith('Table ')).toList();
+    final takeAwayKeys = allKeys.where(_isTakeAway).toList();
+    final otherKeys = allKeys
+        .where((key) => !key.startsWith('Table ') && !_isTakeAway(key))
+        .toList();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            void toggleKey(String key, bool? selected) {
+              setState(() {
+                if (selected == true) {
+                  _tableFilterSelection.add(key);
+                } else {
+                  _tableFilterSelection.remove(key);
+                }
+              });
+              setSheetState(() {});
+            }
+
+            void selectAll() {
+              setState(() {
+                _tableFilterSelection
+                  ..clear()
+                  ..addAll(allKeys);
+              });
+              setSheetState(() {});
+            }
+
+            void clearFilter() {
+              setState(_tableFilterSelection.clear);
+              setSheetState(() {});
+            }
+
+            Widget buildSection(String title, List<String> keys) {
+              if (keys.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: fontMulishBold,
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                  ...keys.map(
+                    (key) => CheckboxListTile(
+                      value: _tableFilterSelection.contains(key),
+                      activeColor: _orange,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      title: Text(
+                        key,
+                        style: const TextStyle(
+                          fontFamily: fontMulishSemiBold,
+                          fontSize: 15,
+                          color: _navy,
+                        ),
+                      ),
+                      subtitle: tableIsPaid[key] == true
+                          ? Text(
+                              'PAID',
+                              style: TextStyle(
+                                fontFamily: fontMulishSemiBold,
+                                fontSize: 11,
+                                color: Colors.red.shade700,
+                              ),
+                            )
+                          : null,
+                      onChanged: (value) => toggleKey(key, value),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.72,
+              minChildSize: 0.45,
+              maxChildSize: 0.92,
+              builder: (context, scrollController) {
+                return Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                  ),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Filter tables',
+                                style: TextStyle(
+                                  fontFamily: fontMulishBold,
+                                  fontSize: 18,
+                                  color: _navy,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: selectAll,
+                              child: const Text('Select all'),
+                            ),
+                            TextButton(
+                              onPressed: clearFilter,
+                              child: const Text('Clear'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          _tableFilterSelection.isEmpty
+                              ? 'Showing all tables. Select tables to display only those.'
+                              : '${_tableFilterSelection.length} selected · '
+                                  'dashboard shows selected tables only',
+                          style: TextStyle(
+                            fontFamily: fontMulishRegular,
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Divider(height: 1),
+                      Expanded(
+                        child: ListView(
+                          controller: scrollController,
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                          children: [
+                            buildSection('Dine-in tables', dineInKeys),
+                            buildSection('Take away', takeAwayKeys),
+                            buildSection('Other', otherKeys),
+                          ],
+                        ),
+                      ),
+                      SafeArea(
+                        top: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: _navy,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              onPressed: () => Navigator.pop(sheetContext),
+                              child: Text(
+                                _tableFilterSelection.isEmpty
+                                    ? 'Show all tables'
+                                    : 'Show ${_tableFilterSelection.length} selected',
+                                style: const TextStyle(
+                                  fontFamily: fontMulishBold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1819,11 +2102,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                           docId: docId,
                           controller: _itemSelection,
                           showDeleteButton:
-                              Get.find<RestaurantSession>()
-                                  .profile
-                                  .value
-                                  ?.isAdmin ??
-                              false,
+                              true,
                         ),
 
                         // Total row
@@ -1872,8 +2151,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     ),
   );
 
-  // Filter the tables based on current selectedTab
-  List<String> _filteredTableKeys() {
+  // Filter the tables based on current selectedTab and table selection filter.
+  List<String> _tabFilteredTableKeys() {
     if (selectedTab == 'Take Away') {
       final keys = tables.keys.where(_isTakeAway).toList()
         ..sort(_compareByCreatedAt);
@@ -1886,18 +2165,15 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       return keys;
     }
 
-    final tableKeys =
-        tables.keys.where((key) => key.startsWith('Table ')).toList()
-          ..sort(_compareTableNumber);
-    final takeAwayKeys = tables.keys.where(_isTakeAway).toList()
-      ..sort(_compareByCreatedAt);
-    final otherKeys =
-        tables.keys
-            .where((key) => !key.startsWith('Table ') && !_isTakeAway(key))
-            .toList()
-          ..sort();
+    return _allTableKeysSorted();
+  }
 
-    return [...tableKeys, ...takeAwayKeys, ...otherKeys];
+  List<String> _filteredTableKeys() {
+    var keys = _tabFilteredTableKeys();
+    if (_tableFilterSelection.isNotEmpty) {
+      keys = keys.where((key) => _tableFilterSelection.contains(key)).toList();
+    }
+    return keys;
   }
 
   Future<void> _deleteTable(String docId, String name) async {

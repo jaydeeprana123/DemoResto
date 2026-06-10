@@ -408,6 +408,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               KitchenSettings.showServeOrderScreen.value == true;
           _mobileLayoutIsGrid =
               KitchenSettings.mobileOrdersGridLayout.value == true;
+          showAllCategories = KitchenSettings.showAllCategories;
+          selectedCategories = Set<String>.from(
+            KitchenSettings.selectedCategories,
+          );
+          _orderTypeFilterIndex = KitchenSettings.orderTypeFilterIndex;
+          _rebuildDisplayFromCache();
         });
       }
     });
@@ -464,6 +470,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       _itemSelection.cancel();
       _rebuildDisplayFromCache();
     });
+    KitchenSettings.saveOrderTypeFilterIndex(value);
   }
 
   List<TableGroup> _filterAllItems(List<TableGroup> groups) {
@@ -1150,7 +1157,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      onPressed: () {
+                      onPressed: () async {
+                        await KitchenSettings.saveCategoryFilter(
+                          showAll: showAllCategories,
+                          categories: selectedCategories,
+                        );
+                        if (!context.mounted) return;
                         setState(_rebuildDisplayFromCache);
                         Navigator.pop(context);
                       },
