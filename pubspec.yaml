@@ -44,9 +44,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/images/restaurant_bill_logo.png
+  image_path: assets/images/logo.png
   adaptive_icon_background: "#2B5494"
-  adaptive_icon_foreground: assets/images/restaurant_bill_logo.png
+  adaptive_icon_foreground: assets/images/logo.png
   web:
     generate: true
     background_color: "#2B5494"

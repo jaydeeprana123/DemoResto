@@ -28,4 +28,24 @@ class UserRepository {
     }
     await FirebaseAuth.instance.signOut();
   }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = currentUser;
+    if (user == null) throw Exception('Not signed in.');
+
+    final email = user.email?.trim();
+    if (email == null || email.isEmpty) {
+      throw Exception('No email is linked to this account.');
+    }
+
+    final credential = EmailAuthProvider.credential(
+      email: email,
+      password: currentPassword,
+    );
+    await user.reauthenticateWithCredential(credential);
+    await user.updatePassword(newPassword);
+  }
 }

@@ -1,6 +1,7 @@
 import 'package:demo/core/repositories/user_repository.dart';
 import 'package:demo/features/settings/controllers/admin_dashboard_controller.dart';
 import 'package:demo/features/settings/controllers/expenses_controller.dart';
+import 'package:demo/features/settings/controllers/profile_controller.dart';
 import 'package:demo/features/settings/controllers/settings_controller.dart';
 import 'package:demo/features/settings/controllers/staff_controller.dart';
 import 'package:demo/features/settings/controllers/stock_controller.dart';
@@ -20,6 +21,10 @@ class SettingsBinding extends Bindings {
       fenix: true,
     );
     Get.lazyPut<ExportRepository>(() => ExportRepository(), fenix: true);
+    Get.lazyPut<ProfileController>(
+      () => ProfileController(Get.find<UserRepository>()),
+      fenix: true,
+    );
     Get.lazyPut<SettingsController>(
       () => SettingsController(Get.find<UserRepository>()),
       fenix: true,

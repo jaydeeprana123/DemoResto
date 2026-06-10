@@ -4,6 +4,7 @@ import 'package:demo/features/settings/controllers/settings_controller.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/features/settings/views/AdminDashboardPage.dart';
 import 'package:demo/features/settings/views/ExpensesPage.dart';
+import 'package:demo/features/settings/views/profile_view.dart';
 import 'package:demo/features/settings/views/staff_list_view.dart';
 import 'package:demo/features/settings/views/stock_management_page.dart';
 import 'package:demo/features/settings/views/ExportPage.dart';
@@ -515,6 +516,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
+                _SettingsTile(
+                  icon: Icons.person_outline_rounded,
+                  title: 'My Profile',
+                  subtitle: isAdmin
+                      ? 'View account details and change password'
+                      : 'View your name and email',
+                  onTap: () => Get.to(() => const ProfileView()),
+                ),
                 _SettingsTile(
                   icon: Icons.logout_rounded,
                   title: 'Sign out',
