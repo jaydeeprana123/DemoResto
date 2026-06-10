@@ -7,9 +7,10 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import 'package:flutter/foundation.dart';
 import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/features/ordering/services/food_bill_pdf_io.dart'
-    if (dart.library.html) 'package:demo/features/ordering/services/food_bill_pdf_io_stub.dart';
+    if (dart.library.html) 'package:demo/features/ordering/services/food_bill_pdf_io_web.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/core/utils/tax_calculator.dart';
 import 'package:get/get.dart';
@@ -176,14 +177,18 @@ class FoodBillPdfService {
       pageFormat,
       includeLogos: includeLogos,
     );
-    final fileName = 'pos_bill_${data.invoiceNumber ?? 'receipt'}.pdf';
+    final fileName = buildReceiptPdfFileName(data);
 
-    if (isDesktopPlatform) {
+    if (isDesktopPlatform || kIsWeb) {
       final path = await writeReceiptPdfFile(pdfBytes, fileName);
-      await openReceiptPdfFile(path);
+      if (isDesktopPlatform) {
+        await openReceiptPdfFile(path);
+      }
       Get.snackbar(
         'Receipt saved',
-        'Documents/Flavor Flow Receipts/$fileName',
+        isDesktopPlatform
+            ? 'Documents/Flavor Flow Receipts/$fileName'
+            : fileName,
         duration: const Duration(seconds: 3),
       );
       return;
@@ -193,7 +198,7 @@ class FoodBillPdfService {
       pdfBytes: pdfBytes,
       pageFormat: pageFormat,
       printerType: printerType,
-      invoiceNumber: data.invoiceNumber,
+      fileName: fileName,
     );
 
     if (!sentToTvs) {
@@ -206,12 +211,32 @@ class FoodBillPdfService {
     }
   }
 
+  /// File name: `{Table Name} - {Bill ID}.pdf`
+  static String buildReceiptPdfFileName(FoodBillPdfData data) {
+    final tablePart = _sanitizeFileNamePart(data.tableName);
+    final billPart = _sanitizeFileNamePart(
+      data.invoiceNumber?.trim().isNotEmpty == true
+          ? data.invoiceNumber!.trim()
+          : 'receipt',
+    );
+
+    if (tablePart.isEmpty) return '$billPart.pdf';
+    return '$tablePart - $billPart.pdf';
+  }
+
+  static String _sanitizeFileNamePart(String value) {
+    return value
+        .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
   /// Sends directly to a connected TVS printer when detected (USB / network).
   static Future<bool> _tryDirectTvsPrint({
     required Uint8List pdfBytes,
     required PdfPageFormat pageFormat,
     required PosPrinterType printerType,
-    String? invoiceNumber,
+    required String fileName,
   }) async {
     if (printerType != PosPrinterType.tvs80) return false;
     if (isDesktopPlatform) return false;
@@ -231,7 +256,7 @@ class FoodBillPdfService {
       return Printing.directPrintPdf(
         printer: tvsPrinter,
         onLayout: (_) async => pdfBytes,
-        name: 'tvs_bill_${invoiceNumber ?? 'receipt'}.pdf',
+        name: fileName,
         format: pageFormat,
         usePrinterSettings: true,
       );
