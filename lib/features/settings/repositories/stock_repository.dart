@@ -99,18 +99,17 @@ class StockRepository {
 
     late StreamController<List<MenuStockEntry>> controller;
     final latestByCategory = <String, List<MenuStockEntry>>{};
+    final categoryOrder = categories.map((c) => c.id).toList();
     final subscriptions = <StreamSubscription<dynamic>>[];
 
     void emitMerged() {
       if (controller.isClosed) return;
-      final merged = latestByCategory.values.expand((e) => e).toList()
-        ..sort((a, b) {
-          final cat = a.categoryName.toLowerCase().compareTo(
-            b.categoryName.toLowerCase(),
-          );
-          if (cat != 0) return cat;
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        });
+      final merged = <MenuStockEntry>[];
+      for (final categoryId in categoryOrder) {
+        final entries = latestByCategory[categoryId];
+        if (entries == null || entries.isEmpty) continue;
+        merged.addAll(entries);
+      }
       controller.add(merged);
     }
 

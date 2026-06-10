@@ -5,11 +5,20 @@ class KitchenSettings {
   static const _keyShowTableAllOrders = 'kitchen_show_table_all_orders';
   static const _keyShowServeOrderScreen = 'kitchen_show_serve_order_screen';
   static const _keyMobileOrdersGridLayout = 'kitchen_mobile_orders_grid_layout';
+  static const _keyShowAllCategories = 'kitchen_filter_show_all_categories';
+  static const _keySelectedCategories = 'kitchen_filter_selected_categories';
+  static const _keyOrderTypeFilterIndex = 'kitchen_filter_order_type_index';
 
   static final ValueNotifier<bool> showTableAllOrders = ValueNotifier(false);
   static final ValueNotifier<bool> showServeOrderScreen = ValueNotifier(true);
   /// On mobile kitchen screen: true = 2-column grid, false = single-column list.
   static final ValueNotifier<bool> mobileOrdersGridLayout = ValueNotifier(false);
+
+  /// Category filter: true = show all categories.
+  static bool showAllCategories = true;
+  static Set<String> selectedCategories = {};
+  /// 0 = All, 1 = Table (dine-in), 2 = Take Away
+  static int orderTypeFilterIndex = 0;
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -19,6 +28,14 @@ class KitchenSettings {
         prefs.getBool(_keyShowServeOrderScreen) ?? true;
     mobileOrdersGridLayout.value =
         prefs.getBool(_keyMobileOrdersGridLayout) ?? false;
+
+    showAllCategories = prefs.getBool(_keyShowAllCategories) ?? true;
+    selectedCategories =
+        (prefs.getStringList(_keySelectedCategories) ?? []).toSet();
+    orderTypeFilterIndex = prefs.getInt(_keyOrderTypeFilterIndex) ?? 0;
+    if (orderTypeFilterIndex < 0 || orderTypeFilterIndex > 2) {
+      orderTypeFilterIndex = 0;
+    }
   }
 
   static Future<bool> getShowTableAllOrders() async {
@@ -47,5 +64,26 @@ class KitchenSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyMobileOrdersGridLayout, value);
     mobileOrdersGridLayout.value = value;
+  }
+
+  static Future<void> saveCategoryFilter({
+    required bool showAll,
+    required Set<String> categories,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyShowAllCategories, showAll);
+    await prefs.setStringList(
+      _keySelectedCategories,
+      categories.toList()..sort(),
+    );
+    showAllCategories = showAll;
+    selectedCategories = Set<String>.from(categories);
+  }
+
+  static Future<void> saveOrderTypeFilterIndex(int index) async {
+    final safeIndex = index < 0 || index > 2 ? 0 : index;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyOrderTypeFilterIndex, safeIndex);
+    orderTypeFilterIndex = safeIndex;
   }
 }
