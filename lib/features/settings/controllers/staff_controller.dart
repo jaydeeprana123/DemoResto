@@ -35,20 +35,22 @@ class StaffController extends GetxController {
     }
   }
 
-  Future<String?> updateStaffPassword({
-    required StaffMember staff,
-    required String newPassword,
-  }) async {
-    if (newPassword.length < 6) {
-      return 'New password must be at least 6 characters.';
-    }
-
+  Future<String?> sendPasswordResetEmail({required StaffMember staff}) async {
     isLoading.value = true;
     try {
-      await _repository.updateStaffPassword(
-        staff: staff,
-        newPassword: newPassword,
-      );
+      await _repository.sendPasswordResetEmail(staff: staff);
+      return null;
+    } catch (e) {
+      return e.toString().replaceFirst('Exception: ', '');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<String?> deleteStaff({required StaffMember staff}) async {
+    isLoading.value = true;
+    try {
+      await _repository.deleteStaff(staff: staff);
       return null;
     } catch (e) {
       return e.toString().replaceFirst('Exception: ', '');

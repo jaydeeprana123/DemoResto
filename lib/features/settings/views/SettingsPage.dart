@@ -176,7 +176,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   _SettingsTile(
                     icon: Icons.group_add_rounded,
                     title: 'Staff',
-                    subtitle: 'View staff, emails & change passwords',
+                    subtitle: 'Add staff, send password reset & remove access',
                     onTap: () => Get.to(() => const StaffListView()),
                   ),
                 const SizedBox(height: 20),
