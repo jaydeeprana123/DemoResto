@@ -42,6 +42,7 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
         'name': _nameController.text.trim(),
         'price': double.tryParse(_priceController.text.trim()) ?? 0.0,
         'sortOrder': sortOrder,
+        'inStock': true,
         'createdAt': FieldValue.serverTimestamp(),
       });
 

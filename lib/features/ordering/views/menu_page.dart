@@ -7,9 +7,11 @@ import 'package:demo/services/ai_order_service.dart';
 import 'package:demo/services/restaurant_agent_service.dart';
 import 'package:demo/models/agent_response.dart';
 
+import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/core/services/restaurant_session.dart';
+import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
 import 'package:demo/features/ordering/views/cart_page.dart';
 import 'package:demo/features/ordering/views/final_billing_view.dart';
 import 'package:demo/features/ordering/utils/menu_item_variants.dart';
@@ -145,7 +147,65 @@ class _MenuPageState extends State<MenuPage>
     }
 
     _loadSelectedCategories();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncStockStatus());
   }
+
+  Future<void> _syncStockStatus() async {
+    for (final category in menuData.keys) {
+      for (final item in menuData[category]!) {
+        if (MenuItemVariants.hasVariants(item)) {
+          var inStock = true;
+          final checked = <String>{};
+          for (final variant in MenuItemVariants.variantsOf(item)) {
+            final catId =
+                variant['categoryId']?.toString() ??
+                item['categoryId']?.toString();
+            final itemId = variant['itemId']?.toString();
+            if (catId == null || itemId == null) continue;
+            final dedupeKey = '$catId|$itemId';
+            if (checked.contains(dedupeKey)) continue;
+            checked.add(dedupeKey);
+
+            final snap = await FirestorePaths.scopedSubCollection(
+              'menus',
+              catId,
+              'items',
+            ).doc(itemId).get();
+            if (!snap.exists || !MenuStockUtils.isInStock(snap.data())) {
+              inStock = false;
+              break;
+            }
+          }
+          item['inStock'] = inStock;
+          continue;
+        }
+
+        final catId = item['categoryId']?.toString();
+        final itemId = item['itemId']?.toString();
+        if (catId == null || itemId == null) continue;
+
+        final snap = await FirestorePaths.scopedSubCollection(
+          'menus',
+          catId,
+          'items',
+        ).doc(itemId).get();
+        if (snap.exists) {
+          item['inStock'] = MenuStockUtils.isInStock(snap.data());
+        }
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _showOutOfStockMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('This item is out of stock and cannot be added.'),
+      ),
+    );
+  }
+
+  bool _canAddMore(Map<String, dynamic> item) => MenuStockUtils.isInStockFromItem(item);
 
   void incrementQty(String category, int index) {
     setState(() {
@@ -163,6 +223,10 @@ class _MenuPageState extends State<MenuPage>
 
   void _onMenuItemAdd(String category, int index) {
     final item = menuData[category]![index];
+    if (!_canAddMore(item)) {
+      _showOutOfStockMessage();
+      return;
+    }
     if (MenuItemVariants.hasVariants(item)) {
       _showHalfFullPicker(category, index, forDecrement: false);
       return;
@@ -197,6 +261,10 @@ class _MenuPageState extends State<MenuPage>
     required bool forDecrement,
   }) async {
     final item = menuData[category]![index];
+    if (!forDecrement && !_canAddMore(item)) {
+      _showOutOfStockMessage();
+      return;
+    }
     final variants = MenuItemVariants.variantsOf(item);
     final displayName = MenuItemVariants.displayName(item);
 
@@ -1390,13 +1458,19 @@ class _MenuPageState extends State<MenuPage>
     final item = menuData[category]![index];
     final qty = MenuItemVariants.totalQty(item);
     final displayName = MenuItemVariants.displayName(item);
+    final inStock = MenuStockUtils.isInStockFromItem(item);
 
-    return Container(
+    return Opacity(
+      opacity: inStock ? 1 : 0.72,
+      child: Container(
       margin: const EdgeInsets.only(left: 8, top: 4, bottom: 4),
       padding: const EdgeInsets.only(left: 14, top: 10, bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: inStock ? Colors.white : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(12),
+        border: inStock
+            ? null
+            : Border.all(color: Colors.red.shade200),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -1410,17 +1484,49 @@ class _MenuPageState extends State<MenuPage>
         children: [
           Expanded(
             child: InkWell(
-              onTap: () => _onMenuItemAdd(category, index),
+              onTap: inStock ? () => _onMenuItemAdd(category, index) : _showOutOfStockMessage,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    displayName,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontFamily: fontMulishBold,
-                      color: Color(0xFF1A3A5C),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          displayName,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontFamily: fontMulishBold,
+                            color: inStock
+                                ? const Color(0xFF1A3A5C)
+                                : Colors.grey.shade600,
+                            decoration:
+                                inStock ? null : TextDecoration.lineThrough,
+                            decorationColor: Colors.red.shade300,
+                          ),
+                        ),
+                      ),
+                      if (!inStock)
+                        Container(
+                          margin: const EdgeInsets.only(left: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Text(
+                            'OUT OF STOCK',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontFamily: fontMulishBold,
+                              color: Colors.red.shade700,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 3),
                   Row(
@@ -1455,7 +1561,9 @@ class _MenuPageState extends State<MenuPage>
             _stepperOnMinus(
               qty: qty,
               onDecrement: () => _onMenuItemRemove(category, index),
-              onIncrement: () => _onMenuItemAdd(category, index),
+              onIncrement: inStock
+                  ? () => _onMenuItemAdd(category, index)
+                  : _showOutOfStockMessage,
             ),
 
           // qty == 0
@@ -1467,6 +1575,7 @@ class _MenuPageState extends State<MenuPage>
           //       ),
         ],
       ),
+    ),
     );
   }
 

@@ -5,6 +5,7 @@ class UserProfile {
     required this.role,
     this.name,
     this.restaurantId,
+    this.active = true,
   });
 
   final String uid;
@@ -12,6 +13,7 @@ class UserProfile {
   final String role;
   final String? name;
   final String? restaurantId;
+  final bool active;
 
   bool get isSuperAdmin => role == 'SuperAdmin';
   bool get isAdmin => role == 'Admin';
@@ -25,6 +27,7 @@ class UserProfile {
       role: data['role']?.toString() ?? 'Staff',
       name: data['name']?.toString(),
       restaurantId: data['restaurantId']?.toString(),
+      active: data['active'] != false,
     );
   }
 }

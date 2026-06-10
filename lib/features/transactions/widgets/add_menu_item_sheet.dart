@@ -1,5 +1,6 @@
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
+import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
 import 'package:demo/features/menu_setup/widgets/setup_page_layout.dart';
 import 'package:demo/features/transactions/repositories/transactions_repository.dart';
 import 'package:demo/Styles/my_font.dart';
@@ -48,6 +49,7 @@ class _AddMenuItemSheetState extends State<AddMenuItemSheet> {
           grouped.putIfAbsent(categoryName, () => []).add({
             'name': data['name']?.toString() ?? '',
             'price': data['price'],
+            'inStock': MenuStockUtils.isInStock(data),
           });
         }
       }
@@ -78,6 +80,14 @@ class _AddMenuItemSheetState extends State<AddMenuItemSheet> {
   }
 
   void _selectItem(Map<String, dynamic> item) {
+    if (!MenuStockUtils.isInStockFromItem(item)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This item is out of stock and cannot be added.'),
+        ),
+      );
+      return;
+    }
     widget.onItemSelected({
       'name': item['name'],
       'price': item['price'],
@@ -181,25 +191,42 @@ class _AddMenuItemSheetState extends State<AddMenuItemSheet> {
               children: items.map((item) {
                 final price = transactionAsInt(item['price']);
                 final name = item['name']?.toString() ?? '';
+                final inStock = MenuStockUtils.isInStockFromItem(item);
 
                 return ListTile(
                   dense: true,
+                  enabled: inStock,
                   title: Text(
                     name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: fontMulishRegular,
                       fontSize: 14,
+                      color: inStock ? null : Colors.grey.shade500,
+                      decoration:
+                          inStock ? null : TextDecoration.lineThrough,
                     ),
                   ),
+                  subtitle: inStock
+                      ? null
+                      : Text(
+                          'Out of stock',
+                          style: TextStyle(
+                            fontFamily: fontMulishSemiBold,
+                            fontSize: 11,
+                            color: Colors.red.shade600,
+                          ),
+                        ),
                   trailing: Text(
                     '₹$price',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: fontMulishBold,
                       fontSize: 13,
-                      color: SetupPageColors.orange,
+                      color: inStock
+                          ? SetupPageColors.orange
+                          : Colors.grey.shade400,
                     ),
                   ),
-                  onTap: () => _selectItem(item),
+                  onTap: inStock ? () => _selectItem(item) : null,
                 );
               }).toList(),
             ),

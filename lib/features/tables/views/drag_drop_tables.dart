@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
+import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/repositories/user_repository.dart';
 import 'package:demo/core/services/restaurant_session.dart';
@@ -263,6 +264,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
   // Load menu data from Firestore
   Future<void> _loadMenu() async {
+    if (!mounted) return;
     setState(() {
       isLoading = true;
     });
@@ -298,11 +300,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             "itemId": itemDoc.id,
             "categorySortOrder": categorySortOrder,
             "itemSortOrder": itemSortOrder,
+            "inStock": MenuStockUtils.isInStock(data),
             "qty": 1,
           });
         }
       }
 
+      if (!mounted) return;
       setState(() {
         menu.clear();
         menu.addAll(loadedMenu);
@@ -310,6 +314,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       });
     } catch (e) {
       print("Error loading menu: $e");
+      if (!mounted) return;
       setState(() {
         isLoading = false;
       });
@@ -1394,6 +1399,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     final hasItems = groups.isNotEmpty;
     final isTakeAway = _isTakeAway(tableName);
     final displayName = _shortDisplayName(tableName);
+    final isMobileLayout = MediaQuery.sizeOf(context).width <= 600;
     // Header colour: green=has items, orange=empty dine-in, blue=empty takeaway
     final headerColor = paid
         ? Colors.red.shade700
@@ -1540,16 +1546,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 ),
                 child: Row(
                   children: [
-                    // Table icon
-                    if (!isTakeAway)
+                    // Table icon (tablet/desktop only — saves space on mobile)
+                    if (!isTakeAway && !isMobileLayout)
                       Icon(
-                        isTakeAway
-                            ? Icons.delivery_dining_outlined
-                            : Icons.table_restaurant_outlined,
+                        Icons.table_restaurant_outlined,
                         color: Colors.white70,
                         size: 17,
                       ),
-                    if (!isTakeAway) const SizedBox(width: 6),
+                    if (!isTakeAway && !isMobileLayout) const SizedBox(width: 6),
                     if (isTakeAway && takeAwayNum != null) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(

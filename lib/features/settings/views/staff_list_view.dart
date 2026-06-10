@@ -86,7 +86,12 @@ class StaffListView extends StatelessWidget {
               final member = staff[index];
               return _StaffCard(
                 member: member,
-                onChangePassword: () => _showChangePasswordDialog(
+                onChangePassword: () => _showPasswordResetDialog(
+                  context,
+                  controller,
+                  member,
+                ),
+                onDelete: () => _showDeleteStaffDialog(
                   context,
                   controller,
                   member,
@@ -99,138 +104,93 @@ class StaffListView extends StatelessWidget {
     );
   }
 
-  Future<void> _showChangePasswordDialog(
+  Future<void> _showPasswordResetDialog(
     BuildContext context,
     StaffController controller,
     StaffMember member,
   ) async {
-    final newPasswordCtrl = TextEditingController();
-    final confirmCtrl = TextEditingController();
-    var obscureNew = true;
-    var obscureConfirm = true;
-
-    await showDialog<void>(
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            return AlertDialog(
-              title: Text('Change password', style: MyFont.bold(16, color: _navy)),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      member.name,
-                      style: MyFont.semiBold(15, color: _navy),
-                    ),
-                    Text(
-                      member.email,
-                      style: MyFont.regular(13, color: Colors.grey.shade600),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: newPasswordCtrl,
-                      obscureText: obscureNew,
-                      decoration: InputDecoration(
-                        labelText: 'New password *',
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            obscureNew ? Icons.visibility : Icons.visibility_off,
-                          ),
-                          onPressed: () => setDialogState(
-                            () => obscureNew = !obscureNew,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: confirmCtrl,
-                      obscureText: obscureConfirm,
-                      decoration: InputDecoration(
-                        labelText: 'Confirm new password *',
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            obscureConfirm
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                          ),
-                          onPressed: () => setDialogState(
-                            () => obscureConfirm = !obscureConfirm,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel'),
-                ),
-                Obx(
-                  () => FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: _orange),
-                    onPressed: controller.isLoading.value
-                        ? null
-                        : () async {
-                            final newPass = newPasswordCtrl.text;
-                            final confirm = confirmCtrl.text;
-                            if (newPass.length < 6) {
-                              _snack(ctx, 'Password must be at least 6 characters.');
-                              return;
-                            }
-                            if (newPass != confirm) {
-                              _snack(ctx, 'Passwords do not match.');
-                              return;
-                            }
-
-                            final error = await controller.updateStaffPassword(
-                              staff: member,
-                              newPassword: newPass,
-                            );
-                            if (!ctx.mounted) return;
-                            if (error != null) {
-                              _snack(ctx, error);
-                              return;
-                            }
-                            Navigator.pop(ctx);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Password updated for ${member.name}.',
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                    child: controller.isLoading.value
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text('Update'),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (ctx) => AlertDialog(
+        title: Text('Reset password?', style: MyFont.bold(16, color: _navy)),
+        content: Text(
+          'Send a password reset link to ${member.email}?\n\n'
+          '${member.name} will receive an email and can set a new password.',
+          style: MyFont.regular(14, color: Colors.grey.shade800),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _orange),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Send email'),
+          ),
+        ],
+      ),
     );
 
-    newPasswordCtrl.dispose();
-    confirmCtrl.dispose();
+    if (confirmed != true || !context.mounted) return;
+
+    final error = await controller.sendPasswordResetEmail(staff: member);
+    if (!context.mounted) return;
+
+    if (error != null) {
+      _snack(context, error);
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Password reset email sent to ${member.email}.'),
+      ),
+    );
+  }
+
+  Future<void> _showDeleteStaffDialog(
+    BuildContext context,
+    StaffController controller,
+    StaffMember member,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete staff?', style: MyFont.bold(16, color: _navy)),
+        content: Text(
+          'Remove ${member.name} from your team?\n\n'
+          'They will lose access to the app immediately. '
+          'Their login email is not deleted from Firebase, but they cannot sign in.',
+          style: MyFont.regular(14, color: Colors.grey.shade800),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final error = await controller.deleteStaff(staff: member);
+    if (!context.mounted) return;
+
+    if (error != null) {
+      _snack(context, error);
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${member.name} has been removed.')),
+    );
   }
 
   void _snack(BuildContext context, String message) {
@@ -242,10 +202,12 @@ class _StaffCard extends StatelessWidget {
   const _StaffCard({
     required this.member,
     required this.onChangePassword,
+    required this.onDelete,
   });
 
   final StaffMember member;
   final VoidCallback onChangePassword;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -291,9 +253,14 @@ class _StaffCard extends StatelessWidget {
               ),
             ),
             IconButton(
-              tooltip: 'Change password',
+              tooltip: 'Send password reset email',
               onPressed: onChangePassword,
-              icon: const Icon(Icons.lock_reset_rounded, color: _navy),
+              icon: const Icon(Icons.mail_outline_rounded, color: _navy),
+            ),
+            IconButton(
+              tooltip: 'Delete staff',
+              onPressed: onDelete,
+              icon: Icon(Icons.delete_outline_rounded, color: Colors.red.shade700),
             ),
           ],
         ),

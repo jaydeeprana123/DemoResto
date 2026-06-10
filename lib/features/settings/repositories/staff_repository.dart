@@ -1,14 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:demo/core/firebase/secondary_auth_service.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/models/staff_member.dart';
 import 'package:demo/core/services/restaurant_session.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 
+/// Staff management without Cloud Functions (works on Firebase Spark / no card).
 class StaffRepository {
   String? get _restaurantId =>
       Get.find<RestaurantSession>().profile.value?.restaurantId;
+
+  String? get _adminUid => Get.find<RestaurantSession>().profile.value?.uid;
 
   Future<void> createStaff({
     required String name,
@@ -30,6 +33,7 @@ class StaffRepository {
       'email': email.trim(),
       'role': 'Staff',
       'restaurantId': restaurantId,
+      'active': true,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -46,16 +50,15 @@ class StaffRepository {
         .snapshots()
         .map(
           (snap) => snap.docs
+              .where((d) => d.data()['active'] != false)
               .map((d) => StaffMember.fromFirestore(d.id, d.data()))
               .toList()
             ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase())),
         );
   }
 
-  Future<void> updateStaffPassword({
-    required StaffMember staff,
-    required String newPassword,
-  }) async {
+  /// Sends a password-reset email to the staff member (no Cloud Functions needed).
+  Future<void> sendPasswordResetEmail({required StaffMember staff}) async {
     final restaurantId = _restaurantId;
     if (restaurantId == null || restaurantId.isEmpty) {
       throw Exception('No restaurant is linked to your admin account.');
@@ -66,18 +69,45 @@ class StaffRepository {
 
     final data = staffDoc.data()!;
     if (data['role'] != 'Staff' || data['restaurantId'] != restaurantId) {
-      throw Exception('You can only update staff in your restaurant.');
+      throw Exception('You can only manage staff in your restaurant.');
+    }
+    if (data['active'] == false) {
+      throw Exception('This staff account is deactivated.');
     }
 
+    final email = staff.email.trim();
+    if (email.isEmpty) throw Exception('Staff email is missing.');
+
     try {
-      final callable =
-          FirebaseFunctions.instance.httpsCallable('updateStaffPassword');
-      await callable.call({
-        'staffUid': staff.uid,
-        'newPassword': newPassword,
-      });
-    } on FirebaseFunctionsException catch (e) {
-      throw Exception(e.message ?? 'Failed to update password (${e.code}).');
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      throw Exception(e.message ?? 'Failed to send reset email (${e.code}).');
     }
+  }
+
+  /// Deactivates staff in Firestore so they cannot use the app (no Auth delete).
+  Future<void> deleteStaff({required StaffMember staff}) async {
+    final restaurantId = _restaurantId;
+    if (restaurantId == null || restaurantId.isEmpty) {
+      throw Exception('No restaurant is linked to your admin account.');
+    }
+
+    if (staff.uid == _adminUid) {
+      throw Exception('You cannot remove your own account here.');
+    }
+
+    final staffDoc = await FirestorePaths.user(staff.uid).get();
+    if (!staffDoc.exists) throw Exception('Staff account not found.');
+
+    final data = staffDoc.data()!;
+    if (data['role'] != 'Staff' || data['restaurantId'] != restaurantId) {
+      throw Exception('You can only delete staff in your restaurant.');
+    }
+
+    await FirestorePaths.user(staff.uid).update({
+      'active': false,
+      'deactivatedAt': FieldValue.serverTimestamp(),
+      if (_adminUid != null) 'deactivatedBy': _adminUid,
+    });
   }
 }

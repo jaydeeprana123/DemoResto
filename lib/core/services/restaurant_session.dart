@@ -149,6 +149,14 @@ class RestaurantSession extends GetxService {
       );
     }
 
+    if (profile.value!.active == false) {
+      return const RestaurantAccessInfo(
+        allowed: false,
+        message:
+            'Your account has been deactivated. Contact your restaurant admin.',
+      );
+    }
+
     final restaurantId = profile.value?.restaurantId;
     if (restaurantId == null || restaurantId.isEmpty) {
       if (useLegacyCollections) {
