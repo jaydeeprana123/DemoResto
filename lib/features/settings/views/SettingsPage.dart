@@ -10,6 +10,7 @@ import 'package:demo/features/settings/views/stock_management_page.dart';
 import 'package:demo/features/settings/views/ExportPage.dart';
 import 'package:demo/features/tables/tables.dart';
 import 'package:demo/features/transactions/transactions.dart';
+import 'package:demo/features/zomato/views/imagekit_settings_page.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -180,6 +181,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     title: 'Staff',
                     subtitle: 'Add staff, send password reset & remove access',
                     onTap: () => Get.to(() => const StaffListView()),
+                  ),
+                if (isAdmin)
+                  _SettingsTile(
+                    icon: Icons.delivery_dining_rounded,
+                    title: 'Zomato / ImageKit',
+                    subtitle: 'ImageKit keys for Zomato screenshot orders',
+                    onTap: () => Get.to(() => const ImageKitSettingsPage()),
                   ),
                 _SettingsTile(
                   icon: Icons.inventory_2_outlined,

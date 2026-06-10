@@ -13,6 +13,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import 'package:demo/core/utils/table_name_utils.dart';
+import 'package:demo/core/utils/zomato_order_utils.dart';
 import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
@@ -22,6 +23,7 @@ import 'package:demo/features/transactions/services/reverse_billing_service.dart
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
+import 'package:demo/features/zomato/widgets/zomato_order_card_body.dart';
 import 'package:demo/models/GroupOrder.dart';
 
 class KitchenOrdersListView extends StatefulWidget {
@@ -340,9 +342,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     required bool isPaid,
     required String docId,
     String? lastTransactionId,
+    String? source,
+    String? screenshotUrl,
+    String? zomatoStatus,
+    Timestamp? createdAt,
   }) {
     List<TableGroup> groups = [];
-    if (itemsFromDb == null) return groups;
+    if (itemsFromDb == null) itemsFromDb = const [];
 
     Map<int, List<Map<String, dynamic>>> groupMap = {};
     Map<int, Timestamp> groupTimeMap = {};
@@ -359,7 +365,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           : Timestamp.now();
 
       final normalized = Map<String, dynamic>.from(itemMap);
-      // remove internal metadata so UI shows only item fields
       normalized.remove('groupIndex');
       normalized.remove('addedAt');
 
@@ -381,9 +386,33 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           isPaid: isPaid,
           groupIndex: index,
           lastTransactionId: lastTransactionId,
+          source: source,
+          screenshotUrl: screenshotUrl,
+          zomatoStatus: zomatoStatus,
         ),
       );
     });
+
+    if (groups.isEmpty &&
+        ZomatoOrderUtils.isZomatoSource(source) &&
+        (screenshotUrl?.isNotEmpty ?? false)) {
+      final timestamp = createdAt ?? Timestamp.now();
+      groups.add(
+        TableGroup(
+          tableName,
+          const [],
+          timestamp.toDate().millisecondsSinceEpoch,
+          key: '${tableName}_zomato_0',
+          docId: docId,
+          isPaid: isPaid,
+          groupIndex: 0,
+          lastTransactionId: lastTransactionId,
+          source: source,
+          screenshotUrl: screenshotUrl,
+          zomatoStatus: zomatoStatus,
+        ),
+      );
+    }
 
     return groups;
   }
@@ -455,6 +484,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   List<TableGroup> _filterByOrderType(List<TableGroup> groups) {
     if (_orderTypeFilterIndex == 0) return groups;
     return groups.where((group) {
+      if (group.isZomato) return false;
       final isTakeAway = isTakeAwayOrderName(group.tableName);
       if (_orderTypeFilterIndex == 1) {
         return isDiningTableName(group.tableName);
@@ -476,6 +506,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   List<TableGroup> _filterAllItems(List<TableGroup> groups) {
     return groups
         .map((group) {
+          if (group.isZomato) return group;
           final filteredItems = group.items.asMap().entries
               .where((entry) => TableItemServed.asItemMap(entry.value) != null)
               .map((entry) {
@@ -498,6 +529,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             isPaid: group.isPaid,
             groupIndex: group.groupIndex,
             lastTransactionId: group.lastTransactionId,
+            source: group.source,
+            screenshotUrl: group.screenshotUrl,
+            zomatoStatus: group.zomatoStatus,
           );
         })
         .whereType<TableGroup>()
@@ -519,6 +553,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   }) {
     return groups
         .map((group) {
+          if (group.isZomato) {
+            final completed = ZomatoOrderUtils.isCompletedStatus(
+              group.zomatoStatus,
+            );
+            return servedOnly == completed ? group : null;
+          }
           final filteredItems = group.items.asMap().entries
               .where((entry) {
                 final item = TableItemServed.asItemMap(entry.value);
@@ -546,6 +586,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             isPaid: group.isPaid,
             groupIndex: group.groupIndex,
             lastTransactionId: group.lastTransactionId,
+            source: group.source,
+            screenshotUrl: group.screenshotUrl,
+            zomatoStatus: group.zomatoStatus,
           );
         })
         .whereType<TableGroup>()
@@ -612,6 +655,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       final tableName = (data['name'] ?? 'Unknown Table') as String;
       final isPaid = data['isPaid'] == true;
       final lastTransactionId = data['lastTransactionId']?.toString();
+      final source = data['source']?.toString();
+      final screenshotUrl = data['screenshotUrl']?.toString();
+      final zomatoStatus = data['zomatoStatus']?.toString();
+      final createdAt = data['createdAt'];
       final itemsFromDb =
           data.containsKey('items') ? (data['items'] as List<dynamic>?) : null;
       updatedGroups.addAll(
@@ -621,6 +668,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           isPaid: isPaid,
           docId: doc.id,
           lastTransactionId: lastTransactionId,
+          source: source,
+          screenshotUrl: screenshotUrl,
+          zomatoStatus: zomatoStatus,
+          createdAt: createdAt is Timestamp ? createdAt : null,
         ),
       );
     }
@@ -950,6 +1001,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
     return groups
         .map((group) {
+          if (group.isZomato) return group;
           // Filter items in this group by selected categories
           final filteredItems = group.items.asMap().entries
               .where((entry) {
@@ -979,6 +1031,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             isPaid: group.isPaid,
             groupIndex: group.groupIndex,
             lastTransactionId: group.lastTransactionId,
+            source: group.source,
+            screenshotUrl: group.screenshotUrl,
+            zomatoStatus: group.zomatoStatus,
           );
         })
         .whereType<TableGroup>()
@@ -1467,8 +1522,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                   group.tableName,
                   group.isPaid,
                   queueNumber,
+                  isZomato: group.isZomato,
                   isNext: isNext,
-                  onPaidDoubleTap: group.isPaid
+                  onPaidDoubleTap: group.isPaid && !group.isZomato
                       ? () => ReverseBillingService.showReverseBillingDialog(
                           context,
                           tableName: group.tableName,
@@ -1479,6 +1535,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                   compact: _isMobileGridLayout,
                 ),
                 _buildTimeBar(tickTime, tickIsDelayed, compact: _isMobileGridLayout),
+                if (group.isZomato &&
+                    (group.screenshotUrl?.isNotEmpty ?? false))
+                  ZomatoOrderCardBody(
+                    docId: group.docId,
+                    screenshotUrl: group.screenshotUrl!,
+                    status: group.zomatoStatus ?? 'Pending',
+                    compact: _isMobileGridLayout,
+                  )
+                else
                 Padding(
                   padding: EdgeInsets.all(_isMobileGridLayout ? 6 : 12),
                   child: ListenableBuilder(
@@ -1739,6 +1804,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     String tableName,
     bool isPaid,
     int queueNumber, {
+    bool isZomato = false,
     bool isNext = false,
     VoidCallback? onPaidDoubleTap,
     bool compact = false,
@@ -1761,22 +1827,29 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           Expanded(
             child: Row(
               children: [
-                SvgPicture.asset(
-                  tableName.contains("Take Away") ? icon_packing : icon_table,
-                  colorFilter: const ColorFilter.mode(
-                    Colors.white,
-                    BlendMode.srcIn,
+                if (isZomato)
+                  Icon(
+                    Icons.delivery_dining,
+                    color: Colors.white,
+                    size: compact ? 18 : 22,
+                  )
+                else
+                  SvgPicture.asset(
+                    tableName.contains("Take Away") ? icon_packing : icon_table,
+                    colorFilter: const ColorFilter.mode(
+                      Colors.white,
+                      BlendMode.srcIn,
+                    ),
+                    width: tableName.contains("Take Away")
+                        ? (compact ? 15 : 18)
+                        : (compact ? 18 : 22),
                   ),
-                  width: tableName.contains("Take Away")
-                      ? (compact ? 15 : 18)
-                      : (compact ? 18 : 22),
-                ),
                 SizedBox(width: compact ? 6 : 8),
                 Flexible(
                   child: Text(
                     tableName,
                     style: TextStyle(
-                      fontFamily: tableName.contains("Take Away")
+                      fontFamily: isZomato || tableName.contains("Take Away")
                           ? fontMulishBold
                           : fontMulishSemiBold,
                       fontSize: compact ? 13 : 16,
@@ -1785,6 +1858,24 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                if (isZomato) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      'ZOMATO',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontFamily: fontMulishBold,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -2073,6 +2164,11 @@ class TableGroup {
   final bool isPaid;
   final int groupIndex;
   final String? lastTransactionId;
+  final String? source;
+  final String? screenshotUrl;
+  final String? zomatoStatus;
+
+  bool get isZomato => ZomatoOrderUtils.isZomatoSource(source);
 
   TableGroup(
     this.tableName,
@@ -2083,6 +2179,9 @@ class TableGroup {
     required this.isPaid,
     required this.groupIndex,
     this.lastTransactionId,
+    this.source,
+    this.screenshotUrl,
+    this.zomatoStatus,
   });
 }
 
