@@ -9,10 +9,18 @@ class SettingsController extends GetxController {
 
   final UserRepository _userRepository;
 
+  @override
+  void onInit() {
+    super.onInit();
+    loadKitchenSettings();
+    loadPrintSettings();
+  }
+
   final userRole = Rxn<String>();
   final isLoadingRole = true.obs;
   final kitchenShowTableAllOrders = true.obs;
   final kitchenShowServeOrderScreen = false.obs;
+  final kitchenBackgroundOrderRingtoneEnabled = true.obs;
   final printPdfEnabled = false.obs;
   final printerType = PosPrinterType.tvs80.obs;
   final billPdfIncludeLogos = false.obs;
@@ -37,6 +45,8 @@ class SettingsController extends GetxController {
         await KitchenSettings.getShowTableAllOrders();
     kitchenShowServeOrderScreen.value =
         await KitchenSettings.getShowServeOrderScreen();
+    kitchenBackgroundOrderRingtoneEnabled.value =
+        await KitchenSettings.getBackgroundOrderRingtoneEnabled();
   }
 
   Future<void> setKitchenShowTableAllOrders(bool value) async {
@@ -47,6 +57,11 @@ class SettingsController extends GetxController {
   Future<void> setKitchenShowServeOrderScreen(bool value) async {
     await KitchenSettings.setShowServeOrderScreen(value);
     kitchenShowServeOrderScreen.value = value;
+  }
+
+  Future<void> setKitchenBackgroundOrderRingtoneEnabled(bool value) async {
+    await KitchenSettings.setBackgroundOrderRingtoneEnabled(value);
+    kitchenBackgroundOrderRingtoneEnabled.value = value;
   }
 
   Future<void> loadPrintSettings() async {

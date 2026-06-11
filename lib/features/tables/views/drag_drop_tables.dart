@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/utils/table_name_utils.dart';
+import 'package:demo/core/utils/zomato_order_utils.dart';
 import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
 import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
@@ -13,8 +14,14 @@ import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
 import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
+import 'package:demo/features/tables/services/dashboard_table_filter_settings.dart';
 import 'package:demo/features/tables/views/AddTablePage.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
+import 'package:demo/features/zomato/widgets/add_zomato_order_sheet.dart';
+import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
+import 'package:demo/features/zomato/widgets/zomato_order_progress_dialog.dart';
+import 'package:demo/features/zomato/widgets/zomato_order_card_body.dart';
+import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:dotted_line/dotted_line.dart';
@@ -53,12 +60,17 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   int tableNo = 0;
   String selectedTab = 'All'; // 👈 Add this variable at class level
   final Set<String> _tableFilterSelection = {};
+  final Map<String, String> tableSources = {};
+  final Map<String, String> tableScreenshotUrls = {};
+  final Map<String, String> tableZomatoStatuses = {};
   StreamSubscription<QuerySnapshot>? tablesSubscription;
   Timer? _timeRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+
+    _loadTableFilter();
 
     _timeRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
@@ -68,6 +80,27 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       _listenToTables();
       _loadMenu();
     }
+  }
+
+  Future<void> _loadTableFilter() async {
+    final saved = await DashboardTableFilterSettings.loadSelection();
+    if (!mounted) return;
+    setState(() {
+      _tableFilterSelection
+        ..clear()
+        ..addAll(saved);
+    });
+  }
+
+  Future<void> _persistTableFilter() async {
+    await DashboardTableFilterSettings.saveSelection(_tableFilterSelection);
+  }
+
+  Future<void> _updateTableFilterSelection(
+    void Function(Set<String> selection) update,
+  ) async {
+    setState(() => update(_tableFilterSelection));
+    await _persistTableFilter();
   }
 
   Future<void> signOut() async {
@@ -141,6 +174,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     final Map<String, bool> updatedIsPaid = {};
     final Map<String, String> updatedDocIds = {};
     final Map<String, String> updatedTransactionIds = {};
+    final Map<String, String> updatedSources = {};
+    final Map<String, String> updatedScreenshotUrls = {};
+    final Map<String, String> updatedZomatoStatuses = {};
 
     for (var doc in querySnapshot.docs) {
             final tableName = doc['name'] as String;
@@ -148,6 +184,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             updatedCreatedAt[tableName] = data['createdAt'] as Timestamp?;
             updatedIsPaid[tableName] = data['isPaid'] == true;
             updatedDocIds[tableName] = doc.id;
+            if (ZomatoOrderUtils.isZomatoDoc(data)) {
+              updatedSources[tableName] = ZomatoOrderUtils.sourceZomato;
+              updatedScreenshotUrls[tableName] =
+                  data['screenshotUrl']?.toString() ?? '';
+              updatedZomatoStatuses[tableName] = ZomatoOrderUtils.normalizeStatus(
+                data['zomatoStatus']?.toString(),
+              );
+            }
             final txId = data['lastTransactionId']?.toString();
             if (txId != null && txId.isNotEmpty) {
               updatedTransactionIds[tableName] = txId;
@@ -238,6 +282,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             );
           }
 
+    var filterPruned = false;
     void applySnapshot() {
       if (!mounted) return;
       setState(() {
@@ -257,7 +302,26 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         tableTransactionIds
           ..clear()
           ..addAll(updatedTransactionIds);
+        tableSources
+          ..clear()
+          ..addAll(updatedSources);
+        tableScreenshotUrls
+          ..clear()
+          ..addAll(updatedScreenshotUrls);
+        tableZomatoStatuses
+          ..clear()
+          ..addAll(updatedZomatoStatuses);
+        if (_tableFilterSelection.isNotEmpty) {
+          final before = _tableFilterSelection.length;
+          _tableFilterSelection.removeWhere(
+            (key) => !updatedTables.containsKey(key),
+          );
+          filterPruned = before != _tableFilterSelection.length;
+        }
       });
+      if (filterPruned) {
+        _persistTableFilter();
+      }
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) => applySnapshot());
@@ -1069,7 +1133,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
-            '${_filteredTableKeys().length} ${selectedTab == 'Take Away' ? 'orders' : 'tables'}',
+            '${_filteredTableKeys().length} ${_dashboardCountLabel()}',
             style: const TextStyle(
               color: Colors.white70,
               fontSize: 12,
@@ -1098,7 +1162,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
-          children: ['All', 'Tables', 'Take Away'].map((label) {
+          children: ['All', 'Tables', 'Take Away', 'Zomato'].map((label) {
             final selected = selectedTab == label;
             return Expanded(
               child: GestureDetector(
@@ -1114,7 +1178,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                     child: Text(
                       label,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: label == 'Take Away' || label == 'Zomato'
+                            ? 11
+                            : 13,
                         fontFamily: fontMulishSemiBold,
                         color: selected ? Colors.white : Colors.white60,
                       ),
@@ -1163,7 +1229,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             if (_tableFilterSelection.isNotEmpty) ...[
               const SizedBox(height: 16),
               OutlinedButton.icon(
-                onPressed: () => setState(_tableFilterSelection.clear),
+                onPressed: () => _updateTableFilterSelection(
+                  (selection) => selection.clear(),
+                ),
                 icon: const Icon(Icons.clear_all),
                 label: const Text('Clear filter'),
                 style: OutlinedButton.styleFrom(
@@ -1182,14 +1250,23 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     final tableKeys =
         tables.keys.where((key) => key.startsWith('Table ')).toList()
           ..sort(_compareTableNumber);
-    final takeAwayKeys = tables.keys.where(_isTakeAway).toList()
+    final takeAwayKeys = tables.keys
+        .where((key) => _isTakeAway(key) && !_isZomatoTable(key))
+        .toList()
+      ..sort(_compareByCreatedAt);
+    final zomatoKeys = tables.keys.where(_isActiveZomatoTable).toList()
       ..sort(_compareByCreatedAt);
     final otherKeys =
         tables.keys
-            .where((key) => !key.startsWith('Table ') && !_isTakeAway(key))
+            .where(
+              (key) =>
+                  !key.startsWith('Table ') &&
+                  !_isTakeAway(key) &&
+                  !_isZomatoTable(key),
+            )
             .toList()
           ..sort();
-    return [...tableKeys, ...takeAwayKeys, ...otherKeys];
+    return [...tableKeys, ...takeAwayKeys, ...zomatoKeys, ...otherKeys];
   }
 
   Future<void> _showTableFilterSheet() async {
@@ -1216,19 +1293,19 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         return StatefulBuilder(
           builder: (context, setSheetState) {
             void toggleKey(String key, bool? selected) {
-              setState(() {
+              _updateTableFilterSelection((selection) {
                 if (selected == true) {
-                  _tableFilterSelection.add(key);
+                  selection.add(key);
                 } else {
-                  _tableFilterSelection.remove(key);
+                  selection.remove(key);
                 }
               });
               setSheetState(() {});
             }
 
             void selectAll() {
-              setState(() {
-                _tableFilterSelection
+              _updateTableFilterSelection((selection) {
+                selection
                   ..clear()
                   ..addAll(allKeys);
               });
@@ -1236,7 +1313,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             }
 
             void clearFilter() {
-              setState(_tableFilterSelection.clear);
+              _updateTableFilterSelection((selection) => selection.clear());
               setSheetState(() {});
             }
 
@@ -1451,6 +1528,20 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   }
 
   Widget _buildFab() {
+    if (selectedTab == 'Zomato') {
+      return FloatingActionButton.extended(
+        backgroundColor: const Color(0xFFE53935),
+        foregroundColor: Colors.white,
+        elevation: 6,
+        icon: const Icon(Icons.add_a_photo_outlined),
+        label: const Text(
+          'Add Zomato Order',
+          style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 14),
+        ),
+        onPressed: () => AddZomatoOrderSheet.show(context),
+      );
+    }
+
     return FloatingActionButton.extended(
       backgroundColor: _navy,
       foregroundColor: Colors.white,
@@ -1513,7 +1604,26 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     );
   }
 
-  bool _isTakeAway(String name) => isTakeAwayOrderName(name);
+  bool _isTakeAway(String name) => isTakeAwayOrderName(name) && !_isZomatoTable(name);
+
+  bool _isZomatoTable(String name) =>
+      ZomatoOrderUtils.isZomatoSource(tableSources[name]) ||
+      ZomatoOrderUtils.isZomatoOrderName(name);
+
+  bool _isActiveZomatoTable(String name) {
+    if (!_isZomatoTable(name)) return false;
+    return !ZomatoOrderUtils.isCompletedStatus(tableZomatoStatuses[name]);
+  }
+
+  String _dashboardCountLabel() {
+    switch (selectedTab) {
+      case 'Take Away':
+      case 'Zomato':
+        return 'orders';
+      default:
+        return 'tables';
+    }
+  }
 
   bool get _isAdmin =>
       Get.find<RestaurantSession>().profile.value?.isAdmin ?? false;
@@ -1680,11 +1790,16 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   }) {
     final paid = isPaid == true;
     final hasItems = groups.isNotEmpty;
+    final isZomato = _isZomatoTable(tableName);
+    final screenshotUrl = tableScreenshotUrls[tableName] ?? '';
+    final zomatoStatus = tableZomatoStatuses[tableName] ?? 'Pending';
     final isTakeAway = _isTakeAway(tableName);
     final displayName = _shortDisplayName(tableName);
     final isMobileLayout = MediaQuery.sizeOf(context).width <= 600;
     // Header colour: green=has items, orange=empty dine-in, blue=empty takeaway
-    final headerColor = paid
+    final headerColor = isZomato
+        ? const Color(0xFFE53935)
+        : paid
         ? Colors.red.shade700
         : hasItems
         ? _green
@@ -1702,7 +1817,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     final tableTotal = _tableOrderTotal(groups);
 
     return InkWell(
-      onTap: ()async{
+      onTap: isZomato && screenshotUrl.isNotEmpty
+          ? () => ZomatoScreenshotViewer.show(
+                context,
+                imageUrl: screenshotUrl,
+                title: tableName,
+              )
+          : () async {
         if(!hasItems){
           await Navigator.push(
             context,
@@ -1765,7 +1886,24 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               onTap: () async{
                 if (paid) {
                   showServedDialog(context, tableName, () async {
-                    if (isTakeAway) {
+                    if (isZomato) {
+                      try {
+                        await ZomatoOrderProgressDialog.run(
+                          context,
+                          action: () => Get.find<ZomatoOrdersRepository>()
+                              .removeOrder(docId: docId),
+                        );
+                        if (mounted) setState(() {});
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Could not mark as served: $e'),
+                            ),
+                          );
+                        }
+                      }
+                    } else if (isTakeAway) {
                       await FirestorePaths
                           .scopedDoc('tables', docId)
                           .delete();
@@ -1996,7 +2134,24 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             ),
 
             // ── Card body ────────────────────────────────────────────────
-            if (!hasItems)
+            if (isZomato && screenshotUrl.isNotEmpty)
+              ZomatoOrderCardBody(
+                docId: docId,
+                screenshotUrl: screenshotUrl,
+                status: zomatoStatus,
+                onStatusChanged: (value) {
+                  if (ZomatoOrderUtils.isCompletedStatus(value)) {
+                    setState(() {
+                      tableZomatoStatuses.remove(tableName);
+                      tableScreenshotUrls.remove(tableName);
+                      tableSources.remove(tableName);
+                    });
+                    return;
+                  }
+                  setState(() => tableZomatoStatuses[tableName] = value);
+                },
+              )
+            else if (!hasItems)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Center(
@@ -2153,8 +2308,16 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
   // Filter the tables based on current selectedTab and table selection filter.
   List<String> _tabFilteredTableKeys() {
+    if (selectedTab == 'Zomato') {
+      final keys = tables.keys.where(_isActiveZomatoTable).toList()
+        ..sort(_compareByCreatedAt);
+      return keys;
+    }
+
     if (selectedTab == 'Take Away') {
-      final keys = tables.keys.where(_isTakeAway).toList()
+      final keys = tables.keys
+          .where((key) => _isTakeAway(key) && !_isZomatoTable(key))
+          .toList()
         ..sort(_compareByCreatedAt);
       return keys;
     }

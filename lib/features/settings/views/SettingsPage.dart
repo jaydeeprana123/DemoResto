@@ -10,6 +10,7 @@ import 'package:demo/features/settings/views/stock_management_page.dart';
 import 'package:demo/features/settings/views/ExportPage.dart';
 import 'package:demo/features/tables/tables.dart';
 import 'package:demo/features/transactions/transactions.dart';
+import 'package:demo/features/zomato/views/imagekit_settings_page.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -180,6 +181,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     title: 'Staff',
                     subtitle: 'Add staff, send password reset & remove access',
                     onTap: () => Get.to(() => const StaffListView()),
+                  ),
+                if (isAdmin)
+                  _SettingsTile(
+                    icon: Icons.delivery_dining_rounded,
+                    title: 'Zomato / ImageKit',
+                    subtitle: 'ImageKit keys for Zomato screenshot orders',
+                    onTap: () => Get.to(() => const ImageKitSettingsPage()),
                   ),
                 _SettingsTile(
                   icon: Icons.inventory_2_outlined,
@@ -503,6 +511,39 @@ class _SettingsPageState extends State<SettingsPage> {
                     onChanged: (value) async {
                       if (value == null) return;
                       await _settings.setKitchenShowServeOrderScreen(value);
+                    },
+                  ),
+                ),
+                Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SwitchListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    secondary: CircleAvatar(
+                      backgroundColor: _orange.withOpacity(0.12),
+                      child: const Icon(Icons.notifications_active_outlined, color: _orange),
+                    ),
+                    title: const Text(
+                      'Enable Order Ringtone in Background',
+                      style: TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 15,
+                        color: _navy,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'When on, new-order bells play even if the app is in the background or the screen is locked',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    value: _settings.kitchenBackgroundOrderRingtoneEnabled.value,
+                    activeColor: _orange,
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      await _settings.setKitchenBackgroundOrderRingtoneEnabled(value);
                     },
                   ),
                 ),

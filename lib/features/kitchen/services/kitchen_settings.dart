@@ -8,24 +8,30 @@ class KitchenSettings {
   static const _keyShowAllCategories = 'kitchen_filter_show_all_categories';
   static const _keySelectedCategories = 'kitchen_filter_selected_categories';
   static const _keyOrderTypeFilterIndex = 'kitchen_filter_order_type_index';
+  static const _keyBackgroundOrderRingtone = 'kitchen_background_order_ringtone';
 
-  static final ValueNotifier<bool> showTableAllOrders = ValueNotifier(false);
-  static final ValueNotifier<bool> showServeOrderScreen = ValueNotifier(true);
+  static final ValueNotifier<bool> showTableAllOrders = ValueNotifier(true);
+  static final ValueNotifier<bool> showServeOrderScreen = ValueNotifier(false);
+  /// When true, order bells play even if the app is backgrounded or the screen is locked.
+  static final ValueNotifier<bool> backgroundOrderRingtoneEnabled =
+      ValueNotifier(true);
   /// On mobile kitchen screen: true = 2-column grid, false = single-column list.
   static final ValueNotifier<bool> mobileOrdersGridLayout = ValueNotifier(false);
 
   /// Category filter: true = show all categories.
   static bool showAllCategories = true;
   static Set<String> selectedCategories = {};
-  /// 0 = All, 1 = Table (dine-in), 2 = Take Away
+  /// 0 = All, 1 = Table (dine-in), 2 = Take Away, 3 = Zomato
   static int orderTypeFilterIndex = 0;
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     showTableAllOrders.value =
-        prefs.getBool(_keyShowTableAllOrders) ?? false;
+        prefs.getBool(_keyShowTableAllOrders) ?? true;
     showServeOrderScreen.value =
-        prefs.getBool(_keyShowServeOrderScreen) ?? true;
+        prefs.getBool(_keyShowServeOrderScreen) ?? false;
+    backgroundOrderRingtoneEnabled.value =
+        prefs.getBool(_keyBackgroundOrderRingtone) ?? true;
     mobileOrdersGridLayout.value =
         prefs.getBool(_keyMobileOrdersGridLayout) ?? false;
 
@@ -33,14 +39,14 @@ class KitchenSettings {
     selectedCategories =
         (prefs.getStringList(_keySelectedCategories) ?? []).toSet();
     orderTypeFilterIndex = prefs.getInt(_keyOrderTypeFilterIndex) ?? 0;
-    if (orderTypeFilterIndex < 0 || orderTypeFilterIndex > 2) {
+    if (orderTypeFilterIndex < 0 || orderTypeFilterIndex > 3) {
       orderTypeFilterIndex = 0;
     }
   }
 
   static Future<bool> getShowTableAllOrders() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyShowTableAllOrders) ?? false;
+    return prefs.getBool(_keyShowTableAllOrders) ?? true;
   }
 
   static Future<void> setShowTableAllOrders(bool value) async {
@@ -51,13 +57,24 @@ class KitchenSettings {
 
   static Future<bool> getShowServeOrderScreen() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyShowServeOrderScreen) ?? true;
+    return prefs.getBool(_keyShowServeOrderScreen) ?? false;
   }
 
   static Future<void> setShowServeOrderScreen(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyShowServeOrderScreen, value);
     showServeOrderScreen.value = value;
+  }
+
+  static Future<bool> getBackgroundOrderRingtoneEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyBackgroundOrderRingtone) ?? true;
+  }
+
+  static Future<void> setBackgroundOrderRingtoneEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyBackgroundOrderRingtone, value);
+    backgroundOrderRingtoneEnabled.value = value;
   }
 
   static Future<void> setMobileOrdersGridLayout(bool value) async {
@@ -81,7 +98,7 @@ class KitchenSettings {
   }
 
   static Future<void> saveOrderTypeFilterIndex(int index) async {
-    final safeIndex = index < 0 || index > 2 ? 0 : index;
+    final safeIndex = index < 0 || index > 3 ? 0 : index;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyOrderTypeFilterIndex, safeIndex);
     orderTypeFilterIndex = safeIndex;

@@ -25,9 +25,9 @@ class SettingsBinding extends Bindings {
       () => ProfileController(Get.find<UserRepository>()),
       fenix: true,
     );
-    Get.lazyPut<SettingsController>(
-      () => SettingsController(Get.find<UserRepository>()),
-      fenix: true,
+    Get.put<SettingsController>(
+      SettingsController(Get.find<UserRepository>()),
+      permanent: true,
     );
     Get.lazyPut<ExpensesController>(
       () => ExpensesController(Get.find<ExpensesRepository>()),
