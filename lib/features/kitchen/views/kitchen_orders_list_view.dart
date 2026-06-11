@@ -14,7 +14,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/core/utils/zomato_order_utils.dart';
-import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
+import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/Styles/my_icons.dart';
@@ -1126,300 +1126,242 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     return null;
   }
 
-  Future<Map<String, List<String>>> _loadMenuItemsByCategory(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> categories,
-  ) async {
-    final result = <String, List<String>>{};
-    for (final categoryDoc in categories) {
-      final categoryName = categoryDoc.data()['name']?.toString() ?? '';
-      if (categoryName.isEmpty) continue;
+  void _showCategoryFilterDialog(BuildContext context) async {
+    final cache = Get.find<MenuCacheService>();
+    await cache.loadFromCacheOnly();
+    if (!mounted) return;
 
-      final itemsSnapshot = await FirestorePaths.scopedSubCollection(
-        'menus',
-        categoryDoc.id,
-        'items',
-      ).get();
-      result[categoryName] = sortMenuDocs(itemsSnapshot.docs)
-          .map((doc) => doc.data()['name']?.toString() ?? '')
-          .where((name) => name.isNotEmpty)
-          .toList();
+    final categoryNames = cache.getCategoryNamesSorted();
+    final menuItemsByCategory = cache.getItemsByCategoryMap();
+
+    if (_useLegacyCategoryOnlyFilter) {
+      for (final categoryName in selectedCategories) {
+        _selectAllMenuItemsForCategory(
+          categoryName,
+          menuItemsByCategory[categoryName] ?? const [],
+        );
+      }
+      _useLegacyCategoryOnlyFilter = false;
+      unawaited(
+        KitchenSettings.saveCategoryFilter(
+          showAll: showAllCategories,
+          categories: selectedCategories,
+          menuItems: selectedMenuItems,
+        ),
+      );
     }
-    return result;
-  }
 
-  void _showCategoryFilterDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirestorePaths.scoped('menus').snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const AlertDialog(
-                content: Center(child: CircularProgressIndicator()),
-              );
+        if (categoryNames.isEmpty) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              "Filter by Category",
+              style: TextStyle(
+                fontFamily: fontMulishSemiBold,
+                fontSize: 18,
+              ),
+            ),
+            content: const Text(
+              'No menu categories in cache. Pull to refresh on the Dashboard to load the menu.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text("Close"),
+              ),
+            ],
+          );
+        }
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            void applyFilterChanges() {
+              setDialogState(() {});
+              _applyCategoryFilterChanges();
             }
 
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return AlertDialog(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text(
+                "Filter by Category",
+                style: TextStyle(
+                  fontFamily: fontMulishSemiBold,
+                  fontSize: 18,
                 ),
-                title: const Text(
-                  "Filter by Category",
-                  style: TextStyle(
-                    fontFamily: fontMulishSemiBold,
-                    fontSize: 18,
-                  ),
-                ),
-                content: const Text("No categories found"),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(dialogContext),
-                    child: const Text("Close"),
-                  ),
-                ],
-              );
-            }
-
-            final categories = sortMenuDocs(
-              snapshot.data!.docs
-                  .map((d) => d as QueryDocumentSnapshot<Map<String, dynamic>>)
-                  .toList(),
-            );
-
-            return FutureBuilder<Map<String, List<String>>>(
-              future: _loadMenuItemsByCategory(categories),
-              builder: (context, itemsSnapshot) {
-                if (itemsSnapshot.connectionState == ConnectionState.waiting) {
-                  return const AlertDialog(
-                    content: Center(child: CircularProgressIndicator()),
-                  );
-                }
-
-                final menuItemsByCategory = itemsSnapshot.data ?? {};
-
-                if (_useLegacyCategoryOnlyFilter) {
-                  for (final categoryName in selectedCategories) {
-                    _selectAllMenuItemsForCategory(
-                      categoryName,
-                      menuItemsByCategory[categoryName] ?? const [],
-                    );
-                  }
-                  _useLegacyCategoryOnlyFilter = false;
-                  unawaited(
-                    KitchenSettings.saveCategoryFilter(
-                      showAll: showAllCategories,
-                      categories: selectedCategories,
-                      menuItems: selectedMenuItems,
-                    ),
-                  );
-                }
-
-                return StatefulBuilder(
-                  builder: (context, setDialogState) {
-                    void applyFilterChanges() {
-                      setDialogState(() {});
-                      _applyCategoryFilterChanges();
-                    }
-
-                    return AlertDialog(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: MediaQuery.sizeOf(context).height * 0.6,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CheckboxListTile(
                       title: const Text(
-                        "Filter by Category",
+                        "All Categories",
                         style: TextStyle(
                           fontFamily: fontMulishSemiBold,
-                          fontSize: 18,
+                          fontSize: 15,
                         ),
                       ),
-                      content: SizedBox(
-                        width: double.maxFinite,
-                        height: MediaQuery.sizeOf(context).height * 0.6,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CheckboxListTile(
-                              title: const Text(
-                                "All Categories",
-                                style: TextStyle(
-                                  fontFamily: fontMulishSemiBold,
-                                  fontSize: 15,
+                      value: showAllCategories,
+                      activeColor: Colors.green,
+                      onChanged: (bool? value) {
+                        showAllCategories = value ?? true;
+                        if (showAllCategories) {
+                          selectedCategories.clear();
+                          selectedMenuItems.clear();
+                          _useLegacyCategoryOnlyFilter = false;
+                        }
+                        applyFilterChanges();
+                      },
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                    ),
+                    const Divider(),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: categoryNames.length,
+                        itemBuilder: (context, index) {
+                          final categoryName = categoryNames[index];
+                          final itemNames =
+                              menuItemsByCategory[categoryName] ??
+                              const <String>[];
+                          final categoryValue = _categoryCheckboxValue(
+                            categoryName,
+                            itemNames,
+                          );
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              CheckboxListTile(
+                                title: Text(
+                                  categoryName,
+                                  style: const TextStyle(
+                                    fontFamily: fontMulishSemiBold,
+                                    fontSize: 14,
+                                  ),
                                 ),
+                                value: categoryValue,
+                                tristate: true,
+                                activeColor: Colors.green,
+                                enabled: !showAllCategories,
+                                onChanged: showAllCategories
+                                    ? null
+                                    : (bool? value) {
+                                        if (value == true || value == null) {
+                                          selectedCategories.add(categoryName);
+                                          _selectAllMenuItemsForCategory(
+                                            categoryName,
+                                            itemNames,
+                                          );
+                                        } else {
+                                          selectedCategories.remove(
+                                            categoryName,
+                                          );
+                                          _deselectAllMenuItemsForCategory(
+                                            categoryName,
+                                          );
+                                        }
+                                        applyFilterChanges();
+                                      },
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
                               ),
-                              value: showAllCategories,
-                              activeColor: Colors.green,
-                              onChanged: (bool? value) {
-                                showAllCategories = value ?? true;
-                                if (showAllCategories) {
-                                  selectedCategories.clear();
-                                  selectedMenuItems.clear();
-                                  _useLegacyCategoryOnlyFilter = false;
-                                }
-                                applyFilterChanges();
-                              },
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
-                            ),
-                            const Divider(),
-                            Expanded(
-                              child: ListView.builder(
-                                itemCount: categories.length,
-                                itemBuilder: (context, index) {
-                                  final category = categories[index];
-                                  final categoryName =
-                                      category['name'] as String;
-                                  final itemNames =
-                                      menuItemsByCategory[categoryName] ??
-                                      const <String>[];
-                                  final categoryValue = _categoryCheckboxValue(
+                              if (!showAllCategories &&
+                                  selectedCategories.contains(categoryName))
+                                ...itemNames.map((itemName) {
+                                  final itemKey = _menuItemFilterKey(
                                     categoryName,
-                                    itemNames,
+                                    itemName,
                                   );
+                                  final itemSelected = selectedMenuItems
+                                      .contains(itemKey);
 
-                                  return Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      CheckboxListTile(
-                                        title: Text(
-                                          categoryName,
-                                          style: const TextStyle(
-                                            fontFamily: fontMulishSemiBold,
-                                            fontSize: 14,
-                                          ),
+                                  return Padding(
+                                    padding: const EdgeInsets.only(left: 28),
+                                    child: CheckboxListTile(
+                                      title: Text(
+                                        itemName,
+                                        style: const TextStyle(
+                                          fontFamily: fontMulishRegular,
+                                          fontSize: 13,
                                         ),
-                                        value: categoryValue,
-                                        tristate: true,
-                                        activeColor: Colors.green,
-                                        enabled: !showAllCategories,
-                                        onChanged: showAllCategories
-                                            ? null
-                                            : (bool? value) {
-                                                if (value == true ||
-                                                    value == null) {
-                                                  selectedCategories.add(
-                                                    categoryName,
-                                                  );
-                                                  _selectAllMenuItemsForCategory(
-                                                    categoryName,
-                                                    itemNames,
-                                                  );
-                                                } else {
-                                                  selectedCategories.remove(
-                                                    categoryName,
-                                                  );
-                                                  _deselectAllMenuItemsForCategory(
-                                                    categoryName,
-                                                  );
-                                                }
-                                                applyFilterChanges();
-                                              },
-                                        contentPadding: EdgeInsets.zero,
-                                        dense: true,
                                       ),
-                                      if (!showAllCategories &&
-                                          selectedCategories.contains(
+                                      value: itemSelected,
+                                      activeColor: Colors.green,
+                                      onChanged: (bool? value) {
+                                        if (value == true) {
+                                          selectedMenuItems.add(itemKey);
+                                          selectedCategories.add(categoryName);
+                                        } else {
+                                          selectedMenuItems.remove(itemKey);
+                                          if (!_hasItemSelectionForCategory(
                                             categoryName,
-                                          ))
-                                        ...itemNames.map((itemName) {
-                                          final itemKey = _menuItemFilterKey(
-                                            categoryName,
-                                            itemName,
-                                          );
-                                          final itemSelected =
-                                              selectedMenuItems.contains(
-                                                itemKey,
-                                              );
-
-                                          return Padding(
-                                            padding: const EdgeInsets.only(
-                                              left: 28,
-                                            ),
-                                            child: CheckboxListTile(
-                                              title: Text(
-                                                itemName,
-                                                style: const TextStyle(
-                                                  fontFamily: fontMulishRegular,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                              value: itemSelected,
-                                              activeColor: Colors.green,
-                                              onChanged: (bool? value) {
-                                                if (value == true) {
-                                                  selectedMenuItems.add(itemKey);
-                                                  selectedCategories.add(
-                                                    categoryName,
-                                                  );
-                                                } else {
-                                                  selectedMenuItems.remove(
-                                                    itemKey,
-                                                  );
-                                                  if (!_hasItemSelectionForCategory(
-                                                    categoryName,
-                                                  )) {
-                                                    selectedCategories.remove(
-                                                      categoryName,
-                                                    );
-                                                  }
-                                                }
-                                                applyFilterChanges();
-                                              },
-                                              contentPadding: EdgeInsets.zero,
-                                              dense: true,
-                                            ),
-                                          );
-                                        }),
-                                      if (index < categories.length - 1)
-                                        const Divider(height: 1),
-                                    ],
+                                          )) {
+                                            selectedCategories.remove(
+                                              categoryName,
+                                            );
+                                          }
+                                        }
+                                        applyFilterChanges();
+                                      },
+                                      contentPadding: EdgeInsets.zero,
+                                      dense: true,
+                                    ),
                                   );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
+                                }),
+                              if (index < categoryNames.length - 1)
+                                const Divider(height: 1),
+                            ],
+                          );
+                        },
                       ),
-                      actions: [
-                        TextButton(
-                          onPressed: () {
-                            showAllCategories = true;
-                            selectedCategories.clear();
-                            selectedMenuItems.clear();
-                            _useLegacyCategoryOnlyFilter = false;
-                            applyFilterChanges();
-                          },
-                          child: const Text(
-                            "Clear",
-                            style: TextStyle(
-                              fontFamily: fontMulishSemiBold,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          onPressed: () => Navigator.pop(dialogContext),
-                          child: const Text(
-                            "Done",
-                            style: TextStyle(
-                              fontFamily: fontMulishSemiBold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    showAllCategories = true;
+                    selectedCategories.clear();
+                    selectedMenuItems.clear();
+                    _useLegacyCategoryOnlyFilter = false;
+                    applyFilterChanges();
                   },
-                );
-              },
+                  child: const Text(
+                    "Clear",
+                    style: TextStyle(
+                      fontFamily: fontMulishSemiBold,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text(
+                    "Done",
+                    style: TextStyle(
+                      fontFamily: fontMulishSemiBold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         );
