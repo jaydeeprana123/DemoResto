@@ -2,6 +2,8 @@ import 'package:demo/bindings/app_binding.dart';
 import 'package:demo/core/firebase/firebase_options.dart';
 import 'package:demo/core/firestore/firestore_desktop_config.dart';
 import 'package:demo/features/authentication/authentication.dart';
+import 'package:demo/features/kitchen/services/kitchen_settings.dart';
+import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -13,6 +15,8 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await configureFirestoreForPlatform();
+  await KitchenSettings.load();
+  await PrintSettings.load();
 
   runApp(const MyApp());
 }

@@ -24,10 +24,20 @@ class ZomatoOrdersRepository {
     required String docId,
     required String status,
   }) async {
+    final normalized = ZomatoOrderUtils.normalizeStatus(status);
+    if (ZomatoOrderUtils.isCompletedStatus(normalized)) {
+      await removeOrder(docId: docId);
+      return;
+    }
     await FirestorePaths.scopedDoc('tables', docId).update({
-      'zomatoStatus': ZomatoOrderUtils.normalizeStatus(status),
+      'zomatoStatus': normalized,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  /// Removes a Zomato order after it has been served / completed.
+  Future<void> removeOrder({required String docId}) async {
+    await FirestorePaths.scopedDoc('tables', docId).delete();
   }
 
   Future<String> _nextZomatoOrderName() async {

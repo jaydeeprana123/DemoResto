@@ -1252,7 +1252,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         .where((key) => _isTakeAway(key) && !_isZomatoTable(key))
         .toList()
       ..sort(_compareByCreatedAt);
-    final zomatoKeys = tables.keys.where(_isZomatoTable).toList()
+    final zomatoKeys = tables.keys.where(_isActiveZomatoTable).toList()
       ..sort(_compareByCreatedAt);
     final otherKeys =
         tables.keys
@@ -1608,6 +1608,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       ZomatoOrderUtils.isZomatoSource(tableSources[name]) ||
       ZomatoOrderUtils.isZomatoOrderName(name);
 
+  bool _isActiveZomatoTable(String name) {
+    if (!_isZomatoTable(name)) return false;
+    return !ZomatoOrderUtils.isCompletedStatus(tableZomatoStatuses[name]);
+  }
+
   String _dashboardCountLabel() {
     switch (selectedTab) {
       case 'Take Away':
@@ -1879,7 +1884,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               onTap: () async{
                 if (paid) {
                   showServedDialog(context, tableName, () async {
-                    if (isTakeAway) {
+                    if (isTakeAway || isZomato) {
                       await FirestorePaths
                           .scopedDoc('tables', docId)
                           .delete();
@@ -2116,6 +2121,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 screenshotUrl: screenshotUrl,
                 status: zomatoStatus,
                 onStatusChanged: (value) {
+                  if (ZomatoOrderUtils.isCompletedStatus(value)) {
+                    setState(() {
+                      tableZomatoStatuses.remove(tableName);
+                      tableScreenshotUrls.remove(tableName);
+                      tableSources.remove(tableName);
+                    });
+                    return;
+                  }
                   setState(() => tableZomatoStatuses[tableName] = value);
                 },
               )
@@ -2277,7 +2290,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   // Filter the tables based on current selectedTab and table selection filter.
   List<String> _tabFilteredTableKeys() {
     if (selectedTab == 'Zomato') {
-      final keys = tables.keys.where(_isZomatoTable).toList()
+      final keys = tables.keys.where(_isActiveZomatoTable).toList()
         ..sort(_compareByCreatedAt);
       return keys;
     }

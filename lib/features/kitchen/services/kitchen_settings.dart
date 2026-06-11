@@ -9,8 +9,8 @@ class KitchenSettings {
   static const _keySelectedCategories = 'kitchen_filter_selected_categories';
   static const _keyOrderTypeFilterIndex = 'kitchen_filter_order_type_index';
 
-  static final ValueNotifier<bool> showTableAllOrders = ValueNotifier(false);
-  static final ValueNotifier<bool> showServeOrderScreen = ValueNotifier(true);
+  static final ValueNotifier<bool> showTableAllOrders = ValueNotifier(true);
+  static final ValueNotifier<bool> showServeOrderScreen = ValueNotifier(false);
   /// On mobile kitchen screen: true = 2-column grid, false = single-column list.
   static final ValueNotifier<bool> mobileOrdersGridLayout = ValueNotifier(false);
 
@@ -23,9 +23,9 @@ class KitchenSettings {
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     showTableAllOrders.value =
-        prefs.getBool(_keyShowTableAllOrders) ?? false;
+        prefs.getBool(_keyShowTableAllOrders) ?? true;
     showServeOrderScreen.value =
-        prefs.getBool(_keyShowServeOrderScreen) ?? true;
+        prefs.getBool(_keyShowServeOrderScreen) ?? false;
     mobileOrdersGridLayout.value =
         prefs.getBool(_keyMobileOrdersGridLayout) ?? false;
 
@@ -40,7 +40,7 @@ class KitchenSettings {
 
   static Future<bool> getShowTableAllOrders() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyShowTableAllOrders) ?? false;
+    return prefs.getBool(_keyShowTableAllOrders) ?? true;
   }
 
   static Future<void> setShowTableAllOrders(bool value) async {
@@ -51,7 +51,7 @@ class KitchenSettings {
 
   static Future<bool> getShowServeOrderScreen() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyShowServeOrderScreen) ?? true;
+    return prefs.getBool(_keyShowServeOrderScreen) ?? false;
   }
 
   static Future<void> setShowServeOrderScreen(bool value) async {

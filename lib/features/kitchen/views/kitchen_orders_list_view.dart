@@ -196,8 +196,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   // Multiple category selection
   Set<String> selectedCategories = {};
   bool showAllCategories = true; // Track if "All" is selected
-  bool _showTableAllOrders = false;
-  bool _showServeOrderScreen = true;
+  bool _showTableAllOrders = true;
+  bool _showServeOrderScreen = false;
   /// 0 = active (unserved items), 1 = served items only
   int _kitchenOrderTabIndex = 0;
   /// 0 = All, 1 = Table (dine-in), 2 = Take Away
@@ -506,7 +506,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   List<TableGroup> _filterAllItems(List<TableGroup> groups) {
     return groups
         .map((group) {
-          if (group.isZomato) return group;
+          if (group.isZomato) {
+            if (ZomatoOrderUtils.isCompletedStatus(group.zomatoStatus)) {
+              return null;
+            }
+            return group;
+          }
           final filteredItems = group.items.asMap().entries
               .where((entry) => TableItemServed.asItemMap(entry.value) != null)
               .map((entry) {
@@ -1001,7 +1006,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
     return groups
         .map((group) {
-          if (group.isZomato) return group;
+          if (group.isZomato) {
+            if (ZomatoOrderUtils.isCompletedStatus(group.zomatoStatus)) {
+              return null;
+            }
+            return group;
+          }
           // Filter items in this group by selected categories
           final filteredItems = group.items.asMap().entries
               .where((entry) {
@@ -1599,6 +1609,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     int queueNumber, {
     bool isNext = false,
   }) {
+    final isZomato = tableCard.batches.any((batch) => batch.isZomato) ||
+        ZomatoOrderUtils.isZomatoOrderName(tableCard.tableName);
+    final zomatoGroup = isZomato
+        ? tableCard.batches.firstWhere(
+            (batch) => batch.isZomato,
+            orElse: () => tableCard.batches.first,
+          )
+        : null;
     final isBlinking = tableCard.batches.any(
       (g) => blinkingGroupKey == g.key.hashCode,
     );
@@ -1639,8 +1657,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                   tableCard.tableName,
                   tableCard.isPaid,
                   queueNumber,
+                  isZomato: isZomato,
                   isNext: isNext,
-                  onPaidDoubleTap: tableCard.isPaid
+                  onPaidDoubleTap: tableCard.isPaid && !isZomato
                       ? () => ReverseBillingService.showReverseBillingDialog(
                           context,
                           tableName: tableCard.tableName,
@@ -1650,6 +1669,23 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                       : null,
                   compact: _isMobileGridLayout,
                 ),
+                if (isZomato &&
+                    zomatoGroup != null &&
+                    (zomatoGroup.screenshotUrl?.isNotEmpty ?? false)) ...[
+                  _buildTimeBar(
+                    DateTime.fromMillisecondsSinceEpoch(zomatoGroup.groupTime),
+                    _isOrderDelayed(
+                      DateTime.fromMillisecondsSinceEpoch(zomatoGroup.groupTime),
+                    ),
+                    compact: _isMobileGridLayout,
+                  ),
+                  ZomatoOrderCardBody(
+                    docId: tableCard.docId,
+                    screenshotUrl: zomatoGroup.screenshotUrl!,
+                    status: zomatoGroup.zomatoStatus ?? 'Pending',
+                    compact: _isMobileGridLayout,
+                  ),
+                ] else
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     _isMobileGridLayout ? 6 : 12,
@@ -1758,7 +1794,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     if (selectedCategories.isNotEmpty) return;
     showServedDialog(context, tableName, () async {
       _playDeleteSound();
-      if (tableName.contains("Take Away")) {
+      if (tableName.contains("Take Away") ||
+          ZomatoOrderUtils.isZomatoOrderName(tableName)) {
         await FirestorePaths.scoped('tables').doc(docId).delete();
       } else {
         await _updateTableItemsInFirestore(tableName, [], false);
@@ -1810,13 +1847,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     bool compact = false,
   }) {
     final paid = isPaid == true;
+    final zomato =
+        isZomato || ZomatoOrderUtils.isZomatoOrderName(tableName);
     final header = Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 8 : 12,
         vertical: compact ? 8 : 10,
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A3A5C),
+        color: zomato ? const Color(0xFFE53935) : const Color(0xFF1A3A5C),
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(compact ? 7 : 10),
         ),
@@ -1827,7 +1866,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
           Expanded(
             child: Row(
               children: [
-                if (isZomato)
+                if (zomato)
                   Icon(
                     Icons.delivery_dining,
                     color: Colors.white,
@@ -1849,7 +1888,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                   child: Text(
                     tableName,
                     style: TextStyle(
-                      fontFamily: isZomato || tableName.contains("Take Away")
+                      fontFamily: zomato || tableName.contains("Take Away")
                           ? fontMulishBold
                           : fontMulishSemiBold,
                       fontSize: compact ? 13 : 16,
@@ -1858,7 +1897,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (isZomato) ...[
+                if (zomato) ...[
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -2168,7 +2207,9 @@ class TableGroup {
   final String? screenshotUrl;
   final String? zomatoStatus;
 
-  bool get isZomato => ZomatoOrderUtils.isZomatoSource(source);
+  bool get isZomato =>
+      ZomatoOrderUtils.isZomatoSource(source) ||
+      ZomatoOrderUtils.isZomatoOrderName(tableName);
 
   TableGroup(
     this.tableName,

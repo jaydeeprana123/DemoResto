@@ -43,8 +43,12 @@ class ZomatoOrderCardBody extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.delivery_dining, size: compact ? 14 : 16, color: Color(0xFFE53935)),
-                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.delivery_dining,
+                      size: compact ? 14 : 16,
+                      color: Color(0xFFE53935),
+                    ),
+                    const SizedBox(width: 2),
                     Text(
                       'ZOMATO',
                       style: TextStyle(
@@ -91,7 +95,9 @@ class ZomatoOrderCardBody extends StatelessWidget {
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
                     color: Colors.grey.shade200,
-                    child: const Center(child: Icon(Icons.broken_image_outlined)),
+                    child: const Center(
+                      child: Icon(Icons.broken_image_outlined),
+                    ),
                   ),
                 ),
               ),
@@ -109,8 +115,13 @@ class ZomatoOrderCardBody extends StatelessWidget {
             decoration: InputDecoration(
               labelText: 'Order status',
               isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
             items: ZomatoOrderUtils.statuses
                 .map(

@@ -9,6 +9,13 @@ class SettingsController extends GetxController {
 
   final UserRepository _userRepository;
 
+  @override
+  void onInit() {
+    super.onInit();
+    loadKitchenSettings();
+    loadPrintSettings();
+  }
+
   final userRole = Rxn<String>();
   final isLoadingRole = true.obs;
   final kitchenShowTableAllOrders = true.obs;
