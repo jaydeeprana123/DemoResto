@@ -18,6 +18,8 @@ import 'package:demo/features/tables/services/dashboard_table_filter_settings.da
 import 'package:demo/features/tables/views/AddTablePage.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
 import 'package:demo/features/zomato/widgets/add_zomato_order_sheet.dart';
+import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
+import 'package:demo/features/zomato/widgets/zomato_order_progress_dialog.dart';
 import 'package:demo/features/zomato/widgets/zomato_order_card_body.dart';
 import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
@@ -1884,7 +1886,24 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               onTap: () async{
                 if (paid) {
                   showServedDialog(context, tableName, () async {
-                    if (isTakeAway || isZomato) {
+                    if (isZomato) {
+                      try {
+                        await ZomatoOrderProgressDialog.run(
+                          context,
+                          action: () => Get.find<ZomatoOrdersRepository>()
+                              .removeOrder(docId: docId),
+                        );
+                        if (mounted) setState(() {});
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Could not mark as served: $e'),
+                            ),
+                          );
+                        }
+                      }
+                    } else if (isTakeAway) {
                       await FirestorePaths
                           .scopedDoc('tables', docId)
                           .delete();

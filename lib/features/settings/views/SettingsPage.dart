@@ -514,6 +514,39 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                 ),
+                Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SwitchListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    secondary: CircleAvatar(
+                      backgroundColor: _orange.withOpacity(0.12),
+                      child: const Icon(Icons.notifications_active_outlined, color: _orange),
+                    ),
+                    title: const Text(
+                      'Enable Order Ringtone in Background',
+                      style: TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 15,
+                        color: _navy,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'When on, new-order bells play even if the app is in the background or the screen is locked',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    value: _settings.kitchenBackgroundOrderRingtoneEnabled.value,
+                    activeColor: _orange,
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      await _settings.setKitchenBackgroundOrderRingtoneEnabled(value);
+                    },
+                  ),
+                ),
                 const SizedBox(height: 20),
                 const Text(
                   'Account',

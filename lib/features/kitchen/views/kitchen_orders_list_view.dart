@@ -24,6 +24,8 @@ import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
 import 'package:demo/features/zomato/widgets/zomato_order_card_body.dart';
+import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
+import 'package:demo/features/zomato/widgets/zomato_order_progress_dialog.dart';
 import 'package:demo/models/GroupOrder.dart';
 
 class KitchenOrdersListView extends StatefulWidget {
@@ -36,7 +38,8 @@ class KitchenOrdersListView extends StatefulWidget {
   State<KitchenOrdersListView> createState() => _KitchenOrdersListViewState();
 }
 
-class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
+class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
+    with WidgetsBindingObserver {
   final AudioPlayer audioPlayer = AudioPlayer();
   // Separate player for the update tone so its faster double-ring pattern
   // doesn't clash with the single new-order ring.
@@ -55,6 +58,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _tablesSub;
   final ValueNotifier<int> _minuteTick = ValueNotifier(0);
   bool _kitchenStreamReady = false;
+
   /// True when the kitchen list was last shown empty (no orders to display).
   bool _wasKitchenEmpty = false;
   List<TableGroup> _lastUpdatedGroups = [];
@@ -78,6 +82,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   Set<int> _delayedBlinkGroupKeys = {};
   bool _delayedBlinkHighlight = false;
   Timer? _delayedBlinkTimer;
+  AppLifecycleState _appLifecycleState = AppLifecycleState.resumed;
 
   bool _isOrderDelayed(DateTime time) =>
       DateTime.now().difference(time).inMinutes > _delayThresholdMinutes;
@@ -135,7 +140,44 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     });
   }
 
-  bool get _canRingBell => widget.isTabActive;
+  bool get _canRingBell {
+    if (KitchenSettings.backgroundOrderRingtoneEnabled.value) {
+      return _appLifecycleState != AppLifecycleState.detached;
+    }
+    return _appLifecycleState == AppLifecycleState.resumed;
+  }
+
+  Future<void> _configureAudioPlayers() async {
+    final allowBackground =
+        KitchenSettings.backgroundOrderRingtoneEnabled.value;
+    final context = AudioContext(
+      iOS: AudioContextIOS(
+        category: AVAudioSessionCategory.playback,
+        options: const {
+          AVAudioSessionOptions.mixWithOthers,
+          AVAudioSessionOptions.duckOthers,
+        },
+      ),
+      android: AudioContextAndroid(
+        isSpeakerphoneOn: false,
+        stayAwake: allowBackground,
+        contentType: AndroidContentType.sonification,
+        usageType: allowBackground
+            ? AndroidUsageType.alarm
+            : AndroidUsageType.media,
+        audioFocus: AndroidAudioFocus.gain,
+      ),
+    );
+
+    try {
+      await AudioPlayer.global.setAudioContext(context);
+      await audioPlayer.setAudioContext(context);
+      await updateAudioPlayer.setAudioContext(context);
+      await deleteAudioPlayer.setAudioContext(context);
+    } catch (_) {
+      // ignore audio setup errors on unsupported platforms
+    }
+  }
 
   String _groupSignature(TableGroup group) {
     final parts =
@@ -198,11 +240,21 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   bool showAllCategories = true; // Track if "All" is selected
   bool _showTableAllOrders = true;
   bool _showServeOrderScreen = false;
+
   /// 0 = active (unserved items), 1 = served items only
   int _kitchenOrderTabIndex = 0;
-  /// 0 = All, 1 = Table (dine-in), 2 = Take Away
+
+  /// 0 = All, 1 = Table (dine-in), 2 = Take Away, 3 = Zomato
   int _orderTypeFilterIndex = 0;
   bool _mobileLayoutIsGrid = false;
+
+  void _onBackgroundRingtoneSettingChanged() {
+    _configureAudioPlayers();
+    if (!KitchenSettings.backgroundOrderRingtoneEnabled.value &&
+        _appLifecycleState != AppLifecycleState.resumed) {
+      _stopAllKitchenSounds();
+    }
+  }
 
   void _onKitchenSettingsChanged() {
     if (!mounted) return;
@@ -210,7 +262,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
         _mobileLayoutIsGrid != KitchenSettings.mobileOrdersGridLayout.value;
     setState(() {
       _showTableAllOrders = KitchenSettings.showTableAllOrders.value == true;
-      _showServeOrderScreen = KitchenSettings.showServeOrderScreen.value == true;
+      _showServeOrderScreen =
+          KitchenSettings.showServeOrderScreen.value == true;
       _mobileLayoutIsGrid = KitchenSettings.mobileOrdersGridLayout.value;
       if (!_showServeOrderScreen) {
         _kitchenOrderTabIndex = 0;
@@ -418,9 +471,20 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appLifecycleState = state;
+    if (!KitchenSettings.backgroundOrderRingtoneEnabled.value &&
+        state != AppLifecycleState.resumed) {
+      _stopAllKitchenSounds();
+    }
+  }
+
+  @override
   void didUpdateWidget(KitchenOrdersListView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.isTabActive && !widget.isTabActive) {
+    if (oldWidget.isTabActive &&
+        !widget.isTabActive &&
+        !KitchenSettings.backgroundOrderRingtoneEnabled.value) {
       _stopAllKitchenSounds();
     }
   }
@@ -428,6 +492,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _configureAudioPlayers();
     KitchenSettings.load().then((_) {
       if (mounted) {
         setState(() {
@@ -448,9 +514,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     });
     KitchenSettings.showTableAllOrders.addListener(_onKitchenSettingsChanged);
     KitchenSettings.showServeOrderScreen.addListener(_onKitchenSettingsChanged);
-    KitchenSettings.mobileOrdersGridLayout.addListener(_onKitchenSettingsChanged);
-    _tablesSub = FirestorePaths
-        .scoped('tables')
+    KitchenSettings.mobileOrdersGridLayout.addListener(
+      _onKitchenSettingsChanged,
+    );
+    KitchenSettings.backgroundOrderRingtoneEnabled.addListener(
+      _onBackgroundRingtoneSettingChanged,
+    );
+    _tablesSub = FirestorePaths.scoped('tables')
         .orderBy('createdAt', descending: false)
         .snapshots()
         .listen(_handleTablesSnapshot);
@@ -483,6 +553,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
   List<TableGroup> _filterByOrderType(List<TableGroup> groups) {
     if (_orderTypeFilterIndex == 0) return groups;
+    if (_orderTypeFilterIndex == 3) {
+      return groups.where((group) => group.isZomato).toList();
+    }
     return groups.where((group) {
       if (group.isZomato) return false;
       final isTakeAway = isTakeAwayOrderName(group.tableName);
@@ -512,13 +585,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             }
             return group;
           }
-          final filteredItems = group.items.asMap().entries
+          final filteredItems = group.items
+              .asMap()
+              .entries
               .where((entry) => TableItemServed.asItemMap(entry.value) != null)
               .map((entry) {
                 final item = TableItemServed.asItemMap(entry.value)!;
                 final copy = Map<String, dynamic>.from(item);
-                copy['__itemIndex'] =
-                    item['__itemIndex'] as int? ?? entry.key;
+                copy['__itemIndex'] = item['__itemIndex'] as int? ?? entry.key;
                 return copy;
               })
               .toList();
@@ -564,7 +638,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             );
             return servedOnly == completed ? group : null;
           }
-          final filteredItems = group.items.asMap().entries
+          final filteredItems = group.items
+              .asMap()
+              .entries
               .where((entry) {
                 final item = TableItemServed.asItemMap(entry.value);
                 if (item == null) return false;
@@ -574,8 +650,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               .map((entry) {
                 final item = TableItemServed.asItemMap(entry.value)!;
                 final copy = Map<String, dynamic>.from(item);
-                copy['__itemIndex'] =
-                    item['__itemIndex'] as int? ?? entry.key;
+                copy['__itemIndex'] = item['__itemIndex'] as int? ?? entry.key;
                 return copy;
               })
               .toList();
@@ -664,8 +739,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       final screenshotUrl = data['screenshotUrl']?.toString();
       final zomatoStatus = data['zomatoStatus']?.toString();
       final createdAt = data['createdAt'];
-      final itemsFromDb =
-          data.containsKey('items') ? (data['items'] as List<dynamic>?) : null;
+      final itemsFromDb = data.containsKey('items')
+          ? (data['items'] as List<dynamic>?)
+          : null;
       updatedGroups.addAll(
         _reconstructGroups(
           tableName,
@@ -801,6 +877,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
         ? 'table'
         : _orderTypeFilterIndex == 2
         ? 'take away'
+        : _orderTypeFilterIndex == 3
+        ? 'Zomato'
         : '';
     final typeSuffix = typeLabel.isEmpty ? '' : ' for $typeLabel orders';
 
@@ -856,9 +934,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
   }
 
   bool get _isMobileGridLayout =>
-      _isMobileKitchenScreen &&
-      _mobileLayoutIsGrid &&
-      !_isTabletKitchenScreen;
+      _isMobileKitchenScreen && _mobileLayoutIsGrid && !_isTabletKitchenScreen;
 
   EdgeInsets get _kitchenGridPadding => _isMobileGridLayout
       ? const EdgeInsets.only(top: 6, bottom: 6)
@@ -880,8 +956,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     );
 
     if (_showTableAllOrders) {
-      final firstUnpaidIndex =
-          _displayTableCards.indexWhere((c) => !c.isPaid);
+      final firstUnpaidIndex = _displayTableCards.indexWhere((c) => !c.isPaid);
       return MasonryGridView.count(
         key: layoutKey,
         crossAxisCount: crossCols,
@@ -897,8 +972,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       );
     }
 
-    final firstUnpaidIndex =
-        _displayFilteredGroups.indexWhere((g) => !g.isPaid);
+    final firstUnpaidIndex = _displayFilteredGroups.indexWhere(
+      (g) => !g.isPaid,
+    );
     return MasonryGridView.count(
       key: layoutKey,
       crossAxisCount: crossCols,
@@ -916,8 +992,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
   Widget _buildMobileOrdersListView() {
     if (_showTableAllOrders) {
-      final firstUnpaidIndex =
-          _displayTableCards.indexWhere((c) => !c.isPaid);
+      final firstUnpaidIndex = _displayTableCards.indexWhere((c) => !c.isPaid);
       return ListView.separated(
         key: const ValueKey('kitchen_mobile_list_table'),
         padding: const EdgeInsets.all(12),
@@ -931,8 +1006,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       );
     }
 
-    final firstUnpaidIndex =
-        _displayFilteredGroups.indexWhere((g) => !g.isPaid);
+    final firstUnpaidIndex = _displayFilteredGroups.indexWhere(
+      (g) => !g.isPaid,
+    );
     return ListView.separated(
       key: const ValueKey('kitchen_mobile_list_group'),
       padding: const EdgeInsets.all(12),
@@ -1013,7 +1089,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             return group;
           }
           // Filter items in this group by selected categories
-          final filteredItems = group.items.asMap().entries
+          final filteredItems = group.items
+              .asMap()
+              .entries
               .where((entry) {
                 final item = TableItemServed.asItemMap(entry.value);
                 if (item == null) return false;
@@ -1105,9 +1183,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
             final categories = sortMenuDocs(
               snapshot.data!.docs
-                  .map(
-                    (d) => d as QueryDocumentSnapshot<Map<String, dynamic>>,
-                  )
+                  .map((d) => d as QueryDocumentSnapshot<Map<String, dynamic>>)
                   .toList(),
             );
 
@@ -1322,7 +1398,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             tooltip: 'List view',
             selected: !_mobileLayoutIsGrid,
             isGrid: false,
-
           ),
           option(
             icon: Icons.grid_view_rounded,
@@ -1374,10 +1449,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     return ColoredBox(
       color: navy,
       child: Row(
-        children: [
-          tabButton('All Orders', 0),
-          tabButton('Served Orders', 1),
-        ],
+        children: [tabButton('All Orders', 0), tabButton('Served Orders', 1)],
       ),
     );
   }
@@ -1386,24 +1458,40 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     const navy = Color(0xFF1A3A5C);
 
     Widget radioTile(String label, int value) {
+      final selected = _orderTypeFilterIndex == value;
       return Expanded(
-        child: RadioListTile<int>(
-          dense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-          title: Text(
-            label,
-            style: TextStyle(
-              fontFamily: _orderTypeFilterIndex == value
-                  ? fontMulishBold
-                  : fontMulishSemiBold,
-              fontSize: 13,
-              color: navy,
+        child: InkWell(
+          onTap: () => _onOrderTypeFilterChanged(value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Radio<int>(
+                  value: value,
+                  groupValue: _orderTypeFilterIndex,
+                  activeColor: const Color(0xFFf57c35),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  onChanged: _onOrderTypeFilterChanged,
+                ),
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: selected
+                          ? fontMulishBold
+                          : fontMulishSemiBold,
+                      fontSize: 13,
+                      color: navy,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          value: value,
-          groupValue: _orderTypeFilterIndex,
-          activeColor: const Color(0xFFf57c35),
-          onChanged: _onOrderTypeFilterChanged,
         ),
       );
     }
@@ -1412,12 +1500,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
       color: Colors.white,
       elevation: 1,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
           children: [
             radioTile('All', 0),
             radioTile('Table', 1),
-            radioTile('Take Away', 2),
+            radioTile('TakeAway', 2),
+            radioTile('Zomato', 3),
           ],
         ),
       ),
@@ -1484,7 +1574,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
               children: [
                 _buildOrderTypeFilter(),
                 Expanded(
-                  child: (_showTableAllOrders
+                  child:
+                      (_showTableAllOrders
                           ? _displayTableCards.isEmpty
                           : _displayFilteredGroups.isEmpty)
                       ? _buildKitchenEmptyState()
@@ -1544,7 +1635,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                       : null,
                   compact: _isMobileGridLayout,
                 ),
-                _buildTimeBar(tickTime, tickIsDelayed, compact: _isMobileGridLayout),
+                _buildTimeBar(
+                  tickTime,
+                  tickIsDelayed,
+                  compact: _isMobileGridLayout,
+                ),
                 if (group.isZomato &&
                     (group.screenshotUrl?.isNotEmpty ?? false))
                   ZomatoOrderCardBody(
@@ -1554,48 +1649,50 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                     compact: _isMobileGridLayout,
                   )
                 else
-                Padding(
-                  padding: EdgeInsets.all(_isMobileGridLayout ? 6 : 12),
-                  child: ListenableBuilder(
-                    listenable: _itemSelection.listenableFor(group.docId),
-                    builder: (context, _) {
-                      final selectionMode =
-                          _itemSelection.isSelectionModeFor(group.docId);
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ...group.items.asMap().entries.map(
-                            (entry) => _buildItemRow(
-                              entry.value,
-                              docId: group.docId,
-                              groupIndex: group.groupIndex,
-                              itemIndexInGroup:
-                                  (entry.value['__itemIndex'] as int?) ??
-                                  entry.key,
-                              selectionMode: selectionMode,
-                              isDelayed: tickIsDelayed,
-                              isDelayedBlinking: isDelayedBlinking,
+                  Padding(
+                    padding: EdgeInsets.all(_isMobileGridLayout ? 6 : 12),
+                    child: ListenableBuilder(
+                      listenable: _itemSelection.listenableFor(group.docId),
+                      builder: (context, _) {
+                        final selectionMode = _itemSelection.isSelectionModeFor(
+                          group.docId,
+                        );
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ...group.items.asMap().entries.map(
+                              (entry) => _buildItemRow(
+                                entry.value,
+                                docId: group.docId,
+                                groupIndex: group.groupIndex,
+                                itemIndexInGroup:
+                                    (entry.value['__itemIndex'] as int?) ??
+                                    entry.key,
+                                selectionMode: selectionMode,
+                                isDelayed: tickIsDelayed,
+                                isDelayedBlinking: isDelayedBlinking,
+                              ),
                             ),
-                          ),
-                          TableItemSelectionActionBar(
-                            docId: group.docId,
-                            controller: _itemSelection,
-                            showDeleteButton:
-                                Get.find<RestaurantSession>()
-                                    .profile
-                                    .value
-                                    ?.isAdmin ??
-                                false,
-                            action: _showServeOrderScreen &&
-                                    _kitchenOrderTabIndex == 1
-                                ? TableItemSelectionAction.markPending
-                                : TableItemSelectionAction.serve,
-                          ),
-                        ],
-                      );
-                    },
+                            TableItemSelectionActionBar(
+                              docId: group.docId,
+                              controller: _itemSelection,
+                              showDeleteButton:
+                                  Get.find<RestaurantSession>()
+                                      .profile
+                                      .value
+                                      ?.isAdmin ??
+                                  false,
+                              action:
+                                  _showServeOrderScreen &&
+                                      _kitchenOrderTabIndex == 1
+                                  ? TableItemSelectionAction.markPending
+                                  : TableItemSelectionAction.serve,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
-                ),
               ],
             ),
           );
@@ -1609,7 +1706,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     int queueNumber, {
     bool isNext = false,
   }) {
-    final isZomato = tableCard.batches.any((batch) => batch.isZomato) ||
+    final isZomato =
+        tableCard.batches.any((batch) => batch.isZomato) ||
         ZomatoOrderUtils.isZomatoOrderName(tableCard.tableName);
     final zomatoGroup = isZomato
         ? tableCard.batches.firstWhere(
@@ -1638,8 +1736,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
         listenable: _minuteTick,
         builder: (context, _) {
           final tickIsDelayed = tableCard.batches.any((batch) {
-            final batchTime =
-                DateTime.fromMillisecondsSinceEpoch(batch.groupTime);
+            final batchTime = DateTime.fromMillisecondsSinceEpoch(
+              batch.groupTime,
+            );
             return _isOrderDelayed(batchTime);
           });
           return _orderCardShell(
@@ -1675,7 +1774,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                   _buildTimeBar(
                     DateTime.fromMillisecondsSinceEpoch(zomatoGroup.groupTime),
                     _isOrderDelayed(
-                      DateTime.fromMillisecondsSinceEpoch(zomatoGroup.groupTime),
+                      DateTime.fromMillisecondsSinceEpoch(
+                        zomatoGroup.groupTime,
+                      ),
                     ),
                     compact: _isMobileGridLayout,
                   ),
@@ -1686,102 +1787,111 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                     compact: _isMobileGridLayout,
                   ),
                 ] else
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    _isMobileGridLayout ? 6 : 12,
-                    8,
-                    _isMobileGridLayout ? 4 : 6,
-                    _isMobileGridLayout ? 6 : 12,
-                  ),
-                  child: ListenableBuilder(
-                    listenable: _itemSelection.listenableFor(tableCard.docId),
-                    builder: (context, _) {
-                      final selectionMode =
-                          _itemSelection.isSelectionModeFor(tableCard.docId);
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (var i = 0; i < tableCard.batches.length; i++) ...[
-                            if (i > 0) ...[
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: DottedLine(
-                                  dashColor: Colors.grey.shade300,
-                                  lineThickness: 1,
-                                  dashLength: 4,
-                                  dashGapLength: 4,
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      _isMobileGridLayout ? 6 : 12,
+                      8,
+                      _isMobileGridLayout ? 4 : 6,
+                      _isMobileGridLayout ? 6 : 12,
+                    ),
+                    child: ListenableBuilder(
+                      listenable: _itemSelection.listenableFor(tableCard.docId),
+                      builder: (context, _) {
+                        final selectionMode = _itemSelection.isSelectionModeFor(
+                          tableCard.docId,
+                        );
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (
+                              var i = 0;
+                              i < tableCard.batches.length;
+                              i++
+                            ) ...[
+                              if (i > 0) ...[
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: DottedLine(
+                                    dashColor: Colors.grey.shade300,
+                                    lineThickness: 1,
+                                    dashLength: 4,
+                                    dashGapLength: 4,
+                                  ),
                                 ),
-                              ),
-                            ],
-                            Builder(
-                              builder: (context) {
-                                final batch = tableCard.batches[i];
-                                final batchTime =
-                                    DateTime.fromMillisecondsSinceEpoch(
-                                  batch.groupTime,
-                                );
-                                final batchDelayed = _isOrderDelayed(batchTime);
-                                final batchDelayedBlinking =
-                                    _isDelayedGroupBlinking(batch);
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: _KitchenRelativeTime(
-                                        time: batchTime,
-                                        tick: _minuteTick,
-                                        formatter: formatRelativeTime,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontFamily: fontMulishRegular,
-                                          color: batchDelayed
-                                              ? Colors.red.shade700
-                                              : Colors.grey.shade500,
-                                          fontStyle: FontStyle.italic,
+                              ],
+                              Builder(
+                                builder: (context) {
+                                  final batch = tableCard.batches[i];
+                                  final batchTime =
+                                      DateTime.fromMillisecondsSinceEpoch(
+                                        batch.groupTime,
+                                      );
+                                  final batchDelayed = _isOrderDelayed(
+                                    batchTime,
+                                  );
+                                  final batchDelayedBlinking =
+                                      _isDelayedGroupBlinking(batch);
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: _KitchenRelativeTime(
+                                          time: batchTime,
+                                          tick: _minuteTick,
+                                          formatter: formatRelativeTime,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontFamily: fontMulishRegular,
+                                            color: batchDelayed
+                                                ? Colors.red.shade700
+                                                : Colors.grey.shade500,
+                                            fontStyle: FontStyle.italic,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    ...batch.items.asMap().entries.map(
-                                      (entry) => _buildItemRow(
-                                        entry.value,
-                                        docId: tableCard.docId,
-                                        groupIndex: batch.groupIndex,
-                                        itemIndexInGroup:
-                                            (entry.value['__itemIndex']
-                                                    as int?) ??
-                                                entry.key,
-                                        selectionMode: selectionMode,
-                                        isDelayed: batchDelayed,
-                                        isDelayedBlinking:
-                                            batchDelayedBlinking,
+                                      const SizedBox(height: 6),
+                                      ...batch.items.asMap().entries.map(
+                                        (entry) => _buildItemRow(
+                                          entry.value,
+                                          docId: tableCard.docId,
+                                          groupIndex: batch.groupIndex,
+                                          itemIndexInGroup:
+                                              (entry.value['__itemIndex']
+                                                  as int?) ??
+                                              entry.key,
+                                          selectionMode: selectionMode,
+                                          isDelayed: batchDelayed,
+                                          isDelayedBlinking:
+                                              batchDelayedBlinking,
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                );
-                              },
+                                    ],
+                                  );
+                                },
+                              ),
+                            ],
+                            TableItemSelectionActionBar(
+                              docId: tableCard.docId,
+                              controller: _itemSelection,
+                              showDeleteButton:
+                                  Get.find<RestaurantSession>()
+                                      .profile
+                                      .value
+                                      ?.isAdmin ??
+                                  false,
+                              action:
+                                  _showServeOrderScreen &&
+                                      _kitchenOrderTabIndex == 1
+                                  ? TableItemSelectionAction.markPending
+                                  : TableItemSelectionAction.serve,
                             ),
                           ],
-                          TableItemSelectionActionBar(
-                            docId: tableCard.docId,
-                            controller: _itemSelection,
-                            showDeleteButton:
-                                Get.find<RestaurantSession>()
-                                    .profile
-                                    .value
-                                    ?.isAdmin ??
-                                false,
-                            action: _showServeOrderScreen &&
-                                    _kitchenOrderTabIndex == 1
-                                ? TableItemSelectionAction.markPending
-                                : TableItemSelectionAction.serve,
-                          ),
-                        ],
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                ),
               ],
             ),
           );
@@ -1794,9 +1904,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     if (selectedCategories.isNotEmpty) return;
     showServedDialog(context, tableName, () async {
       _playDeleteSound();
-      if (tableName.contains("Take Away") ||
-          ZomatoOrderUtils.isZomatoOrderName(tableName)) {
+      if (tableName.contains("Take Away")) {
         await FirestorePaths.scoped('tables').doc(docId).delete();
+      } else if (ZomatoOrderUtils.isZomatoOrderName(tableName)) {
+        await ZomatoOrderProgressDialog.run(
+          context,
+          action: () =>
+              Get.find<ZomatoOrdersRepository>().removeOrder(docId: docId),
+        );
       } else {
         await _updateTableItemsInFirestore(tableName, [], false);
       }
@@ -1847,8 +1962,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     bool compact = false,
   }) {
     final paid = isPaid == true;
-    final zomato =
-        isZomato || ZomatoOrderUtils.isZomatoOrderName(tableName);
+    final zomato = isZomato || ZomatoOrderUtils.isZomatoOrderName(tableName);
     final header = Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 8 : 12,
@@ -1867,11 +1981,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
             child: Row(
               children: [
                 if (zomato)
-                  Icon(
-                    Icons.delivery_dining,
-                    color: Colors.white,
-                    size: compact ? 18 : 22,
-                  )
+                  SizedBox()
                 else
                   SvgPicture.asset(
                     tableName.contains("Take Away") ? icon_packing : icon_table,
@@ -1897,24 +2007,27 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (zomato) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Text(
-                      'ZOMATO',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontFamily: fontMulishBold,
-                      ),
-                    ),
-                  ),
-                ],
+                // if (zomato) ...[
+                //   const SizedBox(width: 6),
+                //   Container(
+                //     padding: const EdgeInsets.symmetric(
+                //       horizontal: 6,
+                //       vertical: 2,
+                //     ),
+                //     decoration: BoxDecoration(
+                //       color: Colors.white.withValues(alpha: 0.18),
+                //       borderRadius: BorderRadius.circular(10),
+                //     ),
+                //     child: const Text(
+                //       'ZOMATO',
+                //       style: TextStyle(
+                //         color: Colors.white,
+                //         fontSize: 9,
+                //         fontFamily: fontMulishBold,
+                //       ),
+                //     ),
+                //   ),
+                // ],
               ],
             ),
           ),
@@ -2089,6 +2202,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     KitchenSettings.showTableAllOrders.removeListener(
       _onKitchenSettingsChanged,
     );
@@ -2097,6 +2211,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView> {
     );
     KitchenSettings.mobileOrdersGridLayout.removeListener(
       _onKitchenSettingsChanged,
+    );
+    KitchenSettings.backgroundOrderRingtoneEnabled.removeListener(
+      _onBackgroundRingtoneSettingChanged,
     );
     _tablesSub?.cancel();
     _timer?.cancel();

@@ -89,12 +89,13 @@ class _AddZomatoOrderSheetState extends State<AddZomatoOrderSheet> {
 
       final uploadName =
           _fileName ?? 'zomato_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final url = await ImageKitUploadService.uploadScreenshot(
+      final upload = await ImageKitUploadService.uploadScreenshot(
         bytes: bytes,
         fileName: uploadName,
       );
       await Get.find<ZomatoOrdersRepository>().createFromScreenshot(
-        screenshotUrl: url,
+        screenshotUrl: upload.url,
+        imagekitFileId: upload.fileId,
       );
       if (!mounted) return;
       Navigator.pop(context);

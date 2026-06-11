@@ -1,6 +1,7 @@
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/core/utils/zomato_order_utils.dart';
 import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
+import 'package:demo/features/zomato/widgets/zomato_order_progress_dialog.dart';
 import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -43,12 +44,12 @@ class ZomatoOrderCardBody extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.delivery_dining,
-                      size: compact ? 14 : 16,
-                      color: Color(0xFFE53935),
-                    ),
-                    const SizedBox(width: 2),
+                    // Icon(
+                    //   Icons.delivery_dining,
+                    //   size: compact ? 14 : 16,
+                    //   color: Color(0xFFE53935),
+                    // ),
+                    // const SizedBox(width: 2),
                     Text(
                       'ZOMATO',
                       style: TextStyle(
@@ -134,10 +135,22 @@ class ZomatoOrderCardBody extends StatelessWidget {
             onChanged: (value) async {
               if (value == null || value == normalized) return;
               try {
-                await Get.find<ZomatoOrdersRepository>().updateStatus(
-                  docId: docId,
-                  status: value,
-                );
+                if (ZomatoOrderUtils.isCompletedStatus(value)) {
+                  await ZomatoOrderProgressDialog.run(
+                    context,
+                    action: () => Get.find<ZomatoOrdersRepository>().updateStatus(
+                      docId: docId,
+                      status: value,
+                    ),
+                    message: 'Completing Zomato order...',
+                    subtitle: 'Removing screenshot and closing order',
+                  );
+                } else {
+                  await Get.find<ZomatoOrdersRepository>().updateStatus(
+                    docId: docId,
+                    status: value,
+                  );
+                }
                 onStatusChanged?.call(value);
               } catch (e) {
                 if (context.mounted) {

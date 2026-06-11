@@ -1,16 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/utils/zomato_order_utils.dart';
+import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
 
 class ZomatoOrdersRepository {
   Future<String> createFromScreenshot({
     required String screenshotUrl,
+    String? imagekitFileId,
   }) async {
     final name = await _nextZomatoOrderName();
     final docRef = await FirestorePaths.scoped('tables').add({
       'name': name,
       'source': ZomatoOrderUtils.sourceZomato,
       'screenshotUrl': screenshotUrl,
+      if (imagekitFileId != null && imagekitFileId.isNotEmpty)
+        'imagekitFileId': imagekitFileId,
       'zomatoStatus': ZomatoOrderUtils.statuses.first,
       'items': <Map<String, dynamic>>[],
       'isPaid': true,
@@ -35,9 +39,18 @@ class ZomatoOrdersRepository {
     });
   }
 
-  /// Removes a Zomato order after it has been served / completed.
+  /// Removes a Zomato order and deletes its screenshot from ImageKit.
   Future<void> removeOrder({required String docId}) async {
-    await FirestorePaths.scopedDoc('tables', docId).delete();
+    final docRef = FirestorePaths.scopedDoc('tables', docId);
+    final snap = await docRef.get();
+    if (snap.exists) {
+      final data = snap.data() ?? {};
+      await ImageKitUploadService.deleteScreenshot(
+        fileId: data['imagekitFileId']?.toString(),
+        screenshotUrl: data['screenshotUrl']?.toString(),
+      );
+    }
+    await docRef.delete();
   }
 
   Future<String> _nextZomatoOrderName() async {
