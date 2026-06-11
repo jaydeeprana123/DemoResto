@@ -240,7 +240,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   Set<String> selectedCategories = {};
   Set<String> selectedMenuItems = {};
   bool showAllCategories = true; // Track if "All" is selected
-  bool _useLegacyCategoryOnlyFilter = false;
   late final KitchenMenuFilter _menuFilter =
       KitchenMenuFilter(Get.find<MenuCacheService>());
   bool _showTableAllOrders = true;
@@ -517,10 +516,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           selectedMenuItems = Set<String>.from(
             KitchenSettings.selectedMenuItems,
           );
-          _useLegacyCategoryOnlyFilter =
-              !showAllCategories &&
-              selectedCategories.isNotEmpty &&
-              selectedMenuItems.isEmpty;
           _orderTypeFilterIndex = KitchenSettings.orderTypeFilterIndex;
           _rebuildDisplayFromCache();
         });
@@ -1095,24 +1090,17 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         selectedMenuItems: selectedMenuItems,
       );
 
-  bool get _categoryOnlyFilterMode =>
-      _useLegacyCategoryOnlyFilter ||
-      (!showAllCategories &&
-          selectedCategories.isNotEmpty &&
-          selectedMenuItems.isEmpty);
-
-  String _menuItemFilterKey(String category, String itemName) =>
-      KitchenMenuFilter.filterKey(category, itemName);
-
   bool _isMenuItemIncludedInFilter(Map<String, dynamic> item) {
     return _menuFilter.matchesOrderItem(
       item: item,
       showAllCategories: showAllCategories,
       selectedCategories: selectedCategories,
       selectedMenuItems: selectedMenuItems,
-      categoryOnlyMode: _categoryOnlyFilterMode,
     );
   }
+
+  String _menuItemFilterKey(String category, String itemName) =>
+      KitchenMenuFilter.filterKey(category, itemName);
 
   bool _hasItemSelectionForCategory(String category) {
     final prefix = '$category|';
@@ -1156,23 +1144,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
     final categoryNames = cache.getCategoryNamesSorted();
     final menuItemsByCategory = cache.getItemsByCategoryMap();
-
-    if (_useLegacyCategoryOnlyFilter) {
-      for (final categoryName in selectedCategories) {
-        _selectAllMenuItemsForCategory(
-          categoryName,
-          menuItemsByCategory[categoryName] ?? const [],
-        );
-      }
-      _useLegacyCategoryOnlyFilter = false;
-      unawaited(
-        KitchenSettings.saveCategoryFilter(
-          showAll: showAllCategories,
-          categories: selectedCategories,
-          menuItems: selectedMenuItems,
-        ),
-      );
-    }
 
     showDialog(
       context: context,
@@ -1240,7 +1211,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                         if (showAllCategories) {
                           selectedCategories.clear();
                           selectedMenuItems.clear();
-                          _useLegacyCategoryOnlyFilter = false;
                         }
                         applyFilterChanges();
                       },
@@ -1357,7 +1327,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                     showAllCategories = true;
                     selectedCategories.clear();
                     selectedMenuItems.clear();
-                    _useLegacyCategoryOnlyFilter = false;
                     applyFilterChanges();
                   },
                   child: const Text(
@@ -1393,7 +1362,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }
 
   void _applyCategoryFilterChanges() {
-    _useLegacyCategoryOnlyFilter = false;
     setState(_rebuildDisplayFromCache);
     unawaited(
       KitchenSettings.saveCategoryFilter(
