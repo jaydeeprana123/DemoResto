@@ -1,8 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/core/utils/zomato_order_utils.dart';
-import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
-import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
+import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/repositories/user_repository.dart';
 import 'package:demo/core/services/restaurant_session.dart';
@@ -26,6 +25,7 @@ import 'package:demo/features/transactions/services/reverse_billing_service.dart
 import 'package:demo/Styles/my_icons.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -56,6 +56,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       TableItemSelectionController();
   final List<Map<String, dynamic>> menu = [];
   bool isLoading = false;
+  bool _tablesLoading = false;
   final user = FirebaseAuth.instance.currentUser;
   int tableNo = 0;
   String selectedTab = 'All'; // 👈 Add this variable at class level
@@ -77,8 +78,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     });
 
     if (user != null) {
+      _tablesLoading = true;
       _listenToTables();
-      _loadMenu();
+      _loadMenuFromCache();
     }
   }
 
@@ -286,6 +288,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     void applySnapshot() {
       if (!mounted) return;
       setState(() {
+        _tablesLoading = false;
         tables = updatedTables;
         _firestoreGroupIndices
           ..clear()
@@ -327,50 +330,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     WidgetsBinding.instance.addPostFrameCallback((_) => applySnapshot());
   }
 
-  // Load menu data from Firestore
-  Future<void> _loadMenu() async {
+  Future<void> _loadMenuFromCache() async {
     if (!mounted) return;
-    setState(() {
-      isLoading = true;
-    });
 
     try {
-      List<Map<String, dynamic>> loadedMenu = [];
-      final menuSnapshot = await FirestorePaths
-          .scoped('menus')
-          .get();
-
-      final categoryDocs = sortMenuDocs(menuSnapshot.docs);
-
-      for (var categoryDoc in categoryDocs) {
-        final categoryId = categoryDoc.id;
-        final categoryName = categoryDoc['name'];
-        final categorySortOrder =
-            (categoryDoc.data()['sortOrder'] as num?)?.toInt() ?? 9999;
-
-        final itemsSnapshot = await FirestorePaths
-            .scopedSubCollection('menus', categoryId, 'items')
-            .get();
-
-        for (var itemDoc in sortMenuDocs(itemsSnapshot.docs)) {
-          final data = itemDoc.data();
-          final itemSortOrder = (data['sortOrder'] as num?)?.toInt() ?? 9999;
-          loadedMenu.add({
-            "category": categoryName,
-            "name": data['name'],
-            "price": data['price'],
-            if (data.containsKey('halfPrice')) "halfPrice": data['halfPrice'],
-            if (data.containsKey('fullPrice')) "fullPrice": data['fullPrice'],
-            "categoryId": categoryId,
-            "itemId": itemDoc.id,
-            "categorySortOrder": categorySortOrder,
-            "itemSortOrder": itemSortOrder,
-            "inStock": MenuStockUtils.isInStock(data),
-            "qty": 1,
-          });
-        }
-      }
-
+      final loadedMenu = await Get.find<MenuCacheService>().ensureLoaded();
       if (!mounted) return;
       setState(() {
         menu.clear();
@@ -378,7 +342,31 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         isLoading = false;
       });
     } catch (e) {
-      print("Error loading menu: $e");
+      print("Error loading cached menu: $e");
+      if (!mounted) return;
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _refreshMenu() async {
+    if (!mounted) return;
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final loadedMenu =
+          await Get.find<MenuCacheService>().refreshFromNetwork();
+      if (!mounted) return;
+      setState(() {
+        menu.clear();
+        menu.addAll(loadedMenu);
+        isLoading = false;
+      });
+    } catch (e) {
+      print("Error refreshing menu: $e");
       if (!mounted) return;
       setState(() {
         isLoading = false;
@@ -989,6 +977,12 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   static const _green = Color(0xFF4CAF50);
   static const _bg = Color(0xFFF5F6FA);
 
+  bool get _showMenuRefreshButton =>
+      kIsWeb ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.linux;
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
@@ -1008,15 +1002,45 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         children: [
           Column(
             children: [
+              if (_tablesLoading)
+                LinearProgressIndicator(
+                  minHeight: 3,
+                  color: _orange,
+                  backgroundColor: _orange.withValues(alpha: 0.15),
+                ),
               _buildTabBar(),
               Expanded(
-                child: tables.isEmpty
+                child: _tablesLoading
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(
+                              width: 220,
+                              child: LinearProgressIndicator(
+                                color: _orange,
+                                backgroundColor: Color(0xFFE5E7EB),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Loading tables...',
+                              style: TextStyle(
+                                fontFamily: fontMulishSemiBold,
+                                fontSize: 14,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : tables.isEmpty
                     ? _buildEmptyState()
                     : _filteredTableKeys().isEmpty
                     ? _buildFilterEmptyState()
                     : RefreshIndicator(
                         color: _orange,
-                        onRefresh: () async => _loadMenu(),
+                        onRefresh: _refreshMenu,
                         child: MasonryGridView.count(
                           crossAxisCount: crossCols,
                           mainAxisSpacing: 22,
@@ -1111,6 +1135,21 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         ],
       ),
       actions: [
+        if (_showMenuRefreshButton)
+          IconButton(
+            icon: isLoading
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: _orange,
+                    ),
+                  )
+                : const Icon(Icons.refresh_rounded, color: Colors.white70),
+            tooltip: 'Refresh menu',
+            onPressed: isLoading ? null : _refreshMenu,
+          ),
         IconButton(
           icon: Icon(
             _tableFilterSelection.isNotEmpty
