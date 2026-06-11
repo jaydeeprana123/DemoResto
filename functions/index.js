@@ -243,8 +243,7 @@ exports.uploadZomatoScreenshot = functions.https.onCall(async (data, context) =>
   const form = new FormData();
   form.append("file", new Blob([buffer], { type: `image/${subtype}` }), fileName);
   form.append("fileName", fileName);
-  form.append("folder", folder);
-  form.append("publicKey", publicKey);
+  form.append("folder", folder.startsWith("/") ? folder : `/${folder}`);
   form.append("useUniqueFileName", "true");
 
   const response = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
@@ -257,9 +256,19 @@ exports.uploadZomatoScreenshot = functions.https.onCall(async (data, context) =>
 
   const body = await response.text();
   if (!response.ok) {
+    let detail = body;
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed && parsed.message) {
+        detail = parsed.message;
+        if (parsed.help) detail += ` ${parsed.help}`;
+      }
+    } catch (error) {
+      // Keep raw body.
+    }
     throw new functions.https.HttpsError(
       "internal",
-      `ImageKit upload failed (${response.status}): ${body}`,
+      `ImageKit upload failed (${response.status}): ${detail}`,
     );
   }
 

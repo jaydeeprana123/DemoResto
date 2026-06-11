@@ -3,7 +3,9 @@ import 'dart:typed_data';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/core/utils/zomato_order_utils.dart';
 import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
+import 'package:demo/features/zomato/services/imagekit_settings.dart';
 import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
+import 'package:demo/features/zomato/views/imagekit_settings_page.dart';
 import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -68,6 +70,23 @@ class _AddZomatoOrderSheetState extends State<AddZomatoOrderSheet> {
 
     setState(() => _submitting = true);
     try {
+      final configured = await ImageKitSettings.isConfigured();
+      if (!configured) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'ImageKit is not configured. Open Settings → Zomato / ImageKit and save your keys.',
+            ),
+            action: SnackBarAction(
+              label: 'Open Settings',
+              onPressed: () => Get.to(() => const ImageKitSettingsPage()),
+            ),
+          ),
+        );
+        return;
+      }
+
       final uploadName =
           _fileName ?? 'zomato_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final url = await ImageKitUploadService.uploadScreenshot(
@@ -87,8 +106,9 @@ class _AddZomatoOrderSheetState extends State<AddZomatoOrderSheet> {
       );
     } catch (e) {
       if (!mounted) return;
+      final message = e.toString().replaceFirst('Exception: ', '');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
+        SnackBar(content: Text(message)),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);

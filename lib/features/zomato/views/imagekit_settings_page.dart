@@ -18,6 +18,8 @@ class _ImageKitSettingsPageState extends State<ImageKitSettingsPage> {
   final _urlEndpointController = TextEditingController();
   bool _loading = true;
   bool _saving = false;
+  bool _resetting = false;
+  bool _showPrivateKey = false;
 
   @override
   void initState() {
@@ -31,40 +33,74 @@ class _ImageKitSettingsPageState extends State<ImageKitSettingsPage> {
     setState(() {
       _publicKeyController.text = config.publicKey;
       _privateKeyController.text = config.privateKey;
-      _urlEndpointController.text = config.urlEndpoint;
+      _urlEndpointController.text = config.urlEndpoint.isNotEmpty
+          ? config.urlEndpoint
+          : 'https://ik.imagekit.io/tet01w2tu';
       _loading = false;
     });
   }
 
-  Future<void> _save() async {
-    setState(() => _saving = true);
+  Future<void> _resetToDefaults() async {
+    setState(() => _resetting = true);
     try {
-      final config = ImageKitConfig(
-        publicKey: _publicKeyController.text.trim(),
-        privateKey: _privateKeyController.text.trim(),
-        urlEndpoint: _urlEndpointController.text.trim(),
-      );
-      if (!config.isValid) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please fill in URL endpoint, public key, and private key.'),
-          ),
-        );
-        return;
-      }
-      await ImageKitSettings.save(config);
+      await ImageKitSettings.resetToDefaults();
+      await _load();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('ImageKit settings saved to cloud. You can add Zomato orders now.'),
+          content: Text(
+            'Default ImageKit keys restored. Try uploading a Zomato screenshot again.',
+          ),
           backgroundColor: Color(0xFF2E7D32),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save ImageKit settings: $e')),
+        SnackBar(content: Text('Could not restore defaults: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _resetting = false);
+    }
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      final config = ImageKitConfig(
+        publicKey: _publicKeyController.text,
+        privateKey: _privateKeyController.text,
+        urlEndpoint: _urlEndpointController.text,
+      ).normalized();
+
+      if (!config.isValid) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Invalid keys: ${config.missingFields.join(', ')}. '
+              'Use the Copy buttons in ImageKit dashboard — do not type from the table view.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      await ImageKitSettings.save(config);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'ImageKit settings saved on this device. You can add Zomato orders now.',
+          ),
+          backgroundColor: Color(0xFF2E7D32),
+        ),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -79,6 +115,15 @@ class _ImageKitSettingsPageState extends State<ImageKitSettingsPage> {
     super.dispose();
   }
 
+  bool get _looksConfigured {
+    final config = ImageKitConfig(
+      publicKey: _publicKeyController.text,
+      privateKey: _privateKeyController.text,
+      urlEndpoint: _urlEndpointController.text,
+    ).normalized();
+    return config.isValid;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -86,60 +131,93 @@ class _ImageKitSettingsPageState extends State<ImageKitSettingsPage> {
       appBar: AppBar(
         backgroundColor: _navy,
         foregroundColor: Colors.white,
-        title: Text('ImageKit Settings', style: MyFont.bold(18, color: Colors.white)),
+        title: Text(
+          'ImageKit Settings',
+          style: MyFont.bold(18, color: Colors.white),
+        ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: _orange))
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Text(
-                  'Required for Zomato screenshot uploads.',
-                  style: MyFont.regular(14, color: Colors.grey.shade700),
-                ),
-                if (!_loading) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _publicKeyController.text.isNotEmpty &&
-                            _privateKeyController.text.isNotEmpty &&
-                            _urlEndpointController.text.isNotEmpty
-                        ? 'Status: configured'
-                        : 'Status: not configured — fill all three fields and tap Save',
-                    style: MyFont.regular(
-                      13,
-                      color: _publicKeyController.text.isNotEmpty &&
-                              _privateKeyController.text.isNotEmpty &&
-                              _urlEndpointController.text.isNotEmpty
-                          ? const Color(0xFF2E7D32)
-                          : Colors.orange.shade800,
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'From your ImageKit dashboard',
+                          style: MyFont.semiBold(14, color: _navy),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'ImagekitID: tet01w2tu',
+                          style: MyFont.regular(13, color: Colors.grey.shade700),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Important: use the Copy icon next to each field in ImageKit. '
+                          'The table view hides part of the keys — typing manually often fails. '
+                          'Web uploads use the same keys saved here.',
+                          style: MyFont.regular(13, color: Colors.orange.shade800),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _looksConfigured
+                      ? 'Status: configured'
+                      : 'Status: not configured — paste all three values and tap Save',
+                  style: MyFont.regular(
+                    13,
+                    color: _looksConfigured
+                        ? const Color(0xFF2E7D32)
+                        : Colors.orange.shade800,
+                  ),
+                ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _urlEndpointController,
                   decoration: const InputDecoration(
                     labelText: 'URL endpoint',
-                    hintText: 'https://ik.imagekit.io/your_imagekit_id',
+                    hintText: 'https://ik.imagekit.io/tet01w2tu',
                     border: OutlineInputBorder(),
                   ),
+                  onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _publicKeyController,
                   decoration: const InputDecoration(
                     labelText: 'Public key',
+                    hintText: 'public_… (copy full key from ImageKit)',
                     border: OutlineInputBorder(),
                   ),
+                  onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _privateKeyController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
+                  obscureText: !_showPrivateKey,
+                  decoration: InputDecoration(
                     labelText: 'Private key',
-                    border: OutlineInputBorder(),
+                    hintText: 'private_… (click eye icon in ImageKit, then copy)',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showPrivateKey
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                      onPressed: () =>
+                          setState(() => _showPrivateKey = !_showPrivateKey),
+                    ),
                   ),
+                  onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 20),
                 FilledButton(
@@ -157,7 +235,21 @@ class _ImageKitSettingsPageState extends State<ImageKitSettingsPage> {
                             color: Colors.white,
                           ),
                         )
-                      : const Text('Save', style: TextStyle(fontFamily: fontMulishBold)),
+                      : const Text(
+                          'Save',
+                          style: TextStyle(fontFamily: fontMulishBold),
+                        ),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: (_saving || _resetting) ? null : _resetToDefaults,
+                  child: _resetting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Use default keys'),
                 ),
               ],
             ),

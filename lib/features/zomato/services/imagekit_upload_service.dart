@@ -1,7 +1,8 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:cloud_functions/cloud_functions.dart';
+import 'package:crypto/crypto.dart';
 import 'package:demo/features/zomato/services/imagekit_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -17,20 +18,12 @@ class ImageKitUploadService {
     required String fileName,
     String folder = '/zomato-orders',
   }) async {
-    if (kIsWeb) {
-      return _uploadViaCloudFunction(
-        bytes: bytes,
-        fileName: fileName,
-        folder: folder,
-      );
-    }
-
-    final config = await ImageKitSettings.load();
+    var config = await ImageKitSettings.load();
     if (!config.isValid) {
       throw _notConfiguredError(config);
     }
 
-    return _uploadDirect(
+    return _uploadWithAuthRetry(
       config: config,
       bytes: bytes,
       fileName: fileName,
@@ -38,34 +31,39 @@ class ImageKitUploadService {
     );
   }
 
-  static Future<String> _uploadViaCloudFunction({
+  /// If saved keys fail auth, retry once with built-in defaults.
+  static Future<String> _uploadWithAuthRetry({
+    required ImageKitConfig config,
     required Uint8List bytes,
     required String fileName,
     required String folder,
   }) async {
     try {
-      final callable =
-          FirebaseFunctions.instance.httpsCallable('uploadZomatoScreenshot');
-      final result = await callable.call({
-        'fileName': fileName,
-        'fileBase64': base64Encode(bytes),
-        'folder': folder,
-      });
-      final data = result.data;
-      if (data is! Map) {
-        throw Exception('ImageKit upload returned an unexpected response.');
-      }
-      final url = data['url']?.toString();
-      if (url == null || url.isEmpty) {
-        throw Exception('ImageKit upload did not return a URL.');
-      }
-      return url;
-    } on FirebaseFunctionsException catch (e) {
-      if (e.code == 'failed-precondition') {
-        throw Exception(e.message ?? 'ImageKit is not configured.');
-      }
-      throw Exception('ImageKit upload failed: ${e.message ?? e.code}');
+      return await _uploadDirect(
+        config: config,
+        bytes: bytes,
+        fileName: fileName,
+        folder: folder,
+      );
+    } catch (e) {
+      if (!_isAuthError(e)) rethrow;
+      ImageKitSettings.clearCache();
+      final defaults = await ImageKitSettings.resetToDefaults();
+      return _uploadDirect(
+        config: defaults,
+        bytes: bytes,
+        fileName: fileName,
+        folder: folder,
+      );
     }
+  }
+
+  static bool _isAuthError(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('cannot be authenticated') ||
+        message.contains('(403)') ||
+        message.contains('missing authorization') ||
+        message.contains('invalid signature');
   }
 
   static Future<String> _uploadDirect({
@@ -74,30 +72,90 @@ class ImageKitUploadService {
     required String fileName,
     required String folder,
   }) async {
+    if (kIsWeb) {
+      return _uploadClientSide(
+        config: config,
+        bytes: bytes,
+        fileName: fileName,
+        folder: folder,
+      );
+    }
+
+    return _uploadServerSide(
+      config: config,
+      bytes: bytes,
+      fileName: fileName,
+      folder: folder,
+    );
+  }
+
+  /// Browser uploads must use token/signature auth — Basic Auth is blocked by CORS.
+  static Future<String> _uploadClientSide({
+    required ImageKitConfig config,
+    required Uint8List bytes,
+    required String fileName,
+    required String folder,
+  }) async {
+    final safeName = _safeFileName(fileName);
+    final token = _generateUploadToken();
+    final expire =
+        (DateTime.now().millisecondsSinceEpoch ~/ 1000) + 2400;
+    final signature = _signUpload(token, expire, config.privateKey);
+
+    final request = http.MultipartRequest('POST', Uri.parse(_uploadUrl));
+    request.fields['fileName'] = safeName;
+    request.fields['folder'] = _normalizeFolder(folder);
+    request.fields['useUniqueFileName'] = 'true';
+    request.fields['publicKey'] = config.publicKey;
+    request.fields['token'] = token;
+    request.fields['expire'] = expire.toString();
+    request.fields['signature'] = signature;
+
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: safeName,
+        contentType: MediaType('image', _imageSubtype(safeName)),
+      ),
+    );
+
+    return _sendUploadRequest(request);
+  }
+
+  /// Native/desktop upload using private key Basic Auth.
+  static Future<String> _uploadServerSide({
+    required ImageKitConfig config,
+    required Uint8List bytes,
+    required String fileName,
+    required String folder,
+  }) async {
+    final safeName = _safeFileName(fileName);
     final request = http.MultipartRequest('POST', Uri.parse(_uploadUrl));
     request.headers['Authorization'] = 'Basic ${base64Encode(
       utf8.encode('${config.privateKey}:'),
     )}';
-    request.fields['fileName'] = fileName;
-    request.fields['folder'] = folder;
-    request.fields['publicKey'] = config.publicKey;
+    request.fields['fileName'] = safeName;
+    request.fields['folder'] = _normalizeFolder(folder);
     request.fields['useUniqueFileName'] = 'true';
 
     request.files.add(
       http.MultipartFile.fromBytes(
         'file',
         bytes,
-        filename: fileName,
-        contentType: MediaType('image', _imageSubtype(fileName)),
+        filename: safeName,
+        contentType: MediaType('image', _imageSubtype(safeName)),
       ),
     );
 
+    return _sendUploadRequest(request);
+  }
+
+  static Future<String> _sendUploadRequest(http.MultipartRequest request) async {
     final response = await request.send();
     final body = await response.stream.bytesToString();
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(
-        'ImageKit upload failed (${response.statusCode}): $body',
-      );
+      throw Exception(_parseUploadError(response.statusCode, body));
     }
 
     final decoded = jsonDecode(body) as Map<String, dynamic>;
@@ -106,6 +164,63 @@ class ImageKitUploadService {
       throw Exception('ImageKit upload did not return a URL.');
     }
     return url;
+  }
+
+  static String _generateUploadToken() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  }
+
+  static String _signUpload(String token, int expire, String privateKey) {
+    final hmac = Hmac(sha1, utf8.encode(privateKey));
+    return hmac.convert(utf8.encode('$token$expire')).toString();
+  }
+
+  static String _normalizeFolder(String folder) {
+    var value = folder.trim();
+    if (value.isEmpty) return '/zomato-orders';
+    if (!value.startsWith('/')) value = '/$value';
+    return value.replaceAll(RegExp(r'/+'), '/');
+  }
+
+  static String _safeFileName(String fileName) {
+    final trimmed = fileName.trim();
+    if (trimmed.isEmpty) {
+      return 'zomato_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    }
+    if (trimmed.contains('.')) return trimmed;
+    return '$trimmed.jpg';
+  }
+
+  static String _parseUploadError(int statusCode, String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final message = decoded['message']?.toString();
+        final help = decoded['help']?.toString();
+        if (message != null && message.isNotEmpty) {
+          if (statusCode == 403 ||
+              message.toLowerCase().contains('cannot be authenticated')) {
+            return 'ImageKit authentication failed. Open Settings → Zomato / ImageKit '
+                'and tap "Use default keys", or copy the full private key '
+                '(eye icon in ImageKit dashboard).';
+          }
+          if (help != null && help.isNotEmpty) {
+            return 'ImageKit upload failed ($statusCode): $message $help';
+          }
+          return 'ImageKit upload failed ($statusCode): $message';
+        }
+      }
+    } catch (_) {}
+    if (statusCode == 403) {
+      return 'ImageKit authentication failed. Check your private key in Settings.';
+    }
+    if (kIsWeb && statusCode == 0) {
+      return 'ImageKit upload blocked by browser. Check your internet connection '
+          'or try again from the Windows app.';
+    }
+    return 'ImageKit upload failed ($statusCode): $body';
   }
 
   static Exception _notConfiguredError(ImageKitConfig config) {

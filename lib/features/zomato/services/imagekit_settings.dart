@@ -16,6 +16,11 @@ class ImageKitSettings {
   static const _legacyPrefsPrivateKey = 'private_StvLpn0g1LLFtDo9OWHudimZxRU=';
   static const _legacyPrefsUrlEndpoint = 'https://ik.imagekit.io/tet01w2tu';
 
+  /// Built-in defaults for this restaurant's ImageKit account (tet01w2tu).
+  static const _defaultPublicKey = _legacyPrefsPublicKey;
+  static const _defaultPrivateKey = _legacyPrefsPrivateKey;
+  static const _defaultUrlEndpoint = _legacyPrefsUrlEndpoint;
+
   static ImageKitConfig? _memoryCache;
 
   static RestaurantSession get _session => Get.find<RestaurantSession>();
@@ -50,32 +55,56 @@ class ImageKitSettings {
       return fromSettingsDoc;
     }
 
-    return const ImageKitConfig(
-      publicKey: '',
-      privateKey: '',
-      urlEndpoint: '',
-    );
+    final defaults = _embeddedDefaults();
+    if (defaults.isValid) {
+      _memoryCache = defaults;
+      await _saveToPrefs(defaults);
+      return defaults;
+    }
+
+    return const ImageKitConfig(publicKey: '', privateKey: '', urlEndpoint: '');
   }
 
   static Future<void> save(ImageKitConfig config) async {
-    final normalized = ImageKitConfig(
-      publicKey: config.publicKey.trim(),
-      privateKey: config.privateKey.trim(),
-      urlEndpoint: config.urlEndpoint.trim(),
-    );
+    final normalized = config.normalized();
     if (!normalized.isValid) {
-      throw ArgumentError('ImageKit config is incomplete.');
+      throw ArgumentError(
+        'ImageKit config is incomplete. Copy the full public key, private key, '
+        'and URL endpoint from the ImageKit dashboard using the Copy buttons.',
+      );
     }
 
     _memoryCache = normalized;
-    await _saveToCloud(normalized);
     await _saveToPrefs(normalized);
+    try {
+      await _saveToCloud(normalized);
+    } catch (_) {
+      // Local prefs are enough for direct upload; cloud sync is optional.
+    }
+  }
+
+  static ImageKitConfig _embeddedDefaults() {
+    return const ImageKitConfig(
+      publicKey: _defaultPublicKey,
+      privateKey: _defaultPrivateKey,
+      urlEndpoint: _defaultUrlEndpoint,
+    ).normalized();
   }
 
   static Future<bool> isConfigured() async {
     final config = await load();
     return config.isValid;
   }
+
+  /// Restores the built-in ImageKit keys for this app (tet01w2tu account).
+  static Future<ImageKitConfig> resetToDefaults() async {
+    _memoryCache = null;
+    final defaults = _embeddedDefaults();
+    await save(defaults);
+    return defaults;
+  }
+
+  static void clearCache() => _memoryCache = null;
 
   static Future<ImageKitConfig> _loadFromRestaurantDoc() async {
     final restaurantId = _session.profile.value?.restaurantId;
@@ -105,44 +134,39 @@ class ImageKitSettings {
   static Future<void> _saveToCloud(ImageKitConfig config) async {
     final restaurantId = _session.profile.value?.restaurantId;
     if (restaurantId != null && restaurantId.isNotEmpty) {
-      await FirestorePaths.restaurant(restaurantId).set(
-        {
-          'imagekitPublicKey': config.publicKey,
-          'imagekitPrivateKey': config.privateKey,
-          'imagekitUrlEndpoint': config.urlEndpoint,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      await FirestorePaths.restaurant(restaurantId).set({
+        'imagekitPublicKey': config.publicKey,
+        'imagekitPrivateKey': config.privateKey,
+        'imagekitUrlEndpoint': config.urlEndpoint,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
       return;
     }
 
-    await FirestorePaths.scopedDoc('settings', 'imagekit').set(
-      {
-        'publicKey': config.publicKey,
-        'privateKey': config.privateKey,
-        'urlEndpoint': config.urlEndpoint,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await FirestorePaths.scopedDoc('settings', 'imagekit').set({
+      'publicKey': config.publicKey,
+      'privateKey': config.privateKey,
+      'urlEndpoint': config.urlEndpoint,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   static Future<ImageKitConfig> _loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final scope = _restaurantScope;
 
-    final publicKey = _readNonEmpty(prefs, _scopedKey(_prefsPublicKey, scope)) ??
+    final publicKey =
+        _readNonEmpty(prefs, _scopedKey(_prefsPublicKey, scope)) ??
         _readNonEmpty(prefs, _prefsPublicKey) ??
-        _readNonEmpty(prefs, _legacyPrefsPublicKey);
+        _readLegacyCredential(prefs, _legacyPrefsPublicKey);
     final privateKey =
         _readNonEmpty(prefs, _scopedKey(_prefsPrivateKey, scope)) ??
-            _readNonEmpty(prefs, _prefsPrivateKey) ??
-            _readNonEmpty(prefs, _legacyPrefsPrivateKey);
+        _readNonEmpty(prefs, _prefsPrivateKey) ??
+        _readLegacyCredential(prefs, _legacyPrefsPrivateKey);
     final urlEndpoint =
         _readNonEmpty(prefs, _scopedKey(_prefsUrlEndpoint, scope)) ??
-            _readNonEmpty(prefs, _prefsUrlEndpoint) ??
-            _readNonEmpty(prefs, _legacyPrefsUrlEndpoint);
+        _readNonEmpty(prefs, _prefsUrlEndpoint) ??
+        _readLegacyCredential(prefs, _legacyPrefsUrlEndpoint);
 
     return ImageKitConfig(
       publicKey: publicKey ?? '',
@@ -156,7 +180,10 @@ class ImageKitSettings {
     final scope = _restaurantScope;
 
     await prefs.setString(_scopedKey(_prefsPublicKey, scope), config.publicKey);
-    await prefs.setString(_scopedKey(_prefsPrivateKey, scope), config.privateKey);
+    await prefs.setString(
+      _scopedKey(_prefsPrivateKey, scope),
+      config.privateKey,
+    );
     await prefs.setString(
       _scopedKey(_prefsUrlEndpoint, scope),
       config.urlEndpoint,
@@ -174,6 +201,19 @@ class ImageKitSettings {
     final value = prefs.getString(key)?.trim();
     if (value == null || value.isEmpty) return null;
     return value;
+  }
+
+  /// Some older builds stored credentials as preference key names.
+  static String? _readLegacyCredential(SharedPreferences prefs, String legacyKey) {
+    final stored = _readNonEmpty(prefs, legacyKey);
+    if (stored != null) return stored;
+    if (!prefs.containsKey(legacyKey)) return null;
+    if (legacyKey.startsWith('public_') ||
+        legacyKey.startsWith('private_') ||
+        legacyKey.startsWith('https://ik.imagekit.io/')) {
+      return legacyKey;
+    }
+    return null;
   }
 
   static ImageKitConfig _fromRestaurantMap(Map<String, dynamic> data) {
@@ -201,22 +241,46 @@ class ImageKitConfig {
   });
 
   const ImageKitConfig.empty()
-      : publicKey = '',
-        privateKey = '',
-        urlEndpoint = '';
+    : publicKey = '',
+      privateKey = '',
+      urlEndpoint = '';
+
+  ImageKitConfig normalized() {
+    var public = publicKey.trim().replaceAll('\n', '').replaceAll('\r', '');
+    var private = privateKey.trim().replaceAll('\n', '').replaceAll('\r', '');
+    var url = urlEndpoint.trim().replaceAll('\n', '').replaceAll('\r', '');
+    if (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    return ImageKitConfig(
+      publicKey: public,
+      privateKey: private,
+      urlEndpoint: url,
+    );
+  }
 
   final String publicKey;
   final String privateKey;
   final String urlEndpoint;
 
   bool get isValid =>
-      publicKey.isNotEmpty && privateKey.isNotEmpty && urlEndpoint.isNotEmpty;
+      publicKey.startsWith('public_') &&
+      publicKey.length >= 30 &&
+      privateKey.startsWith('private_') &&
+      privateKey.length >= 35 &&
+      urlEndpoint.startsWith('https://ik.imagekit.io/');
 
   List<String> get missingFields {
     final missing = <String>[];
-    if (publicKey.isEmpty) missing.add('Public key');
-    if (privateKey.isEmpty) missing.add('Private key');
-    if (urlEndpoint.isEmpty) missing.add('URL endpoint');
+    if (!publicKey.startsWith('public_') || publicKey.length < 30) {
+      missing.add('Public key (copy full key from ImageKit)');
+    }
+    if (!privateKey.startsWith('private_') || privateKey.length < 35) {
+      missing.add('Private key (click eye icon in ImageKit, then copy)');
+    }
+    if (!urlEndpoint.startsWith('https://ik.imagekit.io/')) {
+      missing.add('URL endpoint');
+    }
     return missing;
   }
 }
