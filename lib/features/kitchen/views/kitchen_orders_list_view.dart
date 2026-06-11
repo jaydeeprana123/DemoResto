@@ -19,6 +19,7 @@ import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:demo/features/kitchen/services/kitchen_settings.dart';
+import 'package:demo/features/kitchen/services/kitchen_menu_filter.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
@@ -240,6 +241,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   Set<String> selectedMenuItems = {};
   bool showAllCategories = true; // Track if "All" is selected
   bool _useLegacyCategoryOnlyFilter = false;
+  late final KitchenMenuFilter _menuFilter =
+      KitchenMenuFilter(Get.find<MenuCacheService>());
   bool _showTableAllOrders = true;
   bool _showServeOrderScreen = false;
 
@@ -327,7 +330,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     Set<String> removedKeys,
     Set<String> removedDocIds,
   ) {
-    if (showAllCategories || selectedCategories.isEmpty) {
+    if (showAllCategories || !_hasActiveCategoryFilter) {
       return removedKeys.isNotEmpty || removedDocIds.isNotEmpty;
     }
 
@@ -496,7 +499,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _configureAudioPlayers();
-    KitchenSettings.load().then((_) {
+    KitchenSettings.load().then((_) async {
+      await Get.find<MenuCacheService>().ensureLoaded();
+      _menuFilter.invalidate();
       if (mounted) {
         setState(() {
           _showTableAllOrders =
@@ -892,13 +897,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     final typeSuffix = typeLabel.isEmpty ? '' : ' for $typeLabel orders';
 
     if (_kitchenOrderTabIndex == 1) {
-      if (!showAllCategories && selectedCategories.isNotEmpty) {
+      if (_hasActiveCategoryFilter) {
         return 'No served orders in selected categories$typeSuffix';
       }
       return 'No served orders$typeSuffix';
     }
 
-    if (!showAllCategories && selectedCategories.isNotEmpty) {
+    if (_hasActiveCategoryFilter) {
       return 'No orders in selected categories$typeSuffix';
     }
     return 'No orders found$typeSuffix';
@@ -910,7 +915,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            !showAllCategories && selectedCategories.isNotEmpty
+            _hasActiveCategoryFilter
                 ? Icons.filter_list_off
                 : Icons.inbox_outlined,
             size: 64,
@@ -925,10 +930,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               color: Colors.grey,
             ),
           ),
-          if (!showAllCategories && selectedCategories.isNotEmpty) ...[
+          if (_hasActiveCategoryFilter) ...[
             const SizedBox(height: 8),
             Text(
-              "Selected: ${selectedCategories.join(', ')}",
+              selectedCategories.isNotEmpty
+                  ? "Selected: ${selectedCategories.join(', ')}"
+                  : 'Selected menu items filter is active',
               style: const TextStyle(
                 fontFamily: fontMulishRegular,
                 fontSize: 14,
@@ -1082,19 +1089,34 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     return cards;
   }
 
+  bool get _hasActiveCategoryFilter => _menuFilter.hasActiveFilter(
+        showAllCategories: showAllCategories,
+        selectedCategories: selectedCategories,
+        selectedMenuItems: selectedMenuItems,
+      );
+
+  bool get _categoryOnlyFilterMode =>
+      _useLegacyCategoryOnlyFilter ||
+      (!showAllCategories &&
+          selectedCategories.isNotEmpty &&
+          selectedMenuItems.isEmpty);
+
   String _menuItemFilterKey(String category, String itemName) =>
-      '$category|$itemName';
+      KitchenMenuFilter.filterKey(category, itemName);
+
+  bool _isMenuItemIncludedInFilter(Map<String, dynamic> item) {
+    return _menuFilter.matchesOrderItem(
+      item: item,
+      showAllCategories: showAllCategories,
+      selectedCategories: selectedCategories,
+      selectedMenuItems: selectedMenuItems,
+      categoryOnlyMode: _categoryOnlyFilterMode,
+    );
+  }
 
   bool _hasItemSelectionForCategory(String category) {
     final prefix = '$category|';
     return selectedMenuItems.any((key) => key.startsWith(prefix));
-  }
-
-  bool _isMenuItemIncludedInFilter(String category, String itemName) {
-    if (showAllCategories || selectedCategories.isEmpty) return true;
-    if (!selectedCategories.contains(category)) return false;
-    if (_useLegacyCategoryOnlyFilter) return true;
-    return selectedMenuItems.contains(_menuItemFilterKey(category, itemName));
   }
 
   void _selectAllMenuItemsForCategory(
@@ -1129,6 +1151,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   void _showCategoryFilterDialog(BuildContext context) async {
     final cache = Get.find<MenuCacheService>();
     await cache.loadFromCacheOnly();
+    _menuFilter.invalidate();
     if (!mounted) return;
 
     final categoryNames = cache.getCategoryNamesSorted();
@@ -1383,8 +1406,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   // Filter groups by selected categories
   List<TableGroup> _filterByCategories(List<TableGroup> groups) {
-    // If "All" is selected or no categories selected, show everything
-    if (showAllCategories || selectedCategories.isEmpty) {
+    if (!_hasActiveCategoryFilter) {
       return groups;
     }
 
@@ -1403,9 +1425,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               .where((entry) {
                 final item = TableItemServed.asItemMap(entry.value);
                 if (item == null) return false;
-                final itemCategory = item['category']?.toString() ?? '';
-                final itemName = item['name']?.toString() ?? '';
-                return _isMenuItemIncludedInFilter(itemCategory, itemName);
+                return _isMenuItemIncludedInFilter(item);
               })
               .map((entry) {
                 final item = TableItemServed.asItemMap(entry.value)!;
@@ -1439,8 +1459,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   // Check if the group contains items from selected categories
   bool _shouldPlaySoundForGroup(TableGroup group) {
-    // If "All" is selected, always play sound
-    if (showAllCategories || selectedCategories.isEmpty) {
+    if (!_hasActiveCategoryFilter) {
       return true;
     }
 
@@ -1448,9 +1467,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     for (var item in group.items) {
       final itemMap = TableItemServed.asItemMap(item);
       if (itemMap == null) continue;
-      final itemCategory = itemMap['category']?.toString() ?? '';
-      final itemName = itemMap['name']?.toString() ?? '';
-      if (_isMenuItemIncludedInFilter(itemCategory, itemName)) {
+      if (_isMenuItemIncludedInFilter(itemMap)) {
         return true;
       }
     }
@@ -1758,13 +1775,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                   queueNumber,
                   isZomato: group.isZomato,
                   isNext: isNext,
-                  onPaidDoubleTap: group.isPaid && !group.isZomato
-                      ? () => ReverseBillingService.showReverseBillingDialog(
-                          context,
-                          tableName: group.tableName,
-                          docId: group.docId,
-                          transactionId: group.lastTransactionId,
-                        )
+                  onPaidHeaderTap: group.isZomato
+                      ? () => _markTableServed(group.tableName, group.docId)
                       : null,
                   compact: _isMobileGridLayout,
                 ),
@@ -1891,13 +1903,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                   queueNumber,
                   isZomato: isZomato,
                   isNext: isNext,
-                  onPaidDoubleTap: tableCard.isPaid && !isZomato
-                      ? () => ReverseBillingService.showReverseBillingDialog(
-                          context,
-                          tableName: tableCard.tableName,
-                          docId: tableCard.docId,
-                          transactionId: tableCard.lastTransactionId,
-                        )
+                  onPaidHeaderTap: isZomato
+                      ? () => _markTableServed(
+                            tableCard.tableName,
+                            tableCard.docId,
+                          )
                       : null,
                   compact: _isMobileGridLayout,
                 ),
@@ -2034,19 +2044,19 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }
 
   void _markTableServed(String tableName, String docId) {
-    if (selectedCategories.isNotEmpty) return;
+    if (selectedCategories.isNotEmpty && !showAllCategories) return;
     showServedDialog(context, tableName, () async {
       _playDeleteSound();
-      if (tableName.contains("Take Away")) {
-        await FirestorePaths.scoped('tables').doc(docId).delete();
-      } else if (ZomatoOrderUtils.isZomatoOrderName(tableName)) {
+      if (ZomatoOrderUtils.isZomatoOrderName(tableName)) {
         await ZomatoOrderProgressDialog.run(
           context,
           action: () =>
               Get.find<ZomatoOrdersRepository>().removeOrder(docId: docId),
         );
-      } else {
+      } else if (isDiningTableName(tableName)) {
         await _updateTableItemsInFirestore(tableName, [], false);
+      } else {
+        await FirestorePaths.scoped('tables').doc(docId).delete();
       }
     });
   }
@@ -2091,6 +2101,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     int queueNumber, {
     bool isZomato = false,
     bool isNext = false,
+    VoidCallback? onPaidHeaderTap,
     VoidCallback? onPaidDoubleTap,
     bool compact = false,
   }) {
@@ -2224,6 +2235,19 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         ],
       ),
     );
+
+    if (paid && onPaidHeaderTap != null) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPaidHeaderTap,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(compact ? 7 : 10),
+          ),
+          child: header,
+        ),
+      );
+    }
 
     return header;
   }
@@ -2376,15 +2400,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
-            tableName.contains("Take Away")
+            isTakeAwayOrderName(tableName)
                 ? "Mark as Delivered?"
                 : "Mark as Served?",
             style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
           ),
           content: Text(
-            tableName.contains("Take Away")
-                ? "Are you sure you want to mark table '$tableName' as delivered?"
-                : "Are you sure you want to mark table '$tableName' as served?",
+            isTakeAwayOrderName(tableName)
+                ? "Are you sure you want to mark '$tableName' as delivered?"
+                : "Are you sure you want to mark '$tableName' as served?",
             style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 15),
           ),
           actions: [
@@ -2410,7 +2434,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                 onServed();
               },
               child: Text(
-                tableName.contains("Take Away") ? "Delivered" : "Served",
+                isTakeAwayOrderName(tableName) ? "Delivered" : "Served",
                 style: TextStyle(
                   fontFamily: fontMulishSemiBold,
                   color: Colors.white,
