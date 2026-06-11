@@ -11,6 +11,7 @@ import 'package:demo/features/menu_setup/menu_setup.dart';
 import 'package:demo/features/ordering/views/menu_page.dart';
 import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
 import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
+import 'package:demo/features/tables/controllers/dashboard_tab_controller.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/services/dashboard_table_filter_settings.dart';
@@ -66,12 +67,25 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   final Map<String, String> tableZomatoStatuses = {};
   StreamSubscription<QuerySnapshot>? tablesSubscription;
   Timer? _timeRefreshTimer;
+  Worker? _dashboardTabWorker;
 
   @override
   void initState() {
     super.initState();
 
     _loadTableFilter();
+
+    if (Get.isRegistered<DashboardTabController>()) {
+      final dashboardTabs = Get.find<DashboardTabController>();
+      _dashboardTabWorker = ever<String?>(
+        dashboardTabs.externalTabRequest,
+        (tab) {
+          if (tab == null || !mounted) return;
+          setState(() => selectedTab = tab);
+          dashboardTabs.clearRequest();
+        },
+      );
+    }
 
     _timeRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
@@ -111,6 +125,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
   @override
   void dispose() {
+    _dashboardTabWorker?.dispose();
     _timeRefreshTimer?.cancel();
     tablesSubscription?.cancel();
     super.dispose();

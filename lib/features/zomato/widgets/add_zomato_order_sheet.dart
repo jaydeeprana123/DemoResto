@@ -2,28 +2,38 @@ import 'dart:typed_data';
 
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/core/utils/zomato_order_utils.dart';
-import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
-import 'package:demo/features/zomato/services/imagekit_settings.dart';
-import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
-import 'package:demo/features/zomato/views/imagekit_settings_page.dart';
+import 'package:demo/features/zomato/services/zomato_order_import_service.dart';
 import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 
 const _navy = Color(0xFF1A3A5C);
 const _orange = Color(0xFFf57c35);
 
 class AddZomatoOrderSheet extends StatefulWidget {
-  const AddZomatoOrderSheet({super.key});
+  const AddZomatoOrderSheet({
+    super.key,
+    this.initialImageBytes,
+    this.initialFileName,
+  });
 
-  static Future<void> show(BuildContext context) {
+  final Uint8List? initialImageBytes;
+  final String? initialFileName;
+
+  static Future<void> show(
+    BuildContext context, {
+    Uint8List? initialImageBytes,
+    String? initialFileName,
+  }) {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const AddZomatoOrderSheet(),
+      builder: (_) => AddZomatoOrderSheet(
+        initialImageBytes: initialImageBytes,
+        initialFileName: initialFileName,
+      ),
     );
   }
 
@@ -36,6 +46,13 @@ class _AddZomatoOrderSheetState extends State<AddZomatoOrderSheet> {
   Uint8List? _imageBytes;
   String? _fileName;
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _imageBytes = widget.initialImageBytes;
+    _fileName = widget.initialFileName;
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -70,41 +87,17 @@ class _AddZomatoOrderSheetState extends State<AddZomatoOrderSheet> {
 
     setState(() => _submitting = true);
     try {
-      final configured = await ImageKitSettings.isConfigured();
-      if (!configured) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'ImageKit is not configured. Open Settings → Zomato / ImageKit and save your keys.',
-            ),
-            action: SnackBarAction(
-              label: 'Open Settings',
-              onPressed: () => Get.to(() => const ImageKitSettingsPage()),
-            ),
-          ),
-        );
-        return;
-      }
-
       final uploadName =
           _fileName ?? 'zomato_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final upload = await ImageKitUploadService.uploadScreenshot(
+      await ZomatoOrderImportService.createOrderFromImage(
+        context: context,
         bytes: bytes,
         fileName: uploadName,
-      );
-      await Get.find<ZomatoOrdersRepository>().createFromScreenshot(
-        screenshotUrl: upload.url,
-        imagekitFileId: upload.fileId,
+        progressMessage: 'Creating Zomato order...',
+        progressSubtitle: 'Uploading screenshot and saving order',
       );
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Zomato order added.'),
-          backgroundColor: Color(0xFF2E7D32),
-        ),
-      );
     } catch (e) {
       if (!mounted) return;
       final message = e.toString().replaceFirst('Exception: ', '');

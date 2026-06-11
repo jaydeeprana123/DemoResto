@@ -3,6 +3,7 @@ import 'package:demo/features/kitchen/kitchen.dart';
 import 'package:demo/features/settings/settings.dart';
 import 'package:demo/features/shell/controllers/shell_controller.dart';
 import 'package:demo/features/tables/tables.dart';
+import 'package:demo/features/zomato/widgets/zomato_share_import_listener.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -30,23 +31,24 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF5F6FA),
-        body: Obx(() {
-          final index = _shell.currentIndex.value;
-          return IndexedStack(
-            index: index,
-            children: [
-              const DragListBetweenTables(),
-              KitchenOrdersListView(
-                isTabActive: index == _kitchenTabIndex,
-              ),
-              const SettingsPage(),
-            ],
-          );
-        }),
-        bottomNavigationBar: Container(
+    return ZomatoShareImportListener(
+      child: SafeArea(
+        child: Scaffold(
+          backgroundColor: const Color(0xFFF5F6FA),
+          body: Obx(() {
+            final index = _shell.currentIndex.value;
+            return IndexedStack(
+              index: index,
+              children: [
+                const DragListBetweenTables(),
+                KitchenOrdersListView(
+                  isTabActive: index == _kitchenTabIndex,
+                ),
+                const SettingsPage(),
+              ],
+            );
+          }),
+          bottomNavigationBar: Container(
           decoration: BoxDecoration(
             color: _navy,
             boxShadow: [
@@ -96,6 +98,7 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
             ),
           ),
         ),
+      ),
       ),
     );
   }
