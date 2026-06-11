@@ -237,7 +237,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   // Multiple category selection
   Set<String> selectedCategories = {};
+  Set<String> selectedMenuItems = {};
   bool showAllCategories = true; // Track if "All" is selected
+  bool _useLegacyCategoryOnlyFilter = false;
   bool _showTableAllOrders = true;
   bool _showServeOrderScreen = false;
 
@@ -507,6 +509,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           selectedCategories = Set<String>.from(
             KitchenSettings.selectedCategories,
           );
+          selectedMenuItems = Set<String>.from(
+            KitchenSettings.selectedMenuItems,
+          );
+          _useLegacyCategoryOnlyFilter =
+              !showAllCategories &&
+              selectedCategories.isNotEmpty &&
+              selectedMenuItems.isEmpty;
           _orderTypeFilterIndex = KitchenSettings.orderTypeFilterIndex;
           _rebuildDisplayFromCache();
         });
@@ -1073,6 +1082,363 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     return cards;
   }
 
+  String _menuItemFilterKey(String category, String itemName) =>
+      '$category|$itemName';
+
+  bool _hasItemSelectionForCategory(String category) {
+    final prefix = '$category|';
+    return selectedMenuItems.any((key) => key.startsWith(prefix));
+  }
+
+  bool _isMenuItemIncludedInFilter(String category, String itemName) {
+    if (showAllCategories || selectedCategories.isEmpty) return true;
+    if (!selectedCategories.contains(category)) return false;
+    if (_useLegacyCategoryOnlyFilter) return true;
+    return selectedMenuItems.contains(_menuItemFilterKey(category, itemName));
+  }
+
+  void _selectAllMenuItemsForCategory(
+    String categoryName,
+    List<String> itemNames,
+  ) {
+    for (final itemName in itemNames) {
+      selectedMenuItems.add(_menuItemFilterKey(categoryName, itemName));
+    }
+  }
+
+  void _deselectAllMenuItemsForCategory(String categoryName) {
+    final prefix = '$categoryName|';
+    selectedMenuItems.removeWhere((key) => key.startsWith(prefix));
+  }
+
+  bool? _categoryCheckboxValue(String categoryName, List<String> itemNames) {
+    if (!selectedCategories.contains(categoryName)) return false;
+    if (itemNames.isEmpty) return true;
+
+    var selectedCount = 0;
+    for (final itemName in itemNames) {
+      if (selectedMenuItems.contains(_menuItemFilterKey(categoryName, itemName))) {
+        selectedCount++;
+      }
+    }
+    if (selectedCount == 0) return false;
+    if (selectedCount == itemNames.length) return true;
+    return null;
+  }
+
+  Future<Map<String, List<String>>> _loadMenuItemsByCategory(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> categories,
+  ) async {
+    final result = <String, List<String>>{};
+    for (final categoryDoc in categories) {
+      final categoryName = categoryDoc.data()['name']?.toString() ?? '';
+      if (categoryName.isEmpty) continue;
+
+      final itemsSnapshot = await FirestorePaths.scopedSubCollection(
+        'menus',
+        categoryDoc.id,
+        'items',
+      ).get();
+      result[categoryName] = sortMenuDocs(itemsSnapshot.docs)
+          .map((doc) => doc.data()['name']?.toString() ?? '')
+          .where((name) => name.isNotEmpty)
+          .toList();
+    }
+    return result;
+  }
+
+  void _showCategoryFilterDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirestorePaths.scoped('menus').snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const AlertDialog(
+                content: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                title: const Text(
+                  "Filter by Category",
+                  style: TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 18,
+                  ),
+                ),
+                content: const Text("No categories found"),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text("Close"),
+                  ),
+                ],
+              );
+            }
+
+            final categories = sortMenuDocs(
+              snapshot.data!.docs
+                  .map((d) => d as QueryDocumentSnapshot<Map<String, dynamic>>)
+                  .toList(),
+            );
+
+            return FutureBuilder<Map<String, List<String>>>(
+              future: _loadMenuItemsByCategory(categories),
+              builder: (context, itemsSnapshot) {
+                if (itemsSnapshot.connectionState == ConnectionState.waiting) {
+                  return const AlertDialog(
+                    content: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                final menuItemsByCategory = itemsSnapshot.data ?? {};
+
+                if (_useLegacyCategoryOnlyFilter) {
+                  for (final categoryName in selectedCategories) {
+                    _selectAllMenuItemsForCategory(
+                      categoryName,
+                      menuItemsByCategory[categoryName] ?? const [],
+                    );
+                  }
+                  _useLegacyCategoryOnlyFilter = false;
+                  unawaited(
+                    KitchenSettings.saveCategoryFilter(
+                      showAll: showAllCategories,
+                      categories: selectedCategories,
+                      menuItems: selectedMenuItems,
+                    ),
+                  );
+                }
+
+                return StatefulBuilder(
+                  builder: (context, setDialogState) {
+                    void applyFilterChanges() {
+                      setDialogState(() {});
+                      _applyCategoryFilterChanges();
+                    }
+
+                    return AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      title: const Text(
+                        "Filter by Category",
+                        style: TextStyle(
+                          fontFamily: fontMulishSemiBold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      content: SizedBox(
+                        width: double.maxFinite,
+                        height: MediaQuery.sizeOf(context).height * 0.6,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CheckboxListTile(
+                              title: const Text(
+                                "All Categories",
+                                style: TextStyle(
+                                  fontFamily: fontMulishSemiBold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              value: showAllCategories,
+                              activeColor: Colors.green,
+                              onChanged: (bool? value) {
+                                showAllCategories = value ?? true;
+                                if (showAllCategories) {
+                                  selectedCategories.clear();
+                                  selectedMenuItems.clear();
+                                  _useLegacyCategoryOnlyFilter = false;
+                                }
+                                applyFilterChanges();
+                              },
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                            const Divider(),
+                            Expanded(
+                              child: ListView.builder(
+                                itemCount: categories.length,
+                                itemBuilder: (context, index) {
+                                  final category = categories[index];
+                                  final categoryName =
+                                      category['name'] as String;
+                                  final itemNames =
+                                      menuItemsByCategory[categoryName] ??
+                                      const <String>[];
+                                  final categoryValue = _categoryCheckboxValue(
+                                    categoryName,
+                                    itemNames,
+                                  );
+
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      CheckboxListTile(
+                                        title: Text(
+                                          categoryName,
+                                          style: const TextStyle(
+                                            fontFamily: fontMulishSemiBold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        value: categoryValue,
+                                        tristate: true,
+                                        activeColor: Colors.green,
+                                        enabled: !showAllCategories,
+                                        onChanged: showAllCategories
+                                            ? null
+                                            : (bool? value) {
+                                                if (value == true ||
+                                                    value == null) {
+                                                  selectedCategories.add(
+                                                    categoryName,
+                                                  );
+                                                  _selectAllMenuItemsForCategory(
+                                                    categoryName,
+                                                    itemNames,
+                                                  );
+                                                } else {
+                                                  selectedCategories.remove(
+                                                    categoryName,
+                                                  );
+                                                  _deselectAllMenuItemsForCategory(
+                                                    categoryName,
+                                                  );
+                                                }
+                                                applyFilterChanges();
+                                              },
+                                        contentPadding: EdgeInsets.zero,
+                                        dense: true,
+                                      ),
+                                      if (!showAllCategories &&
+                                          selectedCategories.contains(
+                                            categoryName,
+                                          ))
+                                        ...itemNames.map((itemName) {
+                                          final itemKey = _menuItemFilterKey(
+                                            categoryName,
+                                            itemName,
+                                          );
+                                          final itemSelected =
+                                              selectedMenuItems.contains(
+                                                itemKey,
+                                              );
+
+                                          return Padding(
+                                            padding: const EdgeInsets.only(
+                                              left: 28,
+                                            ),
+                                            child: CheckboxListTile(
+                                              title: Text(
+                                                itemName,
+                                                style: const TextStyle(
+                                                  fontFamily: fontMulishRegular,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              value: itemSelected,
+                                              activeColor: Colors.green,
+                                              onChanged: (bool? value) {
+                                                if (value == true) {
+                                                  selectedMenuItems.add(itemKey);
+                                                  selectedCategories.add(
+                                                    categoryName,
+                                                  );
+                                                } else {
+                                                  selectedMenuItems.remove(
+                                                    itemKey,
+                                                  );
+                                                  if (!_hasItemSelectionForCategory(
+                                                    categoryName,
+                                                  )) {
+                                                    selectedCategories.remove(
+                                                      categoryName,
+                                                    );
+                                                  }
+                                                }
+                                                applyFilterChanges();
+                                              },
+                                              contentPadding: EdgeInsets.zero,
+                                              dense: true,
+                                            ),
+                                          );
+                                        }),
+                                      if (index < categories.length - 1)
+                                        const Divider(height: 1),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            showAllCategories = true;
+                            selectedCategories.clear();
+                            selectedMenuItems.clear();
+                            _useLegacyCategoryOnlyFilter = false;
+                            applyFilterChanges();
+                          },
+                          child: const Text(
+                            "Clear",
+                            style: TextStyle(
+                              fontFamily: fontMulishSemiBold,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: const Text(
+                            "Done",
+                            style: TextStyle(
+                              fontFamily: fontMulishSemiBold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _applyCategoryFilterChanges() {
+    _useLegacyCategoryOnlyFilter = false;
+    setState(_rebuildDisplayFromCache);
+    unawaited(
+      KitchenSettings.saveCategoryFilter(
+        showAll: showAllCategories,
+        categories: selectedCategories,
+        menuItems: selectedMenuItems,
+      ),
+    );
+  }
+
   // Filter groups by selected categories
   List<TableGroup> _filterByCategories(List<TableGroup> groups) {
     // If "All" is selected or no categories selected, show everything
@@ -1096,7 +1462,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                 final item = TableItemServed.asItemMap(entry.value);
                 if (item == null) return false;
                 final itemCategory = item['category']?.toString() ?? '';
-                return selectedCategories.contains(itemCategory);
+                final itemName = item['name']?.toString() ?? '';
+                return _isMenuItemIncludedInFilter(itemCategory, itemName);
               })
               .map((entry) {
                 final item = TableItemServed.asItemMap(entry.value)!;
@@ -1137,192 +1504,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
     // Check if any item in the group matches selected categories
     for (var item in group.items) {
-      final itemCategory = item['category']?.toString() ?? '';
-      if (selectedCategories.contains(itemCategory)) {
+      final itemMap = TableItemServed.asItemMap(item);
+      if (itemMap == null) continue;
+      final itemCategory = itemMap['category']?.toString() ?? '';
+      final itemName = itemMap['name']?.toString() ?? '';
+      if (_isMenuItemIncludedInFilter(itemCategory, itemName)) {
         return true;
       }
     }
 
     return false;
-  }
-
-  void _showCategoryFilterDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirestorePaths.scoped('menus').snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const AlertDialog(
-                content: Center(child: CircularProgressIndicator()),
-              );
-            }
-
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return AlertDialog(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                title: const Text(
-                  "Filter by Category",
-                  style: TextStyle(
-                    fontFamily: fontMulishSemiBold,
-                    fontSize: 18,
-                  ),
-                ),
-                content: const Text("No categories found"),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("Close"),
-                  ),
-                ],
-              );
-            }
-
-            final categories = sortMenuDocs(
-              snapshot.data!.docs
-                  .map((d) => d as QueryDocumentSnapshot<Map<String, dynamic>>)
-                  .toList(),
-            );
-
-            return StatefulBuilder(
-              builder: (context, setDialogState) {
-                return AlertDialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  title: const Text(
-                    "Filter by Category",
-                    style: TextStyle(
-                      fontFamily: fontMulishSemiBold,
-                      fontSize: 18,
-                    ),
-                  ),
-                  content: SizedBox(
-                    width: double.maxFinite,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // "All" checkbox
-                        CheckboxListTile(
-                          title: const Text(
-                            "All Categories",
-                            style: TextStyle(
-                              fontFamily: fontMulishSemiBold,
-                              fontSize: 15,
-                            ),
-                          ),
-                          value: showAllCategories,
-                          activeColor: Colors.green,
-                          onChanged: (bool? value) {
-                            setDialogState(() {
-                              showAllCategories = value ?? true;
-                              if (showAllCategories) {
-                                selectedCategories.clear();
-                              }
-                            });
-                          },
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                        ),
-                        const Divider(),
-                        // Individual category checkboxes
-                        Flexible(
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: categories.length,
-                            itemBuilder: (context, index) {
-                              final category = categories[index];
-                              final categoryName = category['name'] as String;
-                              final isSelected = selectedCategories.contains(
-                                categoryName,
-                              );
-
-                              return CheckboxListTile(
-                                title: Text(
-                                  categoryName,
-                                  style: const TextStyle(
-                                    fontFamily: fontMulishRegular,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                value: isSelected,
-                                activeColor: Colors.green,
-                                enabled: !showAllCategories,
-                                onChanged: showAllCategories
-                                    ? null
-                                    : (bool? value) {
-                                        setDialogState(() {
-                                          if (value == true) {
-                                            selectedCategories.add(
-                                              categoryName,
-                                            );
-                                          } else {
-                                            selectedCategories.remove(
-                                              categoryName,
-                                            );
-                                          }
-                                        });
-                                      },
-                                contentPadding: EdgeInsets.zero,
-                                dense: true,
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        setDialogState(() {
-                          selectedCategories.clear();
-                          showAllCategories = true;
-                        });
-                      },
-                      child: const Text(
-                        "Clear",
-                        style: TextStyle(
-                          fontFamily: fontMulishSemiBold,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      onPressed: () async {
-                        await KitchenSettings.saveCategoryFilter(
-                          showAll: showAllCategories,
-                          categories: selectedCategories,
-                        );
-                        if (!context.mounted) return;
-                        setState(_rebuildDisplayFromCache);
-                        Navigator.pop(context);
-                      },
-                      child: const Text(
-                        "Apply",
-                        style: TextStyle(
-                          fontFamily: fontMulishSemiBold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        );
-      },
-    );
   }
 
   bool get _isNativeMobile =>

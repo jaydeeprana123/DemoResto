@@ -7,6 +7,7 @@ class KitchenSettings {
   static const _keyMobileOrdersGridLayout = 'kitchen_mobile_orders_grid_layout';
   static const _keyShowAllCategories = 'kitchen_filter_show_all_categories';
   static const _keySelectedCategories = 'kitchen_filter_selected_categories';
+  static const _keySelectedMenuItems = 'kitchen_filter_selected_menu_items';
   static const _keyOrderTypeFilterIndex = 'kitchen_filter_order_type_index';
   static const _keyBackgroundOrderRingtone = 'kitchen_background_order_ringtone';
 
@@ -21,6 +22,8 @@ class KitchenSettings {
   /// Category filter: true = show all categories.
   static bool showAllCategories = true;
   static Set<String> selectedCategories = {};
+  /// Keys are `category|itemName` for kitchen item-level filtering.
+  static Set<String> selectedMenuItems = {};
   /// 0 = All, 1 = Table (dine-in), 2 = Take Away, 3 = Zomato
   static int orderTypeFilterIndex = 0;
 
@@ -38,6 +41,8 @@ class KitchenSettings {
     showAllCategories = prefs.getBool(_keyShowAllCategories) ?? true;
     selectedCategories =
         (prefs.getStringList(_keySelectedCategories) ?? []).toSet();
+    selectedMenuItems =
+        (prefs.getStringList(_keySelectedMenuItems) ?? []).toSet();
     orderTypeFilterIndex = prefs.getInt(_keyOrderTypeFilterIndex) ?? 0;
     if (orderTypeFilterIndex < 0 || orderTypeFilterIndex > 3) {
       orderTypeFilterIndex = 0;
@@ -86,6 +91,7 @@ class KitchenSettings {
   static Future<void> saveCategoryFilter({
     required bool showAll,
     required Set<String> categories,
+    Set<String>? menuItems,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyShowAllCategories, showAll);
@@ -93,6 +99,17 @@ class KitchenSettings {
       _keySelectedCategories,
       categories.toList()..sort(),
     );
+    final items = menuItems ?? selectedMenuItems;
+    if (showAll) {
+      await prefs.remove(_keySelectedMenuItems);
+      selectedMenuItems = {};
+    } else {
+      await prefs.setStringList(
+        _keySelectedMenuItems,
+        items.toList()..sort(),
+      );
+      selectedMenuItems = Set<String>.from(items);
+    }
     showAllCategories = showAll;
     selectedCategories = Set<String>.from(categories);
   }
