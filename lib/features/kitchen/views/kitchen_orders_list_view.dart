@@ -145,7 +145,26 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     if (KitchenSettings.backgroundOrderRingtoneEnabled.value) {
       return _appLifecycleState != AppLifecycleState.detached;
     }
-    return _appLifecycleState == AppLifecycleState.resumed;
+    return _appLifecycleState == AppLifecycleState.resumed && widget.isTabActive;
+  }
+
+  bool get _isAppInBackground =>
+      _appLifecycleState == AppLifecycleState.paused ||
+      _appLifecycleState == AppLifecycleState.inactive ||
+      _appLifecycleState == AppLifecycleState.hidden;
+
+  Future<void> _preparePlayersForRing() async {
+    if (KitchenSettings.backgroundOrderRingtoneEnabled.value && _isAppInBackground) {
+      await _configureAudioPlayers();
+    }
+  }
+
+  Future<void> _initAudioPlayers() async {
+    for (final player in [audioPlayer, updateAudioPlayer, deleteAudioPlayer]) {
+      await player.setPlayerMode(PlayerMode.mediaPlayer);
+      await player.setReleaseMode(ReleaseMode.stop);
+    }
+    await _configureAudioPlayers();
   }
 
   Future<void> _configureAudioPlayers() async {
@@ -154,10 +173,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     final context = AudioContext(
       iOS: AudioContextIOS(
         category: AVAudioSessionCategory.playback,
-        options: const {
-          AVAudioSessionOptions.mixWithOthers,
-          AVAudioSessionOptions.duckOthers,
-        },
+        options: allowBackground
+            ? const {
+                AVAudioSessionOptions.mixWithOthers,
+                AVAudioSessionOptions.duckOthers,
+                AVAudioSessionOptions.defaultToSpeaker,
+              }
+            : const {
+                AVAudioSessionOptions.mixWithOthers,
+                AVAudioSessionOptions.duckOthers,
+              },
       ),
       android: AudioContextAndroid(
         isSpeakerphoneOn: false,
@@ -202,30 +227,33 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     required Set<String> currentDocIds,
     required bool isUpdate,
   }) {
+    final group = keyToGroup[key];
+    final shouldPlaySound = group != null
+        ? _shouldPlaySoundForGroup(group)
+        : true;
+
+    // Play immediately. Post-frame callbacks are not scheduled when the screen
+    // is locked or the app is in the background.
+    previousKeys = currentKeys;
+    _previousSignatures = currentSignatures;
+    _previousDocIds = currentDocIds;
+    _previousKeyToGroup = keyToGroup;
+
+    if (shouldPlaySound && _canRingBell) {
+      if (isUpdate) {
+        _playUpdateSound();
+      } else {
+        _playNotificationSound();
+      }
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      final group = keyToGroup[key];
-      final shouldPlaySound = group != null
-          ? _shouldPlaySoundForGroup(group)
-          : true;
-
       setState(() {
-        previousKeys = currentKeys;
-        _previousSignatures = currentSignatures;
-        _previousDocIds = currentDocIds;
-        _previousKeyToGroup = keyToGroup;
         blinkingGroupKey = key.hashCode;
         _blinkColor = isUpdate ? _updateBlinkColor : _newOrderBlinkColor;
       });
-
-      if (shouldPlaySound && _canRingBell) {
-        if (isUpdate) {
-          _playUpdateSound();
-        } else {
-          _playNotificationSound();
-        }
-      }
 
       Timer(const Duration(seconds: 3), () {
         if (!mounted) return;
@@ -254,8 +282,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   void _onBackgroundRingtoneSettingChanged() {
     _configureAudioPlayers();
-    if (!KitchenSettings.backgroundOrderRingtoneEnabled.value &&
-        _appLifecycleState != AppLifecycleState.resumed) {
+    if (!_canRingBell) {
       _stopAllKitchenSounds();
     }
   }
@@ -282,6 +309,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   void _playNotificationSound() async {
     if (!_canRingBell) return;
     try {
+      await _preparePlayersForRing();
+      await audioPlayer.stop();
       await audioPlayer.play(AssetSource('sounds/phone_bell.mp3'));
     } catch (e) {
       // ignore audio errors
@@ -308,6 +337,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     _lastDeleteSoundAt = now;
 
     try {
+      await _preparePlayersForRing();
       await deleteAudioPlayer.stop();
       await deleteAudioPlayer.setReleaseMode(ReleaseMode.stop);
 
@@ -358,16 +388,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }) {
     final shouldPlay = _shouldPlaySoundForRemoval(removedKeys, removedDocIds);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() {
-        previousKeys = currentKeys;
-        _previousSignatures = currentSignatures;
-        _previousDocIds = currentDocIds;
-        _previousKeyToGroup = keyToGroup;
-      });
-      if (shouldPlay && _canRingBell) _playDeleteSound();
-    });
+    previousKeys = currentKeys;
+    _previousSignatures = currentSignatures;
+    _previousDocIds = currentDocIds;
+    _previousKeyToGroup = keyToGroup;
+
+    if (shouldPlay && _canRingBell) {
+      _playDeleteSound();
+    }
   }
 
   Future<void> _stopAllKitchenSounds() async {
@@ -386,6 +414,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   void _playUpdateSound() async {
     if (!_canRingBell) return;
     try {
+      await _preparePlayersForRing();
       await updateAudioPlayer.stop();
       await updateAudioPlayer.play(AssetSource('sounds/update_bell.mp3'));
     } catch (e) {
@@ -477,8 +506,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appLifecycleState = state;
-    if (!KitchenSettings.backgroundOrderRingtoneEnabled.value &&
-        state != AppLifecycleState.resumed) {
+    if (KitchenSettings.backgroundOrderRingtoneEnabled.value &&
+        (state == AppLifecycleState.paused ||
+            state == AppLifecycleState.inactive ||
+            state == AppLifecycleState.hidden)) {
+      unawaited(_configureAudioPlayers());
+    }
+    if (!_canRingBell) {
       _stopAllKitchenSounds();
     }
   }
@@ -486,9 +520,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   @override
   void didUpdateWidget(KitchenOrdersListView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.isTabActive &&
-        !widget.isTabActive &&
-        !KitchenSettings.backgroundOrderRingtoneEnabled.value) {
+    if (!_canRingBell) {
       _stopAllKitchenSounds();
     }
   }
@@ -497,10 +529,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _configureAudioPlayers();
+    unawaited(_initAudioPlayers());
     KitchenSettings.load().then((_) async {
       await Get.find<MenuCacheService>().ensureLoaded();
       _menuFilter.invalidate();
+      await _initAudioPlayers();
       if (mounted) {
         setState(() {
           _showTableAllOrders =

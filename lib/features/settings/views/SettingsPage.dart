@@ -536,7 +536,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                     subtitle: Text(
-                      'When on, new-order bells play even if the app is in the background or the screen is locked',
+                      'When on, new-order bells play even if the app is in the background or the screen is locked. When off, bells play only while the Kitchen screen is open.',
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                     ),
                     value: _settings.kitchenBackgroundOrderRingtoneEnabled.value,
