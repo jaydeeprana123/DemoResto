@@ -16,8 +16,6 @@ class BottomNavigationView extends StatefulWidget {
 class _BottomNavigationViewState extends State<BottomNavigationView> {
   late final ShellController _shell;
 
-  static const int _kitchenTabIndex = ShellController.kitchenTabIndex;
-
   @override
   void initState() {
     super.initState();
@@ -28,19 +26,38 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
   static const _navy = Color(0xFF1A3A5C);
   static const _orange = Color(0xFFf57c35);
 
+  BottomNavigationBarItem _navItem(ShellTab tab) {
+    return switch (tab) {
+      ShellTab.dashboard => const BottomNavigationBarItem(
+          icon: Icon(Icons.grid_view_rounded, size: 24),
+          activeIcon: Icon(Icons.grid_view_rounded, size: 26),
+          label: 'Dashboard',
+        ),
+      ShellTab.kitchen => const BottomNavigationBarItem(
+          icon: Icon(Icons.soup_kitchen_rounded, size: 24),
+          activeIcon: Icon(Icons.soup_kitchen_rounded, size: 26),
+          label: 'Kitchen',
+        ),
+      ShellTab.settings => const BottomNavigationBarItem(
+          icon: Icon(Icons.settings_rounded, size: 24),
+          activeIcon: Icon(Icons.settings_rounded, size: 26),
+          label: 'Settings',
+        ),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F6FA),
         body: Obx(() {
-          final index = _shell.currentIndex.value;
           return IndexedStack(
-            index: index,
+            index: _shell.stackIndex,
             children: [
               const DragListBetweenTables(),
               KitchenOrdersListView(
-                isTabActive: index == _kitchenTabIndex,
+                isTabActive: _shell.isKitchenTabActive,
               ),
               const SettingsPage(),
             ],
@@ -57,8 +74,9 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
               ),
             ],
           ),
-          child: Obx(
-            () => BottomNavigationBar(
+          child: Obx(() {
+            final tabs = _shell.visibleTabs;
+            return BottomNavigationBar(
               backgroundColor: _navy,
               selectedItemColor: _orange,
               unselectedItemColor: Colors.white54,
@@ -70,31 +88,15 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
                 fontFamily: fontMulishSemiBold,
                 fontSize: 11,
               ),
-              currentIndex: _shell.currentIndex.value,
+              currentIndex: _shell.currentIndex.value.clamp(0, tabs.length - 1),
               showSelectedLabels: true,
               showUnselectedLabels: true,
               elevation: 0,
               type: BottomNavigationBarType.fixed,
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.grid_view_rounded, size: 24),
-                  activeIcon: Icon(Icons.grid_view_rounded, size: 26),
-                  label: 'Dashboard',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.soup_kitchen_rounded, size: 24),
-                  activeIcon: Icon(Icons.soup_kitchen_rounded, size: 26),
-                  label: 'Kitchen',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.settings_rounded, size: 24),
-                  activeIcon: Icon(Icons.settings_rounded, size: 26),
-                  label: 'Settings',
-                ),
-              ],
+              items: tabs.map(_navItem).toList(),
               onTap: _shell.changeTab,
-            ),
-          ),
+            );
+          }),
         ),
       ),
     );

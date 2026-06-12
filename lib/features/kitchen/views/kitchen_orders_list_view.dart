@@ -173,16 +173,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     final context = AudioContext(
       iOS: AudioContextIOS(
         category: AVAudioSessionCategory.playback,
-        options: allowBackground
-            ? const {
-                AVAudioSessionOptions.mixWithOthers,
-                AVAudioSessionOptions.duckOthers,
-                AVAudioSessionOptions.defaultToSpeaker,
-              }
-            : const {
-                AVAudioSessionOptions.mixWithOthers,
-                AVAudioSessionOptions.duckOthers,
-              },
+        options: const {
+          AVAudioSessionOptions.mixWithOthers,
+          AVAudioSessionOptions.duckOthers,
+        },
       ),
       android: AudioContextAndroid(
         isSpeakerphoneOn: false,

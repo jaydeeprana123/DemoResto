@@ -9,70 +9,225 @@ enum TableBillingMode {
   paidWithoutServing,
 }
 
-Future<TableBillingMode?> showTableBillingModeDialog(
+enum BillReceiptAction {
+  withoutPrint,
+  print,
+  shareWhatsApp,
+}
+
+class TableBillingDialogResult {
+  const TableBillingDialogResult({
+    required this.mode,
+    required this.receiptAction,
+  });
+
+  final TableBillingMode mode;
+  final BillReceiptAction receiptAction;
+}
+
+Future<TableBillingDialogResult?> showTableBillingModeDialog(
   BuildContext context, {
   required double total,
   String? tableName,
 }) {
-  return showDialog<TableBillingMode>(
+  var receiptAction = BillReceiptAction.withoutPrint;
+
+  return showDialog<TableBillingDialogResult>(
     context: context,
     barrierDismissible: true,
-    builder: (ctx) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Billing',
-                  style: TextStyle(
-                    fontFamily: fontMulishSemiBold,
-                    fontSize: 18,
-                    color: Color(0xFF1A3A5C),
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setDialogState) {
+        TableBillingDialogResult result(TableBillingMode mode) {
+          return TableBillingDialogResult(
+            mode: mode,
+            receiptAction: receiptAction,
+          );
+        }
+
+        Widget receiptRadio(BillReceiptAction value, String label) {
+          return Expanded(
+            child: InkWell(
+              onTap: () => setDialogState(() => receiptAction = value),
+              borderRadius: BorderRadius.circular(8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Radio<BillReceiptAction>(
+                    value: value,
+                    groupValue: receiptAction,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setDialogState(() => receiptAction = v);
+                    },
                   ),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Billing',
+                      style: TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 18,
+                        color: Color(0xFF1A3A5C),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFf57c35).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFFf57c35).withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Text(
+                      '₹${total.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontFamily: fontMulishBold,
+                        fontSize: 16,
+                        color: Color(0xFFf57c35),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (tableName != null && tableName.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  tableName,
+                  style: TextStyle(
+                    fontFamily: fontMulishRegular,
+                    fontSize: 13,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Bill delivery',
+                style: TextStyle(
+                  fontFamily: fontMulishSemiBold,
+                  fontSize: 14,
+                  color: Colors.grey.shade800,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFf57c35).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: const Color(0xFFf57c35).withValues(alpha: 0.35),
-                  ),
+              const SizedBox(height: 8),
+              receiptRadio(BillReceiptAction.withoutPrint, 'Without Print'),
+              receiptRadio(BillReceiptAction.print, 'Print'),
+              receiptRadio(
+                BillReceiptAction.shareWhatsApp,
+                'Share PDF on WhatsApp',
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Choose how to complete billing:',
+                style: TextStyle(
+                  fontFamily: fontMulishRegular,
+                  fontSize: 14,
+                  color: Colors.grey.shade700,
                 ),
-                child: Text(
-                  '₹${total.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    fontFamily: fontMulishBold,
-                    fontSize: 16,
-                    color: Color(0xFFf57c35),
-                  ),
+              ),
+              const SizedBox(height: 16),
+              _ModeButton(
+                icon: Icons.check_circle_outline,
+                label: 'Paid',
+                subtitle: 'Save bill, clear table (delete take-away)',
+                color: const Color(0xFF4CAF50),
+                onTap: () => Navigator.pop(ctx, result(TableBillingMode.paid)),
+              ),
+              const SizedBox(height: 10),
+              _ModeButton(
+                icon: Icons.receipt_long_outlined,
+                label: 'Paid Without Serving',
+                subtitle: 'Save bill, keep order with PAID tag',
+                color: const Color(0xFFf57c35),
+                onTap: () => Navigator.pop(
+                  ctx,
+                  result(TableBillingMode.paidWithoutServing),
                 ),
               ),
             ],
           ),
-          if (tableName != null && tableName.isNotEmpty) ...[
-            const SizedBox(height: 4),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(fontFamily: fontMulishSemiBold),
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+Future<BillReceiptAction?> showBillReceiptOptionsDialog(
+  BuildContext context, {
+  String? billId,
+}) {
+  return showDialog<BillReceiptAction>(
+    context: context,
+    barrierDismissible: true,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
+        'Bill',
+        style: TextStyle(
+          fontFamily: fontMulishSemiBold,
+          fontSize: 18,
+          color: Color(0xFF1A3A5C),
+        ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (billId != null && billId.isNotEmpty) ...[
             Text(
-              tableName,
+              'Bill ID: $billId',
               style: TextStyle(
                 fontFamily: fontMulishRegular,
                 fontSize: 13,
                 color: Colors.grey.shade600,
               ),
             ),
+            const SizedBox(height: 12),
           ],
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
           Text(
-            'Choose how to complete billing:',
+            'Choose how to deliver the bill:',
             style: TextStyle(
               fontFamily: fontMulishRegular,
               fontSize: 14,
@@ -81,20 +236,19 @@ Future<TableBillingMode?> showTableBillingModeDialog(
           ),
           const SizedBox(height: 16),
           _ModeButton(
-            icon: Icons.check_circle_outline,
-            label: 'Paid',
-            subtitle: 'Save bill, clear table (delete take-away)',
-            color: const Color(0xFF4CAF50),
-            onTap: () => Navigator.pop(ctx, TableBillingMode.paid),
+            icon: Icons.share_outlined,
+            label: 'Share PDF',
+            subtitle: 'Generate and share the PDF bill',
+            color: const Color(0xFF25D366),
+            onTap: () => Navigator.pop(ctx, BillReceiptAction.shareWhatsApp),
           ),
           const SizedBox(height: 10),
           _ModeButton(
-            icon: Icons.receipt_long_outlined,
-            label: 'Paid Without Serving',
-            subtitle: 'Save bill, keep order with PAID tag',
-            color: const Color(0xFFf57c35),
-            onTap: () =>
-                Navigator.pop(ctx, TableBillingMode.paidWithoutServing),
+            icon: Icons.print_outlined,
+            label: 'Print',
+            subtitle: 'Print the bill directly',
+            color: const Color(0xFF1A3A5C),
+            onTap: () => Navigator.pop(ctx, BillReceiptAction.print),
           ),
         ],
       ),

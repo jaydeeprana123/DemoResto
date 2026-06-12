@@ -1,7 +1,6 @@
-import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/features/menu_setup/menu_setup.dart';
 import 'package:demo/features/settings/controllers/settings_controller.dart';
-import 'package:demo/features/settings/services/print_settings.dart';
+import 'package:demo/features/shell/services/app_tab_settings.dart';
 import 'package:demo/features/settings/views/AdminDashboardPage.dart';
 import 'package:demo/features/settings/views/ExpensesPage.dart';
 import 'package:demo/features/settings/views/profile_view.dart';
@@ -38,7 +37,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _sgstController = TextEditingController();
     _settings.loadUserRole();
     _settings.loadKitchenSettings();
-    _settings.loadPrintSettings();
+    _settings.loadAppTabSettings();
     _loadTaxFields();
   }
 
@@ -316,128 +315,53 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                   ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Navigation',
+                  style: TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Card(
                   margin: const EdgeInsets.only(bottom: 10),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: SwitchListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                    child: Column(
+                      children: AppTabMode.values.map((mode) {
+                        return RadioListTile<AppTabMode>(
+                          value: mode,
+                          groupValue: _settings.appTabMode.value,
+                          activeColor: _orange,
+                          title: Text(
+                            mode.label,
+                            style: const TextStyle(
+                              fontFamily: fontMulishSemiBold,
+                              fontSize: 15,
+                              color: _navy,
+                            ),
+                          ),
+                          subtitle: Text(
+                            mode.subtitle,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          onChanged: (value) async {
+                            if (value == null) return;
+                            await _settings.setAppTabMode(value);
+                          },
+                        );
+                      }).toList(),
                     ),
-                    secondary: CircleAvatar(
-                      backgroundColor: _orange.withOpacity(0.12),
-                      child: const Icon(Icons.picture_as_pdf_rounded, color: _orange),
-                    ),
-                    title: const Text(
-                      'Print PDF bill',
-                      style: TextStyle(
-                        fontFamily: fontMulishSemiBold,
-                        fontSize: 15,
-                        color: _navy,
-                      ),
-                    ),
-                    subtitle: Text(
-                      isDesktopPlatform
-                          ? 'Opens the bill PDF in your default viewer after billing'
-                          : 'Print POS receipt on Confirm & Billing',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    ),
-                    value: _settings.printPdfEnabled.value,
-                    activeColor: _orange,
-                    onChanged: (value) async {
-                      if (value == null) return;
-                      await _settings.setPrintPdfEnabled(value);
-                    },
                   ),
                 ),
-                if (_settings.printPdfEnabled.value)
-                  Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ListTile(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      leading: CircleAvatar(
-                        backgroundColor: _orange.withOpacity(0.12),
-                        child: const Icon(Icons.print_rounded, color: _orange),
-                      ),
-                      title: const Text(
-                        'POS Printer',
-                        style: TextStyle(
-                          fontFamily: fontMulishSemiBold,
-                          fontSize: 15,
-                          color: _navy,
-                        ),
-                      ),
-                      subtitle: Text(
-                        _settings.printerType.value.subtitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      trailing: DropdownButton<PosPrinterType>(
-                        value: _settings.printerType.value,
-                        underline: const SizedBox.shrink(),
-                        items: PosPrinterType.values
-                            .map(
-                              (type) => DropdownMenuItem(
-                                value: type,
-                                child: Text(
-                                  type.label,
-                                  style: const TextStyle(
-                                    fontFamily: fontMulishSemiBold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) async {
-                          if (value == null) return;
-                          await _settings.setPrinterType(value);
-                        },
-                      ),
-                    ),
-                  ),
-                if (_settings.printPdfEnabled.value)
-                  Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: SwitchListTile(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      secondary: CircleAvatar(
-                        backgroundColor: _orange.withOpacity(0.12),
-                        child: const Icon(Icons.image_outlined, color: _orange),
-                      ),
-                      title: const Text(
-                        'Logos on bill PDF',
-                        style: TextStyle(
-                          fontFamily: fontMulishSemiBold,
-                          fontSize: 15,
-                          color: _navy,
-                        ),
-                      ),
-                      subtitle: Text(
-                        'Off is faster — text-only bill header and footer',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                      ),
-                      value: _settings.billPdfIncludeLogos.value,
-                      activeColor: _orange,
-                      onChanged: (value) async {
-                        if (value == null) return;
-                        await _settings.setBillPdfIncludeLogos(value);
-                      },
-                    ),
-                  ),
                 const SizedBox(height: 20),
                 const Text(
                   'Kitchen',
