@@ -12,9 +12,8 @@ import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
-import 'package:demo/features/ordering/widgets/billing_progress_dialog.dart';
-import 'package:demo/features/transactions/repositories/transactions_repository.dart';
-import 'package:demo/features/ordering/services/food_bill_pdf_service.dart';
+import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
+import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
 import 'package:demo/features/shell/shell.dart';
 import 'package:demo/features/ordering/views/menu_page.dart';
 import 'package:demo/Styles/my_colors.dart';
@@ -25,17 +24,24 @@ import 'package:demo/Styles/my_icons.dart';
 class FinalBillingView extends StatefulWidget {
   final String tableName;
   final List<Map<String, dynamic>> menuData;
-  final List<Map<String, dynamic>> totalMenuList; // Passed from previous page
-  final Future<void> Function(List<Map<String, dynamic>> selectedItems)
-      onConfirm;
-
-
+  final List<Map<String, dynamic>> totalMenuList;
+  final String overallRemarks;
+  final Future<void> Function(
+    List<Map<String, dynamic>> selectedItems,
+    bool isBillPaid,
+    String tableName,
+    String overallRemarks, {
+    bool fromBilling,
+    bool fromFinalBilling,
+    String? transactionId,
+  }) onConfirm;
 
   FinalBillingView({
     required this.menuData,
     required this.totalMenuList,
     required this.onConfirm,
     required this.tableName,
+    this.overallRemarks = '',
     Key? key,
   }) : super(key: key);
 
@@ -911,7 +917,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
               Align(
                 alignment: Alignment.bottomCenter,
                 child: InkWell(
-                  onTap: _confirmAndBill,
+                  onTap: _generateBill,
                   child: Container(
                     margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -941,7 +947,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                               ),
                               const SizedBox(width: 8),
                               const Text(
-                                "Confirm & Billing",
+                                "Generate Bill",
                                 style: TextStyle(
                                   fontSize: 16,
                                   color: Colors.white,
@@ -967,119 +973,39 @@ class _FinalBillingViewState extends State<FinalBillingView> {
 );
   }
 
-  Future<void> _confirmAndBill() async {
-    BillingProgressDialog.show(context);
+  Future<void> _generateBill() async {
+    final items =
+        cartItems.map((e) => Map<String, dynamic>.from(e)).toList();
+    if (items.isEmpty) return;
 
-    final confirmedItems = cartItems
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
+    final completed = await TableBillingSheet.runBillingFlow(
+      context,
+      tableName: widget.tableName,
+      items: items,
+      onSubmit: (submission) async {
+        switch (submission.mode) {
+          case TableBillingMode.paid:
+            await widget.onConfirm(
+              submission.items,
+              false,
+              widget.tableName,
+              widget.overallRemarks,
+              fromFinalBilling: true,
+            );
+          case TableBillingMode.paidWithoutServing:
+            await widget.onConfirm(
+              submission.items,
+              false,
+              widget.tableName,
+              widget.overallRemarks,
+              fromBilling: true,
+              transactionId: submission.documentId,
+            );
+        }
+      },
+    );
 
-    FoodBillPdfData? receiptData;
-
-    try {
-      final cash = int.tryParse(cashController.text) ?? 0;
-      final online = int.tryParse(onlineController.text) ?? 0;
-
-      final taxes = taxBreakdown;
-      final taxAmount = taxes.totalTax;
-      final txId = await addTransactionToFirestore(
-        items: confirmedItems,
-        tableName: widget.tableName,
-        subtotal: subtotal.round(),
-        tax: taxAmount,
-        cgstPercentage: _cgstPercent,
-        sgstPercentage: _sgstPercent,
-        cgstAmount: taxes.cgstAmount,
-        sgstAmount: taxes.sgstAmount,
-        discount: discountAmount.round(),
-        total: total,
-        cashAmount: cash,
-        onlineAmount: online,
-        quiet: true,
-      );
-
-      await widget.onConfirm(confirmedItems);
-
-      receiptData = FoodBillPdfData(
-        tableName: widget.tableName,
-        items: confirmedItems,
-        subtotal: subtotal.round(),
-        tax: taxAmount,
-        cgstPercentage: _cgstPercent,
-        sgstPercentage: _sgstPercent,
-        cgstAmount: taxes.cgstAmount,
-        sgstAmount: taxes.sgstAmount,
-        discount: discountAmount.round(),
-        total: total,
-        cashAmount: cash,
-        onlineAmount: online,
-        invoiceNumber: txId,
-      );
-    } catch (e, stack) {
-      debugPrint('[FinalBillingView] Billing failed: $e\n$stack');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Billing failed: $e')),
-        );
-      }
-      return;
-    } finally {
-      if (mounted) {
-        BillingProgressDialog.hide(context);
-      }
-    }
-
-    if (!mounted) return;
-
-    final receipt = receiptData;
-    Navigator.of(context).pop(confirmedItems);
-
-    if (receipt != null) {
-      unawaited(FoodBillPdfService.openReceiptIfEnabled(receipt));
-    }
-  }
-
-  Future<String?> addTransactionToFirestore({
-    required List<Map<String, dynamic>> items,
-    required String tableName,
-    required int subtotal,
-    required int tax,
-    required double cgstPercentage,
-    required double sgstPercentage,
-    required int cgstAmount,
-    required int sgstAmount,
-    required int discount,
-    required int total,
-    required int cashAmount,
-    required int onlineAmount,
-    bool quiet = false,
-  }) async {
-    try {
-      final result = await Get.find<TransactionsRepository>().createTransaction(
-        items: items,
-        tableName: tableName,
-        subtotal: subtotal,
-        tax: tax,
-        cgstPercentage: cgstPercentage,
-        sgstPercentage: sgstPercentage,
-        cgstAmount: cgstAmount,
-        sgstAmount: sgstAmount,
-        discount: discount,
-        total: total,
-        cashAmount: cashAmount,
-        onlineAmount: onlineAmount,
-      );
-      if (result == null) {
-        if (!quiet) Get.snackbar('Error', 'Transaction not saved');
-        return null;
-      }
-      if (!quiet) {
-        Get.snackbar('Successfull', 'Transaction saved successfully!');
-      }
-      return result.billId;
-    } catch (e) {
-      if (!quiet) Get.snackbar('Error', 'Transaction not saved');
-      return null;
-    }
+    if (!mounted || !completed) return;
+    Navigator.of(context).pop(items);
   }
 }

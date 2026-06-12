@@ -1958,13 +1958,8 @@ class _MenuPageState extends State<MenuPage>
           menuData: merged,
           totalMenuList: widget.menuList,
           tableName: tableNameController.text.trim(),
-          onConfirm: (confirmedItems) => widget.onConfirm(
-            confirmedItems,
-            false,
-            tableNameController.text.trim(),
-            _overallRemarks,
-            fromFinalBilling: true,
-          ),
+          overallRemarks: _overallRemarks,
+          onConfirm: widget.onConfirm,
         ),
       ),
     );

@@ -443,20 +443,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     );
     if (merged.isEmpty) return;
 
-    final tableTotal = _tableOrderTotal(groups);
-
-    final mode = await showTableBillingModeDialog(
-      context,
-      total: tableTotal,
-      tableName: tableName,
-    );
-    if (mode == null || !mounted) return;
-
-    await TableBillingSheet.show(
+    await TableBillingSheet.runBillingFlow(
       context,
       tableName: tableName,
       items: merged,
-      mode: mode,
       onSubmit: (submission) async {
         switch (submission.mode) {
           case TableBillingMode.paid:

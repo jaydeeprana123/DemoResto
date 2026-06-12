@@ -1,16 +1,18 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
 
-import 'package:flutter/foundation.dart';
 import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/features/ordering/services/food_bill_pdf_io.dart'
     if (dart.library.html) 'package:demo/features/ordering/services/food_bill_pdf_io_web.dart';
+import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/core/utils/tax_calculator.dart';
 import 'package:get/get.dart';
@@ -134,6 +136,80 @@ class FoodBillPdfService {
           Navigator.of(context, rootNavigator: true).canPop()) {
         Navigator.of(context, rootNavigator: true).pop();
       }
+    }
+  }
+
+  /// Applies print or WhatsApp share based on the billing dialog choice.
+  static Future<void> deliverReceiptByAction(
+    FoodBillPdfData data,
+    BillReceiptAction action,
+  ) async {
+    switch (action) {
+      case BillReceiptAction.withoutPrint:
+        return;
+      case BillReceiptAction.print:
+        await _deliverReceiptForced(data);
+      case BillReceiptAction.shareWhatsApp:
+        await _shareReceiptOnWhatsApp(data);
+    }
+  }
+
+  static Future<void> _deliverReceiptForced(FoodBillPdfData data) async {
+    try {
+      final printerType = await PrintSettings.getPrinterType();
+      final includeLogos = await PrintSettings.getBillPdfIncludeLogos();
+      await warmUpAssets(includeLogos: includeLogos);
+      final pageFormat = PrintSettings.receiptPageFormat(
+        printerType,
+        itemCount: data.items.length,
+        hasDiscount: data.discount > 0,
+        hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
+        hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
+        includeLogos: includeLogos,
+      );
+      await _deliverReceipt(
+        data: data,
+        printerType: printerType,
+        pageFormat: pageFormat,
+        includeLogos: includeLogos,
+      );
+    } catch (e) {
+      Get.snackbar('Receipt', 'Could not print receipt: $e');
+    }
+  }
+
+  static Future<void> _shareReceiptOnWhatsApp(FoodBillPdfData data) async {
+    try {
+      final printerType = await PrintSettings.getPrinterType();
+      final includeLogos = await PrintSettings.getBillPdfIncludeLogos();
+      await warmUpAssets(includeLogos: includeLogos);
+      final pageFormat = PrintSettings.receiptPageFormat(
+        printerType,
+        itemCount: data.items.length,
+        hasDiscount: data.discount > 0,
+        hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
+        hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
+        includeLogos: includeLogos,
+      );
+      final pdfBytes = await _buildPdf(
+        data,
+        printerType,
+        pageFormat,
+        includeLogos: includeLogos,
+      );
+      final fileName = buildReceiptPdfFileName(data);
+      await Share.shareXFiles(
+        [
+          XFile.fromData(
+            pdfBytes,
+            name: fileName,
+            mimeType: 'application/pdf',
+          ),
+        ],
+        text: 'Bill for ${data.tableName}',
+      );
+    } catch (e) {
+      Get.snackbar('Receipt', 'Could not share bill on WhatsApp: $e');
     }
   }
 
