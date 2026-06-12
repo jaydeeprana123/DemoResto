@@ -23,6 +23,7 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Crispy Peri Peri Wings (6 pcs)', 'price': 180.0},
       {'name': 'Crispy Makhni Wings (6 pcs)', 'price': 180.0},
       {'name': 'Crispy Chicken Drumsticks (2 pcs)', 'price': 130.0},
+      {'name': 'Special Platter', 'price': 220.0},
     ],
   },
 
@@ -224,6 +225,8 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Tripple Rice', 'price': 320.0},
       {'name': 'Chicken Tikka Rice', 'price': 250.0},
       {'name': 'Popcorn Rice', 'price': 220.0},
+      {'name': 'Afghani Dum Noodles', 'halfPrice': 200.0, 'fullPrice': 350.0},
+      {'name': 'Arabic Noodles', 'halfPrice': 220.0, 'fullPrice': 320.0},
     ],
   },
 

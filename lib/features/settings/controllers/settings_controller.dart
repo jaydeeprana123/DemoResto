@@ -1,5 +1,6 @@
 import 'package:demo/core/repositories/user_repository.dart';
 import 'package:demo/features/kitchen/services/kitchen_settings.dart';
+import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/features/settings/services/tax_settings_service.dart';
 import 'package:demo/features/shell/controllers/shell_controller.dart';
@@ -78,6 +79,7 @@ class SettingsController extends GetxController {
   Future<void> setKitchenBackgroundOrderRingtoneEnabled(bool value) async {
     await KitchenSettings.setBackgroundOrderRingtoneEnabled(value);
     kitchenBackgroundOrderRingtoneEnabled.value = value;
+    await KitchenBackgroundAlertService.syncMonitoringEnabled(value);
   }
 
   Future<void> loadPrintSettings() async {

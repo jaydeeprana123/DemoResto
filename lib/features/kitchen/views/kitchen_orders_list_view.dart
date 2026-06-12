@@ -20,6 +20,7 @@ import 'package:demo/Styles/my_font.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:demo/features/kitchen/services/kitchen_settings.dart';
 import 'package:demo/features/kitchen/services/kitchen_menu_filter.dart';
+import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
@@ -276,6 +277,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   void _onBackgroundRingtoneSettingChanged() {
     _configureAudioPlayers();
+    unawaited(
+      KitchenBackgroundAlertService.syncMonitoringEnabled(
+        KitchenSettings.backgroundOrderRingtoneEnabled.value,
+      ),
+    );
     if (!_canRingBell) {
       _stopAllKitchenSounds();
     }
@@ -300,8 +306,18 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     });
   }
 
+  bool get _useAndroidLockedAlert =>
+      !kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.android &&
+      KitchenSettings.backgroundOrderRingtoneEnabled.value &&
+      _isAppInBackground;
+
   void _playNotificationSound() async {
     if (!_canRingBell) return;
+    if (_useAndroidLockedAlert) {
+      await KitchenBackgroundAlertService.playAlert(KitchenBellSound.newOrder);
+      return;
+    }
     try {
       await _preparePlayersForRing();
       await audioPlayer.stop();
@@ -329,6 +345,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       return;
     }
     _lastDeleteSoundAt = now;
+
+    if (_useAndroidLockedAlert) {
+      await KitchenBackgroundAlertService.playAlert(KitchenBellSound.delete);
+      return;
+    }
 
     try {
       await _preparePlayersForRing();
@@ -407,6 +428,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   // brand-new order's ring.
   void _playUpdateSound() async {
     if (!_canRingBell) return;
+    if (_useAndroidLockedAlert) {
+      await KitchenBackgroundAlertService.playAlert(KitchenBellSound.update);
+      return;
+    }
     try {
       await _preparePlayersForRing();
       await updateAudioPlayer.stop();

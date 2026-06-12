@@ -198,10 +198,29 @@ class FoodBillPdfService {
         includeLogos: includeLogos,
       );
       final fileName = buildReceiptPdfFileName(data);
+
+      if (kIsWeb) {
+        await Share.shareXFiles(
+          [
+            XFile.fromData(
+              pdfBytes,
+              name: fileName,
+              mimeType: 'application/pdf',
+            ),
+          ],
+          text: 'Bill for ${data.tableName}',
+          fileNameOverrides: [fileName],
+        );
+        return;
+      }
+
+      // Desktop/mobile share targets need a real file path; in-memory bytes
+      // often open the app without attaching the PDF (especially on Windows).
+      final path = await writeReceiptPdfFile(pdfBytes, fileName);
       await Share.shareXFiles(
         [
-          XFile.fromData(
-            pdfBytes,
+          XFile(
+            path,
             name: fileName,
             mimeType: 'application/pdf',
           ),
@@ -209,7 +228,7 @@ class FoodBillPdfService {
         text: 'Bill for ${data.tableName}',
       );
     } catch (e) {
-      Get.snackbar('Receipt', 'Could not share bill on WhatsApp: $e');
+      Get.snackbar('Receipt', 'Could not share bill: $e');
     }
   }
 
