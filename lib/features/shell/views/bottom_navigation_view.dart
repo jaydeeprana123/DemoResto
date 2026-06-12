@@ -3,6 +3,7 @@ import 'package:demo/features/kitchen/kitchen.dart';
 import 'package:demo/features/settings/settings.dart';
 import 'package:demo/features/shell/controllers/shell_controller.dart';
 import 'package:demo/features/tables/tables.dart';
+import 'package:demo/features/zomato/services/zomato_share_intent_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -21,6 +22,17 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
     super.initState();
     _shell = Get.find<ShellController>();
     _shell.loadUserRole();
+    if (Get.isRegistered<ZomatoShareIntentService>()) {
+      Get.find<ZomatoShareIntentService>().markUiReady();
+    }
+  }
+
+  @override
+  void dispose() {
+    if (Get.isRegistered<ZomatoShareIntentService>()) {
+      Get.find<ZomatoShareIntentService>().markUiNotReady();
+    }
+    super.dispose();
   }
 
   static const _navy = Color(0xFF1A3A5C);
