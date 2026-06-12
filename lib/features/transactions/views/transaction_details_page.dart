@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 
 import 'package:demo/core/utils/tax_calculator.dart';
 import 'package:demo/features/ordering/services/food_bill_pdf_service.dart';
-import 'package:demo/features/settings/services/print_settings.dart';
+import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
 import 'package:demo/features/transactions/services/transaction_bill_service.dart';
 import 'package:demo/features/transactions/services/transaction_delete_service.dart';
 import 'package:demo/features/transactions/views/EditTransactionDetailsPage.dart';
@@ -71,26 +71,11 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
     );
   }
 
-  Future<void> _generateBillPdf() async {
+  FoodBillPdfData? _buildBillPdfData() {
     final items = (_transaction['items'] as List<dynamic>? ?? [])
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
-    if (items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No items to print on this bill.')),
-      );
-      return;
-    }
-
-    if (!await PrintSettings.getPrintPdfEnabled()) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enable PDF printing in Settings to generate bills.'),
-        ),
-      );
-      return;
-    }
+    if (items.isEmpty) return null;
 
     final subtotal = (_transaction['subtotal'] as num?)?.toInt() ?? 0;
     final taxBreakdown = TaxCalculator.fromTransaction(_transaction);
@@ -104,24 +89,39 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
       documentId: widget.transactionId,
     );
 
-    await FoodBillPdfService.generateAndPrintIfEnabled(
-      context: context,
-      data: FoodBillPdfData(
-        tableName: tableName,
-        items: items,
-        subtotal: subtotal,
-        tax: taxBreakdown.totalTax,
-        cgstPercentage: taxBreakdown.cgstPercent,
-        sgstPercentage: taxBreakdown.sgstPercent,
-        cgstAmount: taxBreakdown.cgstAmount,
-        sgstAmount: taxBreakdown.sgstAmount,
-        discount: discount,
-        total: total,
-        cashAmount: cashAmount,
-        onlineAmount: onlineAmount,
-        invoiceNumber: billId,
-      ),
+    return FoodBillPdfData(
+      tableName: tableName,
+      items: items,
+      subtotal: subtotal,
+      tax: taxBreakdown.totalTax,
+      cgstPercentage: taxBreakdown.cgstPercent,
+      sgstPercentage: taxBreakdown.sgstPercent,
+      cgstAmount: taxBreakdown.cgstAmount,
+      sgstAmount: taxBreakdown.sgstAmount,
+      discount: discount,
+      total: total,
+      cashAmount: cashAmount,
+      onlineAmount: onlineAmount,
+      invoiceNumber: billId,
     );
+  }
+
+  Future<void> _generateBillPdf() async {
+    final billData = _buildBillPdfData();
+    if (billData == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No items to print on this bill.')),
+      );
+      return;
+    }
+
+    final action = await showBillReceiptOptionsDialog(
+      context,
+      billId: billData.invoiceNumber,
+    );
+    if (!mounted || action == null) return;
+
+    await FoodBillPdfService.deliverReceiptByAction(billData, action);
   }
 
   Future<void> _deleteTransaction() async {

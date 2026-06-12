@@ -1,7 +1,6 @@
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/features/authentication/controllers/signup_controller.dart';
 import 'package:demo/features/authentication/views/login_screen_view.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -11,18 +10,6 @@ const _navyDk = Color(0xFF0D2137);
 const _orange = Color(0xFFf57c35);
 const _green  = Color(0xFF4CAF50);
 
-class _AboutInfoPage {
-  final String title;
-  final String body;
-  final IconData icon;
-
-  const _AboutInfoPage({
-    required this.title,
-    required this.body,
-    required this.icon,
-  });
-}
-
 class SignupScreenView extends StatefulWidget {
   const SignupScreenView({super.key});
   @override
@@ -31,39 +18,10 @@ class SignupScreenView extends StatefulWidget {
 
 class _SignupScreenViewState extends State<SignupScreenView>
     with SingleTickerProviderStateMixin {
-  final _infoPageCtrl = PageController();
   final List<String> _roles = ['Admin', 'Staff'];
   late final SignupController _signupController;
   bool _obscurePass    = true;
   bool _obscureConfirm = true;
-  int _infoPageIndex   = 0;
-
-  static const _aboutPages = [
-    _AboutInfoPage(
-      title: 'Join Flavor Flow',
-      icon: Icons.rocket_launch_rounded,
-      body:
-          'Create your restaurant account in minutes. Flavor Flow helps you '
-          'manage dine-in tables, take-away orders, kitchen tickets, billing, '
-          'and daily expenses from one dashboard.',
-    ),
-    _AboutInfoPage(
-      title: 'Roles & Access',
-      icon: Icons.admin_panel_settings_outlined,
-      body:
-          'Choose Admin or Staff when you sign up. Admins configure the '
-          'restaurant; staff handle orders, tables, and kitchen workflow '
-          'with the same real-time sync.',
-    ),
-    _AboutInfoPage(
-      title: 'Built for Service',
-      icon: Icons.check_circle_outline_rounded,
-      body:
-          'Real-time kitchen display with category filters, drag-and-drop '
-          'tables, voice-friendly ordering, take-away queues, and clear '
-          'billing from the menu or cart.',
-    ),
-  ];
 
   late AnimationController _animCtrl;
   late Animation<double> _fadeAnim;
@@ -88,7 +46,6 @@ class _SignupScreenViewState extends State<SignupScreenView>
   @override
   void dispose() {
     _animCtrl.dispose();
-    _infoPageCtrl.dispose();
     super.dispose();
   }
 
@@ -146,31 +103,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
       child: Stack(
         children: [
           ..._decorCircles(),
-          Padding(
-            padding: const EdgeInsets.all(40),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 100),
-                Center(child: _illustration()),
-                const SizedBox(height: 24),
-                Expanded(child: _aboutPageView(compact: false)),
-                const SizedBox(height: 16),
-                _aboutPageDots(),
-                const SizedBox(height: 8),
-                Text(
-                  'Swipe or tap dots to explore',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: fontMulishRegular,
-                    color: Colors.white54,
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
+          Center(child: _brandHeader(compact: false)),
         ],
       ),
     );
@@ -178,7 +111,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
 
   Widget _topBanner() => Container(
         width: double.infinity,
-        height: 300,
+        height: 200,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -190,114 +123,37 @@ class _SignupScreenViewState extends State<SignupScreenView>
         child: Stack(
           children: [
             ..._decorCircles(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-              child: Column(
-                children: [
-                  _illustration(size: 72),
-                  const SizedBox(height: 12),
-                  Expanded(child: _aboutPageView(compact: true)),
-                  const SizedBox(height: 10),
-                  _aboutPageDots(),
-                ],
-              ),
-            ),
+            Center(child: _brandHeader(compact: true)),
           ],
         ),
       );
 
-  ScrollBehavior get _pageScrollBehavior =>
-      ScrollConfiguration.of(context).copyWith(
-        dragDevices: {
-          PointerDeviceKind.touch,
-          PointerDeviceKind.mouse,
-          PointerDeviceKind.stylus,
-          PointerDeviceKind.trackpad,
-        },
-      );
-
-  Widget _aboutPageView({required bool compact}) {
-    return ScrollConfiguration(
-      behavior: _pageScrollBehavior,
-      child: PageView.builder(
-        controller: _infoPageCtrl,
-        physics: const PageScrollPhysics(),
-        onPageChanged: (index) => setState(() => _infoPageIndex = index),
-        itemCount: _aboutPages.length,
-        itemBuilder: (context, index) {
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                physics: const ClampingScrollPhysics(),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: constraints.maxHeight,
-                  ),
-                  child: _aboutInfoPageContent(
-                    _aboutPages[index],
-                    compact: compact,
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _aboutInfoPageContent(_AboutInfoPage page, {required bool compact}) {
+  Widget _brandHeader({required bool compact}) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 0),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 24 : 40),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(page.icon, color: _orange, size: compact ? 22 : 28),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  page.title,
-                  style: TextStyle(
-                    fontSize: compact ? 18 : 26,
-                    fontFamily: fontMulishBold,
-                    color: Colors.white,
-                    height: 1.25,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: compact ? 10 : 14),
+          _logoWidget(size: compact ? 72 : 100),
+          SizedBox(height: compact ? 14 : 20),
           Text(
-            page.body,
+            'Flavor Flow',
+            style: TextStyle(
+              fontSize: compact ? 26 : 32,
+              fontFamily: fontMulishBold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Restaurant Dashboard',
             style: TextStyle(
               fontSize: compact ? 13 : 14,
               fontFamily: fontMulishRegular,
-              color: Colors.white70,
-              height: 1.65,
+              color: Colors.white.withValues(alpha: 0.75),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _aboutPageDots() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(
-        _aboutPages.length,
-        (i) => GestureDetector(
-          onTap: () => _infoPageCtrl.animateToPage(
-            i,
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeInOut,
-          ),
-          child: _dot(i == _infoPageIndex),
-        ),
       ),
     );
   }
@@ -613,9 +469,10 @@ class _SignupScreenViewState extends State<SignupScreenView>
   }
 
   // ── Logo widget ───────────────────────────────────────────────────────
-  Widget _logoWidget() {
+  Widget _logoWidget({double size = 80}) {
     return Container(
-      width: 80, height: 80,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: Colors.white,
         shape: BoxShape.circle,
@@ -632,55 +489,8 @@ class _SignupScreenViewState extends State<SignupScreenView>
           'assets/images/logo.png',
           fit: BoxFit.contain,
           errorBuilder: (_, __, ___) =>
-              const Icon(Icons.restaurant, size: 40, color: _orange),
+              Icon(Icons.restaurant, size: size * 0.5, color: _orange),
         ),
-      ),
-    );
-  }
-
-  // ── Illustration ──────────────────────────────────────────────────────
-  Widget _illustration({double size = 140}) {
-    return Container(
-      width: size, height: size,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        shape: BoxShape.circle,
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: size, height: size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                  color: Colors.white.withOpacity(0.15), width: 1.5),
-            ),
-          ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.wifi, color: _orange, size: size * 0.22),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.restaurant, color: Colors.white, size: size * 0.28),
-                  SizedBox(width: size * 0.05),
-                  Container(
-                    width: size * 0.18, height: size * 0.18,
-                    decoration: BoxDecoration(
-                        color: _orange, shape: BoxShape.circle),
-                    child: Icon(Icons.play_arrow,
-                        color: Colors.white, size: size * 0.13),
-                  ),
-                  SizedBox(width: size * 0.05),
-                  Icon(Icons.trending_up, color: _green, size: size * 0.28),
-                ],
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
@@ -706,17 +516,6 @@ class _SignupScreenViewState extends State<SignupScreenView>
         child: Container(
           width: size, height: size,
           decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-        ),
-      );
-
-  Widget _dot(bool active) => AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        width: active ? 24 : 8,
-        height: 8,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(4),
-          color: active ? _orange : Colors.white38,
         ),
       );
 

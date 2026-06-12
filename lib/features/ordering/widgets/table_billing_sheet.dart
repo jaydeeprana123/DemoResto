@@ -53,6 +53,7 @@ class TableBillingSheet extends StatefulWidget {
     required this.tableName,
     required this.items,
     required this.mode,
+    required this.receiptAction,
     required this.onSubmit,
     super.key,
   });
@@ -60,13 +61,56 @@ class TableBillingSheet extends StatefulWidget {
   final String tableName;
   final List<Map<String, dynamic>> items;
   final TableBillingMode mode;
+  final BillReceiptAction receiptAction;
   final Future<void> Function(TableBillingSubmission submission) onSubmit;
+
+  static double orderTotal(List<Map<String, dynamic>> items) {
+    return items.fold<double>(
+      0,
+      (sum, item) =>
+          sum +
+          ((item['qty'] as num?)?.toInt() ?? 0) *
+              ((item['price'] as num?)?.toDouble() ?? 0),
+    );
+  }
+
+  /// Shows billing mode dialog then summary sheet. Returns true when billing completes.
+  static Future<bool> runBillingFlow(
+    BuildContext context, {
+    required String tableName,
+    required List<Map<String, dynamic>> items,
+    required Future<void> Function(TableBillingSubmission submission) onSubmit,
+  }) async {
+    if (items.isEmpty) return false;
+
+    final dialogResult = await showTableBillingModeDialog(
+      context,
+      total: orderTotal(items),
+      tableName: tableName,
+    );
+    if (dialogResult == null || !context.mounted) return false;
+
+    var billingCompleted = false;
+    await show(
+      context,
+      tableName: tableName,
+      items: items,
+      mode: dialogResult.mode,
+      receiptAction: dialogResult.receiptAction,
+      onSubmit: (submission) async {
+        await onSubmit(submission);
+        billingCompleted = true;
+      },
+    );
+    return billingCompleted;
+  }
 
   static Future<void> show(
     BuildContext context, {
     required String tableName,
     required List<Map<String, dynamic>> items,
     required TableBillingMode mode,
+    required BillReceiptAction receiptAction,
     required Future<void> Function(TableBillingSubmission submission) onSubmit,
   }) {
     return showModalBottomSheet<void>(
@@ -79,6 +123,7 @@ class TableBillingSheet extends StatefulWidget {
         tableName: tableName,
         items: items,
         mode: mode,
+        receiptAction: receiptAction,
         onSubmit: onSubmit,
       ),
     );
@@ -315,7 +360,12 @@ class _TableBillingSheetState extends State<TableBillingSheet> {
 
     final receipt = receiptData;
     if (receipt != null) {
-      unawaited(FoodBillPdfService.openReceiptIfEnabled(receipt));
+      unawaited(
+        FoodBillPdfService.deliverReceiptByAction(
+          receipt,
+          widget.receiptAction,
+        ),
+      );
     }
   }
 

@@ -2,6 +2,8 @@ import 'package:demo/core/repositories/user_repository.dart';
 import 'package:demo/features/kitchen/services/kitchen_settings.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/features/settings/services/tax_settings_service.dart';
+import 'package:demo/features/shell/controllers/shell_controller.dart';
+import 'package:demo/features/shell/services/app_tab_settings.dart';
 import 'package:get/get.dart';
 
 class SettingsController extends GetxController {
@@ -13,11 +15,13 @@ class SettingsController extends GetxController {
   void onInit() {
     super.onInit();
     loadKitchenSettings();
+    loadAppTabSettings();
     loadPrintSettings();
   }
 
   final userRole = Rxn<String>();
   final isLoadingRole = true.obs;
+  final appTabMode = AppTabMode.dashboardAndKitchen.obs;
   final kitchenShowTableAllOrders = true.obs;
   final kitchenShowServeOrderScreen = false.obs;
   final kitchenBackgroundOrderRingtoneEnabled = true.obs;
@@ -47,6 +51,18 @@ class SettingsController extends GetxController {
         await KitchenSettings.getShowServeOrderScreen();
     kitchenBackgroundOrderRingtoneEnabled.value =
         await KitchenSettings.getBackgroundOrderRingtoneEnabled();
+  }
+
+  Future<void> loadAppTabSettings() async {
+    appTabMode.value = await AppTabSettings.getMode();
+  }
+
+  Future<void> setAppTabMode(AppTabMode value) async {
+    await AppTabSettings.setMode(value);
+    appTabMode.value = value;
+    if (Get.isRegistered<ShellController>()) {
+      Get.find<ShellController>().syncAppTabMode(value);
+    }
   }
 
   Future<void> setKitchenShowTableAllOrders(bool value) async {
