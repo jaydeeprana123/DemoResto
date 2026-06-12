@@ -9,3 +9,6 @@ bool get isDesktopPlatform {
 
 /// Wide menu + side cart layout (web and desktop).
 bool get useWideMenuLayout => kIsWeb || isDesktopPlatform;
+
+/// Dashboard Ctrl+V Zomato screenshot paste (web and desktop only).
+bool get supportsZomatoClipboardPaste => kIsWeb || isDesktopPlatform;
