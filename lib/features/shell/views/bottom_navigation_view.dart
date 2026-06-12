@@ -67,7 +67,9 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
           return IndexedStack(
             index: _shell.stackIndex,
             children: [
-              const DragListBetweenTables(),
+              DragListBetweenTables(
+                isTabActive: _shell.currentTab == ShellTab.dashboard,
+              ),
               KitchenOrdersListView(
                 isTabActive: _shell.isKitchenTabActive,
               ),

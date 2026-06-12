@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/core/utils/zomato_order_utils.dart';
 import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
@@ -18,6 +19,9 @@ import 'package:demo/features/tables/views/AddTablePage.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
 import 'package:demo/features/zomato/widgets/add_zomato_order_sheet.dart';
 import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
+import 'package:demo/features/zomato/services/zomato_clipboard_paste_service.dart';
+import 'package:demo/features/zomato/widgets/dashboard_zomato_paste_scope.dart';
+import 'package:demo/features/zomato/widgets/import_shared_zomato_sheet.dart';
 import 'package:demo/features/zomato/widgets/zomato_order_progress_dialog.dart';
 import 'package:demo/features/zomato/widgets/zomato_order_card_body.dart';
 import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
@@ -36,7 +40,9 @@ import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
 
 class DragListBetweenTables extends StatefulWidget {
-  const DragListBetweenTables({super.key});
+  const DragListBetweenTables({this.isTabActive = true, super.key});
+
+  final bool isTabActive;
 
   @override
   State<DragListBetweenTables> createState() => _DragListBetweenTablesState();
@@ -66,6 +72,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   final Map<String, String> tableZomatoStatuses = {};
   StreamSubscription<QuerySnapshot>? tablesSubscription;
   Timer? _timeRefreshTimer;
+  bool _zomatoPasteInProgress = false;
 
   @override
   void initState() {
@@ -973,6 +980,37 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       defaultTargetPlatform == TargetPlatform.macOS ||
       defaultTargetPlatform == TargetPlatform.linux;
 
+  Future<void> _handleZomatoPaste() async {
+    if (!supportsZomatoClipboardPaste || _zomatoPasteInProgress || !mounted) {
+      return;
+    }
+
+    final bytes = await ZomatoClipboardPasteService.readImageBytes();
+    if (!mounted) return;
+
+    if (bytes == null || bytes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No image found in clipboard.')),
+      );
+      return;
+    }
+
+    _zomatoPasteInProgress = true;
+    try {
+      final imported = await ImportSharedZomatoSheet.show(
+        context,
+        imageBytes: bytes,
+        fileName:
+            'zomato_paste_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+
+      if (!mounted || !imported) return;
+      setState(() => selectedTab = 'Zomato');
+    } finally {
+      _zomatoPasteInProgress = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
@@ -985,7 +1023,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         ? 3
         : 2;
 
-    return Scaffold(
+    return DashboardZomatoPasteScope(
+      enabled: supportsZomatoClipboardPaste && widget.isTabActive,
+      onPasteImage: _handleZomatoPaste,
+      child: Scaffold(
       backgroundColor: _bg,
       appBar: _buildAppBar(),
       body: Stack(
@@ -1069,6 +1110,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         ],
       ),
       floatingActionButton: _buildFab(),
+    ),
     );
   }
 
