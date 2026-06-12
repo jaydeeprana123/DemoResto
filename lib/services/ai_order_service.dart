@@ -25,6 +25,14 @@ class AiOrderService {
   static const _url =
       'https://generativelanguage.googleapis.com/v1/models/$_model:generateContent?key=$_apiKey';
 
+  /// Match a raw item name to a menu entry (exact, then fuzzy).
+  Map<String, dynamic>? matchMenuItem(
+    String name,
+    List<Map<String, dynamic>> menuItems,
+  ) {
+    return _exactMatch(name, menuItems) ?? _fuzzyMatch(name, menuItems);
+  }
+
   // ── Public entry ────────────────────────────────────────────────────────
   Future<List<OrderResult>> parseOrder(
     String text,

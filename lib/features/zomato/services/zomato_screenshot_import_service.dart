@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
 import 'package:demo/features/zomato/services/imagekit_settings.dart';
 import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
+import 'package:demo/features/zomato/utils/zomato_order_items_builder.dart';
 
 class ZomatoScreenshotImportResult {
   const ZomatoScreenshotImportResult({
@@ -25,6 +26,8 @@ class ZomatoScreenshotImportService {
     required Uint8List bytes,
     String? fileName,
     String? existingDocId,
+    List<Map<String, dynamic>> tableItems = const [],
+    String? zomatoOrderNumber,
   }) async {
     final configured = await ImageKitSettings.isConfigured();
     if (!configured) {
@@ -40,11 +43,15 @@ class ZomatoScreenshotImportService {
       fileName: uploadName,
     );
 
+    final flattenedItems = ZomatoOrderItemsBuilder.flattenForFirestore(tableItems);
+
     if (existingDocId != null && existingDocId.isNotEmpty) {
       await _repository.attachScreenshotToOrder(
         docId: existingDocId,
         screenshotUrl: upload.url,
         imagekitFileId: upload.fileId,
+        items: flattenedItems.isNotEmpty ? flattenedItems : null,
+        zomatoOrderNumber: zomatoOrderNumber,
       );
       final orderName =
           await _repository.getOrderName(existingDocId) ?? 'Zomato order';
@@ -58,6 +65,8 @@ class ZomatoScreenshotImportService {
     final docId = await _repository.createFromScreenshot(
       screenshotUrl: upload.url,
       imagekitFileId: upload.fileId,
+      items: flattenedItems,
+      zomatoOrderNumber: zomatoOrderNumber,
     );
     final orderName = await _repository.getOrderName(docId) ?? 'Zomato order';
     return ZomatoScreenshotImportResult(

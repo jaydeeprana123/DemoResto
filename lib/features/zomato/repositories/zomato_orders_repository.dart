@@ -8,6 +8,8 @@ class ZomatoOrdersRepository {
   Future<String> createFromScreenshot({
     required String screenshotUrl,
     String? imagekitFileId,
+    List<Map<String, dynamic>> items = const [],
+    String? zomatoOrderNumber,
   }) async {
     final name = await _nextZomatoOrderName();
     final docRef = await FirestorePaths.scoped('tables').add({
@@ -16,8 +18,10 @@ class ZomatoOrdersRepository {
       'screenshotUrl': screenshotUrl,
       if (imagekitFileId != null && imagekitFileId.isNotEmpty)
         'imagekitFileId': imagekitFileId,
+      if (zomatoOrderNumber != null && zomatoOrderNumber.isNotEmpty)
+        'zomatoOrderNumber': zomatoOrderNumber,
       'zomatoStatus': ZomatoOrderUtils.statuses.first,
-      'items': <Map<String, dynamic>>[],
+      'items': items,
       'isPaid': true,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -55,11 +59,16 @@ class ZomatoOrdersRepository {
     required String docId,
     required String screenshotUrl,
     String? imagekitFileId,
+    List<Map<String, dynamic>>? items,
+    String? zomatoOrderNumber,
   }) async {
     await FirestorePaths.scopedDoc('tables', docId).update({
       'screenshotUrl': screenshotUrl,
       if (imagekitFileId != null && imagekitFileId.isNotEmpty)
         'imagekitFileId': imagekitFileId,
+      if (items != null) 'items': items,
+      if (zomatoOrderNumber != null && zomatoOrderNumber.isNotEmpty)
+        'zomatoOrderNumber': zomatoOrderNumber,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }

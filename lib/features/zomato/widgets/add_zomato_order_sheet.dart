@@ -2,9 +2,8 @@ import 'dart:typed_data';
 
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/core/utils/zomato_order_utils.dart';
-import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
 import 'package:demo/features/zomato/services/imagekit_settings.dart';
-import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
+import 'package:demo/features/zomato/services/zomato_screenshot_import_flow.dart';
 import 'package:demo/features/zomato/views/imagekit_settings_page.dart';
 import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
 import 'package:flutter/foundation.dart';
@@ -87,24 +86,13 @@ class _AddZomatoOrderSheetState extends State<AddZomatoOrderSheet> {
         return;
       }
 
-      final uploadName =
-          _fileName ?? 'zomato_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final upload = await ImageKitUploadService.uploadScreenshot(
-        bytes: bytes,
-        fileName: uploadName,
-      );
-      await Get.find<ZomatoOrdersRepository>().createFromScreenshot(
-        screenshotUrl: upload.url,
-        imagekitFileId: upload.fileId,
+      final success = await ZomatoScreenshotImportFlow.run(
+        context,
+        imageBytes: bytes,
+        fileName: _fileName,
       );
       if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Zomato order added.'),
-          backgroundColor: Color(0xFF2E7D32),
-        ),
-      );
+      if (success) Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
       final message = e.toString().replaceFirst('Exception: ', '');
@@ -252,7 +240,7 @@ class _AddZomatoOrderSheetState extends State<AddZomatoOrderSheet> {
                           ),
                         )
                       : Text(
-                          'Create ${ZomatoOrderUtils.sourceZomato} Order',
+                          'Extract & create ${ZomatoOrderUtils.sourceZomato} order',
                           style: const TextStyle(fontFamily: fontMulishBold),
                         ),
                 ),

@@ -4,7 +4,7 @@ import 'package:demo/Styles/my_font.dart';
 import 'package:demo/core/utils/zomato_order_utils.dart';
 import 'package:demo/features/zomato/models/zomato_order_ref.dart';
 import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
-import 'package:demo/features/zomato/services/zomato_screenshot_import_service.dart';
+import 'package:demo/features/zomato/services/zomato_screenshot_import_flow.dart';
 import 'package:demo/features/zomato/views/imagekit_settings_page.dart';
 import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
 import 'package:flutter/material.dart';
@@ -44,10 +44,6 @@ class ImportSharedZomatoSheet extends StatefulWidget {
 }
 
 class _ImportSharedZomatoSheetState extends State<ImportSharedZomatoSheet> {
-  final _importService = ZomatoScreenshotImportService(
-    Get.find<ZomatoOrdersRepository>(),
-  );
-
   List<ZomatoOrderRef> _pendingOrders = [];
   bool _loadingOrders = true;
   bool _submitting = false;
@@ -92,23 +88,14 @@ class _ImportSharedZomatoSheetState extends State<ImportSharedZomatoSheet> {
 
     setState(() => _submitting = true);
     try {
-      final result = await _importService.import(
-        bytes: widget.imageBytes,
+      final success = await ZomatoScreenshotImportFlow.run(
+        context,
+        imageBytes: widget.imageBytes,
         fileName: widget.fileName,
         existingDocId: _createNew ? null : _selectedDocId,
       );
       if (!mounted) return;
-      Navigator.pop(context, true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result.createdNewOrder
-                ? '${result.orderName} added with screenshot.'
-                : 'Screenshot attached to ${result.orderName}.',
-          ),
-          backgroundColor: const Color(0xFF2E7D32),
-        ),
-      );
+      Navigator.pop(context, success);
     } catch (e) {
       if (!mounted) return;
       final message = e.toString().replaceFirst('Exception: ', '');
@@ -288,7 +275,7 @@ class _ImportSharedZomatoSheetState extends State<ImportSharedZomatoSheet> {
                           ),
                         )
                       : const Text(
-                          'Import screenshot',
+                          'Extract & import',
                           style: TextStyle(fontFamily: fontMulishBold),
                         ),
                 ),
