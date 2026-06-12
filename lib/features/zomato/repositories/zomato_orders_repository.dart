@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/utils/zomato_order_utils.dart';
+import 'package:demo/features/zomato/models/zomato_order_ref.dart';
 import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
 
 class ZomatoOrdersRepository {
@@ -22,6 +23,51 @@ class ZomatoOrdersRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     });
     return docRef.id;
+  }
+
+  /// Active Zomato orders that do not have a screenshot yet.
+  Future<List<ZomatoOrderRef>> listActiveOrdersMissingScreenshot() async {
+    final snap = await FirestorePaths.scoped('tables').get();
+    final results = <ZomatoOrderRef>[];
+
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      if (!ZomatoOrderUtils.isZomatoDoc(data)) continue;
+      if (ZomatoOrderUtils.isCompletedStatus(data['zomatoStatus']?.toString())) {
+        continue;
+      }
+      final screenshotUrl = data['screenshotUrl']?.toString().trim() ?? '';
+      if (screenshotUrl.isNotEmpty) continue;
+
+      results.add(
+        ZomatoOrderRef(
+          docId: doc.id,
+          name: data['name']?.toString() ?? 'Zomato',
+        ),
+      );
+    }
+
+    results.sort((a, b) => a.name.compareTo(b.name));
+    return results;
+  }
+
+  Future<void> attachScreenshotToOrder({
+    required String docId,
+    required String screenshotUrl,
+    String? imagekitFileId,
+  }) async {
+    await FirestorePaths.scopedDoc('tables', docId).update({
+      'screenshotUrl': screenshotUrl,
+      if (imagekitFileId != null && imagekitFileId.isNotEmpty)
+        'imagekitFileId': imagekitFileId,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<String?> getOrderName(String docId) async {
+    final snap = await FirestorePaths.scopedDoc('tables', docId).get();
+    if (!snap.exists) return null;
+    return snap.data()?['name']?.toString();
   }
 
   Future<void> updateStatus({
