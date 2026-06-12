@@ -23,12 +23,12 @@ class ImportSharedZomatoSheet extends StatefulWidget {
   final Uint8List imageBytes;
   final String? fileName;
 
-  static Future<void> show(
+  static Future<bool> show(
     BuildContext context, {
     required Uint8List imageBytes,
     String? fileName,
   }) {
-    return showModalBottomSheet<void>(
+    return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -36,7 +36,7 @@ class ImportSharedZomatoSheet extends StatefulWidget {
         imageBytes: imageBytes,
         fileName: fileName,
       ),
-    );
+    ).then((value) => value ?? false);
   }
 
   @override
@@ -98,7 +98,7 @@ class _ImportSharedZomatoSheetState extends State<ImportSharedZomatoSheet> {
         existingDocId: _createNew ? null : _selectedDocId,
       );
       if (!mounted) return;
-      Navigator.pop(context);
+      Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
