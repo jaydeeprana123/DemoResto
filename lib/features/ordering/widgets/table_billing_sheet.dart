@@ -28,6 +28,7 @@ class TableBillingSubmission {
     required this.total,
     required this.cashAmount,
     required this.onlineAmount,
+    this.extra = 0,
   });
 
   final List<Map<String, dynamic>> items;
@@ -41,6 +42,7 @@ class TableBillingSubmission {
   final int cgstAmount;
   final int sgstAmount;
   final int discount;
+  final int extra;
   final int total;
   final int cashAmount;
   final int onlineAmount;
@@ -53,6 +55,9 @@ class TableBillingSheet extends StatefulWidget {
     required this.mode,
     required this.receiptAction,
     required this.onSubmit,
+    this.initialDiscount = 0,
+    this.initialExtra = 0,
+    this.initialTotal,
     super.key,
   });
 
@@ -61,6 +66,9 @@ class TableBillingSheet extends StatefulWidget {
   final TableBillingMode mode;
   final BillReceiptAction receiptAction;
   final Future<void> Function(TableBillingSubmission submission) onSubmit;
+  final int initialDiscount;
+  final int initialExtra;
+  final int? initialTotal;
 
   static double orderTotal(List<Map<String, dynamic>> items) {
     return items.fold<double>(
@@ -95,6 +103,9 @@ class TableBillingSheet extends StatefulWidget {
       items: dialogResult.items,
       mode: dialogResult.mode,
       receiptAction: dialogResult.receiptAction,
+      initialDiscount: dialogResult.discount,
+      initialExtra: dialogResult.extra,
+      initialTotal: dialogResult.finalTotal,
       onSubmit: (submission) async {
         await onSubmit(submission);
         billingCompleted = true;
@@ -110,6 +121,9 @@ class TableBillingSheet extends StatefulWidget {
     required TableBillingMode mode,
     required BillReceiptAction receiptAction,
     required Future<void> Function(TableBillingSubmission submission) onSubmit,
+    int initialDiscount = 0,
+    int initialExtra = 0,
+    int? initialTotal,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -122,6 +136,9 @@ class TableBillingSheet extends StatefulWidget {
         items: items,
         mode: mode,
         receiptAction: receiptAction,
+        initialDiscount: initialDiscount,
+        initialExtra: initialExtra,
+        initialTotal: initialTotal,
         onSubmit: onSubmit,
       ),
     );
@@ -140,6 +157,7 @@ class _TableBillingSheetState extends State<TableBillingSheet> {
 
   double discountPercent = 0;
   double discountAmount = 0;
+  double extraAmount = 0;
   double _cgstPercent = 0;
   double _sgstPercent = 0;
   bool _isEditingTotal = false;
@@ -172,7 +190,27 @@ class _TableBillingSheetState extends State<TableBillingSheet> {
     setState(() {
       _cgstPercent = settings.cgstPercentage;
       _sgstPercent = settings.sgstPercentage;
-      _resetTotalOverride();
+      if (widget.initialExtra > 0 && widget.initialTotal != null) {
+        extraAmount = widget.initialExtra.toDouble();
+        discountAmount = 0;
+        discountAmountController.text = '0';
+        discountPercentController.text = '0';
+        _totalOverridden = true;
+        _isEditingTotal = false;
+        totalController.text = widget.initialTotal.toString();
+      } else if (widget.initialDiscount > 0 && widget.initialTotal != null) {
+        discountAmount = widget.initialDiscount.toDouble();
+        discountAmountController.text = discountAmount.toStringAsFixed(0);
+        discountPercent =
+            _subtotal > 0 ? (discountAmount / _subtotal) * 100 : 0;
+        discountPercentController.text = discountPercent.toStringAsFixed(2);
+        extraAmount = 0;
+        _totalOverridden = true;
+        _isEditingTotal = false;
+        totalController.text = widget.initialTotal.toString();
+      } else {
+        _resetTotalOverride();
+      }
       _updatePaymentAmounts();
     });
   }
@@ -192,7 +230,8 @@ class _TableBillingSheetState extends State<TableBillingSheet> {
       );
 
   int get _computedTotal =>
-      (_subtotal + _taxBreakdown.totalTax - discountAmount).round();
+      (_subtotal + _taxBreakdown.totalTax - discountAmount + extraAmount)
+          .round();
 
   int get total {
     if (_totalOverridden) {
@@ -204,6 +243,7 @@ class _TableBillingSheetState extends State<TableBillingSheet> {
   void _resetTotalOverride() {
     _totalOverridden = false;
     _isEditingTotal = false;
+    extraAmount = 0;
   }
 
   void _startEditingTotal(VoidCallback refresh) {
@@ -219,11 +259,26 @@ class _TableBillingSheetState extends State<TableBillingSheet> {
       _totalOverridden = true;
       _isEditingTotal = false;
       final taxable = _subtotal + _taxBreakdown.totalTax;
-      discountAmount = (taxable - edited).toDouble();
-      if (discountAmount < 0) discountAmount = 0;
-      discountPercent = _subtotal > 0 ? (discountAmount / _subtotal) * 100 : 0;
-      discountAmountController.text = discountAmount.toStringAsFixed(0);
-      discountPercentController.text = discountPercent.toStringAsFixed(2);
+      if (edited < taxable.round()) {
+        discountAmount = (taxable - edited).toDouble();
+        extraAmount = 0;
+        discountPercent =
+            _subtotal > 0 ? (discountAmount / _subtotal) * 100 : 0;
+        discountAmountController.text = discountAmount.toStringAsFixed(0);
+        discountPercentController.text = discountPercent.toStringAsFixed(2);
+      } else if (edited > taxable.round()) {
+        discountAmount = 0;
+        extraAmount = (edited - taxable.round()).toDouble();
+        discountAmountController.text = '0';
+        discountPercentController.text = '0';
+        discountPercent = 0;
+      } else {
+        discountAmount = 0;
+        extraAmount = 0;
+        discountAmountController.text = '0';
+        discountPercentController.text = '0';
+        discountPercent = 0;
+      }
       totalController.text = edited.toString();
       _updatePaymentAmounts();
     });
@@ -232,6 +287,7 @@ class _TableBillingSheetState extends State<TableBillingSheet> {
 
   void _updateDiscountFromPercent() {
     _resetTotalOverride();
+    extraAmount = 0;
     if (discountPercent > 0) {
       discountAmount = (_subtotal * discountPercent) / 100;
       discountAmountController.text = discountAmount.toStringAsFixed(0);
@@ -241,6 +297,7 @@ class _TableBillingSheetState extends State<TableBillingSheet> {
 
   void _updateDiscountFromAmount() {
     _resetTotalOverride();
+    extraAmount = 0;
     if (discountAmount > 0 && _subtotal > 0) {
       discountPercent = (discountAmount / _subtotal) * 100;
       discountPercentController.text = discountPercent.toStringAsFixed(2);
@@ -296,6 +353,7 @@ class _TableBillingSheetState extends State<TableBillingSheet> {
         cgstAmount: taxes.cgstAmount,
         sgstAmount: taxes.sgstAmount,
         discount: discountAmount.round(),
+        extra: extraAmount.round(),
         total: total,
         cashAmount: cash,
         onlineAmount: online,
@@ -317,6 +375,7 @@ class _TableBillingSheetState extends State<TableBillingSheet> {
         cgstAmount: taxes.cgstAmount,
         sgstAmount: taxes.sgstAmount,
         discount: discountAmount.round(),
+        extra: extraAmount.round(),
         total: total,
         cashAmount: cash,
         onlineAmount: online,
@@ -334,6 +393,7 @@ class _TableBillingSheetState extends State<TableBillingSheet> {
         cgstAmount: taxes.cgstAmount,
         sgstAmount: taxes.sgstAmount,
         discount: discountAmount.round(),
+        extra: extraAmount.round(),
         total: total,
         cashAmount: cash,
         onlineAmount: online,
@@ -447,6 +507,30 @@ class _TableBillingSheetState extends State<TableBillingSheet> {
                           TaxSummaryRows(breakdown: taxes),
                           if (taxes.hasTax) const SizedBox(height: 8),
                           _discountRow(setModalState),
+                          if (extraAmount > 0) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Extra',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: secondary_text_color,
+                                    fontFamily: fontMulishSemiBold,
+                                  ),
+                                ),
+                                Text(
+                                  '+₹${extraAmount.round()}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontFamily: fontMulishSemiBold,
+                                    color: Color(0xFFf57c35),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                           const SizedBox(height: 12),
                           const DottedLine(
                             dashLength: 2,

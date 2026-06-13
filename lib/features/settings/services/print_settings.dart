@@ -89,6 +89,7 @@ class PrintSettings {
     PosPrinterType type, {
     required int itemCount,
     bool hasDiscount = false,
+    bool hasExtra = false,
     bool hasPaymentLines = false,
     bool hasTaxLines = false,
     bool includeLogos = false,
@@ -102,6 +103,7 @@ class PrintSettings {
     heightMm += 30.0;
     if (hasTaxLines) heightMm += 12.0;
     if (hasDiscount) heightMm += 6.0;
+    if (hasExtra) heightMm += 6.0;
     if (hasPaymentLines) heightMm += 12.0;
     heightMm += 24.0;
     if (!includeLogos) heightMm -= 10.0;

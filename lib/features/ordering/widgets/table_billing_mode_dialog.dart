@@ -24,11 +24,17 @@ class TableBillingDialogResult {
     required this.mode,
     required this.receiptAction,
     required this.items,
+    this.discount = 0,
+    this.extra = 0,
+    this.finalTotal,
   });
 
   final TableBillingMode mode;
   final BillReceiptAction receiptAction;
   final List<Map<String, dynamic>> items;
+  final int discount;
+  final int extra;
+  final int? finalTotal;
 }
 
 Future<TableBillingDialogResult?> showTableBillingModeDialog(
@@ -90,8 +96,35 @@ Future<TableBillingDialogResult?> showTableBillingModeDialog(
   if (!context.mounted || items.isEmpty) return null;
 
   var receiptAction = BillReceiptAction.withoutPrint;
+  var displayTotal = estimatedTotal;
+  var discountAmount = 0.0;
+  var extraAmount = 0.0;
+  var isEditingTotal = false;
+  final totalEditController = TextEditingController(
+    text: estimatedTotal.toString(),
+  );
 
-  return showDialog<TableBillingDialogResult>(
+  void applyManualTotal() {
+    final edited = int.tryParse(totalEditController.text.trim());
+    if (edited == null || edited < 0) return;
+    if (edited < estimatedTotal) {
+      displayTotal = edited;
+      discountAmount = (estimatedTotal - edited).toDouble();
+      extraAmount = 0;
+    } else if (edited > estimatedTotal) {
+      displayTotal = edited;
+      discountAmount = 0;
+      extraAmount = (edited - estimatedTotal).toDouble();
+    } else {
+      displayTotal = estimatedTotal;
+      discountAmount = 0;
+      extraAmount = 0;
+    }
+    isEditingTotal = false;
+  }
+
+  try {
+    final dialogResult = await showDialog<TableBillingDialogResult>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) => StatefulBuilder(
@@ -101,6 +134,9 @@ Future<TableBillingDialogResult?> showTableBillingModeDialog(
             mode: mode,
             receiptAction: receiptAction,
             items: items,
+            discount: discountAmount.round(),
+            extra: extraAmount.round(),
+            finalTotal: displayTotal,
           );
         }
 
@@ -206,28 +242,103 @@ Future<TableBillingDialogResult?> showTableBillingModeDialog(
                               ),
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFf57c35)
-                                  .withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: const Color(0xFFf57c35)
-                                    .withValues(alpha: 0.35),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isEditingTotal)
+                                SizedBox(
+                                  width: 88,
+                                  child: TextField(
+                                    controller: totalEditController,
+                                    keyboardType: TextInputType.number,
+                                    autofocus: true,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontFamily: fontMulishBold,
+                                      fontSize: 16,
+                                      color: Color(0xFFf57c35),
+                                    ),
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      prefixText: '₹',
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 8,
+                                      ),
+                                      border: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(20),
+                                        borderSide: BorderSide(
+                                          color: const Color(0xFFf57c35)
+                                              .withValues(alpha: 0.35),
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(20),
+                                        borderSide: const BorderSide(
+                                          color: Color(0xFFf57c35),
+                                        ),
+                                      ),
+                                    ),
+                                    onSubmitted: (_) => setDialogState(
+                                      applyManualTotal,
+                                    ),
+                                  ),
+                                )
+                              else
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFf57c35)
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: const Color(0xFFf57c35)
+                                          .withValues(alpha: 0.35),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '₹$displayTotal',
+                                    style: const TextStyle(
+                                      fontFamily: fontMulishBold,
+                                      fontSize: 16,
+                                      color: Color(0xFFf57c35),
+                                    ),
+                                  ),
+                                ),
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 32,
+                                  minHeight: 32,
+                                ),
+                                icon: Icon(
+                                  isEditingTotal
+                                      ? Icons.check_rounded
+                                      : Icons.edit_rounded,
+                                  size: 18,
+                                ),
+                                color: const Color(0xFFf57c35),
+                                tooltip: isEditingTotal
+                                    ? 'Apply amount'
+                                    : 'Edit final amount',
+                                onPressed: () => setDialogState(() {
+                                  if (isEditingTotal) {
+                                    applyManualTotal();
+                                  } else {
+                                    totalEditController.text =
+                                        displayTotal.toString();
+                                    isEditingTotal = true;
+                                  }
+                                }),
                               ),
-                            ),
-                            child: Text(
-                              '₹$estimatedTotal',
-                              style: const TextStyle(
-                                fontFamily: fontMulishBold,
-                                fontSize: 16,
-                                color: Color(0xFFf57c35),
-                              ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
@@ -297,25 +408,85 @@ Future<TableBillingDialogResult?> showTableBillingModeDialog(
                         ),
                         if (taxBreakdown.totalTax > 0) ...[
                           const SizedBox(height: 2),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Tax',
-                                style: TextStyle(
-                                  fontFamily: fontMulishRegular,
-                                  fontSize: 12,
-                                  color: Colors.grey.shade700,
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 12.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Tax',
+                                  style: TextStyle(
+                                    fontFamily: fontMulishRegular,
+                                    fontSize: 12,
+                                    color: Colors.grey.shade700,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                '₹${taxBreakdown.totalTax.round()}',
-                                style: const TextStyle(
-                                  fontFamily: fontMulishSemiBold,
-                                  fontSize: 12,
+                                Text(
+                                  '₹${taxBreakdown.totalTax.round()}',
+                                  style: const TextStyle(
+                                    fontFamily: fontMulishSemiBold,
+                                    fontSize: 12,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (discountAmount > 0) ...[
+                          const SizedBox(height: 2),
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 12.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Discount',
+                                  style: TextStyle(
+                                    fontFamily: fontMulishRegular,
+                                    fontSize: 12,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                                Text(
+                                  '-₹${discountAmount.round()}',
+                                  style: TextStyle(
+                                    fontFamily: fontMulishSemiBold,
+                                    fontSize: 12,
+                                    color: Colors.green.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (extraAmount > 0) ...[
+                          const SizedBox(height: 2),
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 12.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Extra',
+                                  style: TextStyle(
+                                    fontFamily: fontMulishRegular,
+                                    fontSize: 12,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                                Text(
+                                  '+₹${extraAmount.round()}',
+                                  style: TextStyle(
+                                    fontFamily: fontMulishSemiBold,
+                                    fontSize: 12,
+                                    color: const Color(0xFFf57c35),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                         const SizedBox(height: 12),
@@ -402,6 +573,10 @@ Future<TableBillingDialogResult?> showTableBillingModeDialog(
       },
     ),
   );
+    return dialogResult;
+  } finally {
+    totalEditController.dispose();
+  }
 }
 
 Future<BillReceiptAction?> showBillReceiptOptionsDialog(

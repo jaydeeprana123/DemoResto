@@ -44,6 +44,7 @@ class TransactionsRepository {
     required int total,
     required int cashAmount,
     required int onlineAmount,
+    int extra = 0,
   }) async {
     try {
       final now = DateTime.now();
@@ -74,6 +75,7 @@ class TransactionsRepository {
           cgstAmount: cgstAmount,
           sgstAmount: sgstAmount,
           discount: discount,
+          extra: extra,
           total: total,
           cashAmount: cashAmount,
           onlineAmount: onlineAmount,
@@ -105,6 +107,7 @@ class TransactionsRepository {
           'cgstAmount': cgstAmount,
           'sgstAmount': sgstAmount,
           'discount': discount,
+          'extra': extra,
           'total': total,
           'cashAmount': cashAmount,
           'onlineAmount': onlineAmount,
@@ -162,6 +165,7 @@ class TransactionsRepository {
     required int total,
     required int cashAmount,
     required int onlineAmount,
+    int extra = 0,
   }) async {
     final counterSnap = await counterRef.get();
     final next = ((counterSnap.data()?['seq'] as num?)?.toInt() ?? 0) + 1;
@@ -189,6 +193,7 @@ class TransactionsRepository {
       'cgstAmount': cgstAmount,
       'sgstAmount': sgstAmount,
       'discount': discount,
+      'extra': extra,
       'total': total,
       'cashAmount': cashAmount,
       'onlineAmount': onlineAmount,

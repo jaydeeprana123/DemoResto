@@ -81,6 +81,11 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
     final taxBreakdown = TaxCalculator.fromTransaction(_transaction);
     final discount = (_transaction['discount'] as num?)?.toInt() ?? 0;
     final total = (_transaction['total'] as num?)?.toInt() ?? 0;
+    final storedExtra = (_transaction['extra'] as num?)?.toInt();
+    final extra = storedExtra ??
+        (total - subtotal - taxBreakdown.totalTax + discount)
+            .clamp(0, 1 << 30)
+            .toInt();
     final cashAmount = (_transaction['cashAmount'] as num?)?.toInt() ?? 0;
     final onlineAmount = (_transaction['onlineAmount'] as num?)?.toInt() ?? 0;
     final tableName = (_transaction['table'] ?? 'Unknown').toString();
@@ -99,6 +104,7 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
       cgstAmount: taxBreakdown.cgstAmount,
       sgstAmount: taxBreakdown.sgstAmount,
       discount: discount,
+      extra: extra,
       total: total,
       cashAmount: cashAmount,
       onlineAmount: onlineAmount,

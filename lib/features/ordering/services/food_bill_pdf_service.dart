@@ -29,6 +29,7 @@ class FoodBillPdfData {
     required this.tax,
     required this.discount,
     required this.total,
+    this.extra = 0,
     this.invoiceNumber,
     this.cashAmount = 0,
     this.onlineAmount = 0,
@@ -43,6 +44,7 @@ class FoodBillPdfData {
   final int subtotal;
   final int tax;
   final int discount;
+  final int extra;
   final int total;
   final String? invoiceNumber;
   final int cashAmount;
@@ -109,6 +111,7 @@ class FoodBillPdfService {
       printerType,
       itemCount: data.items.length,
       hasDiscount: data.discount > 0,
+      hasExtra: data.extra > 0,
       hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
       hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
       includeLogos: includeLogos,
@@ -167,6 +170,7 @@ class FoodBillPdfService {
         printerType,
         itemCount: data.items.length,
         hasDiscount: data.discount > 0,
+      hasExtra: data.extra > 0,
         hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
         hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
         includeLogos: includeLogos,
@@ -214,6 +218,7 @@ class FoodBillPdfService {
         printerType,
         itemCount: data.items.length,
         hasDiscount: data.discount > 0,
+      hasExtra: data.extra > 0,
         hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
         hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
         includeLogos: includeLogos,
@@ -284,6 +289,7 @@ class FoodBillPdfService {
         printerType,
         itemCount: data.items.length,
         hasDiscount: data.discount > 0,
+      hasExtra: data.extra > 0,
         hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
         hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
         includeLogos: includeLogos,
@@ -561,6 +567,12 @@ class FoodBillPdfService {
                 _amountRow(
                   'Discount',
                   -data.discount.toDouble(),
+                  labelStyle,
+                ),
+              if (data.extra > 0)
+                _amountRow(
+                  'Extra',
+                  data.extra.toDouble(),
                   labelStyle,
                 ),
               _divider(thick: true),
