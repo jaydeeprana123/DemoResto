@@ -58,10 +58,6 @@ object KitchenAlertNotifications {
             .setOnlyAlertOnce(false)
             .setSound(
                 android.net.Uri.parse("android.resource://${context.packageName}/$rawSound"),
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build(),
             )
             .build()
 

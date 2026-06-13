@@ -147,8 +147,20 @@ Future<TableBillingDialogResult?> showTableBillingModeDialog(
               receiptRadio(BillReceiptAction.print, 'Print'),
               receiptRadio(
                 BillReceiptAction.shareWhatsApp,
-                'Share PDF on WhatsApp',
+                'Send bill link on WhatsApp',
               ),
+              if (receiptAction == BillReceiptAction.shareWhatsApp)
+                Padding(
+                  padding: const EdgeInsets.only(left: 36, top: 4),
+                  child: Text(
+                    'Uploads PDF to ImageKit and opens WhatsApp with download link.',
+                    style: TextStyle(
+                      fontFamily: fontMulishRegular,
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ),
               const SizedBox(height: 16),
               Text(
                 'Choose how to complete billing:',
@@ -237,8 +249,8 @@ Future<BillReceiptAction?> showBillReceiptOptionsDialog(
           const SizedBox(height: 16),
           _ModeButton(
             icon: Icons.share_outlined,
-            label: 'Share PDF',
-            subtitle: 'Generate and share the PDF bill',
+            label: 'Send bill link',
+            subtitle: 'WhatsApp with ImageKit PDF link to any mobile number',
             color: const Color(0xFF25D366),
             onTap: () => Navigator.pop(ctx, BillReceiptAction.shareWhatsApp),
           ),
