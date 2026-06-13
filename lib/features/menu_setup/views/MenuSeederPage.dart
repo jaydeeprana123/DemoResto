@@ -116,6 +116,7 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Honey Chilly Alfaham', 'halfPrice': 320.0, 'fullPrice': 570.0},
       {'name': 'Classic Alfaham', 'halfPrice': 320.0, 'fullPrice': 570.0},
       {'name': 'Peri Peri Grill Chicken', 'halfPrice': 320.0, 'fullPrice': 570.0},
+      {'name': 'Afghani Grill Chicken', 'halfPrice': 320.0, 'fullPrice': 570.0},
     ],
   },
 
@@ -238,14 +239,14 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Jeera Masala', 'price': 10.0},
       {'name': 'Orange', 'price': 10.0},
       {'name': 'Seven Up', 'price': 10.0},
-      {'name': 'Fruit Beer', 'price': 10.0},
-      {'name': 'Lichi', 'price': 10.0},
-      {'name': 'Lemon', 'price': 10.0},
+      // {'name': 'Fruit Beer', 'price': 10.0},
+      // {'name': 'Lichi', 'price': 10.0},
+      // {'name': 'Lemon', 'price': 10.0},
       {'name': 'Blue Berry', 'price': 10.0},
-      {'name': 'Mango', 'price': 10.0},
-      {'name': 'Apple', 'price': 10.0},
+      // {'name': 'Mango', 'price': 10.0},
+      // {'name': 'Apple', 'price': 10.0},
       {'name': 'Kashmiri Soda', 'price': 20.0},
-      {'name': 'Kashmiri Lemon', 'price': 20.0},
+      // {'name': 'Kashmiri Lemon', 'price': 20.0},
       {'name': 'Kashmiri Jeera', 'price': 20.0},
       {'name': 'Limbu Soda', 'price': 20.0},
       {'name': 'Limbu Sharbat', 'price': 20.0},
@@ -256,7 +257,7 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
     'items': [
       {'name': 'Mojeeto Mocktail', 'price': 40.0},
       {'name': 'Taquila Mocktail', 'price': 50.0},
-      {'name': 'Green Mocktail', 'price': 50.0},
+      // {'name': 'Green Mocktail', 'price': 50.0},
       {'name': 'Rainbow Mocktail', 'price': 70.0},
       {'name': 'Pineapple Mocktail', 'price': 50.0},
       {'name': 'Guava Mocktail', 'price': 50.0},
@@ -264,11 +265,39 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Peach Mocktail', 'price': 50.0},
       {'name': 'Cherry Mocktail', 'price': 50.0},
       {'name': 'Mango Mocktail', 'price': 50.0},
-      {'name': 'Banana Mocktail', 'price': 50.0},
+      // {'name': 'Banana Mocktail', 'price': 50.0},
       {'name': 'Patiala Mocktail', 'price': 70.0},
-      {'name': 'Chilly Lemon', 'price': 70.0},
+      // {'name': 'Chilly Lemon', 'price': 70.0},
+      {'name': 'Kashmiri Jeera Mocktail', 'price': 50.0},
+      {'name': 'Jamun Mocktail', 'price': 50.0},
+      {'name': 'Cool Mint Mocktail', 'price': 50.0},
+      {'name': 'Citrus Punch Mocktail', 'price': 50.0},
+      {'name': 'Litchi Mocktail', 'price': 50.0},
+      {'name': 'Strawberry Mocktail', 'price': 50.0},
+      {'name': 'Blue Curacao Mocktail', 'price': 50.0},
+      {'name': 'Kiwi Mocktail', 'price': 50.0},
     ],
   },
+
+  {
+    'category': 'Extras',
+    'items': [
+      {'name': 'Small Water Bottle', 'price': 10.0},
+      {'name': 'Big Water Bottle', 'price': 20.0},
+      {'name': 'Mayonnaise', 'price': 10.0},
+      {'name': 'Extra Chicken', 'price': 20.0},
+      {'name': 'Extra Cheese', 'price': 20.0},
+      {'name': 'Without Cabbage', 'price': 10.0},
+    ],
+  },
+
+  {
+    'category': 'Cold Drinks',
+    'items': [
+      {'name': 'Sosyo', 'price': 20.0},
+    ],
+  },
+
 ];
 
 

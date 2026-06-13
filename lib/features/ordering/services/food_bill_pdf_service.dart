@@ -171,7 +171,7 @@ class FoodBillPdfService {
         printerType,
         itemCount: data.items.length,
         hasDiscount: data.discount > 0,
-      hasExtra: data.extra > 0,
+        hasExtra: data.extra > 0,
         hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
         hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
         includeLogos: includeLogos,
@@ -220,7 +220,7 @@ class FoodBillPdfService {
         printerType,
         itemCount: data.items.length,
         hasDiscount: data.discount > 0,
-      hasExtra: data.extra > 0,
+        hasExtra: data.extra > 0,
         hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
         hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
         includeLogos: includeLogos,
@@ -291,7 +291,7 @@ class FoodBillPdfService {
         printerType,
         itemCount: data.items.length,
         hasDiscount: data.discount > 0,
-      hasExtra: data.extra > 0,
+        hasExtra: data.extra > 0,
         hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
         hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
         includeLogos: includeLogos,
@@ -353,7 +353,7 @@ class FoodBillPdfService {
         await writeReceiptPdfFile(pdfBytes, fileName);
         AppMessenger.show(
           'Printer not connected',
-          'Bill saved. Connect your Epson USB printer, then use Print again or open:\nDocuments/Flavor Flow Receipts/$fileName',
+          'Bill saved. Connect your Rugtek RP326 USB printer, then use Print again or open:\nDocuments/Flavor Flow Receipts/$fileName',
           duration: const Duration(seconds: 8),
         );
         return;
@@ -397,19 +397,45 @@ class FoodBillPdfService {
   }) async {
     try {
       final printers = await Printing.listPrinters();
-      final target = PrintSettings.pickReceiptPrinter(
+      final candidates = PrintSettings.receiptPrinterCandidates(
         printers,
         type: printerType,
       );
-      if (target == null) return false;
+      if (candidates.isEmpty) return false;
 
-      return Printing.directPrintPdf(
-        printer: target,
-        onLayout: (_) async => pdfBytes,
-        name: fileName,
-        format: pageFormat,
-        usePrinterSettings: true,
-      );
+      for (final target in candidates) {
+        try {
+          final sent = await Printing.directPrintPdf(
+            printer: target,
+            onLayout: (_) async => pdfBytes,
+            name: fileName,
+            format: pageFormat,
+            usePrinterSettings: true,
+          );
+          if (sent) {
+            await PrintSettings.setPreferredPrinterName(target.name);
+            return true;
+          }
+        } catch (_) {
+          continue;
+        }
+      }
+
+      if (isDesktopPlatform) {
+        final path = await writeReceiptPdfFile(pdfBytes, fileName);
+        for (final target in candidates) {
+          final sent = await printPdfToNamedPrinterWindows(
+            pdfPath: path,
+            printerName: target.name,
+          );
+          if (sent) {
+            await PrintSettings.setPreferredPrinterName(target.name);
+            return true;
+          }
+        }
+      }
+
+      return false;
     } catch (_) {
       return false;
     }

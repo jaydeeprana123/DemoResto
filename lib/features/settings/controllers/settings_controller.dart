@@ -27,7 +27,7 @@ class SettingsController extends GetxController {
   final kitchenShowServeOrderScreen = false.obs;
   final kitchenBackgroundOrderRingtoneEnabled = true.obs;
   final printPdfEnabled = false.obs;
-  final printerType = PosPrinterType.tvs80.obs;
+  final printerType = PosPrinterType.rugtek80.obs;
   final billPdfIncludeLogos = false.obs;
   final cgstPercentage = 0.0.obs;
   final sgstPercentage = 0.0.obs;

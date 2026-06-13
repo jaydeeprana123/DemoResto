@@ -83,6 +83,12 @@ Future<bool> _revealViaFlavorFlowDesktop(String fileName) async {
 
 /// Uses the installed Flavor Flow desktop app (flavorflow://) to select the
 /// downloaded PDF in Explorer. Retries while the browser finishes downloading.
+Future<bool> printPdfToNamedPrinterWindows({
+  required String pdfPath,
+  required String printerName,
+}) async =>
+    false;
+
 Future<void> revealReceiptPdfInFolder(String fileName) async {
   if (!_isWindowsBrowser) return;
 
