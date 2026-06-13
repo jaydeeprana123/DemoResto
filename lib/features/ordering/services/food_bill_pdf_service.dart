@@ -126,6 +126,7 @@ class FoodBillPdfService {
         printerType: printerType,
         pageFormat: pageFormat,
         includeLogos: includeLogos,
+        toPrinter: true,
       );
     } catch (e) {
       if (context.mounted) {
@@ -180,6 +181,7 @@ class FoodBillPdfService {
         printerType: printerType,
         pageFormat: pageFormat,
         includeLogos: includeLogos,
+        toPrinter: true,
       );
     } catch (e) {
       AppMessenger.show('Receipt', 'Could not print receipt: $e');
@@ -299,6 +301,7 @@ class FoodBillPdfService {
         printerType: printerType,
         pageFormat: pageFormat,
         includeLogos: includeLogos,
+        toPrinter: true,
       );
     } catch (e) {
       AppMessenger.show('Receipt', 'Could not open receipt: $e');
@@ -310,6 +313,7 @@ class FoodBillPdfService {
     required PosPrinterType printerType,
     required PdfPageFormat pageFormat,
     required bool includeLogos,
+    bool toPrinter = false,
   }) async {
     final pdfBytes = await _buildPdf(
       data,
@@ -319,7 +323,7 @@ class FoodBillPdfService {
     );
     final fileName = buildReceiptPdfFileName(data);
 
-    if (isDesktopPlatform || kIsWeb) {
+    if ((isDesktopPlatform || kIsWeb) && !toPrinter) {
       final path = await writeReceiptPdfFile(pdfBytes, fileName);
       if (isDesktopPlatform) {
         await openReceiptPdfFile(path);
@@ -334,21 +338,34 @@ class FoodBillPdfService {
       return;
     }
 
-    final sentToTvs = await _tryDirectTvsPrint(
+    final sentDirect = await _tryDirectPosPrint(
       pdfBytes: pdfBytes,
       pageFormat: pageFormat,
       printerType: printerType,
       fileName: fileName,
     );
 
-    if (!sentToTvs) {
-      await Printing.layoutPdf(
-        onLayout: (_) async => pdfBytes,
-        name: fileName,
-        format: pageFormat,
-        usePrinterSettings: true,
-      );
+    if (sentDirect) return;
+
+    if (isDesktopPlatform) {
+      final printers = await Printing.listPrinters();
+      if (!PrintSettings.hasReceiptPrinter(printers, type: printerType)) {
+        await writeReceiptPdfFile(pdfBytes, fileName);
+        AppMessenger.show(
+          'Printer not connected',
+          'Bill saved. Connect your Epson USB printer, then use Print again or open:\nDocuments/Flavor Flow Receipts/$fileName',
+          duration: const Duration(seconds: 8),
+        );
+        return;
+      }
     }
+
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdfBytes,
+      name: fileName,
+      format: pageFormat,
+      usePrinterSettings: true,
+    );
   }
 
   /// File name: `{Table Name} - {Bill ID}.pdf`
@@ -371,30 +388,23 @@ class FoodBillPdfService {
         .trim();
   }
 
-  /// Sends directly to a connected TVS printer when detected (USB / network).
-  static Future<bool> _tryDirectTvsPrint({
+  /// Sends directly to a connected POS thermal printer (USB / network).
+  static Future<bool> _tryDirectPosPrint({
     required Uint8List pdfBytes,
     required PdfPageFormat pageFormat,
     required PosPrinterType printerType,
     required String fileName,
   }) async {
-    if (printerType != PosPrinterType.tvs80) return false;
-    if (isDesktopPlatform) return false;
-
     try {
       final printers = await Printing.listPrinters();
-      Printer? tvsPrinter;
-      for (final printer in printers) {
-        if (PrintSettings.isTvsPrinterName(printer.name)) {
-          tvsPrinter = printer;
-          break;
-        }
-      }
-
-      if (tvsPrinter == null) return false;
+      final target = PrintSettings.pickReceiptPrinter(
+        printers,
+        type: printerType,
+      );
+      if (target == null) return false;
 
       return Printing.directPrintPdf(
-        printer: tvsPrinter,
+        printer: target,
         onLayout: (_) async => pdfBytes,
         name: fileName,
         format: pageFormat,

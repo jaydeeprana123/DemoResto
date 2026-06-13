@@ -1,5 +1,6 @@
 import 'package:demo/features/menu_setup/menu_setup.dart';
 import 'package:demo/features/settings/controllers/settings_controller.dart';
+import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/features/shell/services/app_tab_settings.dart';
 import 'package:demo/features/settings/views/AdminDashboardPage.dart';
 import 'package:demo/features/settings/views/ExpensesPage.dart';
@@ -315,6 +316,133 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                   ),
+                Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: _orange.withOpacity(0.12),
+                            child: const Icon(Icons.print_rounded, color: _orange),
+                          ),
+                          title: const Text(
+                            'Receipt printer',
+                            style: TextStyle(
+                              fontFamily: fontMulishSemiBold,
+                              fontSize: 15,
+                              color: _navy,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Paper width for billing receipts (USB thermal)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ),
+                        ...PosPrinterType.values.map((type) {
+                          return RadioListTile<PosPrinterType>(
+                            value: type,
+                            groupValue: _settings.printerType.value,
+                            activeColor: _orange,
+                            title: Text(
+                              type.label,
+                              style: const TextStyle(
+                                fontFamily: fontMulishSemiBold,
+                                fontSize: 14,
+                                color: _navy,
+                              ),
+                            ),
+                            subtitle: Text(
+                              type.subtitle,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            onChanged: (value) async {
+                              if (value == null) return;
+                              await _settings.setPrinterType(value);
+                            },
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+                Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SwitchListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    secondary: CircleAvatar(
+                      backgroundColor: _orange.withOpacity(0.12),
+                      child: const Icon(Icons.image_outlined, color: _orange),
+                    ),
+                    title: const Text(
+                      'Logos on bill PDF',
+                      style: TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 15,
+                        color: _navy,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Show restaurant and Flavor Flow logos on printed receipts',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    value: _settings.billPdfIncludeLogos.value,
+                    activeColor: _orange,
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      await _settings.setBillPdfIncludeLogos(value);
+                    },
+                  ),
+                ),
+                Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SwitchListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    secondary: CircleAvatar(
+                      backgroundColor: _orange.withOpacity(0.12),
+                      child: const Icon(Icons.print_outlined, color: _orange),
+                    ),
+                    title: const Text(
+                      'Auto-print after billing',
+                      style: TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 15,
+                        color: _navy,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Print receipt automatically when billing completes (without choosing Print in dialog)',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    value: _settings.printPdfEnabled.value,
+                    activeColor: _orange,
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      await _settings.setPrintPdfEnabled(value);
+                    },
+                  ),
+                ),
                 const SizedBox(height: 20),
                 const Text(
                   'Navigation',
