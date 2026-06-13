@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/core/utils/tax_calculator.dart';
@@ -360,11 +358,9 @@ class _TableBillingSheetState extends State<TableBillingSheet> {
 
     final receipt = receiptData;
     if (receipt != null) {
-      unawaited(
-        FoodBillPdfService.deliverReceiptByAction(
-          receipt,
-          widget.receiptAction,
-        ),
+      await FoodBillPdfService.deliverReceiptByAction(
+        receipt,
+        widget.receiptAction,
       );
     }
   }

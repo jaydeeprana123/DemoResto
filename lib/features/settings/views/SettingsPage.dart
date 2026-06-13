@@ -185,7 +185,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   _SettingsTile(
                     icon: Icons.delivery_dining_rounded,
                     title: 'Zomato / ImageKit',
-                    subtitle: 'ImageKit keys for Zomato screenshot orders',
+                    subtitle: 'ImageKit keys for Zomato orders and WhatsApp bills',
                     onTap: () => Get.to(() => const ImageKitSettingsPage()),
                   ),
                 _SettingsTile(

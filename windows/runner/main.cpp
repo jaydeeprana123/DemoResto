@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include "flutter_window.h"
+#include "reveal_pdf_helper.h"
 #include "utils.h"
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
@@ -22,6 +23,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
 
+  if (IsFlavorFlowDeepLink(command_line_arguments)) {
+    TryHandleRevealPdfDeepLink(command_line_arguments);
+    ::CoUninitialize();
+    return EXIT_SUCCESS;
+  }
+
+  EnsureFlavorFlowProtocolRegistered();
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
   FlutterWindow window(project);
