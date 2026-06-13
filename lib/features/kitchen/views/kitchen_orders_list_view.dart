@@ -65,6 +65,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       _tablesListener;
   final ValueNotifier<int> _minuteTick = ValueNotifier(0);
   bool _kitchenStreamReady = false;
+  bool _isRefreshingKitchen = false;
 
   /// True when the kitchen list was last shown empty (no orders to display).
   bool _wasKitchenEmpty = false;
@@ -611,6 +612,29 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     )..start();
   }
 
+  Future<void> _refreshKitchenOrders() async {
+    if (_isRefreshingKitchen || !mounted) return;
+
+    setState(() => _isRefreshingKitchen = true);
+    try {
+      final snapshot =
+          await Get.find<TablesRepository>().fetchAllTablesFresh();
+      if (!mounted) return;
+      _handleTablesSnapshot(snapshot);
+      _tablesListener?.restart();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not refresh kitchen orders: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshingKitchen = false);
+      }
+    }
+  }
+
   bool get _hasActiveDisplayFilter =>
       _hasActiveCategoryFilter || _orderTypeFilterIndex != 0;
 
@@ -1098,6 +1122,26 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   double get _kitchenMainAxisSpacing => _isMobileGridLayout ? 6 : 12;
 
+  Widget _buildKitchenScrollContent() {
+    final isEmpty = _showTableAllOrders
+        ? _displayTableCards.isEmpty
+        : _displayFilteredGroups.isEmpty;
+
+    if (isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.45,
+            child: _buildKitchenEmptyState(),
+          ),
+        ],
+      );
+    }
+
+    return _buildKitchenOrdersGrid();
+  }
+
   Widget _buildKitchenOrdersGrid() {
     if (_isMobileKitchenScreen && !_mobileLayoutIsGrid) {
       return _buildMobileOrdersListView();
@@ -1113,6 +1157,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       final firstUnpaidIndex = _displayTableCards.indexWhere((c) => !c.isPaid);
       return MasonryGridView.count(
         key: layoutKey,
+        physics: const AlwaysScrollableScrollPhysics(),
         crossAxisCount: crossCols,
         mainAxisSpacing: _kitchenMainAxisSpacing,
         crossAxisSpacing: _kitchenCrossAxisSpacing,
@@ -1131,6 +1176,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     );
     return MasonryGridView.count(
       key: layoutKey,
+      physics: const AlwaysScrollableScrollPhysics(),
       crossAxisCount: crossCols,
       mainAxisSpacing: _kitchenMainAxisSpacing,
       crossAxisSpacing: _kitchenCrossAxisSpacing,
@@ -1149,6 +1195,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       final firstUnpaidIndex = _displayTableCards.indexWhere((c) => !c.isPaid);
       return ListView.separated(
         key: const ValueKey('kitchen_mobile_list_table'),
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
         itemCount: _displayTableCards.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -1165,6 +1212,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     );
     return ListView.separated(
       key: const ValueKey('kitchen_mobile_list_group'),
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(12),
       itemCount: _displayFilteredGroups.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -1304,7 +1352,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               ),
             ),
             content: const Text(
-              'No menu categories in cache. Pull to refresh on the Dashboard to load the menu.',
+              'No menu categories in cache. Open Menu and tap Refresh to load the menu.',
             ),
             actions: [
               TextButton(
@@ -1791,6 +1839,17 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             : null,
         actions: [
           const FirestoreSyncStatusChip(channel: FirestoreSyncChannel.kitchen),
+          IconButton(
+            icon: _isRefreshingKitchen
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh_rounded),
+            tooltip: 'Refresh orders',
+            onPressed: _isRefreshingKitchen ? null : _refreshKitchenOrders,
+          ),
           if (_isMobileKitchenScreen) _buildMobileLayoutToggle(),
           // Filter button with badge showing count
           Stack(
@@ -1834,16 +1893,21 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                if (_isRefreshingKitchen)
+                  const LinearProgressIndicator(
+                    minHeight: 3,
+                    color: Color(0xFFf57c35),
+                    backgroundColor: Color(0x26f57c35),
+                  ),
                 _buildOrderTypeFilter(),
                 if (_hasActiveDisplayFilter && _ordersHiddenByDisplayFilter())
                   _buildFilterHintBanner(),
                 Expanded(
-                  child:
-                      (_showTableAllOrders
-                          ? _displayTableCards.isEmpty
-                          : _displayFilteredGroups.isEmpty)
-                      ? _buildKitchenEmptyState()
-                      : _buildKitchenOrdersGrid(),
+                  child: RefreshIndicator(
+                    color: const Color(0xFFf57c35),
+                    onRefresh: _refreshKitchenOrders,
+                    child: _buildKitchenScrollContent(),
+                  ),
                 ),
               ],
             ),
