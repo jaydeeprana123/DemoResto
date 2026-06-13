@@ -2,12 +2,12 @@ import 'package:demo/bindings/app_binding.dart';
 import 'package:demo/core/firebase/firebase_options.dart';
 import 'package:demo/core/firestore/firestore_desktop_config.dart';
 import 'package:demo/features/authentication/authentication.dart';
+import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/kitchen/services/kitchen_settings.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/features/shell/services/app_tab_settings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';import 'package:firebase_core/firebase_core.dart';
 import 'package:get/get.dart';
 
 void main() async {
@@ -17,6 +17,10 @@ void main() async {
   );
   await configureFirestoreForPlatform();
   await KitchenSettings.load();
+  await KitchenBackgroundAlertService.initialize();
+  await KitchenBackgroundAlertService.syncMonitoringEnabled(
+    KitchenSettings.backgroundOrderRingtoneEnabled.value,
+  );
   await AppTabSettings.load();
   await PrintSettings.load();
 

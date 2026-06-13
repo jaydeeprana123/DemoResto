@@ -7,13 +7,17 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:share_plus/share_plus.dart';
 
 import 'package:demo/core/utils/platform_utils.dart';
+import 'package:demo/core/utils/app_messenger.dart';
 import 'package:demo/features/ordering/services/food_bill_pdf_io.dart'
     if (dart.library.html) 'package:demo/features/ordering/services/food_bill_pdf_io_web.dart';
+import 'package:demo/features/ordering/widgets/billing_progress_dialog.dart';
 import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
+import 'package:demo/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
+import 'package:demo/features/zomato/services/imagekit_settings.dart';
+import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
 import 'package:demo/core/utils/tax_calculator.dart';
 import 'package:get/get.dart';
 
@@ -174,11 +178,34 @@ class FoodBillPdfService {
         includeLogos: includeLogos,
       );
     } catch (e) {
-      Get.snackbar('Receipt', 'Could not print receipt: $e');
+      AppMessenger.show('Receipt', 'Could not print receipt: $e');
     }
   }
 
   static Future<void> _shareReceiptOnWhatsApp(FoodBillPdfData data) async {
+    final context = Get.key.currentContext ?? Get.context;
+    if (context == null || !context.mounted) {
+      AppMessenger.show('Receipt', 'Could not open WhatsApp share dialog.');
+      return;
+    }
+
+    if (!await ImageKitSettings.isConfigured()) {
+      AppMessenger.show(
+        'WhatsApp bill',
+        'ImageKit is not configured. Open Settings → Zomato / ImageKit and save your keys.',
+      );
+      return;
+    }
+
+    final phone = await WhatsAppSharePhoneDialog.show(context);
+    if (phone == null || phone.isEmpty) return;
+
+    BillingProgressDialog.show(
+      context,
+      message: 'Sending bill on WhatsApp...',
+      subtitle: 'Uploading PDF to ImageKit',
+    );
+
     try {
       final printerType = await PrintSettings.getPrinterType();
       final includeLogos = await PrintSettings.getBillPdfIncludeLogos();
@@ -198,19 +225,50 @@ class FoodBillPdfService {
         includeLogos: includeLogos,
       );
       final fileName = buildReceiptPdfFileName(data);
-      await Share.shareXFiles(
-        [
-          XFile.fromData(
-            pdfBytes,
-            name: fileName,
-            mimeType: 'application/pdf',
-          ),
-        ],
-        text: 'Bill for ${data.tableName}',
+      final upload = await ImageKitUploadService.uploadBillPdf(
+        bytes: pdfBytes,
+        fileName: fileName,
+      );
+
+      final message = _buildWhatsAppBillMessage(data, upload.url);
+      final opened = await openWhatsAppChat(phone, text: message);
+      if (!opened) {
+        AppMessenger.show(
+          'Receipt',
+          'Bill uploaded but WhatsApp could not open. Install WhatsApp and try again.',
+        );
+        return;
+      }
+
+      AppMessenger.show(
+        'WhatsApp bill',
+        'Chat opened for +$phone with bill PDF link. Tap Send in WhatsApp.',
+        duration: const Duration(seconds: 8),
       );
     } catch (e) {
-      Get.snackbar('Receipt', 'Could not share bill on WhatsApp: $e');
+      AppMessenger.show('Receipt', 'Could not share bill on WhatsApp: $e');
+    } finally {
+      if (context.mounted) {
+        BillingProgressDialog.hide(context);
+      }
     }
+  }
+
+  static String _buildWhatsAppBillMessage(FoodBillPdfData data, String pdfUrl) {
+    final table = data.tableName.trim();
+    final billId = data.invoiceNumber?.trim();
+    final buffer = StringBuffer('Thank you for visiting Al-Haadi!\n\nBill');
+    if (table.isNotEmpty) {
+      buffer.write(' for $table');
+    }
+    if (billId != null && billId.isNotEmpty) {
+      buffer.write(' ($billId)');
+    }
+    buffer.writeln();
+    buffer.write('\nDownload Bill PDF:\n$pdfUrl');
+    buffer.writeln('\n\nWe appreciate your visit and look forward to serving you again soon.');
+    buffer.write('\nRegards\nTeam Al-Haadi');
+    return buffer.toString();
   }
 
   /// Opens/saves receipt after billing without needing a [BuildContext].
@@ -237,7 +295,7 @@ class FoodBillPdfService {
         includeLogos: includeLogos,
       );
     } catch (e) {
-      Get.snackbar('Receipt', 'Could not open receipt: $e');
+      AppMessenger.show('Receipt', 'Could not open receipt: $e');
     }
   }
 
@@ -260,7 +318,7 @@ class FoodBillPdfService {
       if (isDesktopPlatform) {
         await openReceiptPdfFile(path);
       }
-      Get.snackbar(
+      AppMessenger.show(
         'Receipt saved',
         isDesktopPlatform
             ? 'Documents/Flavor Flow Receipts/$fileName'

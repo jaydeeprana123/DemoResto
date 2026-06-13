@@ -19,6 +19,29 @@ class ImageKitUploadService {
     required String fileName,
     String folder = '/zomato-orders',
   }) async {
+    return uploadFile(
+      bytes: bytes,
+      fileName: fileName,
+      folder: folder,
+    );
+  }
+
+  static Future<ImageKitUploadResult> uploadBillPdf({
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    return uploadFile(
+      bytes: bytes,
+      fileName: fileName,
+      folder: '/bill-receipts',
+    );
+  }
+
+  static Future<ImageKitUploadResult> uploadFile({
+    required Uint8List bytes,
+    required String fileName,
+    String folder = '/uploads',
+  }) async {
     var config = await ImageKitSettings.load();
     if (!config.isValid) {
       throw _notConfiguredError(config);
@@ -117,7 +140,7 @@ class ImageKitUploadService {
         'file',
         bytes,
         filename: safeName,
-        contentType: MediaType('image', _imageSubtype(safeName)),
+        contentType: _mediaTypeForFileName(safeName),
       ),
     );
 
@@ -145,7 +168,7 @@ class ImageKitUploadService {
         'file',
         bytes,
         filename: safeName,
-        contentType: MediaType('image', _imageSubtype(safeName)),
+        contentType: _mediaTypeForFileName(safeName),
       ),
     );
 
@@ -287,10 +310,18 @@ class ImageKitUploadService {
   static String _safeFileName(String fileName) {
     final trimmed = fileName.trim();
     if (trimmed.isEmpty) {
-      return 'zomato_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      return 'upload_${DateTime.now().millisecondsSinceEpoch}.jpg';
     }
     if (trimmed.contains('.')) return trimmed;
     return '$trimmed.jpg';
+  }
+
+  static MediaType _mediaTypeForFileName(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.pdf')) {
+      return MediaType('application', 'pdf');
+    }
+    return MediaType('image', _imageSubtype(fileName));
   }
 
   static String _parseUploadError(int statusCode, String body) {

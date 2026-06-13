@@ -131,7 +131,7 @@ class _LoginPageState extends State<LoginPage>
   Widget _topBanner() {
     return Container(
       width: double.infinity,
-      height: 200,
+      height: 150,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -156,17 +156,17 @@ class _LoginPageState extends State<LoginPage>
         mainAxisSize: MainAxisSize.min,
         children: [
           _logoWidget(size: compact ? 72 : 100),
-          SizedBox(height: compact ? 14 : 20),
+          SizedBox(height: compact ? 10 : 20),
           Text(
             'Flavor Flow',
             style: TextStyle(
-              fontSize: compact ? 26 : 32,
+              fontSize: compact ? 22 : 32,
               fontFamily: fontMulishBold,
               color: Colors.white,
             ),
           ),
           const SizedBox(height: 4),
-          Text(
+         if(!compact) Text(
             'Restaurant Dashboard',
             style: TextStyle(
               fontSize: compact ? 13 : 14,
