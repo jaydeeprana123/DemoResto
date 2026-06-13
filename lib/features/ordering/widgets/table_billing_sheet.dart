@@ -83,8 +83,8 @@ class TableBillingSheet extends StatefulWidget {
 
     final dialogResult = await showTableBillingModeDialog(
       context,
-      total: orderTotal(items),
       tableName: tableName,
+      fallbackItems: items,
     );
     if (dialogResult == null || !context.mounted) return false;
 
@@ -92,7 +92,7 @@ class TableBillingSheet extends StatefulWidget {
     await show(
       context,
       tableName: tableName,
-      items: items,
+      items: dialogResult.items,
       mode: dialogResult.mode,
       receiptAction: dialogResult.receiptAction,
       onSubmit: (submission) async {
