@@ -115,6 +115,17 @@ class _MenuPageState extends State<MenuPage>
       defaultTargetPlatform == TargetPlatform.macOS ||
       defaultTargetPlatform == TargetPlatform.linux;
 
+  bool get _supportsMenuPullToRefresh => !_showMenuRefreshButton;
+
+  Widget _wrapMenuPullRefresh(Widget child) {
+    if (!_supportsMenuPullToRefresh) return child;
+    return RefreshIndicator(
+      color: _kOrange,
+      onRefresh: _refreshMenuFromNetwork,
+      child: child,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -540,10 +551,36 @@ class _MenuPageState extends State<MenuPage>
   Widget _buildMenuItemsList(String category) {
     final items = menuData[category] ?? [];
 
-    return ListView.builder(
-      itemCount: items.length,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemBuilder: (context, index) => _buildMenuItem(category, index),
+    if (items.isEmpty) {
+      return _wrapMenuPullRefresh(
+        ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.35,
+              child: Center(
+                child: Text(
+                  'No items in this category.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    fontFamily: fontMulishRegular,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return _wrapMenuPullRefresh(
+      ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: items.length,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemBuilder: (context, index) => _buildMenuItem(category, index),
+      ),
     );
   }
 
@@ -551,14 +588,24 @@ class _MenuPageState extends State<MenuPage>
     final categories = _visibleCategories;
 
     if (categories.isEmpty) {
-      return Center(
-        child: Text(
-          'No categories selected.',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey.shade600,
-            fontFamily: fontMulishRegular,
-          ),
+      return _wrapMenuPullRefresh(
+        ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.35,
+              child: Center(
+                child: Text(
+                  'No categories selected.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    fontFamily: fontMulishRegular,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -2619,26 +2666,39 @@ class _MenuPageState extends State<MenuPage>
     }).toList();
 
     if (filtered.isEmpty) {
-      return const Center(
-        child: Text(
-          'No matching items found.',
-          style: TextStyle(fontSize: 15, color: Colors.grey),
+      return _wrapMenuPullRefresh(
+        ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.35,
+              child: const Center(
+                child: Text(
+                  'No matching items found.',
+                  style: TextStyle(fontSize: 15, color: Colors.grey),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
 
-    return ListView.builder(
-      itemCount: filtered.length,
-      padding: const EdgeInsets.only(top: 8),
-      itemBuilder: (context, index) {
-        final item = filtered[index];
-        final category = item['category'] as String;
-        final itemIndex = menuData[category]!.indexWhere(
-          (e) => e['name'] == item['name'],
-        );
-        if (itemIndex < 0) return const SizedBox.shrink();
-        return _buildMenuItem(category, itemIndex);
-      },
+    return _wrapMenuPullRefresh(
+      ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: filtered.length,
+        padding: const EdgeInsets.only(top: 8),
+        itemBuilder: (context, index) {
+          final item = filtered[index];
+          final category = item['category'] as String;
+          final itemIndex = menuData[category]!.indexWhere(
+            (e) => e['name'] == item['name'],
+          );
+          if (itemIndex < 0) return const SizedBox.shrink();
+          return _buildMenuItem(category, itemIndex);
+        },
+      ),
     );
   }
 }
