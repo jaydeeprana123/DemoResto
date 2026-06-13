@@ -86,6 +86,7 @@ class TableBillingSheet extends StatefulWidget {
     required String tableName,
     required List<Map<String, dynamic>> items,
     required Future<void> Function(TableBillingSubmission submission) onSubmit,
+    bool hidePaidOption = false,
   }) async {
     if (items.isEmpty) return false;
 
@@ -93,6 +94,7 @@ class TableBillingSheet extends StatefulWidget {
       context,
       tableName: tableName,
       fallbackItems: items,
+      hidePaidOption: hidePaidOption,
     );
     if (dialogResult == null || !context.mounted) return false;
 

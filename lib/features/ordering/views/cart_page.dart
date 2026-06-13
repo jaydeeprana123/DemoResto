@@ -2127,6 +2127,7 @@ class _CartPageState extends State<CartPage> {
       context,
       tableName: tableName,
       items: billItems,
+      hidePaidOption: true,
       onSubmit: (submission) async {
         switch (submission.mode) {
           case TableBillingMode.paid:

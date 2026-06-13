@@ -41,6 +41,7 @@ Future<TableBillingDialogResult?> showTableBillingModeDialog(
   BuildContext context, {
   required String tableName,
   required List<Map<String, dynamic>> fallbackItems,
+  bool hidePaidOption = false,
 }) async {
   if (!context.mounted) return null;
 
@@ -530,15 +531,17 @@ Future<TableBillingDialogResult?> showTableBillingModeDialog(
                           ),
                         ),
                         const SizedBox(height: 10),
-                        _ModeButton(
-                          icon: Icons.check_circle_outline,
-                          label: 'Paid',
-                          subtitle: 'Save bill, clear table (delete take-away)',
-                          color: const Color(0xFF4CAF50),
-                          onTap: () =>
-                              Navigator.pop(ctx, result(TableBillingMode.paid)),
-                        ),
-                        const SizedBox(height: 8),
+                        if (!hidePaidOption) ...[
+                          _ModeButton(
+                            icon: Icons.check_circle_outline,
+                            label: 'Paid',
+                            subtitle: 'Save bill, clear table (delete take-away)',
+                            color: const Color(0xFF4CAF50),
+                            onTap: () =>
+                                Navigator.pop(ctx, result(TableBillingMode.paid)),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
                         _ModeButton(
                           icon: Icons.receipt_long_outlined,
                           label: 'Paid Without Serving',
