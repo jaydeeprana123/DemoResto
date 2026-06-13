@@ -3,6 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_sync_channel.dart';
+import 'package:demo/core/firestore/resilient_firestore_listener.dart';
+import 'package:demo/core/services/firestore_sync_status_service.dart';
+import 'package:demo/core/widgets/firestore_sync_status_chip.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/services/restaurant_session.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -57,7 +61,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   // apart from an update to an already-available table.
   Set<String> _previousDocIds = {};
   Map<String, TableGroup> _previousKeyToGroup = {};
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _tablesSub;
+  ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>?
+      _tablesListener;
   final ValueNotifier<int> _minuteTick = ValueNotifier(0);
   bool _kitchenStreamReady = false;
 
@@ -525,6 +530,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appLifecycleState = state;
+    if (state == AppLifecycleState.resumed) {
+      _tablesListener?.restart();
+    }
     if (KitchenSettings.backgroundOrderRingtoneEnabled.value &&
         (state == AppLifecycleState.paused ||
             state == AppLifecycleState.inactive ||
@@ -581,14 +589,88 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     KitchenSettings.backgroundOrderRingtoneEnabled.addListener(
       _onBackgroundRingtoneSettingChanged,
     );
-    _tablesSub = FirestorePaths.scoped('tables')
-        .orderBy('createdAt', descending: false)
-        .snapshots()
-        .listen(_handleTablesSnapshot);
+    _listenToKitchenTables();
     _timer = Timer.periodic(const Duration(minutes: 1), (_) {
       _minuteTick.value++;
       _triggerDelayedBlinkIfNeeded();
     });
+  }
+
+  void _listenToKitchenTables() {
+    final syncStatus = Get.find<FirestoreSyncStatusService>();
+    _tablesListener?.stop();
+    _tablesListener = ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>(
+      debugLabel: 'kitchen',
+      streamFactory: () => FirestorePaths
+          .scoped('tables')
+          .orderBy('createdAt', descending: false)
+          .snapshots(),
+      onStatus: (status) =>
+          syncStatus.setStatus(FirestoreSyncChannel.kitchen, status),
+      onData: _handleTablesSnapshot,
+    )..start();
+  }
+
+  bool get _hasActiveDisplayFilter =>
+      _hasActiveCategoryFilter || _orderTypeFilterIndex != 0;
+
+  bool _ordersHiddenByDisplayFilter() {
+    if (_lastUpdatedGroups.isEmpty) return false;
+    if (_showTableAllOrders) {
+      return _displayTableCards.isEmpty;
+    }
+    return _displayFilteredGroups.isEmpty;
+  }
+
+  Future<void> _resetKitchenFiltersToShowAll() async {
+    setState(() {
+      showAllCategories = true;
+      selectedCategories.clear();
+      selectedMenuItems.clear();
+      _orderTypeFilterIndex = 0;
+      _rebuildDisplayFromCache();
+    });
+    await KitchenSettings.saveCategoryFilter(
+      showAll: true,
+      categories: const {},
+      menuItems: const {},
+    );
+    await KitchenSettings.saveOrderTypeFilterIndex(0);
+  }
+
+  Widget _buildFilterHintBanner() {
+    return Material(
+      color: const Color(0xFFFFF8E1),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            const Icon(Icons.info_outline, size: 18, color: Color(0xFFF57C00)),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Some orders may be hidden by kitchen filters.',
+                style: TextStyle(
+                  fontFamily: fontMulishRegular,
+                  fontSize: 12,
+                  color: Color(0xFF6D4C00),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: _resetKitchenFiltersToShowAll,
+              child: const Text(
+                'Show all',
+                style: TextStyle(
+                  fontFamily: fontMulishSemiBold,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _rebuildDisplayFromCache() {
@@ -962,7 +1044,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            _hasActiveCategoryFilter
+            _hasActiveDisplayFilter
                 ? Icons.filter_list_off
                 : Icons.inbox_outlined,
             size: 64,
@@ -977,7 +1059,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               color: Colors.grey,
             ),
           ),
-          if (_hasActiveCategoryFilter) ...[
+          if (_hasActiveDisplayFilter) ...[
             const SizedBox(height: 8),
             Text(
               selectedCategories.isNotEmpty
@@ -990,6 +1072,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               ),
               textAlign: TextAlign.center,
             ),
+            // const SizedBox(height: 12),
+            // OutlinedButton.icon(
+            //   onPressed: _resetKitchenFiltersToShowAll,
+            //   icon: const Icon(Icons.filter_list_off, size: 18),
+            //   label: const Text(
+            //     'Show all orders',
+            //     style: TextStyle(fontFamily: fontMulishSemiBold),
+            //   ),
+            // ),
           ],
         ],
       ),
@@ -1699,6 +1790,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               )
             : null,
         actions: [
+          const FirestoreSyncStatusChip(channel: FirestoreSyncChannel.kitchen),
           if (_isMobileKitchenScreen) _buildMobileLayoutToggle(),
           // Filter button with badge showing count
           Stack(
@@ -1743,6 +1835,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           : Column(
               children: [
                 _buildOrderTypeFilter(),
+                if (_hasActiveDisplayFilter && _ordersHiddenByDisplayFilter())
+                  _buildFilterHintBanner(),
                 Expanded(
                   child:
                       (_showTableAllOrders
@@ -2392,7 +2486,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     KitchenSettings.backgroundOrderRingtoneEnabled.removeListener(
       _onBackgroundRingtoneSettingChanged,
     );
-    _tablesSub?.cancel();
+    _tablesListener?.stop();
     _timer?.cancel();
     _delayedBlinkTimer?.cancel();
     _minuteTick.dispose();

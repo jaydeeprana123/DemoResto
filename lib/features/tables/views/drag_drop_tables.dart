@@ -1,4 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/core/firestore/firestore_sync_channel.dart';
+import 'package:demo/core/firestore/resilient_firestore_listener.dart';
+import 'package:demo/core/services/firestore_sync_status_service.dart';
+import 'package:demo/core/widgets/firestore_sync_status_chip.dart';
 import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/core/utils/zomato_order_utils.dart';
@@ -49,7 +53,7 @@ class DragListBetweenTables extends StatefulWidget {
 }
 
 class _DragListBetweenTablesState extends State<DragListBetweenTables>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   @override
   bool get wantKeepAlive => true;
   Map<String, List<List<Map<String, dynamic>>>> tables = {};
@@ -70,13 +74,15 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   final Map<String, String> tableSources = {};
   final Map<String, String> tableScreenshotUrls = {};
   final Map<String, String> tableZomatoStatuses = {};
-  StreamSubscription<QuerySnapshot>? tablesSubscription;
+  ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>?
+      _tablesListener;
   Timer? _timeRefreshTimer;
   bool _zomatoPasteInProgress = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     _loadTableFilter();
 
@@ -118,9 +124,17 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timeRefreshTimer?.cancel();
-    tablesSubscription?.cancel();
+    _tablesListener?.stop();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _tablesListener?.restart();
+    }
   }
 
   DateTime? _parseAddedAt(dynamic value) {
@@ -168,11 +182,18 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
   // Listen to Firestore tables collection changes - UPDATED for flattened structure
   void _listenToTables() {
-    tablesSubscription = FirestorePaths
-        .scoped('tables')
-        .orderBy('createdAt', descending: false)
-        .snapshots()
-        .listen(_onTablesSnapshot);
+    final syncStatus = Get.find<FirestoreSyncStatusService>();
+    _tablesListener?.stop();
+    _tablesListener = ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>(
+      debugLabel: 'dashboard',
+      streamFactory: () => FirestorePaths
+          .scoped('tables')
+          .orderBy('createdAt', descending: false)
+          .snapshots(),
+      onStatus: (status) =>
+          syncStatus.setStatus(FirestoreSyncChannel.dashboard, status),
+      onData: _onTablesSnapshot,
+    )..start();
   }
 
   void _onTablesSnapshot(QuerySnapshot<Map<String, dynamic>> querySnapshot) {
@@ -1167,6 +1188,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         ],
       ),
       actions: [
+        const FirestoreSyncStatusChip(channel: FirestoreSyncChannel.dashboard),
         if (_showMenuRefreshButton)
           IconButton(
             icon: isLoading
