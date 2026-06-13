@@ -65,7 +65,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   final TableItemSelectionController _itemSelection =
       TableItemSelectionController();
   final List<Map<String, dynamic>> menu = [];
-  bool isLoading = false;
+  bool _isRefreshingDashboard = false;
   bool _tablesLoading = false;
   final user = FirebaseAuth.instance.currentUser;
   int tableNo = 0;
@@ -475,38 +475,47 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       setState(() {
         menu.clear();
         menu.addAll(loadedMenu);
-        isLoading = false;
       });
     } catch (e) {
       print("Error loading cached menu: $e");
-      if (!mounted) return;
-      setState(() {
-        isLoading = false;
-      });
     }
   }
 
-  Future<void> _refreshMenu() async {
+  Future<void> _reloadMenuFromCache() async {
     if (!mounted) return;
-    setState(() {
-      isLoading = true;
-    });
 
     try {
-      final loadedMenu =
-          await Get.find<MenuCacheService>().refreshFromNetwork();
-      if (!mounted) return;
+      final loadedMenu = await Get.find<MenuCacheService>().loadFromCacheOnly();
+      if (!mounted || loadedMenu.isEmpty) return;
       setState(() {
         menu.clear();
         menu.addAll(loadedMenu);
-        isLoading = false;
       });
     } catch (e) {
-      print("Error refreshing menu: $e");
+      print('Error reloading menu cache: $e');
+    }
+  }
+
+  Future<void> _refreshDashboard() async {
+    if (_isRefreshingDashboard || !mounted) return;
+
+    setState(() => _isRefreshingDashboard = true);
+    try {
+      final snapshot =
+          await Get.find<TablesRepository>().fetchAllTablesFresh();
       if (!mounted) return;
-      setState(() {
-        isLoading = false;
-      });
+      _onTablesSnapshot(snapshot);
+      _tablesListener?.restart();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not refresh tables: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshingDashboard = false);
+      }
     }
   }
 
@@ -1103,11 +1112,100 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   static const _green = Color(0xFF4CAF50);
   static const _bg = Color(0xFFF5F6FA);
 
-  bool get _showMenuRefreshButton =>
+  bool get _showDashboardRefreshButton =>
       kIsWeb ||
       defaultTargetPlatform == TargetPlatform.windows ||
       defaultTargetPlatform == TargetPlatform.macOS ||
       defaultTargetPlatform == TargetPlatform.linux;
+
+  Widget _buildTablesScrollArea(int crossCols, double screenW) {
+    final minScrollHeight = MediaQuery.sizeOf(context).height * 0.55;
+
+    if (_tablesLoading && tables.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: minScrollHeight,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(
+                    width: 220,
+                    child: LinearProgressIndicator(
+                      color: _orange,
+                      backgroundColor: Color(0xFFE5E7EB),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Loading tables...',
+                    style: TextStyle(
+                      fontFamily: fontMulishSemiBold,
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (tables.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(height: minScrollHeight, child: _buildEmptyState()),
+        ],
+      );
+    }
+
+    if (_filteredTableKeys().isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: minScrollHeight,
+            child: _buildFilterEmptyState(),
+          ),
+        ],
+      );
+    }
+
+    return MasonryGridView.count(
+      controller: _gridScrollController,
+      restorationId: 'dashboard_tables_grid',
+      cacheExtent: 3000,
+      physics: const AlwaysScrollableScrollPhysics(),
+      crossAxisCount: crossCols,
+      mainAxisSpacing: 22,
+      crossAxisSpacing: 6,
+      padding: EdgeInsets.fromLTRB(
+        screenW > 900 ? 16 : 4,
+        8,
+        screenW > 900 ? 16 : 4,
+        100,
+      ),
+      itemCount: _filteredTableKeys().length,
+      itemBuilder: (context, index) {
+        final tableName = _filteredTableKeys().elementAt(index);
+        final groups = tables[tableName]!;
+        final queuePos = _takeAwayNumber(tableName);
+        return KeyedSubtree(
+          key: ValueKey(tableName),
+          child: _buildTableCard(
+            tableName,
+            groups,
+            takeAwayNum: queuePos,
+          ),
+        );
+      },
+    );
+  }
 
   Future<void> _handleZomatoPaste() async {
     if (!supportsZomatoClipboardPaste || _zomatoPasteInProgress || !mounted) {
@@ -1162,7 +1260,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         children: [
           Column(
             children: [
-              if (_tablesLoading)
+              if (_tablesLoading || _isRefreshingDashboard)
                 LinearProgressIndicator(
                   minHeight: 3,
                   color: _orange,
@@ -1170,78 +1268,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 ),
               _buildTabBar(),
               Expanded(
-                child: _tablesLoading
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const SizedBox(
-                              width: 220,
-                              child: LinearProgressIndicator(
-                                color: _orange,
-                                backgroundColor: Color(0xFFE5E7EB),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Loading tables...',
-                              style: TextStyle(
-                                fontFamily: fontMulishSemiBold,
-                                fontSize: 14,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : tables.isEmpty
-                    ? _buildEmptyState()
-                    : _filteredTableKeys().isEmpty
-                    ? _buildFilterEmptyState()
-                    : RefreshIndicator(
-                        color: _orange,
-                        onRefresh: _refreshMenu,
-                        child: MasonryGridView.count(
-                          controller: _gridScrollController,
-                          restorationId: 'dashboard_tables_grid',
-                          cacheExtent: 3000,
-                          crossAxisCount: crossCols,
-                          mainAxisSpacing: 22,
-                          crossAxisSpacing: 6,
-                          padding: EdgeInsets.fromLTRB(
-                            screenW > 900 ? 16 : 4,
-                            8,
-                            screenW > 900 ? 16 : 4,
-                            100,
-                          ),
-                          itemCount: _filteredTableKeys().length,
-                          itemBuilder: (context, index) {
-                            final tableName = _filteredTableKeys().elementAt(
-                              index,
-                            );
-                            final groups = tables[tableName]!;
-                            final queuePos = _takeAwayNumber(tableName);
-                            return KeyedSubtree(
-                              key: ValueKey(tableName),
-                              child: _buildTableCard(
-                                tableName,
-                                groups,
-                                takeAwayNum: queuePos,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+                child: RefreshIndicator(
+                  color: _orange,
+                  onRefresh: _refreshDashboard,
+                  child: _buildTablesScrollArea(crossCols, screenW),
+                ),
               ),
             ],
           ),
-          if (isLoading)
-            Container(
-              color: Colors.black12,
-              child: const Center(
-                child: CircularProgressIndicator(color: _orange),
-              ),
-            ),
         ],
       ),
       floatingActionButton: _buildFab(),
@@ -1303,9 +1337,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       ),
       actions: [
         const FirestoreSyncStatusChip(channel: FirestoreSyncChannel.dashboard),
-        if (_showMenuRefreshButton)
+        if (_showDashboardRefreshButton)
           IconButton(
-            icon: isLoading
+            icon: _isRefreshingDashboard
                 ? SizedBox(
                     width: 20,
                     height: 20,
@@ -1315,8 +1349,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                     ),
                   )
                 : const Icon(Icons.refresh_rounded, color: Colors.white70),
-            tooltip: 'Refresh menu',
-            onPressed: isLoading ? null : _refreshMenu,
+            tooltip: 'Refresh tables',
+            onPressed:
+                _isRefreshingDashboard ? null : _refreshDashboard,
           ),
         IconButton(
           icon: Icon(
@@ -1776,6 +1811,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               initialItems: [],
               showBilling: true,
               isFromFinalBilling: false,
+              onMenuCacheUpdated: _reloadMenuFromCache,
               onDeleteTable: (tName) => _deleteTableFromMenu(tName),
               onConfirm:
                   (
@@ -1807,6 +1843,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             ),
           ),
         );
+        await _reloadMenuFromCache();
       },
     );
   }
@@ -2044,6 +2081,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 pastItems: <Map<String, dynamic>>[],
                 showBilling: !hasItems,
                 isFromFinalBilling: false,
+                onMenuCacheUpdated: _reloadMenuFromCache,
                 onDeleteTable: (tName) =>
                     _deleteTableFromMenu(tName, docId: docId),
                 onConfirm:
@@ -2070,6 +2108,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               ),
             ),
           );
+          await _reloadMenuFromCache();
         }
       },
       child: Container(
@@ -2137,6 +2176,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                       pastItems: pastItems,
                       showBilling: !hasItems,
                       isFromFinalBilling: false,
+                      onMenuCacheUpdated: _reloadMenuFromCache,
                       onDeleteTable: (tName) =>
                           _deleteTableFromMenu(tName, docId: docId),
                       onConfirm:
@@ -2163,6 +2203,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                     ),
                   ),
                 );
+                await _reloadMenuFromCache();
               },
               child: Container(
                 padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
@@ -2268,6 +2309,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                               pastItems: pastForEdit,
                               showBilling: groups.length == 1,
                               isFromFinalBilling: false,
+                              onMenuCacheUpdated: _reloadMenuFromCache,
                               onDeleteTable: (tName) =>
                                   _deleteTableFromMenu(tName, docId: docId),
                               onConfirm:
@@ -2295,6 +2337,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                             ),
                           ),
                         );
+                        await _reloadMenuFromCache();
                       }),
                     // Billing icon — admin only, when items exist and not paid
                     if (hasItems && !paid && _isAdmin)

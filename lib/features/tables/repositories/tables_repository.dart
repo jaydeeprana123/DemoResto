@@ -22,6 +22,21 @@ class TablesRepository {
         .snapshots();
   }
 
+  /// Loads all table documents from Firestore (server first, cache fallback).
+  Future<QuerySnapshot<Map<String, dynamic>>> fetchAllTablesFresh() async {
+    try {
+      return await FirestorePaths
+          .scoped('tables')
+          .orderBy('createdAt', descending: false)
+          .get(const GetOptions(source: Source.server));
+    } catch (_) {
+      return FirestorePaths
+          .scoped('tables')
+          .orderBy('createdAt', descending: false)
+          .get();
+    }
+  }
+
   Future<void> deleteTable(String docId) {
     return FirestorePaths.scopedDoc('tables', docId).delete();
   }
