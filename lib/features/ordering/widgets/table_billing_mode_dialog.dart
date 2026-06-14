@@ -19,6 +19,42 @@ enum BillReceiptAction {
   shareWhatsApp,
 }
 
+class TableBillingSubmission {
+  const TableBillingSubmission({
+    required this.items,
+    required this.mode,
+    required this.documentId,
+    required this.billId,
+    required this.subtotal,
+    required this.tax,
+    required this.cgstPercentage,
+    required this.sgstPercentage,
+    required this.cgstAmount,
+    required this.sgstAmount,
+    required this.discount,
+    required this.total,
+    required this.cashAmount,
+    required this.onlineAmount,
+    this.extra = 0,
+  });
+
+  final List<Map<String, dynamic>> items;
+  final TableBillingMode mode;
+  final String documentId;
+  final String billId;
+  final int subtotal;
+  final int tax;
+  final double cgstPercentage;
+  final double sgstPercentage;
+  final int cgstAmount;
+  final int sgstAmount;
+  final int discount;
+  final int extra;
+  final int total;
+  final int cashAmount;
+  final int onlineAmount;
+}
+
 class TableBillingDialogResult {
   const TableBillingDialogResult({
     required this.mode,

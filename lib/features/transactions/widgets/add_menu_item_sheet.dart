@@ -1,10 +1,10 @@
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
+import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
 import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
 import 'package:demo/features/menu_setup/widgets/setup_page_layout.dart';
 import 'package:demo/features/transactions/repositories/transactions_repository.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 /// Bottom sheet to pick a menu item when editing a transaction.
 class AddMenuItemSheet extends StatefulWidget {
@@ -32,26 +32,35 @@ class _AddMenuItemSheetState extends State<AddMenuItemSheet> {
 
   Future<void> _loadMenu() async {
     try {
-      final menuSnapshot = await FirestorePaths.scoped('menus').get();
+      final cachedMenu =
+          await Get.find<MenuCacheService>().loadFromCacheOnly();
+
       final grouped = <String, List<Map<String, dynamic>>>{};
       final categoryOrder = <String, int>{};
 
-      for (final categoryDoc in sortMenuDocs(menuSnapshot.docs)) {
-        final categoryName = categoryDoc.data()['name']?.toString() ?? 'Menu';
-        categoryOrder[categoryName] =
-            (categoryDoc.data()['sortOrder'] as num?)?.toInt() ?? 9999;
-        final itemsSnapshot = await FirestorePaths
-            .scopedSubCollection('menus', categoryDoc.id, 'items')
-            .get();
+      for (final item in cachedMenu) {
+        final category = item['category']?.toString() ?? '';
+        final name = item['name']?.toString() ?? '';
+        if (category.isEmpty || name.isEmpty) continue;
 
-        for (final itemDoc in sortMenuDocs(itemsSnapshot.docs)) {
-          final data = itemDoc.data();
-          grouped.putIfAbsent(categoryName, () => []).add({
-            'name': data['name']?.toString() ?? '',
-            'price': data['price'],
-            'inStock': MenuStockUtils.isInStock(data),
-          });
-        }
+        categoryOrder.putIfAbsent(
+          category,
+          () => (item['categorySortOrder'] as num?)?.toInt() ?? 9999,
+        );
+        grouped.putIfAbsent(category, () => []).add({
+          'name': name,
+          'price': item['price'],
+          'inStock': MenuStockUtils.isInStockFromItem(item),
+          'itemSortOrder': (item['itemSortOrder'] as num?)?.toInt() ?? 9999,
+        });
+      }
+
+      for (final items in grouped.values) {
+        items.sort(
+          (a, b) => (a['itemSortOrder'] as int).compareTo(
+            b['itemSortOrder'] as int,
+          ),
+        );
       }
 
       final sortedGrouped = <String, List<Map<String, dynamic>>>{};
@@ -155,17 +164,23 @@ class _AddMenuItemSheetState extends State<AddMenuItemSheet> {
 
     if (_menuByCategory.isEmpty) {
       return Center(
-        child: Text(
-          'No menu items found.',
-          style: TextStyle(
-            fontFamily: fontMulishRegular,
-            color: Colors.grey.shade600,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Saved menu not found.\nOpen the Dashboard once to load the menu.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: fontMulishRegular,
+              fontSize: 14,
+              color: Colors.grey.shade600,
+              height: 1.4,
+            ),
           ),
         ),
       );
     }
 
-    final categories = _menuByCategory.keys.toList()..sort();
+    final categories = _menuByCategory.keys.toList();
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
@@ -179,7 +194,8 @@ class _AddMenuItemSheetState extends State<AddMenuItemSheet> {
             data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
             child: ExpansionTile(
               initiallyExpanded: index == 0,
-              tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              tilePadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
               title: Text(
                 category,
                 style: const TextStyle(

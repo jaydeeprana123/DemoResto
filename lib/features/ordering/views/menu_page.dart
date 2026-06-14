@@ -15,6 +15,7 @@ import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
 import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
 import 'package:demo/features/ordering/views/cart_page.dart';
 import 'package:demo/features/ordering/views/final_billing_view.dart';
+import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
 import 'package:demo/features/ordering/utils/menu_item_variants.dart';
 import 'package:demo/MyWidgets/EditableTextField.dart';
 import 'package:demo/Styles/my_colors.dart';
@@ -2136,21 +2137,12 @@ class _MenuPageState extends State<MenuPage>
 
   void _popMenuAfterBilling() {
     if (!mounted) return;
-    final navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
-    }
+    TableBillingSheet.popToDashboard(context);
   }
 
   void _popCartAndMenuAfterBilling() {
     if (!mounted) return;
-    final navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
-    }
-    if (navigator.canPop()) {
-      navigator.pop();
-    }
+    TableBillingSheet.popToDashboard(context);
   }
 
   void _openCartPage() {

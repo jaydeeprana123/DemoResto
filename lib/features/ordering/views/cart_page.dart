@@ -427,24 +427,7 @@ class _CartPageState extends State<CartPage> {
     await Future<void>.delayed(Duration.zero);
     if (!mounted) return;
 
-    if (widget.onBillingFinished != null) {
-      widget.onBillingFinished!();
-      return;
-    }
-
-    if (widget.embedded) {
-      final navigator = Navigator.of(context, rootNavigator: true);
-      if (navigator.canPop()) {
-        navigator.pop();
-      }
-      return;
-    }
-
-    final navigator = Navigator.of(context, rootNavigator: true);
-    for (var i = 0; i < 2; i++) {
-      if (!navigator.canPop()) break;
-      navigator.pop();
-    }
+    TableBillingSheet.popToDashboard(context);
   }
 
   Future<void> _completeBilling({BuildContext? sheetContext}) async {
@@ -2123,7 +2106,7 @@ class _CartPageState extends State<CartPage> {
     final tableName = tableNameController.text.trim();
     final remarks = overallRemarksController.text.trim();
 
-    final completed = await TableBillingSheet.runBillingFlow(
+    final result = await TableBillingSheet.runBillingFlow(
       context,
       tableName: tableName,
       items: billItems,
@@ -2151,7 +2134,12 @@ class _CartPageState extends State<CartPage> {
       },
     );
 
-    if (!mounted || !completed) return;
-    await _returnToDashboardAfterBilling();
+    if (!mounted || result == null) return;
+
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+
+    TableBillingSheet.popToDashboard(context);
+    TableBillingSheet.deliverReceiptInBackground(result);
   }
 }

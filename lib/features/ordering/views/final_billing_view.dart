@@ -978,7 +978,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
         cartItems.map((e) => Map<String, dynamic>.from(e)).toList();
     if (items.isEmpty) return;
 
-    final completed = await TableBillingSheet.runBillingFlow(
+    final result = await TableBillingSheet.runBillingFlow(
       context,
       tableName: widget.tableName,
       items: items,
@@ -1005,7 +1005,11 @@ class _FinalBillingViewState extends State<FinalBillingView> {
       },
     );
 
-    if (!mounted || !completed) return;
+    if (!mounted || result == null) return;
+
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
     Navigator.of(context).pop(items);
+    TableBillingSheet.deliverReceiptInBackground(result);
   }
 }

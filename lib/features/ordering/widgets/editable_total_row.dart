@@ -1,3 +1,4 @@
+import 'package:demo/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 
 class EditableTotalRow extends StatelessWidget {
@@ -18,6 +19,9 @@ class EditableTotalRow extends StatelessWidget {
   final VoidCallback onApplyPressed;
   final Color accentColor;
 
+  static const _navy = Color(0xFF1A3A5C);
+  static const _border = Color(0xFFE3E8EF);
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -25,7 +29,11 @@ class EditableTotalRow extends StatelessWidget {
       children: [
         const Text(
           'Total',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontFamily: fontMulishBold,
+            fontSize: 17,
+            color: _navy,
+          ),
         ),
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -38,15 +46,33 @@ class EditableTotalRow extends StatelessWidget {
                   keyboardType: TextInputType.number,
                   autofocus: true,
                   textAlign: TextAlign.right,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                  decoration: const InputDecoration(
+                  style: const TextStyle(
+                    fontFamily: fontMulishBold,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 17,
+                    color: _navy,
+                  ),
+                  decoration: InputDecoration(
                     isDense: true,
                     prefixText: '₹',
-                    contentPadding: EdgeInsets.symmetric(
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(
                       horizontal: 8,
                       vertical: 8,
                     ),
-                    border: OutlineInputBorder(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: _border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: _border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: accentColor),
+                    ),
                   ),
                   onSubmitted: (_) => onApplyPressed(),
                 ),
@@ -54,7 +80,12 @@ class EditableTotalRow extends StatelessWidget {
             else
               Text(
                 '₹$total',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                style: const TextStyle(
+                  fontFamily: fontMulishBold,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 17,
+                  color: _navy,
+                ),
               ),
             IconButton(
               visualDensity: VisualDensity.compact,

@@ -150,15 +150,16 @@ class FoodBillPdfService {
   /// Applies print or WhatsApp share based on the billing dialog choice.
   static Future<void> deliverReceiptByAction(
     FoodBillPdfData data,
-    BillReceiptAction action,
-  ) async {
+    BillReceiptAction action, {
+    String? whatsappPhone,
+  }) async {
     switch (action) {
       case BillReceiptAction.withoutPrint:
         return;
       case BillReceiptAction.print:
         await _deliverReceiptForced(data);
       case BillReceiptAction.shareWhatsApp:
-        await _shareReceiptOnWhatsApp(data);
+        await _shareReceiptOnWhatsApp(data, whatsappPhone: whatsappPhone);
     }
   }
 
@@ -188,7 +189,10 @@ class FoodBillPdfService {
     }
   }
 
-  static Future<void> _shareReceiptOnWhatsApp(FoodBillPdfData data) async {
+  static Future<void> _shareReceiptOnWhatsApp(
+    FoodBillPdfData data, {
+    String? whatsappPhone,
+  }) async {
     final context = Get.key.currentContext ?? Get.context;
     if (context == null || !context.mounted) {
       AppMessenger.show('Receipt', 'Could not open WhatsApp share dialog.');
@@ -203,7 +207,7 @@ class FoodBillPdfService {
       return;
     }
 
-    final phone = await WhatsAppSharePhoneDialog.show(context);
+    final phone = whatsappPhone ?? await WhatsAppSharePhoneDialog.show(context);
     if (phone == null || phone.isEmpty) return;
 
     BillingProgressDialog.show(

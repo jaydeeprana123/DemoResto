@@ -72,10 +72,11 @@ class BillingProgressDialog {
       final navigator = Navigator.of(context, rootNavigator: true);
       if (navigator.canPop()) {
         navigator.pop();
-        _openCount--;
       }
     } catch (_) {
-      _openCount = 0;
+      // Ignore — still reset below so later progress dialogs can show.
+    } finally {
+      if (_openCount > 0) _openCount--;
     }
   }
 }

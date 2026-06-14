@@ -588,7 +588,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     );
     if (merged.isEmpty) return;
 
-    await TableBillingSheet.runBillingFlow(
+    final result = await TableBillingSheet.runBillingFlow(
       context,
       tableName: tableName,
       items: merged,
@@ -610,6 +610,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         }
       },
     );
+
+    if (result != null) {
+      TableBillingSheet.deliverReceiptInBackground(result);
+    }
   }
 
   /// FinalBillingView billing on dine-in tables: clear items, not paid.
