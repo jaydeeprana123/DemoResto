@@ -268,6 +268,7 @@ class TableItemServed {
     TextStyle? remarksStyle,
     bool showSelectionIndicator = false,
     bool selectionSelected = false,
+    Widget? nameTrailing,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -295,12 +296,18 @@ class TableItemServed {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                name,
-                style: nameStyle.copyWith(
-                  color: served ? Colors.green.shade700 : nameStyle.color,
-
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: nameStyle.copyWith(
+                        color: served ? Colors.green.shade700 : nameStyle.color,
+                      ),
+                    ),
+                  ),
+                  if (nameTrailing != null) nameTrailing,
+                ],
               ),
               if (remarks != null && remarks.isNotEmpty)
                 Padding(

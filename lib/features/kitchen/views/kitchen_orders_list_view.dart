@@ -23,7 +23,9 @@ import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:demo/features/kitchen/services/kitchen_settings.dart';
+import 'package:demo/features/kitchen/services/kitchen_cross_table_pending_index.dart';
 import 'package:demo/features/kitchen/services/kitchen_menu_filter.dart';
+import 'package:demo/features/kitchen/widgets/kitchen_cross_table_pending_sheet.dart';
 import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
@@ -73,6 +75,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   List<TableGroup> _lastUpdatedGroups = [];
   List<TableGroup> _displayFilteredGroups = [];
   List<KitchenTableCard> _displayTableCards = [];
+  KitchenCrossTablePendingIndex _crossTablePendingIndex =
+      KitchenCrossTablePendingIndex.empty();
   int? blinkingGroupKey;
   // Color used for the currently blinking card: green for a new order,
   // yellow for an update (quantity changed / item added on existing table).
@@ -728,9 +732,45 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     final filtered = _applyKitchenDisplayFilters(_lastUpdatedGroups);
     _displayFilteredGroups = filtered;
     _displayTableCards = _mergeGroupsByTable(filtered);
+    _rebuildCrossTablePendingIndex();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _triggerDelayedBlinkIfNeeded();
     });
+  }
+
+  void _rebuildCrossTablePendingIndex() {
+    if (_showServeOrderScreen && _kitchenOrderTabIndex == 1) {
+      _crossTablePendingIndex = KitchenCrossTablePendingIndex.empty();
+      return;
+    }
+
+    final lines = <KitchenCrossTablePendingLine>[];
+    for (final group in _filterByOrderType(_lastUpdatedGroups)) {
+      final batchTime = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
+      for (final entry in group.items.asMap().entries) {
+        final item = TableItemServed.asItemMap(entry.value);
+        if (item == null || TableItemServed.isServed(item)) continue;
+        final name = item['name']?.toString().trim() ?? '';
+        if (name.isEmpty) continue;
+        lines.add(
+          KitchenCrossTablePendingLine(
+            tableName: group.tableName,
+            itemName: name,
+            qty: KitchenCrossTablePendingIndex.itemQty(item),
+            orderTime: batchTime,
+            isZomato: group.isZomato,
+            remarks: item['remarks']?.toString(),
+            itemKey: TableItemServed.keyForItem(
+              docId: group.docId,
+              item: item,
+              groupIndexFallback: group.groupIndex,
+              itemIndexFallback: entry.key,
+            ),
+          ),
+        );
+      }
+    }
+    _crossTablePendingIndex = KitchenCrossTablePendingIndex.fromLines(lines);
   }
 
   List<TableGroup> _applyKitchenDisplayFilters(List<TableGroup> groups) {
@@ -929,6 +969,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           _lastUpdatedGroups = [];
           _displayFilteredGroups = [];
           _displayTableCards = [];
+          _crossTablePendingIndex = KitchenCrossTablePendingIndex.empty();
           _kitchenStreamReady = true;
         });
       }
@@ -965,6 +1006,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
     updatedGroups.sort((a, b) => a.groupTime.compareTo(b.groupTime));
     _lastUpdatedGroups = updatedGroups;
+    _rebuildCrossTablePendingIndex();
 
     final filteredGroups = _applyKitchenDisplayFilters(updatedGroups);
     final tableCards = _mergeGroupsByTable(filteredGroups);
@@ -2554,6 +2596,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     );
     final served = TableItemServed.isServed(item);
     final showDelayedBackground = isDelayed && !served;
+    final itemName = item['name']?.toString() ?? '';
+    final pendingSummary = (!served &&
+            !(_showServeOrderScreen && _kitchenOrderTabIndex == 1))
+        ? _crossTablePendingIndex.summaryForItemName(itemName)
+        : null;
+    final showCrossTableBadge =
+        pendingSummary != null && pendingSummary.spansMultipleTables;
 
     final row = OrderItemRow(
       item: item,
@@ -2566,6 +2615,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       style: OrderItemRowStyle.kitchen,
       selectionForServedItems:
           _showServeOrderScreen && _kitchenOrderTabIndex == 1,
+      crossTablePendingTotal:
+          showCrossTableBadge ? pendingSummary!.totalQty : null,
+      onCrossTablePendingTap: showCrossTableBadge
+          ? () => KitchenCrossTablePendingSheet.show(
+                context,
+                summary: pendingSummary!,
+                formatRelativeTime: formatRelativeTime,
+              )
+          : null,
     );
 
     if (!showDelayedBackground) return row;

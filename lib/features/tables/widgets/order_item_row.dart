@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
+import 'package:demo/features/kitchen/widgets/kitchen_cross_table_pending_sheet.dart';
 
 /// Per-screen controller for tap-to-select on one order card at a time.
 /// Uses per-document listenables so only the active card rebuilds on tap.
@@ -103,6 +104,8 @@ class OrderItemRow extends StatelessWidget {
     required this.isSelected,
     this.style = OrderItemRowStyle.kitchen,
     this.selectionForServedItems = false,
+    this.crossTablePendingTotal,
+    this.onCrossTablePendingTap,
   });
 
   final Map<String, dynamic> item;
@@ -114,6 +117,8 @@ class OrderItemRow extends StatelessWidget {
   final bool isSelected;
   final OrderItemRowStyle style;
   final bool selectionForServedItems;
+  final int? crossTablePendingTotal;
+  final VoidCallback? onCrossTablePendingTap;
 
   TableItemKey get _key => TableItemKey(
     docId: docId,
@@ -129,6 +134,18 @@ class OrderItemRow extends StatelessWidget {
     final name = item['name']?.toString() ?? '';
     final remarks = item['remarks']?.toString() ?? '';
 
+    Widget? nameTrailing;
+    if (style == OrderItemRowStyle.kitchen &&
+        !served &&
+        crossTablePendingTotal != null &&
+        crossTablePendingTotal! > 0 &&
+        onCrossTablePendingTap != null) {
+      nameTrailing = KitchenCrossTablePendingBadge(
+        totalQty: crossTablePendingTotal!,
+        onTap: onCrossTablePendingTap!,
+      );
+    }
+
     final row = TableItemServed.buildItemLine(
       qty: qtyInt,
       name: name,
@@ -140,6 +157,7 @@ class OrderItemRow extends StatelessWidget {
       showSelectionIndicator:
           selectionMode && (!served || selectionForServedItems),
       selectionSelected: isSelected,
+      nameTrailing: nameTrailing,
     );
 
     Widget content = Padding(
