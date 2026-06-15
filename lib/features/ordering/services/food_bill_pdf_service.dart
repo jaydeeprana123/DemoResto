@@ -16,6 +16,7 @@ import 'package:demo/features/ordering/widgets/billing_progress_dialog.dart';
 import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
 import 'package:demo/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
+import 'package:demo/core/network/ssl_error_utils.dart';
 import 'package:demo/features/zomato/services/imagekit_settings.dart';
 import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
 import 'package:demo/core/utils/tax_calculator.dart';
@@ -257,7 +258,7 @@ class FoodBillPdfService {
         duration: const Duration(seconds: 8),
       );
     } catch (e) {
-      AppMessenger.show('Receipt', 'Could not share bill on WhatsApp: $e');
+      AppMessenger.show('Receipt', SslErrorUtils.userMessage(e));
     } finally {
       if (context.mounted) {
         BillingProgressDialog.hide(context);

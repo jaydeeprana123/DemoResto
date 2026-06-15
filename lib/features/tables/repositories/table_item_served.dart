@@ -44,6 +44,39 @@ class TableItemServed {
     return null;
   }
 
+  static int parseGroupIndex(dynamic raw) {
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return 0;
+  }
+
+  static int itemIndexInGroupFor(Map<String, dynamic> item, int fallback) {
+    final raw = item['__itemIndex'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return fallback;
+  }
+
+  static int firestoreGroupIndexFor(Map<String, dynamic> item, int fallback) {
+    final raw = item['__firestoreGroupIndex'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return fallback;
+  }
+
+  static TableItemKey keyForItem({
+    required String docId,
+    required Map<String, dynamic> item,
+    required int groupIndexFallback,
+    required int itemIndexFallback,
+  }) {
+    return TableItemKey(
+      docId: docId,
+      groupIndex: firestoreGroupIndexFor(item, groupIndexFallback),
+      itemIndexInGroup: itemIndexInGroupFor(item, itemIndexFallback),
+    );
+  }
+
   static bool isServed(dynamic item) {
     final map = asItemMap(item);
     return map?['isServed'] == true;
@@ -88,7 +121,7 @@ class TableItemServed {
 
       for (var i = 0; i < items.length; i++) {
         final item = items[i];
-        final groupIndex = (item['groupIndex'] as int?) ?? 0;
+        final groupIndex = parseGroupIndex(item['groupIndex']);
         final indexInGroup = groupCounters[groupIndex] ?? 0;
         groupCounters[groupIndex] = indexInGroup + 1;
 
@@ -140,7 +173,7 @@ class TableItemServed {
 
       for (var i = 0; i < items.length; i++) {
         final item = items[i];
-        final groupIndex = (item['groupIndex'] as int?) ?? 0;
+        final groupIndex = parseGroupIndex(item['groupIndex']);
         final indexInGroup = groupCounters[groupIndex] ?? 0;
         groupCounters[groupIndex] = indexInGroup + 1;
 
@@ -192,7 +225,7 @@ class TableItemServed {
 
       for (var i = 0; i < items.length; i++) {
         final item = items[i];
-        final groupIndex = (item['groupIndex'] as int?) ?? 0;
+        final groupIndex = parseGroupIndex(item['groupIndex']);
         final indexInGroup = groupCounters[groupIndex] ?? 0;
         groupCounters[groupIndex] = indexInGroup + 1;
 

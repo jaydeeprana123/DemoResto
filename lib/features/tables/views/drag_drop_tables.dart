@@ -177,7 +177,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         if (left['name'] != right['name'] ||
             left['qty'] != right['qty'] ||
             left['price'] != right['price'] ||
-            left['served'] != right['served'] ||
+            TableItemServed.isServed(left) !=
+                TableItemServed.isServed(right) ||
             left['remarks'] != right['remarks']) {
           return false;
         }
@@ -330,16 +331,21 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               if (hasGroupIndex) {
                 // NEW FORMAT: Reconstruct groups from flattened data using groupIndex
                 Map<int, List<Map<String, dynamic>>> groupMap = {};
+                final groupItemCounters = <int, int>{};
 
                 for (var item in itemsFromDb) {
                   if (item is Map) {
                     Map<String, dynamic> itemMap = Map<String, dynamic>.from(
                       item,
                     );
-                    int groupIndex = itemMap['groupIndex'] ?? 0;
+                    final groupIndex =
+                        TableItemServed.parseGroupIndex(itemMap['groupIndex']);
+                    final indexInGroup = groupItemCounters[groupIndex] ?? 0;
+                    groupItemCounters[groupIndex] = indexInGroup + 1;
 
-                    // Remove groupIndex from the item (it's only for storage)
                     itemMap.remove('groupIndex');
+                    itemMap['__firestoreGroupIndex'] = groupIndex;
+                    itemMap['__itemIndex'] = indexInGroup;
 
                     if (!groupMap.containsKey(groupIndex)) {
                       groupMap[groupIndex] = [];
@@ -379,9 +385,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               } else if (itemsFromDb.first is Map) {
                 // FLAT FORMAT: Convert to single group
                 List<Map<String, dynamic>> itemList = [];
-                for (var item in itemsFromDb) {
+                for (var i = 0; i < itemsFromDb.length; i++) {
+                  final item = itemsFromDb[i];
                   if (item is Map) {
-                    itemList.add(Map<String, dynamic>.from(item));
+                    final itemMap = Map<String, dynamic>.from(item);
+                    itemMap['__firestoreGroupIndex'] = 0;
+                    itemMap['__itemIndex'] = i;
+                    itemList.add(itemMap);
                   }
                 }
                 if (itemList.isNotEmpty) {
@@ -2446,14 +2456,17 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               ...group.asMap().entries.map((entry) {
-                                final firestoreGi = _firestoreGroupIndexFor(
-                                  tableName,
-                                  gi,
+                                final firestoreGi = TableItemServed
+                                    .firestoreGroupIndexFor(
+                                  entry.value,
+                                  _firestoreGroupIndexFor(tableName, gi),
                                 );
+                                final itemIndex = TableItemServed
+                                    .itemIndexInGroupFor(entry.value, entry.key);
                                 final key = TableItemKey(
                                   docId: docId,
                                   groupIndex: firestoreGi,
-                                  itemIndexInGroup: entry.key,
+                                  itemIndexInGroup: itemIndex,
                                 );
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -2463,7 +2476,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                                     item: entry.value,
                                     docId: docId,
                                     groupIndex: firestoreGi,
-                                    itemIndexInGroup: entry.key,
+                                    itemIndexInGroup: itemIndex,
                                     selectionController: _itemSelection,
                                     selectionMode: selectionMode,
                                     isSelected: _itemSelection.isSelected(key),

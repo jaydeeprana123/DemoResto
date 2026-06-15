@@ -1,3 +1,4 @@
+import 'package:demo/core/network/app_http_overrides.dart';
 import 'package:demo/bindings/app_binding.dart';
 import 'package:demo/core/firebase/firebase_options.dart';
 import 'package:demo/core/firestore/firestore_desktop_config.dart';
@@ -12,6 +13,7 @@ import 'package:get/get.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppHttpOverrides.installIfNeeded();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

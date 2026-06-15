@@ -63,6 +63,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   Map<String, TableGroup> _previousKeyToGroup = {};
   ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>?
       _tablesListener;
+  final ScrollController _gridScrollController = ScrollController();
   final ValueNotifier<int> _minuteTick = ValueNotifier(0);
   bool _kitchenStreamReady = false;
   bool _isRefreshingKitchen = false;
@@ -116,11 +117,32 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     _startDelayedBlinkAnimation(delayedKeys);
   }
 
+  void _restoreGridScroll(double offset) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_gridScrollController.hasClients) return;
+      final maxExtent = _gridScrollController.position.maxScrollExtent;
+      final target = offset.clamp(0.0, maxExtent);
+      if ((_gridScrollController.offset - target).abs() > 0.5) {
+        _gridScrollController.jumpTo(target);
+      }
+    });
+  }
+
+  void _setStatePreservingScroll(VoidCallback fn) {
+    final scrollOffset = _gridScrollController.hasClients
+        ? _gridScrollController.offset
+        : null;
+    setState(fn);
+    if (scrollOffset != null) {
+      _restoreGridScroll(scrollOffset);
+    }
+  }
+
   void _startDelayedBlinkAnimation(Set<int> groupKeyHashes) {
     _delayedBlinkTimer?.cancel();
     if (groupKeyHashes.isEmpty || !mounted) return;
 
-    setState(() {
+    _setStatePreservingScroll(() {
       _delayedBlinkGroupKeys = groupKeyHashes;
       _delayedBlinkHighlight = true;
     });
@@ -137,14 +159,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       pulseCount++;
       if (pulseCount >= _delayedBlinkPulseCount * 2) {
         timer.cancel();
-        setState(() {
+        _setStatePreservingScroll(() {
           _delayedBlinkGroupKeys.clear();
           _delayedBlinkHighlight = false;
         });
         return;
       }
 
-      setState(() => _delayedBlinkHighlight = !_delayedBlinkHighlight);
+      _setStatePreservingScroll(
+        () => _delayedBlinkHighlight = !_delayedBlinkHighlight,
+      );
     });
   }
 
@@ -251,7 +275,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      setState(() {
+      _setStatePreservingScroll(() {
         blinkingGroupKey = key.hashCode;
         _blinkColor = isUpdate ? _updateBlinkColor : _newOrderBlinkColor;
       });
@@ -259,7 +283,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       Timer(const Duration(seconds: 3), () {
         if (!mounted) return;
         if (blinkingGroupKey == key.hashCode) {
-          setState(() => blinkingGroupKey = null);
+          _setStatePreservingScroll(() => blinkingGroupKey = null);
         }
       });
     });
@@ -297,7 +321,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     if (!mounted) return;
     final layoutChanged =
         _mobileLayoutIsGrid != KitchenSettings.mobileOrdersGridLayout.value;
-    setState(() {
+    _setStatePreservingScroll(() {
       _showTableAllOrders = KitchenSettings.showTableAllOrders.value == true;
       _showServeOrderScreen =
           KitchenSettings.showServeOrderScreen.value == true;
@@ -463,14 +487,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
     Map<int, List<Map<String, dynamic>>> groupMap = {};
     Map<int, Timestamp> groupTimeMap = {};
+    final groupItemCounters = <int, int>{};
 
     for (final raw in itemsFromDb) {
       final itemMap = TableItemServed.asItemMap(raw);
       if (itemMap == null) continue;
 
-      final int groupIndex = (itemMap['groupIndex'] is int)
-          ? itemMap['groupIndex'] as int
-          : 0;
+      final groupIndex = TableItemServed.parseGroupIndex(itemMap['groupIndex']);
+      final indexInGroup = groupItemCounters[groupIndex] ?? 0;
+      groupItemCounters[groupIndex] = indexInGroup + 1;
       final Timestamp addedAt = (itemMap['addedAt'] is Timestamp)
           ? itemMap['addedAt'] as Timestamp
           : Timestamp.now();
@@ -478,6 +503,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       final normalized = Map<String, dynamic>.from(itemMap);
       normalized.remove('groupIndex');
       normalized.remove('addedAt');
+      normalized['__firestoreGroupIndex'] = groupIndex;
+      normalized['__itemIndex'] = indexInGroup;
 
       groupMap.putIfAbsent(groupIndex, () => []);
       groupMap[groupIndex]!.add(normalized);
@@ -615,7 +642,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   Future<void> _refreshKitchenOrders() async {
     if (_isRefreshingKitchen || !mounted) return;
 
-    setState(() => _isRefreshingKitchen = true);
+    _setStatePreservingScroll(() => _isRefreshingKitchen = true);
     try {
       final snapshot =
           await Get.find<TablesRepository>().fetchAllTablesFresh();
@@ -630,7 +657,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       }
     } finally {
       if (mounted) {
-        setState(() => _isRefreshingKitchen = false);
+        _setStatePreservingScroll(() => _isRefreshingKitchen = false);
       }
     }
   }
@@ -647,7 +674,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }
 
   Future<void> _resetKitchenFiltersToShowAll() async {
-    setState(() {
+    _setStatePreservingScroll(() {
       showAllCategories = true;
       selectedCategories.clear();
       selectedMenuItems.clear();
@@ -735,7 +762,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   void _onOrderTypeFilterChanged(int? value) {
     if (value == null || value == _orderTypeFilterIndex) return;
-    setState(() {
+    _setStatePreservingScroll(() {
       _orderTypeFilterIndex = value;
       _itemSelection.cancel();
       _rebuildDisplayFromCache();
@@ -759,7 +786,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               .map((entry) {
                 final item = TableItemServed.asItemMap(entry.value)!;
                 final copy = Map<String, dynamic>.from(item);
-                copy['__itemIndex'] = item['__itemIndex'] as int? ?? entry.key;
+                copy['__itemIndex'] =
+                    TableItemServed.itemIndexInGroupFor(item, entry.key);
+                copy['__firestoreGroupIndex'] =
+                    TableItemServed.firestoreGroupIndexFor(
+                      item,
+                      group.groupIndex,
+                    );
                 return copy;
               })
               .toList();
@@ -786,7 +819,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   void _onKitchenOrderTabChanged(int index) {
     if (_kitchenOrderTabIndex == index) return;
-    setState(() {
+    _setStatePreservingScroll(() {
       _kitchenOrderTabIndex = index;
       _itemSelection.cancel();
       _rebuildDisplayFromCache();
@@ -817,7 +850,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               .map((entry) {
                 final item = TableItemServed.asItemMap(entry.value)!;
                 final copy = Map<String, dynamic>.from(item);
-                copy['__itemIndex'] = item['__itemIndex'] as int? ?? entry.key;
+                copy['__itemIndex'] =
+                    TableItemServed.itemIndexInGroupFor(item, entry.key);
+                copy['__firestoreGroupIndex'] =
+                    TableItemServed.firestoreGroupIndexFor(
+                      item,
+                      group.groupIndex,
+                    );
                 return copy;
               })
               .toList();
@@ -886,7 +925,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       if (_displayFilteredGroups.isNotEmpty ||
           _displayTableCards.isNotEmpty ||
           !_kitchenStreamReady) {
-        setState(() {
+        _setStatePreservingScroll(() {
           _lastUpdatedGroups = [];
           _displayFilteredGroups = [];
           _displayTableCards = [];
@@ -1026,7 +1065,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         : !_sameGroupList(_displayFilteredGroups, filteredGroups);
 
     if (displayChanged || !_kitchenStreamReady) {
-      setState(() {
+      _setStatePreservingScroll(() {
         _displayFilteredGroups = filteredGroups;
         _displayTableCards = tableCards;
         _kitchenStreamReady = true;
@@ -1157,6 +1196,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       final firstUnpaidIndex = _displayTableCards.indexWhere((c) => !c.isPaid);
       return MasonryGridView.count(
         key: layoutKey,
+        controller: _gridScrollController,
+        restorationId: 'kitchen_orders_grid',
+        cacheExtent: 3000,
         physics: const AlwaysScrollableScrollPhysics(),
         crossAxisCount: crossCols,
         mainAxisSpacing: _kitchenMainAxisSpacing,
@@ -1176,6 +1218,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     );
     return MasonryGridView.count(
       key: layoutKey,
+      controller: _gridScrollController,
+      restorationId: 'kitchen_orders_grid',
+      cacheExtent: 3000,
       physics: const AlwaysScrollableScrollPhysics(),
       crossAxisCount: crossCols,
       mainAxisSpacing: _kitchenMainAxisSpacing,
@@ -1195,6 +1240,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       final firstUnpaidIndex = _displayTableCards.indexWhere((c) => !c.isPaid);
       return ListView.separated(
         key: const ValueKey('kitchen_mobile_list_table'),
+        controller: _gridScrollController,
+        restorationId: 'kitchen_orders_list',
+        cacheExtent: 3000,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
         itemCount: _displayTableCards.length,
@@ -1212,6 +1260,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     );
     return ListView.separated(
       key: const ValueKey('kitchen_mobile_list_group'),
+      controller: _gridScrollController,
+      restorationId: 'kitchen_orders_list',
+      cacheExtent: 3000,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(12),
       itemCount: _displayFilteredGroups.length,
@@ -1553,7 +1604,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }
 
   void _applyCategoryFilterChanges() {
-    setState(_rebuildDisplayFromCache);
+    _setStatePreservingScroll(_rebuildDisplayFromCache);
     unawaited(
       KitchenSettings.saveCategoryFilter(
         showAll: showAllCategories,
@@ -1589,7 +1640,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               .map((entry) {
                 final item = TableItemServed.asItemMap(entry.value)!;
                 final copy = Map<String, dynamic>.from(item);
-                copy['__itemIndex'] = entry.key;
+                copy['__itemIndex'] =
+                    TableItemServed.itemIndexInGroupFor(item, entry.key);
+                copy['__firestoreGroupIndex'] =
+                    TableItemServed.firestoreGroupIndexFor(
+                      item,
+                      group.groupIndex,
+                    );
                 return copy;
               })
               .toList();
@@ -1665,7 +1722,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   void _setMobileLayoutIsGrid(bool isGrid) {
     if (_mobileLayoutIsGrid == isGrid) return;
-    setState(() => _mobileLayoutIsGrid = isGrid);
+    _setStatePreservingScroll(() => _mobileLayoutIsGrid = isGrid);
     KitchenSettings.setMobileOrdersGridLayout(isGrid);
   }
 
@@ -1987,10 +2044,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                               (entry) => _buildItemRow(
                                 entry.value,
                                 docId: group.docId,
-                                groupIndex: group.groupIndex,
+                                groupIndex: TableItemServed.firestoreGroupIndexFor(
+                                  entry.value,
+                                  group.groupIndex,
+                                ),
                                 itemIndexInGroup:
-                                    (entry.value['__itemIndex'] as int?) ??
-                                    entry.key,
+                                    TableItemServed.itemIndexInGroupFor(
+                                  entry.value,
+                                  entry.key,
+                                ),
                                 selectionMode: selectionMode,
                                 isDelayed: tickIsDelayed,
                                 isDelayedBlinking: isDelayedBlinking,
@@ -2177,11 +2239,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                                         (entry) => _buildItemRow(
                                           entry.value,
                                           docId: tableCard.docId,
-                                          groupIndex: batch.groupIndex,
+                                          groupIndex:
+                                              TableItemServed.firestoreGroupIndexFor(
+                                            entry.value,
+                                            batch.groupIndex,
+                                          ),
                                           itemIndexInGroup:
-                                              (entry.value['__itemIndex']
-                                                  as int?) ??
-                                              entry.key,
+                                              TableItemServed.itemIndexInGroupFor(
+                                            entry.value,
+                                            entry.key,
+                                          ),
                                           selectionMode: selectionMode,
                                           isDelayed: batchDelayed,
                                           isDelayedBlinking:
@@ -2551,6 +2618,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       _onBackgroundRingtoneSettingChanged,
     );
     _tablesListener?.stop();
+    _gridScrollController.dispose();
     _timer?.cancel();
     _delayedBlinkTimer?.cancel();
     _minuteTick.dispose();
