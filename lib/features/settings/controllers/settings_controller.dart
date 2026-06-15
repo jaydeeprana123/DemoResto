@@ -25,6 +25,7 @@ class SettingsController extends GetxController {
   final appTabMode = AppTabMode.dashboardAndKitchen.obs;
   final kitchenShowTableAllOrders = true.obs;
   final kitchenShowServeOrderScreen = false.obs;
+  final kitchenPreparationViewEnabled = false.obs;
   final kitchenBackgroundOrderRingtoneEnabled = true.obs;
   final printPdfEnabled = false.obs;
   final printerType = PosPrinterType.rugtek80.obs;
@@ -50,6 +51,8 @@ class SettingsController extends GetxController {
         await KitchenSettings.getShowTableAllOrders();
     kitchenShowServeOrderScreen.value =
         await KitchenSettings.getShowServeOrderScreen();
+    kitchenPreparationViewEnabled.value =
+        await KitchenSettings.getPreparationViewEnabled();
     kitchenBackgroundOrderRingtoneEnabled.value =
         await KitchenSettings.getBackgroundOrderRingtoneEnabled();
   }
@@ -74,6 +77,11 @@ class SettingsController extends GetxController {
   Future<void> setKitchenShowServeOrderScreen(bool value) async {
     await KitchenSettings.setShowServeOrderScreen(value);
     kitchenShowServeOrderScreen.value = value;
+  }
+
+  Future<void> setKitchenPreparationViewEnabled(bool value) async {
+    await KitchenSettings.setPreparationViewEnabled(value);
+    kitchenPreparationViewEnabled.value = value;
   }
 
   Future<void> setKitchenBackgroundOrderRingtoneEnabled(bool value) async {

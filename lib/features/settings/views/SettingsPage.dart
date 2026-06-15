@@ -551,6 +551,39 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     secondary: CircleAvatar(
                       backgroundColor: _orange.withOpacity(0.12),
+                      child: const Icon(Icons.view_list_rounded, color: _orange),
+                    ),
+                    title: const Text(
+                      'Enable Kitchen Preparation View',
+                      style: TextStyle(
+                        fontFamily: fontMulishSemiBold,
+                        fontSize: 15,
+                        color: _navy,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Group kitchen orders by item with qty × table lines',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    value: _settings.kitchenPreparationViewEnabled.value,
+                    activeColor: _orange,
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      await _settings.setKitchenPreparationViewEnabled(value);
+                    },
+                  ),
+                ),
+                Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SwitchListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    secondary: CircleAvatar(
+                      backgroundColor: _orange.withOpacity(0.12),
                       child: const Icon(Icons.check_circle_outline, color: _orange),
                     ),
                     title: const Text(

@@ -25,7 +25,9 @@ import 'package:demo/Styles/my_icons.dart';
 import 'package:demo/features/kitchen/services/kitchen_settings.dart';
 import 'package:demo/features/kitchen/services/kitchen_cross_table_pending_index.dart';
 import 'package:demo/features/kitchen/services/kitchen_menu_filter.dart';
+import 'package:demo/features/kitchen/services/kitchen_preparation_view_index.dart';
 import 'package:demo/features/kitchen/widgets/kitchen_cross_table_pending_sheet.dart';
+import 'package:demo/features/kitchen/widgets/kitchen_preparation_orders_list.dart';
 import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
@@ -77,6 +79,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   List<KitchenTableCard> _displayTableCards = [];
   KitchenCrossTablePendingIndex _crossTablePendingIndex =
       KitchenCrossTablePendingIndex.empty();
+  List<KitchenPreparationItemGroup> _preparationItemGroups = [];
   int? blinkingGroupKey;
   // Color used for the currently blinking card: green for a new order,
   // yellow for an update (quantity changed / item added on existing table).
@@ -301,6 +304,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       KitchenMenuFilter(Get.find<MenuCacheService>());
   bool _showTableAllOrders = true;
   bool _showServeOrderScreen = false;
+  bool _showPreparationView = false;
 
   /// 0 = active (unserved items), 1 = served items only
   int _kitchenOrderTabIndex = 0;
@@ -329,9 +333,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       _showTableAllOrders = KitchenSettings.showTableAllOrders.value == true;
       _showServeOrderScreen =
           KitchenSettings.showServeOrderScreen.value == true;
+      _showPreparationView =
+          KitchenSettings.preparationViewEnabled.value == true;
       _mobileLayoutIsGrid = KitchenSettings.mobileOrdersGridLayout.value;
       if (!_showServeOrderScreen) {
         _kitchenOrderTabIndex = 0;
+        _itemSelection.cancel();
+      }
+      if (_showPreparationView) {
         _itemSelection.cancel();
       }
       if (!layoutChanged) {
@@ -599,6 +608,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               KitchenSettings.showTableAllOrders.value == true;
           _showServeOrderScreen =
               KitchenSettings.showServeOrderScreen.value == true;
+          _showPreparationView =
+              KitchenSettings.preparationViewEnabled.value == true;
           _mobileLayoutIsGrid =
               KitchenSettings.mobileOrdersGridLayout.value == true;
           showAllCategories = KitchenSettings.showAllCategories;
@@ -615,6 +626,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     });
     KitchenSettings.showTableAllOrders.addListener(_onKitchenSettingsChanged);
     KitchenSettings.showServeOrderScreen.addListener(_onKitchenSettingsChanged);
+    KitchenSettings.preparationViewEnabled.addListener(_onKitchenSettingsChanged);
     KitchenSettings.mobileOrdersGridLayout.addListener(
       _onKitchenSettingsChanged,
     );
@@ -733,6 +745,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     _displayFilteredGroups = filtered;
     _displayTableCards = _mergeGroupsByTable(filtered);
     _rebuildCrossTablePendingIndex();
+    _rebuildPreparationItemGroups(filtered);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _triggerDelayedBlinkIfNeeded();
     });
@@ -772,6 +785,45 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     }
     _crossTablePendingIndex = KitchenCrossTablePendingIndex.fromLines(lines);
   }
+
+  void _rebuildPreparationItemGroups(List<TableGroup> groups) {
+    if (!_showPreparationView) {
+      _preparationItemGroups = [];
+      return;
+    }
+
+    final lines = <KitchenPreparationSourceLine>[];
+    for (final group in groups) {
+      if (group.isZomato) continue;
+      final batchTime = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
+      for (final entry in group.items.asMap().entries) {
+        final item = TableItemServed.asItemMap(entry.value);
+        if (item == null) continue;
+        final name = item['name']?.toString().trim() ?? '';
+        if (name.isEmpty) continue;
+        lines.add(
+          KitchenPreparationSourceLine(
+            itemName: name,
+            tableName: group.tableName,
+            qty: KitchenCrossTablePendingIndex.itemQty(item),
+            orderTime: batchTime,
+            itemKey: TableItemServed.keyForItem(
+              docId: group.docId,
+              item: item,
+              groupIndexFallback: group.groupIndex,
+              itemIndexFallback: entry.key,
+            ),
+            isServed: TableItemServed.isServed(item),
+            remarks: item['remarks']?.toString(),
+          ),
+        );
+      }
+    }
+    _preparationItemGroups = KitchenPreparationViewIndex.fromLines(lines);
+  }
+
+  bool get _usePreparationViewLayout =>
+      _showPreparationView && _orderTypeFilterIndex != 3;
 
   List<TableGroup> _applyKitchenDisplayFilters(List<TableGroup> groups) {
     final byCategory = _filterByCategories(groups);
@@ -964,12 +1016,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       }
       if (_displayFilteredGroups.isNotEmpty ||
           _displayTableCards.isNotEmpty ||
+          _preparationItemGroups.isNotEmpty ||
           !_kitchenStreamReady) {
         _setStatePreservingScroll(() {
           _lastUpdatedGroups = [];
           _displayFilteredGroups = [];
           _displayTableCards = [];
           _crossTablePendingIndex = KitchenCrossTablePendingIndex.empty();
+          _preparationItemGroups = [];
           _kitchenStreamReady = true;
         });
       }
@@ -1110,6 +1164,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       _setStatePreservingScroll(() {
         _displayFilteredGroups = filteredGroups;
         _displayTableCards = tableCards;
+        _rebuildPreparationItemGroups(filteredGroups);
         _kitchenStreamReady = true;
       });
       _triggerDelayedBlinkIfNeeded();
@@ -1204,9 +1259,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   double get _kitchenMainAxisSpacing => _isMobileGridLayout ? 6 : 12;
 
   Widget _buildKitchenScrollContent() {
-    final isEmpty = _showTableAllOrders
-        ? _displayTableCards.isEmpty
-        : _displayFilteredGroups.isEmpty;
+    final isEmpty = _usePreparationViewLayout
+        ? _preparationItemGroups.isEmpty
+        : _showTableAllOrders
+            ? _displayTableCards.isEmpty
+            : _displayFilteredGroups.isEmpty;
 
     if (isEmpty) {
       return ListView(
@@ -1217,6 +1274,29 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             child: _buildKitchenEmptyState(),
           ),
         ],
+      );
+    }
+
+    if (_usePreparationViewLayout) {
+      final screenW = MediaQuery.sizeOf(context).width;
+      final layoutIsGrid = _mobileLayoutIsGrid;
+      final crossCols =
+          layoutIsGrid ? _kitchenCrossAxisCount(screenW) : 1;
+      return KitchenPreparationOrdersList(
+        key: ValueKey(
+          'kitchen_prep_${_kitchenOrderTabIndex}_$_orderTypeFilterIndex'
+          '_${layoutIsGrid ? 'grid' : 'list'}_$crossCols',
+        ),
+        groups: _preparationItemGroups,
+        scrollController: _gridScrollController,
+        formatRelativeTime: formatRelativeTime,
+        minuteTick: _minuteTick,
+        layoutIsGrid: layoutIsGrid,
+        crossAxisCount: crossCols,
+        mainAxisSpacing: _kitchenMainAxisSpacing,
+        crossAxisSpacing: _kitchenCrossAxisSpacing,
+        padding: _kitchenGridPadding,
+        servedTabActive: _showServeOrderScreen && _kitchenOrderTabIndex == 1,
       );
     }
 
@@ -1949,7 +2029,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             tooltip: 'Refresh orders',
             onPressed: _isRefreshingKitchen ? null : _refreshKitchenOrders,
           ),
-          if (_isMobileKitchenScreen) _buildMobileLayoutToggle(),
+          if (_usePreparationViewLayout || _isMobileKitchenScreen)
+            _buildMobileLayoutToggle(),
           // Filter button with badge showing count
           Stack(
             children: [
@@ -2598,6 +2679,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     final showDelayedBackground = isDelayed && !served;
     final itemName = item['name']?.toString() ?? '';
     final pendingSummary = (!served &&
+            !_showPreparationView &&
             !(_showServeOrderScreen && _kitchenOrderTabIndex == 1))
         ? _crossTablePendingIndex.summaryForItemName(itemName)
         : null;
@@ -2667,6 +2749,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       _onKitchenSettingsChanged,
     );
     KitchenSettings.showServeOrderScreen.removeListener(
+      _onKitchenSettingsChanged,
+    );
+    KitchenSettings.preparationViewEnabled.removeListener(
       _onKitchenSettingsChanged,
     );
     KitchenSettings.mobileOrdersGridLayout.removeListener(
