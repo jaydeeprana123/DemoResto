@@ -74,7 +74,6 @@ class KitchenPreparationViewIndex {
     final perItem = <String, Map<String, _LineAgg>>{};
 
     for (final line in lines) {
-      if (line.isZomato) continue;
       final name = line.itemName.trim();
       if (name.isEmpty) continue;
 

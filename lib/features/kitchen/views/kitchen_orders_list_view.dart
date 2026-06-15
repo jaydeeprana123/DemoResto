@@ -794,7 +794,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
     final lines = <KitchenPreparationSourceLine>[];
     for (final group in groups) {
-      if (group.isZomato) continue;
       final batchTime = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
       for (final entry in group.items.asMap().entries) {
         final item = TableItemServed.asItemMap(entry.value);
@@ -815,6 +814,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             ),
             isServed: TableItemServed.isServed(item),
             remarks: item['remarks']?.toString(),
+            isZomato: group.isZomato,
           ),
         );
       }

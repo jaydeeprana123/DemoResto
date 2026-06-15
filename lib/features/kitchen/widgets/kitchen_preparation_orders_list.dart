@@ -282,61 +282,75 @@ class _PreparationItemBlock extends StatelessWidget {
   final ValueChanged<KitchenPreparationTableLine> onLineTap;
   final bool submitting;
 
+  Widget _buildItemHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      color: _navy,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              group.itemName,
+              style: MyFont.semiBold(14, color: Colors.white),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '(${group.totalQty})',
+            style: MyFont.bold(14, color: _orange),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Text(
-                group.itemName,
-                style: MyFont.bold(15, color: _navy),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '(${group.totalQty})',
-              style: MyFont.bold(14, color: _orange),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        if (bordered)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Divider(height: 1, color: _tileBorder),
-          ),
-        ...group.lines.map(
-          (line) => _PreparationTableLineRow(
-            line: line,
-            selectionMode: selectionMode,
-            isSelected: selectedLineKeys.contains(lineKey(line)),
-            formatRelativeTime: formatRelativeTime,
-            minuteTick: minuteTick,
-            onTap: submitting || line.isServed
-                ? null
-                : () => onLineTap(line),
-          ),
-        ),
-      ],
+    final lines = group.lines.map(
+      (line) => _PreparationTableLineRow(
+        line: line,
+        selectionMode: selectionMode,
+        isSelected: selectedLineKeys.contains(lineKey(line)),
+        formatRelativeTime: formatRelativeTime,
+        minuteTick: minuteTick,
+        onTap: submitting || line.isServed ? null : () => onLineTap(line),
+      ),
     );
 
-    if (!bordered) return content;
+    if (!bordered) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildItemHeader(),
+          const SizedBox(height: 10),
+          ...lines,
+        ],
+      );
+    }
 
-    return DecoratedBox(
+    return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: _tileBorder),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-        child: content,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildItemHeader(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: lines.toList(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -379,7 +393,7 @@ class _PreparationTableLineRow extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 5),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 if (selectionMode && !served) ...[
                   Icon(
@@ -396,14 +410,8 @@ class _PreparationTableLineRow extends StatelessWidget {
                   Icon(Icons.check, size: 15, color: Colors.green.shade600),
                   const SizedBox(width: 4),
                 ],
-                Text(
-                  '${line.qty}×',
-                  style: MyFont.bold(
-                    13,
-                    color: served ? Colors.green.shade700 : _orange,
-                  ),
-                ),
-                const SizedBox(width: 6),
+                _buildQtyBadge(served: served),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -414,10 +422,10 @@ class _PreparationTableLineRow extends StatelessWidget {
                             child: Text(
                               line.tableLabel,
                               style: MyFont.semiBold(
-                                13,
+                                12,
                                 color: served
                                     ? Colors.green.shade700
-                                    : _navy,
+                                    : const Color(0xFF212121),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -472,5 +480,24 @@ class _PreparationTableLineRow extends StatelessWidget {
       return lower[0].toUpperCase() + lower.substring(1);
     }
     return relative;
+  }
+
+  Widget _buildQtyBadge({required bool served}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: served
+            ? Colors.green.withValues(alpha: 0.12)
+            : _orange.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        '×${line.qty}',
+        style: MyFont.bold(
+          11,
+          color: served ? Colors.green.shade700 : _orange,
+        ),
+      ),
+    );
   }
 }
