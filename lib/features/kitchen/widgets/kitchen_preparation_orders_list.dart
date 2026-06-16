@@ -1,5 +1,6 @@
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/features/kitchen/services/kitchen_preparation_view_index.dart';
+import 'package:demo/features/kitchen/services/kitchen_cross_table_pending_index.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,8 @@ class KitchenPreparationOrdersList extends StatefulWidget {
     this.padding = const EdgeInsets.all(12),
     this.layoutIsGrid = true,
     this.servedTabActive = false,
+    this.blinkingItemKeys = const {},
+    this.blinkColor = const Color(0xFFE8F5E9),
   });
 
   final List<KitchenPreparationItemGroup> groups;
@@ -34,6 +37,8 @@ class KitchenPreparationOrdersList extends StatefulWidget {
   final EdgeInsets padding;
   final bool layoutIsGrid;
   final bool servedTabActive;
+  final Set<String> blinkingItemKeys;
+  final Color blinkColor;
 
   @override
   State<KitchenPreparationOrdersList> createState() =>
@@ -136,9 +141,15 @@ class _KitchenPreparationOrdersListState
   }
 
   Widget _buildItemBlock(KitchenPreparationItemGroup group, {required bool bordered}) {
+    final normalizedKey =
+        KitchenCrossTablePendingIndex.normalizeItemName(group.itemName);
+    final isBlinking = widget.blinkingItemKeys.contains(normalizedKey);
+
     return _PreparationItemBlock(
       group: group,
       bordered: bordered,
+      isBlinking: isBlinking,
+      blinkColor: widget.blinkColor,
       selectionMode: _selectionMode,
       selectedLineKeys: _selectedLineKeys,
       lineKey: _lineKey,
@@ -263,6 +274,8 @@ class _PreparationItemBlock extends StatelessWidget {
   const _PreparationItemBlock({
     required this.group,
     required this.bordered,
+    required this.isBlinking,
+    required this.blinkColor,
     required this.selectionMode,
     required this.selectedLineKeys,
     required this.lineKey,
@@ -274,6 +287,8 @@ class _PreparationItemBlock extends StatelessWidget {
 
   final KitchenPreparationItemGroup group;
   final bool bordered;
+  final bool isBlinking;
+  final Color blinkColor;
   final bool selectionMode;
   final Set<String> selectedLineKeys;
   final String Function(KitchenPreparationTableLine line) lineKey;
@@ -322,21 +337,35 @@ class _PreparationItemBlock extends StatelessWidget {
     );
 
     if (!bordered) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildItemHeader(),
-          const SizedBox(height: 10),
-          ...lines,
-        ],
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
+          color: isBlinking
+              ? blinkColor.withValues(alpha: 0.65)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildItemHeader(),
+            const SizedBox(height: 10),
+            ...lines,
+          ],
+        ),
       );
     }
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isBlinking ? blinkColor : Colors.white,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _tileBorder),
+        border: Border.all(
+          color: isBlinking ? _orange.withValues(alpha: 0.45) : _tileBorder,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(

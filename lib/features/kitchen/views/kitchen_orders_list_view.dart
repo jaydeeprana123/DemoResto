@@ -80,6 +80,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   KitchenCrossTablePendingIndex _crossTablePendingIndex =
       KitchenCrossTablePendingIndex.empty();
   List<KitchenPreparationItemGroup> _preparationItemGroups = [];
+  Map<String, Set<String>> _previousPrepItemLineTokens = {};
+  Set<String> _blinkingPrepItemKeys = {};
+  Color _prepBlinkColor = Colors.lightGreenAccent.shade100;
+  Timer? _prepBlinkTimer;
   int? blinkingGroupKey;
   // Color used for the currently blinking card: green for a new order,
   // yellow for an update (quantity changed / item added on existing table).
@@ -259,6 +263,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     required Set<String> currentDocIds,
     required bool isUpdate,
   }) {
+    previousKeys = currentKeys;
+    _previousSignatures = currentSignatures;
+    _previousDocIds = currentDocIds;
+    _previousKeyToGroup = keyToGroup;
+
+    if (_showPreparationView && _orderTypeFilterIndex != 3) {
+      return;
+    }
+
     final group = keyToGroup[key];
     final shouldPlaySound = group != null
         ? _shouldPlaySoundForGroup(group)
@@ -266,11 +279,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
     // Play immediately. Post-frame callbacks are not scheduled when the screen
     // is locked or the app is in the background.
-    previousKeys = currentKeys;
-    _previousSignatures = currentSignatures;
-    _previousDocIds = currentDocIds;
-    _previousKeyToGroup = keyToGroup;
-
     if (shouldPlaySound && _canRingBell) {
       if (isUpdate) {
         _playUpdateSound();
@@ -746,6 +754,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     _displayTableCards = _mergeGroupsByTable(filtered);
     _rebuildCrossTablePendingIndex();
     _rebuildPreparationItemGroups(filtered);
+    if (_showPreparationView && _orderTypeFilterIndex != 3) {
+      _previousPrepItemLineTokens = _buildPreparationItemLineTokens(filtered);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _triggerDelayedBlinkIfNeeded();
     });
@@ -786,14 +797,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     _crossTablePendingIndex = KitchenCrossTablePendingIndex.fromLines(lines);
   }
 
-  void _rebuildPreparationItemGroups(List<TableGroup> groups) {
-    if (!_showPreparationView) {
-      _preparationItemGroups = [];
-      return;
-    }
-
+  List<KitchenPreparationSourceLine> _collectPreparationSourceLines(
+    List<TableGroup> groups,
+  ) {
     final lines = <KitchenPreparationSourceLine>[];
     for (final group in groups) {
+      if (group.isZomato) continue;
       final batchTime = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
       for (final entry in group.items.asMap().entries) {
         final item = TableItemServed.asItemMap(entry.value);
@@ -819,7 +828,148 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         );
       }
     }
-    _preparationItemGroups = KitchenPreparationViewIndex.fromLines(lines);
+    return lines;
+  }
+
+  Map<String, Set<String>> _buildPreparationItemLineTokens(
+    List<TableGroup> groups,
+  ) {
+    final itemGroups = KitchenPreparationViewIndex.fromLines(
+      _collectPreparationSourceLines(groups),
+    );
+    final tokens = <String, Set<String>>{};
+    for (final group in itemGroups) {
+      final key = KitchenCrossTablePendingIndex.normalizeItemName(group.itemName);
+      tokens[key] = group.lines
+          .map(
+            (line) =>
+                '${line.tableName}|${line.qty}|${line.remarks ?? ''}|${line.isServed}',
+          )
+          .toSet();
+    }
+    return tokens;
+  }
+
+  bool _shouldPlaySoundForPrepItem(String normalizedItemKey) {
+    if (!_hasActiveCategoryFilter) return true;
+
+    for (final group in _lastUpdatedGroups) {
+      if (group.isZomato) continue;
+      for (final raw in group.items) {
+        final item = TableItemServed.asItemMap(raw);
+        if (item == null) continue;
+        final name = item['name']?.toString().trim() ?? '';
+        if (name.isEmpty) continue;
+        if (KitchenCrossTablePendingIndex.normalizeItemName(name) !=
+            normalizedItemKey) {
+          continue;
+        }
+        if (_isMenuItemIncludedInFilter(item)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  void _schedulePreparationItemBlink(
+    Set<String> normalizedItemKeys, {
+    required bool isUpdate,
+  }) {
+    if (normalizedItemKeys.isEmpty) return;
+
+    _prepBlinkTimer?.cancel();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _setStatePreservingScroll(() {
+        _blinkingPrepItemKeys = Set<String>.from(normalizedItemKeys);
+        _prepBlinkColor = isUpdate ? _updateBlinkColor : _newOrderBlinkColor;
+      });
+      _prepBlinkTimer = Timer(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        _setStatePreservingScroll(() => _blinkingPrepItemKeys = {});
+      });
+    });
+  }
+
+  void _notifyPreparationItemsAffected(
+    Set<String> normalizedItemKeys, {
+    required bool isUpdate,
+  }) {
+    if (normalizedItemKeys.isEmpty) return;
+
+    final shouldPlay = normalizedItemKeys.any(_shouldPlaySoundForPrepItem);
+    if (shouldPlay && _canRingBell) {
+      if (isUpdate) {
+        _playUpdateSound();
+      } else {
+        _playNotificationSound();
+      }
+    }
+
+    _schedulePreparationItemBlink(
+      normalizedItemKeys,
+      isUpdate: isUpdate,
+    );
+  }
+
+  void _handlePreparationItemAlerts(List<TableGroup> filteredGroups) {
+    final currentTokens = _buildPreparationItemLineTokens(filteredGroups);
+
+    if (!_showPreparationView || _orderTypeFilterIndex == 3) {
+      _previousPrepItemLineTokens = currentTokens;
+      return;
+    }
+
+    if (_previousPrepItemLineTokens.isEmpty) {
+      if (_wasKitchenEmpty && currentTokens.isNotEmpty) {
+        _notifyPreparationItemsAffected(
+          currentTokens.keys.toSet(),
+          isUpdate: false,
+        );
+      }
+      _previousPrepItemLineTokens = currentTokens;
+      return;
+    }
+
+    final affected = <String>{};
+    var anyNew = false;
+    var anyUpdate = false;
+
+    for (final entry in currentTokens.entries) {
+      final previous = _previousPrepItemLineTokens[entry.key];
+      if (previous == null) {
+        affected.add(entry.key);
+        anyNew = true;
+        continue;
+      }
+
+      final addedLines = entry.value.difference(previous);
+      if (addedLines.isNotEmpty) {
+        affected.add(entry.key);
+        anyUpdate = true;
+      }
+    }
+
+    _previousPrepItemLineTokens = currentTokens;
+
+    if (affected.isEmpty) return;
+
+    _notifyPreparationItemsAffected(
+      affected,
+      isUpdate: anyUpdate && !anyNew,
+    );
+  }
+
+  void _rebuildPreparationItemGroups(List<TableGroup> groups) {
+    if (!_showPreparationView) {
+      _preparationItemGroups = [];
+      return;
+    }
+
+    _preparationItemGroups = KitchenPreparationViewIndex.fromLines(
+      _collectPreparationSourceLines(groups),
+    );
   }
 
   bool get _usePreparationViewLayout =>
@@ -1013,6 +1163,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         _previousSignatures = {};
         _previousDocIds = {};
         _previousKeyToGroup = {};
+        _previousPrepItemLineTokens = {};
       }
       if (_displayFilteredGroups.isNotEmpty ||
           _displayTableCards.isNotEmpty ||
@@ -1024,6 +1175,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           _displayTableCards = [];
           _crossTablePendingIndex = KitchenCrossTablePendingIndex.empty();
           _preparationItemGroups = [];
+          _blinkingPrepItemKeys = {};
           _kitchenStreamReady = true;
         });
       }
@@ -1155,6 +1307,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         );
       }
     }
+
+    _handlePreparationItemAlerts(filteredGroups);
 
     final displayChanged = _showTableAllOrders
         ? !_sameTableCards(_displayTableCards, tableCards)
@@ -1297,6 +1451,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         crossAxisSpacing: _kitchenCrossAxisSpacing,
         padding: _kitchenGridPadding,
         servedTabActive: _showServeOrderScreen && _kitchenOrderTabIndex == 1,
+        blinkingItemKeys: _blinkingPrepItemKeys,
+        blinkColor: _prepBlinkColor,
       );
     }
 
@@ -2764,6 +2920,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     _gridScrollController.dispose();
     _timer?.cancel();
     _delayedBlinkTimer?.cancel();
+    _prepBlinkTimer?.cancel();
     _minuteTick.dispose();
     audioPlayer.dispose();
     updateAudioPlayer.dispose();
