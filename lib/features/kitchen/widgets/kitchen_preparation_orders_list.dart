@@ -131,18 +131,20 @@ class _KitchenPreparationOrdersListState
     return Column(
       children: [
         Expanded(
-          child: widget.layoutIsGrid
-              ? _buildGridView()
-              : _buildListView(),
+          child: widget.layoutIsGrid ? _buildGridView() : _buildListView(),
         ),
         if (_selectionMode && !widget.servedTabActive) _buildSelectionBar(),
       ],
     );
   }
 
-  Widget _buildItemBlock(KitchenPreparationItemGroup group, {required bool bordered}) {
-    final normalizedKey =
-        KitchenCrossTablePendingIndex.normalizeItemName(group.itemName);
+  Widget _buildItemBlock(
+    KitchenPreparationItemGroup group, {
+    required bool bordered,
+  }) {
+    final normalizedKey = KitchenCrossTablePendingIndex.normalizeItemName(
+      group.itemName,
+    );
     final isBlinking = widget.blinkingItemKeys.contains(normalizedKey);
 
     return _PreparationItemBlock(
@@ -308,15 +310,21 @@ class _PreparationItemBlock extends StatelessWidget {
           Expanded(
             child: Text(
               group.itemName,
-              style: MyFont.semiBold(14, color: Colors.white),
+              style: MyFont.semiBold(15, color: Colors.white),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            '(${group.totalQty})',
-            style: MyFont.bold(14, color: _orange),
+          Container(
+            width: 27,
+            height: 27,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: _orange, shape: BoxShape.circle),
+            child: Text(
+              '${group.totalQty}',
+              style: MyFont.bold(13, color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -348,11 +356,7 @@ class _PreparationItemBlock extends StatelessWidget {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildItemHeader(),
-            const SizedBox(height: 10),
-            ...lines,
-          ],
+          children: [_buildItemHeader(), const SizedBox(height: 10), ...lines],
         ),
       );
     }
@@ -413,8 +417,8 @@ class _PreparationTableLineRow extends StatelessWidget {
         color: served
             ? Colors.green.withValues(alpha: 0.1)
             : isSelected
-                ? Colors.green.withValues(alpha: 0.07)
-                : Colors.transparent,
+            ? Colors.green.withValues(alpha: 0.07)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(6),
         child: InkWell(
           onTap: onTap,
@@ -451,7 +455,7 @@ class _PreparationTableLineRow extends StatelessWidget {
                             child: Text(
                               line.tableLabel,
                               style: MyFont.semiBold(
-                                12,
+                                13,
                                 color: served
                                     ? Colors.green.shade700
                                     : const Color(0xFF212121),
@@ -468,7 +472,7 @@ class _PreparationTableLineRow extends StatelessWidget {
                                 formatRelativeTime(line.orderTime),
                               ),
                               style: MyFont.regular(
-                                11,
+                                12,
                                 color: served
                                     ? Colors.green.shade400
                                     : Colors.grey.shade600,
@@ -522,10 +526,7 @@ class _PreparationTableLineRow extends StatelessWidget {
       ),
       child: Text(
         '×${line.qty}',
-        style: MyFont.bold(
-          11,
-          color: served ? Colors.green.shade700 : _orange,
-        ),
+        style: MyFont.bold(12, color: served ? Colors.green.shade700 : _orange),
       ),
     );
   }

@@ -441,7 +441,7 @@ class _KitchenCrossTablePendingSheetBodyState
   }
 }
 
-class KitchenCrossTablePendingBadge extends StatelessWidget {
+class KitchenCrossTablePendingBadge extends StatefulWidget {
   const KitchenCrossTablePendingBadge({
     required this.totalQty,
     required this.onTap,
@@ -452,21 +452,69 @@ class KitchenCrossTablePendingBadge extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<KitchenCrossTablePendingBadge> createState() =>
+      _KitchenCrossTablePendingBadgeState();
+}
+
+class _KitchenCrossTablePendingBadgeState extends State<KitchenCrossTablePendingBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _pulseScale = Tween<double>(begin: 1.0, end: 1.12).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        margin: const EdgeInsets.only(left: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: _orange.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _orange.withValues(alpha: 0.45)),
-        ),
-        child: Text(
-          '[$totalQty]',
-          style: MyFont.bold(11, color: _orange),
+    return Tooltip(
+      message: 'Pending on ${widget.totalQty} tables — tap to view',
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: ScaleTransition(
+          scale: _pulseScale,
+          child: Container(
+            margin: const EdgeInsets.only(left: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _orange,
+                  Color.lerp(_orange, Colors.red.shade700, 0.35)!,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: _orange.withValues(alpha: 0.55),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Text(
+              '${widget.totalQty}',
+              style: MyFont.bold(13, color: Colors.white),
+            ),
+          ),
         ),
       ),
     );

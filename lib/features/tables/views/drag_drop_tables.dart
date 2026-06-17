@@ -78,6 +78,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       _tablesListener;
   final ScrollController _gridScrollController = ScrollController();
   bool _zomatoPasteInProgress = false;
+  bool _mobileGridLayout = true;
 
   @override
   void initState() {
@@ -95,11 +96,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
   Future<void> _loadTableFilter() async {
     final saved = await DashboardTableFilterSettings.loadSelection();
+    final mobileGrid = await DashboardTableFilterSettings.loadMobileGridLayout();
     if (!mounted) return;
     setState(() {
       _tableFilterSelection
         ..clear()
         ..addAll(saved);
+      _mobileGridLayout = mobileGrid;
     });
   }
 
@@ -255,6 +258,35 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         _gridScrollController.jumpTo(target);
       }
     });
+  }
+
+  bool _isMobileDashboard(double screenWidth) => screenWidth <= 600;
+
+  void _toggleMobileLayout() {
+    final scrollOffset = _gridScrollController.hasClients
+        ? _gridScrollController.offset
+        : null;
+    setState(() => _mobileGridLayout = !_mobileGridLayout);
+    unawaited(
+      DashboardTableFilterSettings.saveMobileGridLayout(_mobileGridLayout),
+    );
+    if (scrollOffset != null) {
+      _restoreGridScroll(scrollOffset);
+    }
+  }
+
+  Widget _buildTableListItem(int index) {
+    final tableName = _filteredTableKeys().elementAt(index);
+    final groups = tables[tableName]!;
+    final queuePos = _takeAwayNumber(tableName);
+    return KeyedSubtree(
+      key: ValueKey(tableName),
+      child: _buildTableCard(
+        tableName,
+        groups,
+        takeAwayNum: queuePos,
+      ),
+    );
   }
 
   List<Map<String, dynamic>> _stampGroupAddedAt(
@@ -1132,7 +1164,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       defaultTargetPlatform == TargetPlatform.macOS ||
       defaultTargetPlatform == TargetPlatform.linux;
 
-  Widget _buildTablesScrollArea(int crossCols, double screenW) {
+  Widget _buildTablesScrollArea(
+    int crossCols,
+    double screenW, {
+    required bool isMobile,
+  }) {
     final minScrollHeight = MediaQuery.sizeOf(context).height * 0.55;
 
     if (_tablesLoading && tables.isEmpty) {
@@ -1190,7 +1226,22 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       );
     }
 
+    if (isMobile && !_mobileGridLayout) {
+      return ListView.separated(
+        key: const ValueKey('dashboard_tables_list'),
+        controller: _gridScrollController,
+        restorationId: 'dashboard_tables_list',
+        cacheExtent: 3000,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(4, 8, 4, 100),
+        itemCount: _filteredTableKeys().length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) => _buildTableListItem(index),
+      );
+    }
+
     return MasonryGridView.count(
+      key: ValueKey('dashboard_tables_grid_$crossCols'),
       controller: _gridScrollController,
       restorationId: 'dashboard_tables_grid',
       cacheExtent: 3000,
@@ -1205,19 +1256,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         100,
       ),
       itemCount: _filteredTableKeys().length,
-      itemBuilder: (context, index) {
-        final tableName = _filteredTableKeys().elementAt(index);
-        final groups = tables[tableName]!;
-        final queuePos = _takeAwayNumber(tableName);
-        return KeyedSubtree(
-          key: ValueKey(tableName),
-          child: _buildTableCard(
-            tableName,
-            groups,
-            takeAwayNum: queuePos,
-          ),
-        );
-      },
+      itemBuilder: (context, index) => _buildTableListItem(index),
     );
   }
 
@@ -1256,6 +1295,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
     final screenW = MediaQuery.of(context).size.width;
+    final isMobile = _isMobileDashboard(screenW);
     final crossCols = screenW > 1200
         ? 5
         : screenW > 900
@@ -1269,7 +1309,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       onPasteImage: _handleZomatoPaste,
       child: Scaffold(
       backgroundColor: _bg,
-      appBar: _buildAppBar(),
+      appBar: _buildAppBar(isMobile: isMobile),
       body: Stack(
         children: [
           Column(
@@ -1285,7 +1325,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 child: RefreshIndicator(
                   color: _orange,
                   onRefresh: _refreshDashboard,
-                  child: _buildTablesScrollArea(crossCols, screenW),
+                  child: _buildTablesScrollArea(
+                    crossCols,
+                    screenW,
+                    isMobile: isMobile,
+                  ),
                 ),
               ),
             ],
@@ -1297,7 +1341,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
+  PreferredSizeWidget _buildAppBar({required bool isMobile}) {
     final restaurantName =
         Get.find<RestaurantSession>().activeRestaurant.value?.name;
     final titleText = restaurantName != null && restaurantName.isNotEmpty
@@ -1381,22 +1425,36 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               : 'Filter active (${_tableFilterSelection.length} selected)',
           onPressed: _showTableFilterSheet,
         ),
-        Container(
-          margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            '${_filteredTableKeys().length} ${_dashboardCountLabel()}',
-            style: const TextStyle(
+        if (isMobile)
+          IconButton(
+            icon: Icon(
+              _mobileGridLayout
+                  ? Icons.view_list_rounded
+                  : Icons.grid_view_rounded,
               color: Colors.white70,
-              fontSize: 12,
-              fontFamily: fontMulishSemiBold,
+            ),
+            tooltip: _mobileGridLayout
+                ? 'Switch to list view'
+                : 'Switch to grid view',
+            onPressed: _toggleMobileLayout,
+          )
+        else
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '${_filteredTableKeys().length} ${_dashboardCountLabel()}',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontFamily: fontMulishSemiBold,
+              ),
             ),
           ),
-        ),
         IconButton(
           icon: const Icon(Icons.logout_rounded, color: Colors.white70),
           tooltip: 'Sign Out',
