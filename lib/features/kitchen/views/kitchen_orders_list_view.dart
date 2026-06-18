@@ -2693,6 +2693,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }) {
     final paid = isPaid == true;
     final zomato = isZomato || ZomatoOrderUtils.isZomatoOrderName(tableName);
+    final isTakeAway = isTakeAwayOrderName(tableName);
     final titleColor = KitchenTheme.headerTitleColor(headerColor);
     final header = Container(
       padding: EdgeInsets.symmetric(
@@ -2715,9 +2716,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                   SizedBox()
                 else
                   SvgPicture.asset(
-                    tableName.contains("Take Away") ? icon_packing : icon_table,
+                    isTakeAway ? icon_packing : icon_table,
                     colorFilter: ColorFilter.mode(titleColor, BlendMode.srcIn),
-                    width: tableName.contains("Take Away")
+                    width: isTakeAway
                         ? (compact ? 15 : 18)
                         : (compact ? 18 : 22),
                   ),
@@ -2726,7 +2727,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                   child: Text(
                     tableName,
                     style: TextStyle(
-                      fontFamily: zomato || tableName.contains("Take Away")
+                      fontFamily: zomato || isTakeAway
                           ? fontMulishBold
                           : fontMulishSemiBold,
                       fontSize: compact ? 13 : 16,
