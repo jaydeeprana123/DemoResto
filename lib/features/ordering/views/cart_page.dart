@@ -1517,23 +1517,20 @@ class _CartPageState extends State<CartPage> {
                                                 style: const TextStyle(
                                                   fontSize: 14,
                                                   color: secondary_text_color,
-                                                  fontFamily:
-                                                      fontMulishSemiBold,
+                                                  fontFamily: fontMulishSemiBold,
                                                 ),
                                                 decoration: InputDecoration(
                                                   labelText: "Cash Amount",
                                                   labelStyle: const TextStyle(
                                                     fontSize: 10,
                                                     color: secondary_text_color,
-                                                    fontFamily:
-                                                        fontMulishMedium,
+                                                    fontFamily: fontMulishMedium,
                                                   ),
                                                   hintText: "Enter %",
                                                   hintStyle: const TextStyle(
                                                     fontSize: 13,
                                                     color: Colors.grey,
-                                                    fontFamily:
-                                                        fontMulishRegular,
+                                                    fontFamily: fontMulishRegular,
                                                   ),
                                                   isDense: true,
                                                   contentPadding:
@@ -1601,23 +1598,20 @@ class _CartPageState extends State<CartPage> {
                                                 style: const TextStyle(
                                                   fontSize: 14,
                                                   color: secondary_text_color,
-                                                  fontFamily:
-                                                      fontMulishSemiBold,
+                                                  fontFamily: fontMulishSemiBold,
                                                 ),
                                                 decoration: InputDecoration(
                                                   labelText: "Online Amount",
                                                   labelStyle: const TextStyle(
                                                     fontSize: 10,
                                                     color: secondary_text_color,
-                                                    fontFamily:
-                                                        fontMulishMedium,
+                                                    fontFamily: fontMulishMedium,
                                                   ),
                                                   hintText: "Enter %",
                                                   hintStyle: const TextStyle(
                                                     fontSize: 13,
                                                     color: Colors.grey,
-                                                    fontFamily:
-                                                        fontMulishRegular,
+                                                    fontFamily: fontMulishRegular,
                                                   ),
                                                   isDense: true,
                                                   contentPadding:

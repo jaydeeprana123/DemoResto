@@ -409,7 +409,7 @@ class _MenuSeederPageState extends State<MenuSeederPage> {
       appBar: AppBar(
         title: const Text(
           'Menu Seeder',
-          style: TextStyle(fontFamily: 'Mulish SemiBold', fontSize: 16),
+          style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 16),
         ),
       ),
       body: Padding(
@@ -545,7 +545,7 @@ class _MenuSeederPageState extends State<MenuSeederPage> {
                           ? 'Importing...'
                           : 'Delete Old Menu & Import Al-Haadi Menu',
                   style: const TextStyle(
-                    fontFamily: 'Mulish SemiBold',
+                    fontFamily: fontMulishSemiBold,
                     fontSize: 14,
                   ),
                 ),

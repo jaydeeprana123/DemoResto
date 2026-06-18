@@ -1,14 +1,11 @@
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/features/kitchen/services/kitchen_preparation_view_index.dart';
 import 'package:demo/features/kitchen/services/kitchen_cross_table_pending_index.dart';
+import 'package:demo/features/kitchen/widgets/kitchen_theme.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-
-const _navy = Color(0xFF1A3A5C);
-const _orange = Color(0xFFf57c35);
-const _tileBorder = Color(0xFFE5E7EB);
 
 class KitchenPreparationOrdersList extends StatefulWidget {
   const KitchenPreparationOrdersList({
@@ -25,6 +22,7 @@ class KitchenPreparationOrdersList extends StatefulWidget {
     this.servedTabActive = false,
     this.blinkingItemKeys = const {},
     this.blinkColor = const Color(0xFFE8F5E9),
+    this.footerChildren = const [],
   });
 
   final List<KitchenPreparationItemGroup> groups;
@@ -39,6 +37,7 @@ class KitchenPreparationOrdersList extends StatefulWidget {
   final bool servedTabActive;
   final Set<String> blinkingItemKeys;
   final Color blinkColor;
+  final List<Widget> footerChildren;
 
   @override
   State<KitchenPreparationOrdersList> createState() =>
@@ -163,35 +162,114 @@ class _KitchenPreparationOrdersListState
   }
 
   Widget _buildGridView() {
-    return MasonryGridView.count(
+    if (widget.footerChildren.isEmpty) {
+      return MasonryGridView.count(
+        controller: widget.scrollController,
+        restorationId: 'kitchen_preparation_orders_grid',
+        cacheExtent: 3000,
+        physics: const AlwaysScrollableScrollPhysics(),
+        crossAxisCount: widget.crossAxisCount,
+        mainAxisSpacing: widget.mainAxisSpacing,
+        crossAxisSpacing: widget.crossAxisSpacing,
+        padding: widget.padding,
+        itemCount: widget.groups.length,
+        itemBuilder: (context, index) =>
+            _buildItemBlock(widget.groups[index], bordered: true),
+      );
+    }
+
+    return CustomScrollView(
       controller: widget.scrollController,
       restorationId: 'kitchen_preparation_orders_grid',
       cacheExtent: 3000,
       physics: const AlwaysScrollableScrollPhysics(),
-      crossAxisCount: widget.crossAxisCount,
-      mainAxisSpacing: widget.mainAxisSpacing,
-      crossAxisSpacing: widget.crossAxisSpacing,
-      padding: widget.padding,
-      itemCount: widget.groups.length,
-      itemBuilder: (context, index) =>
-          _buildItemBlock(widget.groups[index], bordered: true),
+      slivers: [
+        if (widget.groups.isNotEmpty)
+          SliverPadding(
+            padding: widget.padding,
+            sliver: SliverToBoxAdapter(
+              child: MasonryGridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: widget.crossAxisCount,
+                mainAxisSpacing: widget.mainAxisSpacing,
+                crossAxisSpacing: widget.crossAxisSpacing,
+                itemCount: widget.groups.length,
+                itemBuilder: (context, index) =>
+                    _buildItemBlock(widget.groups[index], bordered: true),
+              ),
+            ),
+          ),
+        SliverPadding(
+          padding: widget.padding,
+          sliver: SliverToBoxAdapter(
+            child: MasonryGridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: widget.crossAxisCount,
+              mainAxisSpacing: widget.mainAxisSpacing,
+              crossAxisSpacing: widget.crossAxisSpacing,
+              itemCount: widget.footerChildren.length,
+              itemBuilder: (context, index) => widget.footerChildren[index],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildListView() {
-    return ListView.separated(
+    if (widget.footerChildren.isEmpty) {
+      return ListView.separated(
+        controller: widget.scrollController,
+        restorationId: 'kitchen_preparation_orders_list',
+        cacheExtent: 3000,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: widget.padding,
+        itemCount: widget.groups.length,
+        separatorBuilder: (_, __) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Divider(height: 1, color: KitchenTheme.surfaceBorder),
+        ),
+        itemBuilder: (context, index) =>
+            _buildItemBlock(widget.groups[index], bordered: false),
+      );
+    }
+
+    final children = <Widget>[];
+    for (var i = 0; i < widget.groups.length; i++) {
+      if (i > 0) {
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Divider(height: 1, color: KitchenTheme.surfaceBorder),
+          ),
+        );
+      }
+      children.add(_buildItemBlock(widget.groups[i], bordered: false));
+    }
+    if (widget.footerChildren.isNotEmpty && widget.groups.isNotEmpty) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Divider(height: 1, color: KitchenTheme.surfaceBorder),
+        ),
+      );
+    }
+    for (var i = 0; i < widget.footerChildren.length; i++) {
+      if (i > 0) {
+        children.add(const SizedBox(height: 12));
+      }
+      children.add(widget.footerChildren[i]);
+    }
+
+    return ListView(
       controller: widget.scrollController,
       restorationId: 'kitchen_preparation_orders_list',
       cacheExtent: 3000,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: widget.padding,
-      itemCount: widget.groups.length,
-      separatorBuilder: (_, __) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Divider(height: 1, color: Colors.grey.shade300),
-      ),
-      itemBuilder: (context, index) =>
-          _buildItemBlock(widget.groups[index], bordered: false),
+      children: children,
     );
   }
 
@@ -199,20 +277,27 @@ class _KitchenPreparationOrdersListState
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        color: KitchenTheme.surfaceElevated,
+        border: Border(top: BorderSide(color: KitchenTheme.surfaceBorder)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Text(
             '${_selectedLineKeys.length} selected',
-            style: MyFont.semiBold(13, color: _navy),
+            style: MyFont.semiBold(13, color: KitchenTheme.textOnDark),
           ),
           const Spacer(),
           _actionIcon(
             icon: Icons.close,
             tooltip: 'Cancel',
-            color: Colors.grey.shade700,
+            color: KitchenTheme.accentMuted,
             onPressed: _submitting ? null : _cancelSelection,
           ),
           const SizedBox(width: 12),
@@ -221,7 +306,7 @@ class _KitchenPreparationOrdersListState
             tooltip: _selectedLineKeys.isEmpty
                 ? 'Serve'
                 : 'Serve (${_selectedLineKeys.length})',
-            color: Colors.green.shade600,
+            color: KitchenTheme.kdsGreen,
             onPressed: _selectedLineKeys.isEmpty || _submitting
                 ? null
                 : _serveSelected,
@@ -242,7 +327,7 @@ class _KitchenPreparationOrdersListState
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: color.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(24),
         child: InkWell(
           onTap: onPressed,
@@ -300,30 +385,48 @@ class _PreparationItemBlock extends StatelessWidget {
   final bool submitting;
 
   Widget _buildItemHeader() {
+    final headerColor = KitchenTheme.headerForOrderKey(
+      group.itemName,
+      isZomato: false,
+    );
+    final titleColor = KitchenTheme.headerTitleColor(headerColor);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      color: _navy,
+      decoration: BoxDecoration(
+        color: headerColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(9)),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Text(
               group.itemName,
-              style: MyFont.semiBold(15, color: Colors.white),
+              style: MyFont.semiBold(15, color: titleColor),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(width: 8),
           Container(
-            width: 27,
-            height: 27,
+            width: 26,
+            height: 26,
             alignment: Alignment.center,
-            decoration: BoxDecoration(color: _orange, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.22),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
             child: Text(
               '${group.totalQty}',
-              style: MyFont.bold(13, color: Colors.white),
+              style: MyFont.bold(12, color: const Color(0xFF1A1A1A)),
             ),
           ),
         ],
@@ -344,19 +447,41 @@ class _PreparationItemBlock extends StatelessWidget {
       ),
     );
 
+    final headerColor = KitchenTheme.headerForOrderKey(
+      group.itemName,
+      isZomato: false,
+    );
+
     if (!bordered) {
       return AnimatedContainer(
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
-          color: isBlinking
-              ? blinkColor.withValues(alpha: 0.65)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+          color: isBlinking ? blinkColor : KitchenTheme.cardBody,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isBlinking
+                ? headerColor.withValues(alpha: 0.55)
+                : Colors.grey.shade200.withValues(alpha: 0.85),
+          ),
+          boxShadow: KitchenTheme.cardShadows(
+            accentColor: headerColor,
+            emphasize: isBlinking,
+          ),
         ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [_buildItemHeader(), const SizedBox(height: 10), ...lines],
+          children: [
+            _buildItemHeader(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: lines.toList(),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -365,10 +490,16 @@ class _PreparationItemBlock extends StatelessWidget {
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeInOut,
       decoration: BoxDecoration(
-        color: isBlinking ? blinkColor : Colors.white,
+        color: isBlinking ? blinkColor : KitchenTheme.cardBody,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isBlinking ? _orange.withValues(alpha: 0.45) : _tileBorder,
+          color: isBlinking
+              ? headerColor.withValues(alpha: 0.55)
+              : Colors.grey.shade200.withValues(alpha: 0.85),
+        ),
+        boxShadow: KitchenTheme.cardShadows(
+          accentColor: headerColor,
+          emphasize: isBlinking,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -415,9 +546,9 @@ class _PreparationTableLineRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
         color: served
-            ? Colors.green.withValues(alpha: 0.1)
+            ? KitchenTheme.kdsGreen.withValues(alpha: 0.1)
             : isSelected
-            ? Colors.green.withValues(alpha: 0.07)
+            ? KitchenTheme.kdsBlue.withValues(alpha: 0.1)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(6),
         child: InkWell(
@@ -435,12 +566,12 @@ class _PreparationTableLineRow extends StatelessWidget {
                         : Icons.check_box_outline_blank,
                     size: 18,
                     color: isSelected
-                        ? Colors.green.shade600
-                        : Colors.grey.shade500,
+                        ? KitchenTheme.kdsBlue
+                        : KitchenTheme.accentMuted,
                   ),
                   const SizedBox(width: 6),
                 ] else if (served) ...[
-                  Icon(Icons.check, size: 15, color: Colors.green.shade600),
+                  Icon(Icons.check, size: 15, color: KitchenTheme.kdsGreen),
                   const SizedBox(width: 4),
                 ],
                 _buildQtyBadge(served: served),
@@ -457,7 +588,7 @@ class _PreparationTableLineRow extends StatelessWidget {
                               style: MyFont.semiBold(
                                 13,
                                 color: served
-                                    ? Colors.green.shade700
+                                    ? KitchenTheme.servedGreen
                                     : const Color(0xFF212121),
                               ),
                               maxLines: 1,
@@ -474,8 +605,10 @@ class _PreparationTableLineRow extends StatelessWidget {
                               style: MyFont.regular(
                                 12,
                                 color: served
-                                    ? Colors.green.shade400
-                                    : Colors.grey.shade600,
+                                    ? KitchenTheme.kdsGreen.withValues(
+                                        alpha: 0.7,
+                                      )
+                                    : KitchenTheme.accentMuted,
                               ),
                             ),
                           ),
@@ -488,8 +621,8 @@ class _PreparationTableLineRow extends StatelessWidget {
                           style: MyFont.regular(
                             11,
                             color: served
-                                ? Colors.green.shade400
-                                : Colors.red.shade400,
+                                ? KitchenTheme.kdsGreen.withValues(alpha: 0.7)
+                                : KitchenTheme.delayedText,
                           ).copyWith(fontStyle: FontStyle.italic),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -520,13 +653,16 @@ class _PreparationTableLineRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: served
-            ? Colors.green.withValues(alpha: 0.12)
-            : _orange.withValues(alpha: 0.12),
+            ? KitchenTheme.kdsGreen.withValues(alpha: 0.12)
+            : KitchenTheme.orange.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         '×${line.qty}',
-        style: MyFont.bold(12, color: served ? Colors.green.shade700 : _orange),
+        style: MyFont.bold(
+          12,
+          color: served ? KitchenTheme.servedGreen : KitchenTheme.orange,
+        ),
       ),
     );
   }

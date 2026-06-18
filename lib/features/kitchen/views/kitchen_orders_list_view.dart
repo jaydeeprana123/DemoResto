@@ -28,6 +28,7 @@ import 'package:demo/features/kitchen/services/kitchen_menu_filter.dart';
 import 'package:demo/features/kitchen/services/kitchen_preparation_view_index.dart';
 import 'package:demo/features/kitchen/widgets/kitchen_cross_table_pending_sheet.dart';
 import 'package:demo/features/kitchen/widgets/kitchen_preparation_orders_list.dart';
+import 'package:demo/features/kitchen/widgets/kitchen_theme.dart';
 import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
@@ -66,7 +67,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   Set<String> _previousDocIds = {};
   Map<String, TableGroup> _previousKeyToGroup = {};
   ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>?
-      _tablesListener;
+  _tablesListener;
   final ScrollController _gridScrollController = ScrollController();
   final ValueNotifier<int> _minuteTick = ValueNotifier(0);
   bool _kitchenStreamReady = false;
@@ -94,8 +95,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   static final Color _newOrderBlinkColor = Colors.lightGreenAccent.shade100;
   static final Color _updateBlinkColor = Colors.yellow.shade300;
-  static final Color _delayedItemBackground = Color(0xFFFFEBEE); // light red
-  static final Color _delayedItemBlinkBackground = Color(0xFFFFCDD2);
+  static final Color _delayedItemBackground = KitchenTheme.delayedBarBg;
+  static final Color _delayedItemBlinkBackground = KitchenTheme.delayedBarBlink;
   static const int _delayThresholdMinutes = 15;
   static const int _delayedBlinkPulseCount = 7;
 
@@ -187,7 +188,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     if (KitchenSettings.backgroundOrderRingtoneEnabled.value) {
       return _appLifecycleState != AppLifecycleState.detached;
     }
-    return _appLifecycleState == AppLifecycleState.resumed && widget.isTabActive;
+    return _appLifecycleState == AppLifecycleState.resumed &&
+        widget.isTabActive;
   }
 
   bool get _isAppInBackground =>
@@ -196,7 +198,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       _appLifecycleState == AppLifecycleState.hidden;
 
   Future<void> _preparePlayersForRing() async {
-    if (KitchenSettings.backgroundOrderRingtoneEnabled.value && _isAppInBackground) {
+    if (KitchenSettings.backgroundOrderRingtoneEnabled.value &&
+        _isAppInBackground) {
       await _configureAudioPlayers();
     }
   }
@@ -308,8 +311,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   Set<String> selectedCategories = {};
   Set<String> selectedMenuItems = {};
   bool showAllCategories = true; // Track if "All" is selected
-  late final KitchenMenuFilter _menuFilter =
-      KitchenMenuFilter(Get.find<MenuCacheService>());
+  late final KitchenMenuFilter _menuFilter = KitchenMenuFilter(
+    Get.find<MenuCacheService>(),
+  );
   bool _showTableAllOrders = true;
   bool _showServeOrderScreen = false;
   bool _showPreparationView = false;
@@ -634,7 +638,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     });
     KitchenSettings.showTableAllOrders.addListener(_onKitchenSettingsChanged);
     KitchenSettings.showServeOrderScreen.addListener(_onKitchenSettingsChanged);
-    KitchenSettings.preparationViewEnabled.addListener(_onKitchenSettingsChanged);
+    KitchenSettings.preparationViewEnabled.addListener(
+      _onKitchenSettingsChanged,
+    );
     KitchenSettings.mobileOrdersGridLayout.addListener(
       _onKitchenSettingsChanged,
     );
@@ -651,16 +657,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   void _listenToKitchenTables() {
     final syncStatus = Get.find<FirestoreSyncStatusService>();
     _tablesListener?.stop();
-    _tablesListener = ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>(
-      debugLabel: 'kitchen',
-      streamFactory: () => FirestorePaths
-          .scoped('tables')
-          .orderBy('createdAt', descending: false)
-          .snapshots(),
-      onStatus: (status) =>
-          syncStatus.setStatus(FirestoreSyncChannel.kitchen, status),
-      onData: _handleTablesSnapshot,
-    )..start();
+    _tablesListener =
+        ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>(
+          debugLabel: 'kitchen',
+          streamFactory: () => FirestorePaths.scoped(
+            'tables',
+          ).orderBy('createdAt', descending: false).snapshots(),
+          onStatus: (status) =>
+              syncStatus.setStatus(FirestoreSyncChannel.kitchen, status),
+          onData: _handleTablesSnapshot,
+        )..start();
   }
 
   Future<void> _refreshKitchenOrders() async {
@@ -668,8 +674,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
     _setStatePreservingScroll(() => _isRefreshingKitchen = true);
     try {
-      final snapshot =
-          await Get.find<TablesRepository>().fetchAllTablesFresh();
+      final snapshot = await Get.find<TablesRepository>().fetchAllTablesFresh();
       if (!mounted) return;
       _handleTablesSnapshot(snapshot);
       _tablesListener?.restart();
@@ -715,12 +720,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   Widget _buildFilterHintBanner() {
     return Material(
-      color: const Color(0xFFFFF8E1),
+      color: KitchenTheme.filterBannerBg,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
           children: [
-            const Icon(Icons.info_outline, size: 18, color: Color(0xFFF57C00)),
+            const Icon(
+              Icons.info_outline,
+              size: 18,
+              color: KitchenTheme.filterBannerIcon,
+            ),
             const SizedBox(width: 8),
             const Expanded(
               child: Text(
@@ -728,18 +737,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                 style: TextStyle(
                   fontFamily: fontMulishRegular,
                   fontSize: 12,
-                  color: Color(0xFF6D4C00),
+                  color: KitchenTheme.filterBannerText,
                 ),
               ),
             ),
             TextButton(
               onPressed: _resetKitchenFiltersToShowAll,
+              style: TextButton.styleFrom(foregroundColor: KitchenTheme.accent),
               child: const Text(
                 'Show all',
-                style: TextStyle(
-                  fontFamily: fontMulishSemiBold,
-                  fontSize: 12,
-                ),
+                style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 12),
               ),
             ),
           ],
@@ -802,7 +809,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   ) {
     final lines = <KitchenPreparationSourceLine>[];
     for (final group in groups) {
-      if (group.isZomato) continue;
       final batchTime = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
       for (final entry in group.items.asMap().entries) {
         final item = TableItemServed.asItemMap(entry.value);
@@ -839,7 +845,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     );
     final tokens = <String, Set<String>>{};
     for (final group in itemGroups) {
-      final key = KitchenCrossTablePendingIndex.normalizeItemName(group.itemName);
+      final key = KitchenCrossTablePendingIndex.normalizeItemName(
+        group.itemName,
+      );
       tokens[key] = group.lines
           .map(
             (line) =>
@@ -854,7 +862,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     if (!_hasActiveCategoryFilter) return true;
 
     for (final group in _lastUpdatedGroups) {
-      if (group.isZomato) continue;
       for (final raw in group.items) {
         final item = TableItemServed.asItemMap(raw);
         if (item == null) continue;
@@ -907,10 +914,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       }
     }
 
-    _schedulePreparationItemBlink(
-      normalizedItemKeys,
-      isUpdate: isUpdate,
-    );
+    _schedulePreparationItemBlink(normalizedItemKeys, isUpdate: isUpdate);
   }
 
   void _handlePreparationItemAlerts(List<TableGroup> filteredGroups) {
@@ -955,10 +959,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
     if (affected.isEmpty) return;
 
-    _notifyPreparationItemsAffected(
-      affected,
-      isUpdate: anyUpdate && !anyNew,
-    );
+    _notifyPreparationItemsAffected(affected, isUpdate: anyUpdate && !anyNew);
   }
 
   void _rebuildPreparationItemGroups(List<TableGroup> groups) {
@@ -974,6 +975,46 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   bool get _usePreparationViewLayout =>
       _showPreparationView && _orderTypeFilterIndex != 3;
+
+  List<TableGroup> get _preparationViewZomatoGroups {
+    if (!_usePreparationViewLayout || _orderTypeFilterIndex != 0) {
+      return const [];
+    }
+    return _displayFilteredGroups
+        .where((group) => group.isZomato && _isScreenshotOnlyZomatoGroup(group))
+        .toList();
+  }
+
+  bool _isScreenshotOnlyZomatoGroup(TableGroup group) {
+    for (final raw in group.items) {
+      final item = TableItemServed.asItemMap(raw);
+      if (item == null) continue;
+      if ((item['name']?.toString().trim() ?? '').isNotEmpty) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  List<Widget> _buildPreparationViewZomatoFooterCards() {
+    final zomatoGroups = _preparationViewZomatoGroups;
+    if (zomatoGroups.isEmpty) return const [];
+
+    final firstUnpaidIndex = _displayFilteredGroups.indexWhere((g) => !g.isPaid);
+    final cards = <Widget>[];
+    for (var i = 0; i < _displayFilteredGroups.length; i++) {
+      final group = _displayFilteredGroups[i];
+      if (!group.isZomato || !_isScreenshotOnlyZomatoGroup(group)) continue;
+      cards.add(
+        _buildGroupCard(
+          group,
+          i + 1,
+          isNext: i == firstUnpaidIndex && firstUnpaidIndex != -1,
+        ),
+      );
+    }
+    return cards;
+  }
 
   List<TableGroup> _applyKitchenDisplayFilters(List<TableGroup> groups) {
     final byCategory = _filterByCategories(groups);
@@ -1028,8 +1069,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               .map((entry) {
                 final item = TableItemServed.asItemMap(entry.value)!;
                 final copy = Map<String, dynamic>.from(item);
-                copy['__itemIndex'] =
-                    TableItemServed.itemIndexInGroupFor(item, entry.key);
+                copy['__itemIndex'] = TableItemServed.itemIndexInGroupFor(
+                  item,
+                  entry.key,
+                );
                 copy['__firestoreGroupIndex'] =
                     TableItemServed.firestoreGroupIndexFor(
                       item,
@@ -1092,8 +1135,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               .map((entry) {
                 final item = TableItemServed.asItemMap(entry.value)!;
                 final copy = Map<String, dynamic>.from(item);
-                copy['__itemIndex'] =
-                    TableItemServed.itemIndexInGroupFor(item, entry.key);
+                copy['__itemIndex'] = TableItemServed.itemIndexInGroupFor(
+                  item,
+                  entry.key,
+                );
                 copy['__firestoreGroupIndex'] =
                     TableItemServed.firestoreGroupIndexFor(
                       item,
@@ -1362,7 +1407,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                 ? Icons.filter_list_off
                 : Icons.inbox_outlined,
             size: 64,
-            color: Colors.grey,
+            color: KitchenTheme.accentMuted,
           ),
           const SizedBox(height: 16),
           Text(
@@ -1370,7 +1415,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             style: const TextStyle(
               fontFamily: fontMulishSemiBold,
               fontSize: 16,
-              color: Colors.grey,
+              color: KitchenTheme.accentMuted,
             ),
           ),
           if (_hasActiveDisplayFilter) ...[
@@ -1382,7 +1427,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               style: const TextStyle(
                 fontFamily: fontMulishRegular,
                 fontSize: 14,
-                color: Colors.grey,
+                color: KitchenTheme.surfaceBorder,
               ),
               textAlign: TextAlign.center,
             ),
@@ -1413,11 +1458,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   double get _kitchenMainAxisSpacing => _isMobileGridLayout ? 6 : 12;
 
   Widget _buildKitchenScrollContent() {
+    final zomatoFooterCards = _buildPreparationViewZomatoFooterCards();
     final isEmpty = _usePreparationViewLayout
-        ? _preparationItemGroups.isEmpty
+        ? _preparationItemGroups.isEmpty && zomatoFooterCards.isEmpty
         : _showTableAllOrders
-            ? _displayTableCards.isEmpty
-            : _displayFilteredGroups.isEmpty;
+        ? _displayTableCards.isEmpty
+        : _displayFilteredGroups.isEmpty;
 
     if (isEmpty) {
       return ListView(
@@ -1434,14 +1480,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     if (_usePreparationViewLayout) {
       final screenW = MediaQuery.sizeOf(context).width;
       final layoutIsGrid = _mobileLayoutIsGrid;
-      final crossCols =
-          layoutIsGrid ? _kitchenCrossAxisCount(screenW) : 1;
+      final crossCols = layoutIsGrid ? _kitchenCrossAxisCount(screenW) : 1;
       return KitchenPreparationOrdersList(
         key: ValueKey(
           'kitchen_prep_${_kitchenOrderTabIndex}_$_orderTypeFilterIndex'
           '_${layoutIsGrid ? 'grid' : 'list'}_$crossCols',
         ),
         groups: _preparationItemGroups,
+        footerChildren: zomatoFooterCards,
         scrollController: _gridScrollController,
         formatRelativeTime: formatRelativeTime,
         minuteTick: _minuteTick,
@@ -1605,10 +1651,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }
 
   bool get _hasActiveCategoryFilter => _menuFilter.hasActiveFilter(
-        showAllCategories: showAllCategories,
-        selectedCategories: selectedCategories,
-        selectedMenuItems: selectedMenuItems,
-      );
+    showAllCategories: showAllCategories,
+    selectedCategories: selectedCategories,
+    selectedMenuItems: selectedMenuItems,
+  );
 
   bool _isMenuItemIncludedInFilter(Map<String, dynamic> item) {
     return _menuFilter.matchesOrderItem(
@@ -1647,7 +1693,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
     var selectedCount = 0;
     for (final itemName in itemNames) {
-      if (selectedMenuItems.contains(_menuItemFilterKey(categoryName, itemName))) {
+      if (selectedMenuItems.contains(
+        _menuItemFilterKey(categoryName, itemName),
+      )) {
         selectedCount++;
       }
     }
@@ -1675,10 +1723,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             ),
             title: const Text(
               "Filter by Category",
-              style: TextStyle(
-                fontFamily: fontMulishSemiBold,
-                fontSize: 18,
-              ),
+              style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
             ),
             content: const Text(
               'No menu categories in cache. Open Menu and tap Refresh to load the menu.',
@@ -1705,10 +1750,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               ),
               title: const Text(
                 "Filter by Category",
-                style: TextStyle(
-                  fontFamily: fontMulishSemiBold,
-                  fontSize: 18,
-                ),
+                style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
               ),
               content: SizedBox(
                 width: double.maxFinite,
@@ -1918,8 +1960,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               .map((entry) {
                 final item = TableItemServed.asItemMap(entry.value)!;
                 final copy = Map<String, dynamic>.from(item);
-                copy['__itemIndex'] =
-                    TableItemServed.itemIndexInGroupFor(item, entry.key);
+                copy['__itemIndex'] = TableItemServed.itemIndexInGroupFor(
+                  item,
+                  entry.key,
+                );
                 copy['__firestoreGroupIndex'] =
                     TableItemServed.firestoreGroupIndexFor(
                       item,
@@ -2005,9 +2049,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }
 
   Widget _buildMobileLayoutToggle() {
-    const navy = Color(0xFF1A3A5C);
-    const orange = Color(0xFFf57c35);
-
     Widget option({
       required IconData icon,
       required String tooltip,
@@ -2017,10 +2058,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       return IconButton(
         icon: Icon(icon, size: 22),
         tooltip: tooltip,
-        color: selected ? orange : navy.withValues(alpha: 0.55),
+        color: selected ? KitchenTheme.accent : KitchenTheme.textOnDarkMuted,
         style: IconButton.styleFrom(
           backgroundColor: selected
-              ? orange.withValues(alpha: 0.12)
+              ? KitchenTheme.accent.withValues(alpha: 0.18)
               : Colors.transparent,
         ),
         onPressed: () => _setMobileLayoutIsGrid(isGrid),
@@ -2030,9 +2071,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     return Container(
       margin: const EdgeInsets.only(right: 4),
       decoration: BoxDecoration(
-        color: navy.withValues(alpha: 0.06),
+        color: KitchenTheme.surfaceElevated,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: navy.withValues(alpha: 0.12)),
+        border: Border.all(color: KitchenTheme.surfaceBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2057,9 +2098,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }
 
   Widget _buildKitchenOrderTabs() {
-    const navy = Color(0xFF1A3A5C);
-    const orange = Color(0xFFf57c35);
-
     Widget tabButton(String label, int index) {
       final selected = _kitchenOrderTabIndex == index;
       return Expanded(
@@ -2071,7 +2109,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: selected ? orange : Colors.transparent,
+                  color: selected ? KitchenTheme.accent : Colors.transparent,
                   width: 3,
                 ),
               ),
@@ -2082,7 +2120,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               style: TextStyle(
                 fontFamily: selected ? fontMulishBold : fontMulishSemiBold,
                 fontSize: 14,
-                color: selected ? Colors.white : Colors.white70,
+                color: selected
+                    ? KitchenTheme.textOnDark
+                    : KitchenTheme.textOnDarkMuted,
               ),
             ),
           ),
@@ -2091,7 +2131,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     }
 
     return ColoredBox(
-      color: navy,
+      color: KitchenTheme.surface,
       child: Row(
         children: [tabButton('All Orders', 0), tabButton('Served Orders', 1)],
       ),
@@ -2099,8 +2139,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }
 
   Widget _buildOrderTypeFilter() {
-    const navy = Color(0xFF1A3A5C);
-
     Widget radioTile(String label, int value) {
       final selected = _orderTypeFilterIndex == value;
       return Expanded(
@@ -2115,7 +2153,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                 Radio<int>(
                   value: value,
                   groupValue: _orderTypeFilterIndex,
-                  activeColor: const Color(0xFFf57c35),
+                  activeColor: KitchenTheme.accent,
+                  fillColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return KitchenTheme.accent;
+                    }
+                    return KitchenTheme.accentMuted;
+                  }),
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   visualDensity: VisualDensity.compact,
                   onChanged: _onOrderTypeFilterChanged,
@@ -2129,7 +2173,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                           ? fontMulishBold
                           : fontMulishSemiBold,
                       fontSize: 13,
-                      color: navy,
+                      color: selected
+                          ? KitchenTheme.textOnDark
+                          : KitchenTheme.accentMuted,
                     ),
                   ),
                 ),
@@ -2141,8 +2187,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     }
 
     return Material(
-      color: Colors.white,
-      elevation: 1,
+      color: KitchenTheme.surfaceElevated,
+      elevation: 0,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
         child: Row(
@@ -2161,10 +2207,18 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: KitchenTheme.bg,
       appBar: AppBar(
+        backgroundColor: KitchenTheme.surface,
+        foregroundColor: KitchenTheme.textOnDark,
+        elevation: 0,
         title: const Text(
           "Kitchen",
-          style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 16),
+          style: TextStyle(
+            fontFamily: fontMulishSemiBold,
+            fontSize: 16,
+            color: KitchenTheme.textOnDark,
+          ),
         ),
         bottom: _showServeOrderScreen
             ? PreferredSize(
@@ -2226,21 +2280,24 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         ],
       ),
       body: !_kitchenStreamReady
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(color: KitchenTheme.accent),
+            )
           : Column(
               children: [
                 if (_isRefreshingKitchen)
                   const LinearProgressIndicator(
                     minHeight: 3,
-                    color: Color(0xFFf57c35),
-                    backgroundColor: Color(0x26f57c35),
+                    color: KitchenTheme.accent,
+                    backgroundColor: Color(0x26F57C35),
                   ),
                 _buildOrderTypeFilter(),
                 if (_hasActiveDisplayFilter && _ordersHiddenByDisplayFilter())
                   _buildFilterHintBanner(),
                 Expanded(
                   child: RefreshIndicator(
-                    color: const Color(0xFFf57c35),
+                    color: KitchenTheme.accent,
+                    backgroundColor: KitchenTheme.surfaceElevated,
                     onRefresh: _refreshKitchenOrders,
                     child: _buildKitchenScrollContent(),
                   ),
@@ -2271,13 +2328,18 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         builder: (context, _) {
           final tickTime = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
           final tickIsDelayed = _isOrderDelayed(tickTime);
+          final headerColor = KitchenTheme.headerForOrderKey(
+            group.docId,
+            isZomato: group.isZomato,
+            isDelayed: tickIsDelayed,
+          );
           return _orderCardShell(
             isBlinking: isBlinking,
             animationDuration: const Duration(milliseconds: 800),
             decoration: _orderCardDecoration(
               isBlinking,
-              tickIsDelayed,
-              isNext,
+              headerColor,
+              isNext: isNext,
               compact: _isMobileGridLayout,
             ),
             child: Column(
@@ -2287,6 +2349,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                   group.tableName,
                   group.isPaid,
                   queueNumber,
+                  headerColor: headerColor,
                   isZomato: group.isZomato,
                   isNext: isNext,
                   onPaidHeaderTap: group.isZomato
@@ -2323,15 +2386,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                               (entry) => _buildItemRow(
                                 entry.value,
                                 docId: group.docId,
-                                groupIndex: TableItemServed.firestoreGroupIndexFor(
-                                  entry.value,
-                                  group.groupIndex,
-                                ),
+                                groupIndex:
+                                    TableItemServed.firestoreGroupIndexFor(
+                                      entry.value,
+                                      group.groupIndex,
+                                    ),
                                 itemIndexInGroup:
                                     TableItemServed.itemIndexInGroupFor(
-                                  entry.value,
-                                  entry.key,
-                                ),
+                                      entry.value,
+                                      entry.key,
+                                    ),
                                 selectionMode: selectionMode,
                                 isDelayed: tickIsDelayed,
                                 isDelayedBlinking: isDelayedBlinking,
@@ -2405,12 +2469,17 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             );
             return _isOrderDelayed(batchTime);
           });
+          final headerColor = KitchenTheme.headerForOrderKey(
+            tableCard.docId,
+            isZomato: isZomato,
+            isDelayed: tickIsDelayed,
+          );
           return _orderCardShell(
             isBlinking: isBlinking,
             decoration: _orderCardDecoration(
               isBlinking,
-              tickIsDelayed,
-              isNext,
+              headerColor,
+              isNext: isNext,
               compact: _isMobileGridLayout,
             ),
             child: Column(
@@ -2420,13 +2489,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                   tableCard.tableName,
                   tableCard.isPaid,
                   queueNumber,
+                  headerColor: headerColor,
                   isZomato: isZomato,
                   isNext: isNext,
                   onPaidHeaderTap: isZomato
                       ? () => _markTableServed(
-                            tableCard.tableName,
-                            tableCard.docId,
-                          )
+                          tableCard.tableName,
+                          tableCard.docId,
+                        )
                       : null,
                   compact: _isMobileGridLayout,
                 ),
@@ -2474,7 +2544,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 4),
                                   child: DottedLine(
-                                    dashColor: Colors.grey.shade300,
+                                    dashColor: KitchenTheme.surfaceBorder,
                                     lineThickness: 1,
                                     dashLength: 4,
                                     dashGapLength: 4,
@@ -2507,8 +2577,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                                             fontSize: 12,
                                             fontFamily: fontMulishRegular,
                                             color: batchDelayed
-                                                ? Colors.red.shade700
-                                                : Colors.grey.shade500,
+                                                ? KitchenTheme.delayedText
+                                                : KitchenTheme.accentMuted,
                                             fontStyle: FontStyle.italic,
                                           ),
                                         ),
@@ -2520,14 +2590,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                                           docId: tableCard.docId,
                                           groupIndex:
                                               TableItemServed.firestoreGroupIndexFor(
-                                            entry.value,
-                                            batch.groupIndex,
-                                          ),
+                                                entry.value,
+                                                batch.groupIndex,
+                                              ),
                                           itemIndexInGroup:
                                               TableItemServed.itemIndexInGroupFor(
-                                            entry.value,
-                                            entry.key,
-                                          ),
+                                                entry.value,
+                                                entry.key,
+                                              ),
                                           selectionMode: selectionMode,
                                           isDelayed: batchDelayed,
                                           isDelayedBlinking:
@@ -2587,35 +2657,26 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   BoxDecoration _orderCardDecoration(
     bool isBlinking,
-    bool isDelayed,
-    bool isNext, {
+    Color headerColor, {
+    bool isNext = false,
     bool compact = false,
   }) {
     final radius = compact ? 8.0 : 12.0;
-    final borderWidth = compact
-        ? (isNext ? 2.0 : 1.5)
-        : (isNext ? 2.5 : (isDelayed ? 2.0 : 1.0));
+    final borderWidth = compact ? (isNext ? 2.0 : 1.5) : (isNext ? 2.5 : 1.0);
     return BoxDecoration(
-      color: isBlinking ? _blinkColor : Colors.white,
+      color: isBlinking ? _blinkColor : KitchenTheme.cardBody,
       borderRadius: BorderRadius.circular(radius),
-      boxShadow: compact
-          ? []
-          : [
-              BoxShadow(
-                color: isNext
-                    ? Colors.green.withValues(alpha: 0.35)
-                    : isDelayed
-                    ? Colors.red.withValues(alpha: 0.3)
-                    : Colors.black.withValues(alpha: 0.05),
-                blurRadius: isNext ? 12 : 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-      border: isNext
-          ? Border.all(color: Colors.green, width: borderWidth)
-          : isDelayed
-          ? Border.all(color: Colors.red, width: borderWidth)
-          : Border.all(color: Colors.grey.shade200, width: borderWidth),
+      boxShadow: KitchenTheme.cardShadows(
+        accentColor: headerColor,
+        emphasize: isNext,
+        compact: compact,
+      ),
+      border: Border.all(
+        color: isNext
+            ? headerColor
+            : Colors.grey.shade200.withValues(alpha: 0.85),
+        width: borderWidth,
+      ),
     );
   }
 
@@ -2623,6 +2684,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     String tableName,
     bool isPaid,
     int queueNumber, {
+    required Color headerColor,
     bool isZomato = false,
     bool isNext = false,
     VoidCallback? onPaidHeaderTap,
@@ -2631,13 +2693,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }) {
     final paid = isPaid == true;
     final zomato = isZomato || ZomatoOrderUtils.isZomatoOrderName(tableName);
+    final titleColor = KitchenTheme.headerTitleColor(headerColor);
     final header = Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 8 : 12,
         vertical: compact ? 8 : 10,
       ),
       decoration: BoxDecoration(
-        color: zomato ? const Color(0xFFE53935) : const Color(0xFF1A3A5C),
+        color: headerColor,
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(compact ? 7 : 10),
         ),
@@ -2653,10 +2716,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                 else
                   SvgPicture.asset(
                     tableName.contains("Take Away") ? icon_packing : icon_table,
-                    colorFilter: const ColorFilter.mode(
-                      Colors.white,
-                      BlendMode.srcIn,
-                    ),
+                    colorFilter: ColorFilter.mode(titleColor, BlendMode.srcIn),
                     width: tableName.contains("Take Away")
                         ? (compact ? 15 : 18)
                         : (compact ? 18 : 22),
@@ -2670,7 +2730,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                           ? fontMulishBold
                           : fontMulishSemiBold,
                       fontSize: compact ? 13 : 16,
-                      color: Colors.white,
+                      color: titleColor,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -2702,19 +2762,27 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
           Container(
             margin: const EdgeInsets.only(right: 0),
-            width: 22,
-            height: 22,
+            width: 26,
+            height: 26,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: isNext ? Colors.green : const Color(0xFFf57c35),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(36),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.22),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ],
             ),
             child: Text(
               '$queueNumber',
               style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
+                color: Colors.black,
+                fontSize: 12,
                 fontFamily: fontMulishBold,
+                height: 1,
               ),
             ),
           ),
@@ -2724,13 +2792,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               margin: const EdgeInsets.only(left: 8),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.green,
+                border: Border.all(color: Colors.black12, width: 1.2),
                 borderRadius: BorderRadius.circular(4),
+                color: Colors.white.withValues(alpha: 0.15),
               ),
               child: const Text(
                 "NEXT",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Colors.black,
                   fontSize: 10,
                   fontFamily: fontMulishBold,
                 ),
@@ -2743,7 +2812,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                 margin: const EdgeInsets.only(left: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade700,
+                  color: KitchenTheme.servedGreen,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Text(
@@ -2782,13 +2851,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         horizontal: compact ? 8 : 12,
         vertical: compact ? 4 : 6,
       ),
-      color: isDelayed ? _delayedItemBackground : const Color(0xFFF5F6FA),
+      color: isDelayed ? _delayedItemBackground : const Color(0xFFF0F4F8),
       child: Row(
         children: [
           Icon(
             Icons.access_time,
             size: 14,
-            color: isDelayed ? Colors.red : Colors.grey.shade700,
+            color: isDelayed
+                ? KitchenTheme.delayedIcon
+                : KitchenTheme.accentMuted,
           ),
           const SizedBox(width: 6),
           _KitchenRelativeTime(
@@ -2798,7 +2869,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             style: TextStyle(
               fontFamily: fontMulishSemiBold,
               fontSize: 13,
-              color: isDelayed ? Colors.red : Colors.grey.shade800,
+              color: isDelayed
+                  ? KitchenTheme.delayedText
+                  : const Color(0xFF475569),
             ),
           ),
           if (isDelayed) ...[
@@ -2806,7 +2879,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             const Text(
               "DELAYED",
               style: TextStyle(
-                color: Colors.red,
+                color: KitchenTheme.delayedText,
                 fontSize: 10,
                 fontFamily: fontMulishBold,
               ),
@@ -2834,7 +2907,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     final served = TableItemServed.isServed(item);
     final showDelayedBackground = isDelayed && !served;
     final itemName = item['name']?.toString() ?? '';
-    final pendingSummary = (!served &&
+    final pendingSummary =
+        (!served &&
             !_showPreparationView &&
             !(_showServeOrderScreen && _kitchenOrderTabIndex == 1))
         ? _crossTablePendingIndex.summaryForItemName(itemName)
@@ -2853,14 +2927,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       style: OrderItemRowStyle.kitchen,
       selectionForServedItems:
           _showServeOrderScreen && _kitchenOrderTabIndex == 1,
-      crossTablePendingTotal:
-          showCrossTableBadge ? pendingSummary!.totalQty : null,
+      crossTablePendingTotal: showCrossTableBadge
+          ? pendingSummary!.totalQty
+          : null,
       onCrossTablePendingTap: showCrossTableBadge
           ? () => KitchenCrossTablePendingSheet.show(
-                context,
-                summary: pendingSummary!,
-                formatRelativeTime: formatRelativeTime,
-              )
+              context,
+              summary: pendingSummary!,
+              formatRelativeTime: formatRelativeTime,
+            )
           : null,
     );
 

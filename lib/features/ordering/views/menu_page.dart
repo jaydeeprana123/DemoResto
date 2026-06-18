@@ -1376,8 +1376,7 @@ class _MenuPageState extends State<MenuPage>
                                                               as String? ??
                                                           '',
                                                       style: TextStyle(
-                                                        fontFamily:
-                                                            fontMulishBold,
+                                                        fontFamily: fontMulishBold,
                                                         fontSize: 14,
                                                         color: Colors.black87,
                                                       ),
@@ -1419,8 +1418,7 @@ class _MenuPageState extends State<MenuPage>
                                                     child: Text(
                                                       'Qty: ${r.quantity}',
                                                       style: TextStyle(
-                                                        fontFamily:
-                                                            fontMulishBold,
+                                                        fontFamily: fontMulishBold,
                                                         fontSize: 12,
                                                         color: isSuggestion
                                                             ? Colors

@@ -350,8 +350,7 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                                                 style: TextStyle(
                                                   fontSize: 13,
                                                   color: text_color,
-                                                  fontFamily:
-                                                      fontMulishSemiBold,
+                                                  fontFamily: fontMulishSemiBold,
                                                 ),
                                               ),
                                               const SizedBox(width: 16),

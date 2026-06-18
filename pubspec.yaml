@@ -39,7 +39,6 @@ dependencies:
   pasteboard: ^0.5.0
   flutter_foreground_task: ^9.2.2
 
-
 dev_dependencies:
   flutter_test:    # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
     sdk: flutter   # CRITICAL: Required for Flutter project testing - DO NOT REMOVE

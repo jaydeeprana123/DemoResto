@@ -48,7 +48,6 @@ class EditableTotalRow extends StatelessWidget {
                   textAlign: TextAlign.right,
                   style: const TextStyle(
                     fontFamily: fontMulishBold,
-                    fontWeight: FontWeight.bold,
                     fontSize: 17,
                     color: _navy,
                   ),
@@ -82,7 +81,6 @@ class EditableTotalRow extends StatelessWidget {
                 '₹$total',
                 style: const TextStyle(
                   fontFamily: fontMulishBold,
-                  fontWeight: FontWeight.bold,
                   fontSize: 17,
                   color: _navy,
                 ),

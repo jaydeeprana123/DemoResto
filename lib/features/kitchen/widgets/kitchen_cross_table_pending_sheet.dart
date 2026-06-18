@@ -1,5 +1,6 @@
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/features/kitchen/services/kitchen_cross_table_pending_index.dart';
+import 'package:demo/features/kitchen/widgets/kitchen_theme.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:flutter/material.dart';
 
@@ -110,7 +111,8 @@ class _KitchenCrossTablePendingSheetBodyState
 
       if (updated) {
         setState(() {
-          final sorted = _selectedIndices.toList()..sort((a, b) => b.compareTo(a));
+          final sorted = _selectedIndices.toList()
+            ..sort((a, b) => b.compareTo(a));
           for (final index in sorted) {
             _entries.removeAt(index);
           }
@@ -239,7 +241,7 @@ class _KitchenCrossTablePendingSheetBodyState
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? Colors.green.withValues(alpha: 0.08)
+                            ? KitchenTheme.kdsGreen.withValues(alpha: 0.08)
                             : null,
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -255,7 +257,7 @@ class _KitchenCrossTablePendingSheetBodyState
                                     : Icons.check_box_outline_blank,
                                 size: 20,
                                 color: isSelected
-                                    ? Colors.green.shade600
+                                    ? KitchenTheme.kdsGreen
                                     : Colors.grey.shade500,
                               ),
                             ),
@@ -271,8 +273,7 @@ class _KitchenCrossTablePendingSheetBodyState
                                       width: 28,
                                       child: Text(
                                         '${entry.qty}',
-                                        style:
-                                            MyFont.bold(15, color: _orange),
+                                        style: MyFont.bold(15, color: _orange),
                                       ),
                                     ),
                                     Text(
@@ -286,8 +287,7 @@ class _KitchenCrossTablePendingSheetBodyState
                                     Expanded(
                                       child: Text(
                                         entry.tableName,
-                                        style:
-                                            MyFont.semiBold(14, color: _navy),
+                                        style: MyFont.semiBold(14, color: _navy),
                                       ),
                                     ),
                                     const SizedBox(width: 12),
@@ -345,7 +345,7 @@ class _KitchenCrossTablePendingSheetBodyState
                       tooltip: selectedCount > 0
                           ? 'Serve ($selectedCount)'
                           : 'Serve',
-                      color: Colors.green.shade600,
+                      color: KitchenTheme.kdsGreen,
                       onPressed: selectedCount == 0 || _submitting
                           ? null
                           : _serveSelected,
@@ -362,11 +362,8 @@ class _KitchenCrossTablePendingSheetBodyState
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: _orange.withValues(alpha: 0.08),
+                  color: const Color(0xFFF5F6FA),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _orange.withValues(alpha: 0.25),
-                  ),
                 ),
                 child: Row(
                   children: [
@@ -403,7 +400,7 @@ class _KitchenCrossTablePendingSheetBodyState
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: color.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(24),
         child: InkWell(
           onTap: onPressed,
@@ -456,7 +453,8 @@ class KitchenCrossTablePendingBadge extends StatefulWidget {
       _KitchenCrossTablePendingBadgeState();
 }
 
-class _KitchenCrossTablePendingBadgeState extends State<KitchenCrossTablePendingBadge>
+class _KitchenCrossTablePendingBadgeState
+    extends State<KitchenCrossTablePendingBadge>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulseController;
   late final Animation<double> _pulseScale;
@@ -481,6 +479,10 @@ class _KitchenCrossTablePendingBadgeState extends State<KitchenCrossTablePending
 
   @override
   Widget build(BuildContext context) {
+    final badgeColor = KitchenTheme.headerForOrderKey(
+      '${widget.totalQty}',
+      isZomato: false,
+    );
     return Tooltip(
       message: 'Pending on ${widget.totalQty} tables — tap to view',
       child: GestureDetector(
@@ -494,8 +496,8 @@ class _KitchenCrossTablePendingBadgeState extends State<KitchenCrossTablePending
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  _orange,
-                  Color.lerp(_orange, Colors.red.shade700, 0.35)!,
+                  badgeColor,
+                  Color.lerp(badgeColor, KitchenTheme.kdsBlue, 0.35)!,
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -504,7 +506,7 @@ class _KitchenCrossTablePendingBadgeState extends State<KitchenCrossTablePending
               border: Border.all(color: Colors.white, width: 1.5),
               boxShadow: [
                 BoxShadow(
-                  color: _orange.withValues(alpha: 0.55),
+                  color: badgeColor.withValues(alpha: 0.55),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
@@ -512,7 +514,7 @@ class _KitchenCrossTablePendingBadgeState extends State<KitchenCrossTablePending
             ),
             child: Text(
               '${widget.totalQty}',
-              style: MyFont.bold(13, color: Colors.white),
+              style: MyFont.bold(13, color: KitchenTheme.textOnDark),
             ),
           ),
         ),
