@@ -1000,7 +1000,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     final zomatoGroups = _preparationViewZomatoGroups;
     if (zomatoGroups.isEmpty) return const [];
 
-    final firstUnpaidIndex = _displayFilteredGroups.indexWhere((g) => !g.isPaid);
+    final firstUnpaidIndex = _displayFilteredGroups.indexWhere(
+      (g) => !g.isPaid,
+    );
     final cards = <Widget>[];
     for (var i = 0; i < _displayFilteredGroups.length; i++) {
       final group = _displayFilteredGroups[i];
@@ -2788,24 +2790,24 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             ),
           ),
 
-          if (isNext)
-            Container(
-              margin: const EdgeInsets.only(left: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.black12, width: 1.2),
-                borderRadius: BorderRadius.circular(4),
-                color: Colors.white.withValues(alpha: 0.15),
-              ),
-              child: const Text(
-                "NEXT",
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 10,
-                  fontFamily: fontMulishBold,
-                ),
-              ),
-            ),
+          // if (isNext)
+          //   Container(
+          //     margin: const EdgeInsets.only(left: 8),
+          //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          //     decoration: BoxDecoration(
+          //       border: Border.all(color: Colors.black12, width: 1.2),
+          //       borderRadius: BorderRadius.circular(4),
+          //       color: Colors.white.withValues(alpha: 0.15),
+          //     ),
+          //     child: const Text(
+          //       "NEXT",
+          //       style: TextStyle(
+          //         color: Colors.black,
+          //         fontSize: 10,
+          //         fontFamily: fontMulishBold,
+          //       ),
+          //     ),
+          //   ),
           if (paid)
             GestureDetector(
               onDoubleTap: onPaidDoubleTap,

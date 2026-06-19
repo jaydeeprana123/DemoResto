@@ -315,7 +315,7 @@ class TableItemServed {
                   child: Text(
                     '* $remarks',
                     style: (remarksStyle ?? nameStyle).copyWith(
-                      fontSize: 12,
+                      fontSize: remarksStyle?.fontSize ?? 12,
                       color: served
                           ? Colors.green.shade400
                           : remarksStyle?.color,

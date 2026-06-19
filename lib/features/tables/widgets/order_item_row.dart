@@ -223,7 +223,7 @@ class OrderItemRow extends StatelessWidget {
         child: Text(
           '×$qty',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 13,
             color: served ? Colors.green.shade700 : const Color(0xFFf57c35),
             fontFamily: fontMulishBold,
           ),
@@ -258,7 +258,7 @@ class OrderItemRow extends StatelessWidget {
   TextStyle _nameStyle({required bool served}) {
     if (style == OrderItemRowStyle.dashboard) {
       return TextStyle(
-        fontSize: 13,
+        fontSize: 14,
         fontFamily: fontMulishSemiBold,
         color: served ? Colors.green.shade700 : const Color(0xFF212121),
       );
@@ -272,6 +272,13 @@ class OrderItemRow extends StatelessWidget {
   }
 
   TextStyle _remarksStyle({required bool served}) {
+    if (style == OrderItemRowStyle.dashboard) {
+      return TextStyle(
+        fontSize: 13,
+        color: served ? Colors.green.shade400 : Colors.red.shade400,
+        fontFamily: fontMulishSemiBold,
+      );
+    }
     return TextStyle(
       color: served ? Colors.green.shade400 : Colors.red.shade400,
       fontFamily: fontMulishSemiBold,

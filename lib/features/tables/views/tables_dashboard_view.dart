@@ -43,16 +43,16 @@ import 'dart:async';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
 
-class DragListBetweenTables extends StatefulWidget {
-  const DragListBetweenTables({this.isTabActive = true, super.key});
+class TableDashboardView extends StatefulWidget {
+  const TableDashboardView({this.isTabActive = true, super.key});
 
   final bool isTabActive;
 
   @override
-  State<DragListBetweenTables> createState() => _DragListBetweenTablesState();
+  State<TableDashboardView> createState() => _TableDashboardViewState();
 }
 
-class _DragListBetweenTablesState extends State<DragListBetweenTables>
+class _TableDashboardViewState extends State<TableDashboardView>
     with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   @override
   bool get wantKeepAlive => true;
@@ -75,7 +75,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   final Map<String, String> tableScreenshotUrls = {};
   final Map<String, String> tableZomatoStatuses = {};
   ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>?
-      _tablesListener;
+  _tablesListener;
   final ScrollController _gridScrollController = ScrollController();
   bool _zomatoPasteInProgress = false;
   bool _mobileGridLayout = true;
@@ -96,7 +96,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
   Future<void> _loadTableFilter() async {
     final saved = await DashboardTableFilterSettings.loadSelection();
-    final mobileGrid = await DashboardTableFilterSettings.loadMobileGridLayout();
+    final mobileGrid =
+        await DashboardTableFilterSettings.loadMobileGridLayout();
     if (!mounted) return;
     setState(() {
       _tableFilterSelection
@@ -180,8 +181,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         if (left['name'] != right['name'] ||
             left['qty'] != right['qty'] ||
             left['price'] != right['price'] ||
-            TableItemServed.isServed(left) !=
-                TableItemServed.isServed(right) ||
+            TableItemServed.isServed(left) != TableItemServed.isServed(right) ||
             left['remarks'] != right['remarks']) {
           return false;
         }
@@ -281,11 +281,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     final queuePos = _takeAwayNumber(tableName);
     return KeyedSubtree(
       key: ValueKey(tableName),
-      child: _buildTableCard(
-        tableName,
-        groups,
-        takeAwayNum: queuePos,
-      ),
+      child: _buildTableCard(tableName, groups, takeAwayNum: queuePos),
     );
   }
 
@@ -305,16 +301,16 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   void _listenToTables() {
     final syncStatus = Get.find<FirestoreSyncStatusService>();
     _tablesListener?.stop();
-    _tablesListener = ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>(
-      debugLabel: 'dashboard',
-      streamFactory: () => FirestorePaths
-          .scoped('tables')
-          .orderBy('createdAt', descending: false)
-          .snapshots(),
-      onStatus: (status) =>
-          syncStatus.setStatus(FirestoreSyncChannel.dashboard, status),
-      onData: _onTablesSnapshot,
-    )..start();
+    _tablesListener =
+        ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>(
+          debugLabel: 'dashboard',
+          streamFactory: () => FirestorePaths.scoped(
+            'tables',
+          ).orderBy('createdAt', descending: false).snapshots(),
+          onStatus: (status) =>
+              syncStatus.setStatus(FirestoreSyncChannel.dashboard, status),
+          onData: _onTablesSnapshot,
+        )..start();
   }
 
   void _onTablesSnapshot(QuerySnapshot<Map<String, dynamic>> querySnapshot) {
@@ -330,117 +326,114 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     final Map<String, String> updatedZomatoStatuses = {};
 
     for (var doc in querySnapshot.docs) {
-            final tableName = doc['name'] as String;
-            final data = doc.data();
-            updatedCreatedAt[tableName] = data['createdAt'] as Timestamp?;
-            updatedIsPaid[tableName] = data['isPaid'] == true;
-            updatedDocIds[tableName] = doc.id;
-            if (ZomatoOrderUtils.isZomatoDoc(data)) {
-              updatedSources[tableName] = ZomatoOrderUtils.sourceZomato;
-              updatedScreenshotUrls[tableName] =
-                  data['screenshotUrl']?.toString() ?? '';
-              updatedZomatoStatuses[tableName] = ZomatoOrderUtils.normalizeStatus(
-                data['zomatoStatus']?.toString(),
+      final tableName = doc['name'] as String;
+      final data = doc.data();
+      updatedCreatedAt[tableName] = data['createdAt'] as Timestamp?;
+      updatedIsPaid[tableName] = data['isPaid'] == true;
+      updatedDocIds[tableName] = doc.id;
+      if (ZomatoOrderUtils.isZomatoDoc(data)) {
+        updatedSources[tableName] = ZomatoOrderUtils.sourceZomato;
+        updatedScreenshotUrls[tableName] =
+            data['screenshotUrl']?.toString() ?? '';
+        updatedZomatoStatuses[tableName] = ZomatoOrderUtils.normalizeStatus(
+          data['zomatoStatus']?.toString(),
+        );
+      }
+      final txId = data['lastTransactionId']?.toString();
+      if (txId != null && txId.isNotEmpty) {
+        updatedTransactionIds[tableName] = txId;
+      }
+      final List<dynamic>? itemsFromDb = doc.data().containsKey('items')
+          ? doc['items']
+          : null;
+
+      List<List<Map<String, dynamic>>> groupedItems = [];
+
+      if (itemsFromDb != null && itemsFromDb.isNotEmpty) {
+        // Check if items have groupIndex (new flattened format)
+        bool hasGroupIndex =
+            itemsFromDb.isNotEmpty &&
+            itemsFromDb.first is Map &&
+            (itemsFromDb.first as Map).containsKey('groupIndex');
+
+        if (hasGroupIndex) {
+          // NEW FORMAT: Reconstruct groups from flattened data using groupIndex
+          Map<int, List<Map<String, dynamic>>> groupMap = {};
+          final groupItemCounters = <int, int>{};
+
+          for (var item in itemsFromDb) {
+            if (item is Map) {
+              Map<String, dynamic> itemMap = Map<String, dynamic>.from(item);
+              final groupIndex = TableItemServed.parseGroupIndex(
+                itemMap['groupIndex'],
               );
-            }
-            final txId = data['lastTransactionId']?.toString();
-            if (txId != null && txId.isNotEmpty) {
-              updatedTransactionIds[tableName] = txId;
-            }
-            final List<dynamic>? itemsFromDb = doc.data().containsKey('items')
-                ? doc['items']
-                : null;
+              final indexInGroup = groupItemCounters[groupIndex] ?? 0;
+              groupItemCounters[groupIndex] = indexInGroup + 1;
 
-            List<List<Map<String, dynamic>>> groupedItems = [];
+              itemMap.remove('groupIndex');
+              itemMap['__firestoreGroupIndex'] = groupIndex;
+              itemMap['__itemIndex'] = indexInGroup;
 
-            if (itemsFromDb != null && itemsFromDb.isNotEmpty) {
-              // Check if items have groupIndex (new flattened format)
-              bool hasGroupIndex =
-                  itemsFromDb.isNotEmpty &&
-                  itemsFromDb.first is Map &&
-                  (itemsFromDb.first as Map).containsKey('groupIndex');
-
-              if (hasGroupIndex) {
-                // NEW FORMAT: Reconstruct groups from flattened data using groupIndex
-                Map<int, List<Map<String, dynamic>>> groupMap = {};
-                final groupItemCounters = <int, int>{};
-
-                for (var item in itemsFromDb) {
-                  if (item is Map) {
-                    Map<String, dynamic> itemMap = Map<String, dynamic>.from(
-                      item,
-                    );
-                    final groupIndex =
-                        TableItemServed.parseGroupIndex(itemMap['groupIndex']);
-                    final indexInGroup = groupItemCounters[groupIndex] ?? 0;
-                    groupItemCounters[groupIndex] = indexInGroup + 1;
-
-                    itemMap.remove('groupIndex');
-                    itemMap['__firestoreGroupIndex'] = groupIndex;
-                    itemMap['__itemIndex'] = indexInGroup;
-
-                    if (!groupMap.containsKey(groupIndex)) {
-                      groupMap[groupIndex] = [];
-                    }
-                    groupMap[groupIndex]!.add(itemMap);
-                  }
-                }
-
-                // Convert to ordered list of groups
-                List<int> sortedGroupIndices = groupMap.keys.toList()..sort();
-                for (int groupIndex in sortedGroupIndices) {
-                  groupedItems.add(groupMap[groupIndex]!);
-                }
-                updatedFirestoreGroupIndices[tableName] =
-                    sortedGroupIndices.isNotEmpty
-                    ? sortedGroupIndices
-                    : List.generate(groupedItems.length, (i) => i);
-
-                print(
-                  "Reconstructed ${groupedItems.length} groups from flattened data",
-                );
+              if (!groupMap.containsKey(groupIndex)) {
+                groupMap[groupIndex] = [];
               }
-              // Handle legacy formats
-              else if (itemsFromDb.first is List) {
-                // OLD NESTED FORMAT: Direct conversion (shouldn't happen with new saves)
-                for (var group in itemsFromDb) {
-                  if (group is List) {
-                    List<Map<String, dynamic>> itemList = [];
-                    for (var item in group) {
-                      if (item is Map) {
-                        itemList.add(Map<String, dynamic>.from(item));
-                      }
-                    }
-                    groupedItems.add(itemList);
-                  }
-                }
-              } else if (itemsFromDb.first is Map) {
-                // FLAT FORMAT: Convert to single group
-                List<Map<String, dynamic>> itemList = [];
-                for (var i = 0; i < itemsFromDb.length; i++) {
-                  final item = itemsFromDb[i];
-                  if (item is Map) {
-                    final itemMap = Map<String, dynamic>.from(item);
-                    itemMap['__firestoreGroupIndex'] = 0;
-                    itemMap['__itemIndex'] = i;
-                    itemList.add(itemMap);
-                  }
-                }
-                if (itemList.isNotEmpty) {
-                  groupedItems.add(itemList);
-                }
-              }
+              groupMap[groupIndex]!.add(itemMap);
             }
-
-            updatedTables[tableName] = groupedItems;
-            updatedFirestoreGroupIndices.putIfAbsent(
-              tableName,
-              () => List.generate(groupedItems.length, (i) => i),
-            );
-            print(
-              "Table '$tableName' loaded with ${groupedItems.length} groups",
-            );
           }
+
+          // Convert to ordered list of groups
+          List<int> sortedGroupIndices = groupMap.keys.toList()..sort();
+          for (int groupIndex in sortedGroupIndices) {
+            groupedItems.add(groupMap[groupIndex]!);
+          }
+          updatedFirestoreGroupIndices[tableName] =
+              sortedGroupIndices.isNotEmpty
+              ? sortedGroupIndices
+              : List.generate(groupedItems.length, (i) => i);
+
+          print(
+            "Reconstructed ${groupedItems.length} groups from flattened data",
+          );
+        }
+        // Handle legacy formats
+        else if (itemsFromDb.first is List) {
+          // OLD NESTED FORMAT: Direct conversion (shouldn't happen with new saves)
+          for (var group in itemsFromDb) {
+            if (group is List) {
+              List<Map<String, dynamic>> itemList = [];
+              for (var item in group) {
+                if (item is Map) {
+                  itemList.add(Map<String, dynamic>.from(item));
+                }
+              }
+              groupedItems.add(itemList);
+            }
+          }
+        } else if (itemsFromDb.first is Map) {
+          // FLAT FORMAT: Convert to single group
+          List<Map<String, dynamic>> itemList = [];
+          for (var i = 0; i < itemsFromDb.length; i++) {
+            final item = itemsFromDb[i];
+            if (item is Map) {
+              final itemMap = Map<String, dynamic>.from(item);
+              itemMap['__firestoreGroupIndex'] = 0;
+              itemMap['__itemIndex'] = i;
+              itemList.add(itemMap);
+            }
+          }
+          if (itemList.isNotEmpty) {
+            groupedItems.add(itemList);
+          }
+        }
+      }
+
+      updatedTables[tableName] = groupedItems;
+      updatedFirestoreGroupIndices.putIfAbsent(
+        tableName,
+        () => List.generate(groupedItems.length, (i) => i),
+      );
+      print("Table '$tableName' loaded with ${groupedItems.length} groups");
+    }
 
     var filterPruned = false;
     final scrollOffset = _gridScrollController.hasClients
@@ -543,16 +536,15 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
     setState(() => _isRefreshingDashboard = true);
     try {
-      final snapshot =
-          await Get.find<TablesRepository>().fetchAllTablesFresh();
+      final snapshot = await Get.find<TablesRepository>().fetchAllTablesFresh();
       if (!mounted) return;
       _onTablesSnapshot(snapshot);
       _tablesListener?.restart();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not refresh tables: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not refresh tables: $e')));
       }
     } finally {
       if (mounted) {
@@ -679,24 +671,21 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   ]) async {
     if (items.isEmpty) return;
 
-    final existing = await FirestorePaths
-        .scoped('tables')
-        .where('name', isEqualTo: tableName)
-        .limit(1)
-        .get();
+    final existing = await FirestorePaths.scoped(
+      'tables',
+    ).where('name', isEqualTo: tableName).limit(1).get();
 
     if (existing.docs.isEmpty) {
       await _addTableAndUpdateItems(tableName, items, true, overallRemarks);
       if (transactionId != null && transactionId.isNotEmpty) {
-        final docRef = await FirestorePaths
-            .scoped('tables')
-            .where('name', isEqualTo: tableName)
-            .limit(1)
-            .get();
+        final docRef = await FirestorePaths.scoped(
+          'tables',
+        ).where('name', isEqualTo: tableName).limit(1).get();
         if (docRef.docs.isNotEmpty) {
-          await FirestorePaths.scopedDoc('tables', docRef.docs.first.id).update({
-            'lastTransactionId': transactionId,
-          });
+          await FirestorePaths.scopedDoc(
+            'tables',
+            docRef.docs.first.id,
+          ).update({'lastTransactionId': transactionId});
           tableTransactionIds[tableName] = transactionId;
         }
       }
@@ -729,11 +718,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     if (docId.isNotEmpty) {
       await FirestorePaths.scoped('tables').doc(docId).delete();
     } else {
-      final query = await FirestorePaths
-          .scoped('tables')
-          .where('name', isEqualTo: tableName)
-          .limit(1)
-          .get();
+      final query = await FirestorePaths.scoped(
+        'tables',
+      ).where('name', isEqualTo: tableName).limit(1).get();
       if (query.docs.isNotEmpty) {
         await query.docs.first.reference.delete();
       }
@@ -747,7 +734,10 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     });
   }
 
-  Future<void> _deleteTableFromMenu(String tableName, {String docId = ''}) async {
+  Future<void> _deleteTableFromMenu(
+    String tableName, {
+    String docId = '',
+  }) async {
     if (_isTakeAway(tableName)) {
       await _deleteTakeAwayAfterFinalBilling(
         tableName,
@@ -769,8 +759,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       tableCreatedAt[newName] = tableCreatedAt.remove(oldName);
     }
     if (_firestoreGroupIndices.containsKey(oldName)) {
-      _firestoreGroupIndices[newName] =
-          _firestoreGroupIndices.remove(oldName)!;
+      _firestoreGroupIndices[newName] = _firestoreGroupIndices.remove(oldName)!;
     }
   }
 
@@ -783,11 +772,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
 
     final id = docId.isNotEmpty ? docId : (tableDocIds[oldName] ?? '');
     if (id.isEmpty) {
-      final snap = await FirestorePaths
-          .scoped('tables')
-          .where('name', isEqualTo: oldName)
-          .limit(1)
-          .get();
+      final snap = await FirestorePaths.scoped(
+        'tables',
+      ).where('name', isEqualTo: oldName).limit(1).get();
       if (snap.docs.isEmpty) return;
       await snap.docs.first.reference.update({'name': newName});
       if (mounted) {
@@ -808,11 +795,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     bool isBillPaid = false,
     String overallRemarks = '',
   }) async {
-    final existing = await FirestorePaths
-        .scoped('tables')
-        .where('name', isEqualTo: orderName)
-        .limit(1)
-        .get();
+    final existing = await FirestorePaths.scoped(
+      'tables',
+    ).where('name', isEqualTo: orderName).limit(1).get();
 
     if (existing.docs.isNotEmpty) {
       await _updateTableItemsInFirestore(
@@ -827,7 +812,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     final flattenedItems = <Map<String, dynamic>>[];
     for (var groupIndex = 0; groupIndex < groups.length; groupIndex++) {
       final group = groups[groupIndex];
-      final Timestamp groupTimestamp = group.isNotEmpty &&
+      final Timestamp groupTimestamp =
+          group.isNotEmpty &&
               group.first.containsKey('addedAt') &&
               group.first['addedAt'] is Timestamp
           ? group.first['addedAt'] as Timestamp
@@ -863,7 +849,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   ) async {
     final copiedGroups = currentGroups
         .map(
-          (group) => group.map((item) => Map<String, dynamic>.from(item)).toList(),
+          (group) =>
+              group.map((item) => Map<String, dynamic>.from(item)).toList(),
         )
         .toList();
 
@@ -888,7 +875,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   }
 
   Future<({List<List<Map<String, dynamic>>> groups, String docId})>
-      _prepareGroupsForConfirm(
+  _prepareGroupsForConfirm(
     String originalName,
     String newName,
     List<List<Map<String, dynamic>>> groups, {
@@ -954,12 +941,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     }
 
     if (fromBilling) {
-      await _applyBillingToTable(
-        tName,
-        items,
-        overallRemarks,
-        transactionId,
-      );
+      await _applyBillingToTable(tName, items, overallRemarks, transactionId);
       return;
     }
 
@@ -970,12 +952,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           tableIsPaid[tName] = true;
           _syncFirestoreGroupIndices(tName, 0);
         });
-        await _updateTableItemsInFirestore(
-          tName,
-          [],
-          true,
-          overallRemarks,
-        );
+        await _updateTableItemsInFirestore(tName, [], true, overallRemarks);
         return;
       }
 
@@ -1059,11 +1036,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
   // Add a new table with empty items list
   Future<void> _addTable(String tableName) async {
     try {
-      final existing = await FirestorePaths
-          .scoped('tables')
-          .where('name', isEqualTo: tableName)
-          .limit(1)
-          .get();
+      final existing = await FirestorePaths.scoped(
+        'tables',
+      ).where('name', isEqualTo: tableName).limit(1).get();
 
       if (existing.docs.isNotEmpty) {
         print("Table already exists");
@@ -1094,11 +1069,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       print("Table name: $tableName");
       print("Selected items count: ${selectedItems.length}");
 
-      final existing = await FirestorePaths
-          .scoped('tables')
-          .where('name', isEqualTo: tableName)
-          .limit(1)
-          .get();
+      final existing = await FirestorePaths.scoped(
+        'tables',
+      ).where('name', isEqualTo: tableName).limit(1).get();
 
       if (existing.docs.isNotEmpty) {
         print("Table already exists: $tableName");
@@ -1134,9 +1107,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       }
 
       // Step 2: Add the document to Firestore
-      final docRef = await FirestorePaths
-          .scoped('tables')
-          .add(tableData);
+      final docRef = await FirestorePaths.scoped('tables').add(tableData);
 
       print(
         "SUCCESS: Table $tableName added with ${flattenedItems.length} items",
@@ -1218,10 +1189,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          SizedBox(
-            height: minScrollHeight,
-            child: _buildFilterEmptyState(),
-          ),
+          SizedBox(height: minScrollHeight, child: _buildFilterEmptyState()),
         ],
       );
     }
@@ -1280,8 +1248,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       final imported = await ImportSharedZomatoSheet.show(
         context,
         imageBytes: bytes,
-        fileName:
-            'zomato_paste_${DateTime.now().millisecondsSinceEpoch}.png',
+        fileName: 'zomato_paste_${DateTime.now().millisecondsSinceEpoch}.png',
       );
 
       if (!mounted || !imported) return;
@@ -1308,36 +1275,36 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       enabled: supportsZomatoClipboardPaste && widget.isTabActive,
       onPasteImage: _handleZomatoPaste,
       child: Scaffold(
-      backgroundColor: _bg,
-      appBar: _buildAppBar(isMobile: isMobile),
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              if (_tablesLoading || _isRefreshingDashboard)
-                LinearProgressIndicator(
-                  minHeight: 3,
-                  color: _orange,
-                  backgroundColor: _orange.withValues(alpha: 0.15),
-                ),
-              _buildTabBar(),
-              Expanded(
-                child: RefreshIndicator(
-                  color: _orange,
-                  onRefresh: _refreshDashboard,
-                  child: _buildTablesScrollArea(
-                    crossCols,
-                    screenW,
-                    isMobile: isMobile,
+        backgroundColor: _bg,
+        appBar: _buildAppBar(isMobile: isMobile),
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                if (_tablesLoading || _isRefreshingDashboard)
+                  LinearProgressIndicator(
+                    minHeight: 3,
+                    color: _orange,
+                    backgroundColor: _orange.withValues(alpha: 0.15),
+                  ),
+                _buildTabBar(),
+                Expanded(
+                  child: RefreshIndicator(
+                    color: _orange,
+                    onRefresh: _refreshDashboard,
+                    child: _buildTablesScrollArea(
+                      crossCols,
+                      screenW,
+                      isMobile: isMobile,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
+        floatingActionButton: _buildFab(),
       ),
-      floatingActionButton: _buildFab(),
-    ),
     );
   }
 
@@ -1408,17 +1375,14 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                   )
                 : const Icon(Icons.refresh_rounded, color: Colors.white70),
             tooltip: 'Refresh tables',
-            onPressed:
-                _isRefreshingDashboard ? null : _refreshDashboard,
+            onPressed: _isRefreshingDashboard ? null : _refreshDashboard,
           ),
         IconButton(
           icon: Icon(
             _tableFilterSelection.isNotEmpty
                 ? Icons.filter_alt_rounded
                 : Icons.filter_list_rounded,
-            color: _tableFilterSelection.isNotEmpty
-                ? _orange
-                : Colors.white70,
+            color: _tableFilterSelection.isNotEmpty ? _orange : Colors.white70,
           ),
           tooltip: _tableFilterSelection.isEmpty
               ? 'Filter tables'
@@ -1516,8 +1480,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.filter_alt_off_outlined,
-                size: 56, color: Colors.grey.shade400),
+            Icon(
+              Icons.filter_alt_off_outlined,
+              size: 56,
+              color: Colors.grey.shade400,
+            ),
             const SizedBox(height: 16),
             const Text(
               'No matching tables',
@@ -1532,7 +1499,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
               _tableFilterSelection.isEmpty
                   ? 'Nothing to show for this tab.'
                   : 'Your filter has no tables on this tab.\n'
-                      'Tap the filter icon to change your selection.',
+                        'Tap the filter icon to change your selection.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
@@ -1564,10 +1531,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     final tableKeys =
         tables.keys.where((key) => key.startsWith('Table ')).toList()
           ..sort(_compareTableNumber);
-    final takeAwayKeys = tables.keys
-        .where((key) => _isTakeAway(key) && !_isZomatoTable(key))
-        .toList()
-      ..sort(_compareByCreatedAt);
+    final takeAwayKeys =
+        tables.keys
+            .where((key) => _isTakeAway(key) && !_isZomatoTable(key))
+            .toList()
+          ..sort(_compareByCreatedAt);
     final zomatoKeys = tables.keys.where(_isActiveZomatoTable).toList()
       ..sort(_compareByCreatedAt);
     final otherKeys =
@@ -1592,8 +1560,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
       return;
     }
 
-    final dineInKeys =
-        allKeys.where((key) => key.startsWith('Table ')).toList();
+    final dineInKeys = allKeys
+        .where((key) => key.startsWith('Table '))
+        .toList();
     final takeAwayKeys = allKeys.where(_isTakeAway).toList();
     final otherKeys = allKeys
         .where((key) => !key.startsWith('Table ') && !_isTakeAway(key))
@@ -1686,7 +1655,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 return Container(
                   decoration: const BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -1730,7 +1701,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                           _tableFilterSelection.isEmpty
                               ? 'Showing all tables. Select tables to display only those.'
                               : '${_tableFilterSelection.length} selected · '
-                                  'dashboard shows selected tables only',
+                                    'dashboard shows selected tables only',
                           style: TextStyle(
                             fontFamily: fontMulishRegular,
                             fontSize: 13,
@@ -1760,7 +1731,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                             child: FilledButton(
                               style: FilledButton.styleFrom(
                                 backgroundColor: _navy,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                               ),
                               onPressed: () => Navigator.pop(sheetContext),
                               child: Text(
@@ -1920,7 +1893,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     );
   }
 
-  bool _isTakeAway(String name) => isTakeAwayOrderName(name) && !_isZomatoTable(name);
+  bool _isTakeAway(String name) =>
+      isTakeAwayOrderName(name) && !_isZomatoTable(name);
 
   bool _isZomatoTable(String name) =>
       ZomatoOrderUtils.isZomatoSource(tableSources[name]) ||
@@ -2135,54 +2109,54 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     return InkWell(
       onTap: isZomato && screenshotUrl.isNotEmpty
           ? () => ZomatoScreenshotViewer.show(
-                context,
-                imageUrl: screenshotUrl,
-                title: tableName,
-              )
+              context,
+              imageUrl: screenshotUrl,
+              title: tableName,
+            )
           : () async {
-        if(!hasItems){
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => MenuPage(
-                menuList: menu,
-                tableName: tableName,
-                tableNameEditable: false,
-                existingOrderNames: tables.keys.toSet(),
-                initialItems: [],
-                pastItems: <Map<String, dynamic>>[],
-                showBilling: !hasItems,
-                isFromFinalBilling: false,
-                onMenuCacheUpdated: _reloadMenuFromCache,
-                onDeleteTable: (tName) =>
-                    _deleteTableFromMenu(tName, docId: docId),
-                onConfirm:
-                    (
-                    items,
-                    isBillPaid,
-                    tName,
-                    overallRemarks, {
-                  bool fromBilling = false,
-                  bool fromFinalBilling = false,
-                  String? transactionId,
-                }) => _handleMenuPageConfirm(
-                  originalName: tableName,
-                  groups: groups,
-                  docId: docId,
-                  items: items,
-                  isBillPaid: isBillPaid,
-                  tName: tName,
-                  overallRemarks: overallRemarks,
-                  fromBilling: fromBilling,
-                  fromFinalBilling: fromFinalBilling,
-                  transactionId: transactionId,
-                ),
-              ),
-            ),
-          );
-          await _reloadMenuFromCache();
-        }
-      },
+              if (!hasItems) {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MenuPage(
+                      menuList: menu,
+                      tableName: tableName,
+                      tableNameEditable: false,
+                      existingOrderNames: tables.keys.toSet(),
+                      initialItems: [],
+                      pastItems: <Map<String, dynamic>>[],
+                      showBilling: !hasItems,
+                      isFromFinalBilling: false,
+                      onMenuCacheUpdated: _reloadMenuFromCache,
+                      onDeleteTable: (tName) =>
+                          _deleteTableFromMenu(tName, docId: docId),
+                      onConfirm:
+                          (
+                            items,
+                            isBillPaid,
+                            tName,
+                            overallRemarks, {
+                            bool fromBilling = false,
+                            bool fromFinalBilling = false,
+                            String? transactionId,
+                          }) => _handleMenuPageConfirm(
+                            originalName: tableName,
+                            groups: groups,
+                            docId: docId,
+                            items: items,
+                            isBillPaid: isBillPaid,
+                            tName: tName,
+                            overallRemarks: overallRemarks,
+                            fromBilling: fromBilling,
+                            fromFinalBilling: fromFinalBilling,
+                            transactionId: transactionId,
+                          ),
+                    ),
+                  ),
+                );
+                await _reloadMenuFromCache();
+              }
+            },
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -2201,7 +2175,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
           children: [
             // ── Card header ──────────────────────────────────────────────
             InkWell(
-              onTap: () async{
+              onTap: () async {
                 if (paid) {
                   showServedDialog(context, tableName, () async {
                     if (isZomato) {
@@ -2222,9 +2196,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         }
                       }
                     } else if (isTakeAway) {
-                      await FirestorePaths
-                          .scopedDoc('tables', docId)
-                          .delete();
+                      await FirestorePaths.scopedDoc('tables', docId).delete();
                       setState(() {});
                     } else {
                       await _updateTableItemsInFirestore(tableName, [], false);
@@ -2234,7 +2206,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 }
                 // Single-tap always opens MenuPage to add items
                 final pastItems = hasItems
-                    ? _mergeItemsByNameAndCategory(groups.expand((g) => g).toList())
+                    ? _mergeItemsByNameAndCategory(
+                        groups.expand((g) => g).toList(),
+                      )
                     : <Map<String, dynamic>>[];
                 await Navigator.push(
                   context,
@@ -2253,25 +2227,25 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                           _deleteTableFromMenu(tName, docId: docId),
                       onConfirm:
                           (
-                          items,
-                          isBillPaid,
-                          tName,
-                          overallRemarks, {
-                        bool fromBilling = false,
-                        bool fromFinalBilling = false,
-                        String? transactionId,
-                      }) => _handleMenuPageConfirm(
-                        originalName: tableName,
-                        groups: groups,
-                        docId: docId,
-                        items: items,
-                        isBillPaid: isBillPaid,
-                        tName: tName,
-                        overallRemarks: overallRemarks,
-                        fromBilling: fromBilling,
-                        fromFinalBilling: fromFinalBilling,
-                        transactionId: transactionId,
-                      ),
+                            items,
+                            isBillPaid,
+                            tName,
+                            overallRemarks, {
+                            bool fromBilling = false,
+                            bool fromFinalBilling = false,
+                            String? transactionId,
+                          }) => _handleMenuPageConfirm(
+                            originalName: tableName,
+                            groups: groups,
+                            docId: docId,
+                            items: items,
+                            isBillPaid: isBillPaid,
+                            tName: tName,
+                            overallRemarks: overallRemarks,
+                            fromBilling: fromBilling,
+                            fromFinalBilling: fromFinalBilling,
+                            transactionId: transactionId,
+                          ),
                     ),
                   ),
                 );
@@ -2294,7 +2268,8 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         color: Colors.white70,
                         size: 17,
                       ),
-                    if (!isTakeAway && !isMobileLayout) const SizedBox(width: 6),
+                    if (!isTakeAway && !isMobileLayout)
+                      const SizedBox(width: 6),
                     if (isTakeAway && takeAwayNum != null) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -2424,13 +2399,13 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                     // PAID pill — admin double-tap to reverse billing
                     if (paid)
                       GestureDetector(
-                        onDoubleTap: () => ReverseBillingService
-                            .showReverseBillingDialog(
-                          context,
-                          tableName: tableName,
-                          docId: docId,
-                          transactionId: tableTransactionIds[tableName],
-                        ),
+                        onDoubleTap: () =>
+                            ReverseBillingService.showReverseBillingDialog(
+                              context,
+                              tableName: tableName,
+                              docId: docId,
+                              transactionId: tableTransactionIds[tableName],
+                            ),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
@@ -2503,8 +2478,9 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                 child: ListenableBuilder(
                   listenable: _itemSelection.listenableFor(docId),
                   builder: (context, _) {
-                    final selectionMode =
-                        _itemSelection.isSelectionModeFor(docId);
+                    final selectionMode = _itemSelection.isSelectionModeFor(
+                      docId,
+                    );
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -2514,13 +2490,16 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               ...group.asMap().entries.map((entry) {
-                                final firestoreGi = TableItemServed
-                                    .firestoreGroupIndexFor(
-                                  entry.value,
-                                  _firestoreGroupIndexFor(tableName, gi),
-                                );
-                                final itemIndex = TableItemServed
-                                    .itemIndexInGroupFor(entry.value, entry.key);
+                                final firestoreGi =
+                                    TableItemServed.firestoreGroupIndexFor(
+                                      entry.value,
+                                      _firestoreGroupIndexFor(tableName, gi),
+                                    );
+                                final itemIndex =
+                                    TableItemServed.itemIndexInGroupFor(
+                                      entry.value,
+                                      entry.key,
+                                    );
                                 final key = TableItemKey(
                                   docId: docId,
                                   groupIndex: firestoreGi,
@@ -2563,8 +2542,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
                         TableItemSelectionActionBar(
                           docId: docId,
                           controller: _itemSelection,
-                          showDeleteButton:
-                              true,
+                          showDeleteButton: true,
                         ),
 
                         // Total row
@@ -2622,10 +2600,11 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
     }
 
     if (selectedTab == 'Take Away') {
-      final keys = tables.keys
-          .where((key) => _isTakeAway(key) && !_isZomatoTable(key))
-          .toList()
-        ..sort(_compareByCreatedAt);
+      final keys =
+          tables.keys
+              .where((key) => _isTakeAway(key) && !_isZomatoTable(key))
+              .toList()
+            ..sort(_compareByCreatedAt);
       return keys;
     }
 
@@ -2688,9 +2667,7 @@ class _DragListBetweenTablesState extends State<DragListBetweenTables>
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
-            _isTakeAway(tableName)
-                ? "Mark as Delivered?"
-                : "Mark as Served?",
+            _isTakeAway(tableName) ? "Mark as Delivered?" : "Mark as Served?",
             style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
           ),
           content: Text(
