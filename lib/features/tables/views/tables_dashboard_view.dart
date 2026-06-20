@@ -9,6 +9,7 @@ import 'package:demo/core/utils/zomato_order_utils.dart';
 import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/repositories/user_repository.dart';
+import 'package:demo/core/widgets/logout_confirmation_dialog.dart';
 import 'package:demo/core/services/restaurant_session.dart';
 import 'package:demo/FinalCartPage.dart';
 import 'package:demo/features/kitchen/kitchen.dart';
@@ -119,6 +120,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
   }
 
   Future<void> signOut() async {
+    if (!await confirmLogout()) return;
     await Get.find<UserRepository>().signOut();
   }
 

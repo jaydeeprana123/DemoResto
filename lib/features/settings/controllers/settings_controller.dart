@@ -1,4 +1,5 @@
 import 'package:demo/core/repositories/user_repository.dart';
+import 'package:demo/core/widgets/logout_confirmation_dialog.dart';
 import 'package:demo/features/kitchen/services/kitchen_settings.dart';
 import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
@@ -139,7 +140,10 @@ class SettingsController extends GetxController {
     }
   }
 
-  Future<void> signOut() => _userRepository.signOut();
+  Future<void> signOut() async {
+    if (!await confirmLogout()) return;
+    await _userRepository.signOut();
+  }
 
   bool get isAdmin => userRole.value == 'Admin';
 }
