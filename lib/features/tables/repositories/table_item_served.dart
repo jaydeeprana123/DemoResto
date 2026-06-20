@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:flutter/material.dart';
 
-import 'package:demo/Styles/my_font.dart';
+import 'package:demo/features/tables/widgets/portion_indicator.dart';
 
 /// Identifies one line item within a table document.
 class TableItemKey {
@@ -299,7 +299,7 @@ class TableItemServed {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
+                    child: buildPortionAwareName(
                       name,
                       style: nameStyle.copyWith(
                         color: served ? Colors.green.shade700 : nameStyle.color,

@@ -81,63 +81,88 @@ class _TransactionsPageState extends State<TransactionsPage> {
     }
   }
 
-  Future<void> _pickDate({
-    required BuildContext context,
-    required bool isFrom,
-  }) async {
-    final now = DateTime.now();
+  static final DateFormat _dateTimeLabelFormat = DateFormat(
+    "dd-MM-yyyy hh:mm a",
+  );
 
-    final picked = await showDatePicker(
+  Future<void> _pickDate({required bool isFrom}) async {
+    final now = DateTime.now();
+    final base = isFrom ? (fromDate ?? now) : (toDate ?? fromDate ?? now);
+
+    final pickedDate = await showDatePicker(
       context: context,
-      initialDate: isFrom ? (fromDate ?? now) : (toDate ?? fromDate ?? now),
+      initialDate: base,
       firstDate: isFrom ? DateTime(2023) : (fromDate ?? DateTime(2023)),
       lastDate: now,
     );
+    if (pickedDate == null || !mounted) return;
 
-    if (picked != null) {
-      setState(() {
-        if (isFrom) {
-          // normalize to start of day
-          fromDate = DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
-          fromController.text = DateFormat("dd-MM-yyyy").format(picked);
+    // Automatically follow up with a time picker so the user can filter by an
+    // exact date and time.
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(base),
+    );
+    if (!mounted) return;
 
-          // If toDate not selected, default to today's end-of-day
-          if (toDate == null) {
-            final today = DateTime.now();
-            toDate = DateTime(
-              today.year,
-              today.month,
-              today.day,
-              23,
-              59,
-              59,
-              999,
-            );
-            toController.text = DateFormat("dd-MM-yyyy").format(today);
-          }
-        } else {
-          // If user picks To date and From is null, treat as same-day filter
-          if (fromDate == null) {
-            fromDate = DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
-            fromController.text = DateFormat("dd-MM-yyyy").format(picked);
-          }
-          // normalize to end of day
-          toDate = DateTime(
-            picked.year,
-            picked.month,
-            picked.day,
+    // If the time picker is dismissed, fall back to the day's boundary time so
+    // a date-only selection still behaves sensibly.
+    final time =
+        pickedTime ??
+        (isFrom
+            ? const TimeOfDay(hour: 0, minute: 0)
+            : const TimeOfDay(hour: 23, minute: 59));
+
+    final selected = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      time.hour,
+      time.minute,
+      isFrom ? 0 : 59,
+      isFrom ? 0 : 999,
+    );
+
+    setState(() {
+      if (isFrom) {
+        fromDate = selected;
+        fromController.text = _dateTimeLabelFormat.format(selected);
+
+        // If toDate not selected, default to today's end-of-day.
+        if (toDate == null) {
+          final endOfToday = DateTime(
+            now.year,
+            now.month,
+            now.day,
             23,
             59,
             59,
             999,
           );
-          toController.text = DateFormat("dd-MM-yyyy").format(picked);
+          toDate = endOfToday;
+          toController.text = _dateTimeLabelFormat.format(endOfToday);
         }
-      });
+      } else {
+        // If user picks To and From is null, default From to start of that day.
+        if (fromDate == null) {
+          final startOfDay = DateTime(
+            selected.year,
+            selected.month,
+            selected.day,
+            0,
+            0,
+            0,
+          );
+          fromDate = startOfDay;
+          fromController.text = _dateTimeLabelFormat.format(startOfDay);
+        }
+        toDate = selected;
+        toController.text = _dateTimeLabelFormat.format(selected);
+      }
+    });
 
-      // apply filter automatically after selection
-      _applyFilter();
-    }
+    // apply filter automatically after selection
+    _applyFilter();
   }
 
   void _applyFilter() async {
@@ -279,18 +304,10 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
     if (isFilterApplied && fromDate != null) {
       final now = DateTime.now();
-      final effectiveFrom = DateTime(
-        fromDate!.year,
-        fromDate!.month,
-        fromDate!.day,
-        0,
-        0,
-        0,
-        0,
-      );
-      final effectiveTo = (toDate != null)
-          ? DateTime(toDate!.year, toDate!.month, toDate!.day, 23, 59, 59, 999)
-          : DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+      // Honor the exact date & time the user selected.
+      final effectiveFrom = fromDate!;
+      final effectiveTo =
+          toDate ?? DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
 
       query =
           FirestorePaths
@@ -413,13 +430,13 @@ class _TransactionsPageState extends State<TransactionsPage> {
                     controller: fromController,
                     readOnly: true,
                     decoration: InputDecoration(
-                      labelText: "From Date",
+                      labelText: "From Date & Time",
                       labelStyle: TextStyle(
                         color: Colors.grey.shade600,
                         fontSize: 13,
                         fontFamily: fontMulishRegular,
                       ),
-                      prefixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+                      prefixIcon: const Icon(Icons.event_outlined, size: 18),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(color: Color(0xFF1A3A5C), width: 1),
@@ -438,7 +455,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       fillColor: Colors.white,
                     ),
                     style: const TextStyle(fontSize: 14, fontFamily: fontMulishSemiBold),
-                    onTap: () => _pickDate(context: context, isFrom: true),
+                    onTap: () => _pickDate(isFrom: true),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -447,13 +464,13 @@ class _TransactionsPageState extends State<TransactionsPage> {
                     controller: toController,
                     readOnly: true,
                     decoration: InputDecoration(
-                      labelText: "To Date",
+                      labelText: "To Date & Time",
                       labelStyle: TextStyle(
                         color: Colors.grey.shade600,
                         fontSize: 13,
                         fontFamily: fontMulishRegular,
                       ),
-                      prefixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+                      prefixIcon: const Icon(Icons.event_outlined, size: 18),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(color: Color(0xFF1A3A5C), width: 1),
@@ -472,7 +489,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       fillColor: Colors.white,
                     ),
                     style: const TextStyle(fontSize: 14, fontFamily: fontMulishSemiBold),
-                    onTap: () => _pickDate(context: context, isFrom: false),
+                    onTap: () => _pickDate(isFrom: false),
                   ),
                 ),
               ],

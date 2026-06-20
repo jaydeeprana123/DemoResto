@@ -53,6 +53,18 @@ abstract final class KitchenTheme {
     return orderHeaderPalette[index];
   }
 
+  /// Kitchen order card header: table = blue, take-away = green, Zomato = red.
+  static Color headerForOrderTable(
+    String tableName, {
+    required bool isZomato,
+    bool isDelayed = false,
+  }) {
+    if (isZomato) return zomatoRed;
+    if (isDelayed) return kdsYellow;
+    if (tableName.contains('Table')) return kdsBlue;
+    return kdsGreen;
+  }
+
   static bool isYellowHeader(Color headerColor) => headerColor == kdsYellow;
 
   /// Yellow headers use dark text for readability.

@@ -2330,8 +2330,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         builder: (context, _) {
           final tickTime = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
           final tickIsDelayed = _isOrderDelayed(tickTime);
-          final headerColor = KitchenTheme.headerForOrderKey(
-            group.docId,
+          final headerColor = KitchenTheme.headerForOrderTable(
+            group.tableName,
             isZomato: group.isZomato,
             isDelayed: tickIsDelayed,
           );
@@ -2471,8 +2471,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             );
             return _isOrderDelayed(batchTime);
           });
-          final headerColor = KitchenTheme.headerForOrderKey(
-            tableCard.docId,
+          final headerColor = KitchenTheme.headerForOrderTable(
+            tableCard.tableName,
             isZomato: isZomato,
             isDelayed: tickIsDelayed,
           );
