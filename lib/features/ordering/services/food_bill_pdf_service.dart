@@ -539,13 +539,15 @@ class FoodBillPdfService {
                   ),
                 ),
                 pw.SizedBox(height: 6),
-              ],
+              ]else
               pw.Center(
                 child: pw.Text(
                   'AL - HAADI',
                   style: labelStyle(size: headerSize, isBold: true),
                 ),
               ),
+
+
               pw.SizedBox(height: 4),
               pw.Center(
                 child: pw.Text(

@@ -532,7 +532,7 @@ class _MenuPageState extends State<MenuPage>
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     height: 1.25,
                     fontFamily: fontMulishBold,
                     letterSpacing: 0.3,
