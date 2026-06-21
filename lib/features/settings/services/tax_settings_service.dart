@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/models/restaurant.dart';
 import 'package:demo/core/services/restaurant_session.dart';
 import 'package:get/get.dart';
 
@@ -68,15 +67,7 @@ class TaxSettingsService {
 
     final current = _session.activeRestaurant.value;
     if (current != null) {
-      _session.activeRestaurant.value = Restaurant(
-        id: current.id,
-        name: current.name,
-        status: current.status,
-        subscriptionStart: current.subscriptionStart,
-        subscriptionEnd: current.subscriptionEnd,
-        adminEmail: current.adminEmail,
-        address: current.address,
-        createdAt: current.createdAt,
+      _session.activeRestaurant.value = current.copyWith(
         cgstPercentage: cgstPercentage,
         sgstPercentage: sgstPercentage,
       );

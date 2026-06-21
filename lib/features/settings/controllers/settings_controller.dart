@@ -3,6 +3,7 @@ import 'package:demo/core/widgets/logout_confirmation_dialog.dart';
 import 'package:demo/features/kitchen/services/kitchen_settings.dart';
 import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
+import 'package:demo/features/settings/services/staff_permission_settings_service.dart';
 import 'package:demo/features/settings/services/tax_settings_service.dart';
 import 'package:demo/features/shell/controllers/shell_controller.dart';
 import 'package:demo/features/shell/services/app_tab_settings.dart';
@@ -34,6 +35,8 @@ class SettingsController extends GetxController {
   final cgstPercentage = 0.0.obs;
   final sgstPercentage = 0.0.obs;
   final isSavingTaxSettings = false.obs;
+  final staffEditDeleteLimitMinutes = 0.obs;
+  final isSavingPermissions = false.obs;
 
   Future<void> loadUserRole() async {
     isLoadingRole.value = true;
@@ -137,6 +140,24 @@ class SettingsController extends GetxController {
       return true;
     } finally {
       isSavingTaxSettings.value = false;
+    }
+  }
+
+  Future<void> loadStaffPermissionSettings() async {
+    staffEditDeleteLimitMinutes.value =
+        await StaffPermissionSettingsService.loadEditDeleteLimitMinutes();
+  }
+
+  Future<bool> saveStaffEditDeleteLimit(int minutes) async {
+    if (minutes < 0) return false;
+
+    isSavingPermissions.value = true;
+    try {
+      await StaffPermissionSettingsService.saveEditDeleteLimitMinutes(minutes);
+      staffEditDeleteLimitMinutes.value = minutes;
+      return true;
+    } finally {
+      isSavingPermissions.value = false;
     }
   }
 

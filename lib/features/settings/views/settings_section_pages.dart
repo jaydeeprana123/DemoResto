@@ -105,6 +105,14 @@ class SettingsRestaurantSectionPage extends StatelessWidget {
                   ),
                 if (isAdmin)
                   SettingsNavRow(
+                    icon: Icons.lock_clock_rounded,
+                    title: 'Permissions',
+                    subtitle: 'Time limit for staff to edit or delete orders',
+                    onTap: () =>
+                        Get.to(() => const SettingsPermissionsSectionPage()),
+                  ),
+                if (isAdmin)
+                  SettingsNavRow(
                     icon: Icons.delivery_dining_rounded,
                     title: 'Zomato / ImageKit',
                     subtitle:
@@ -123,6 +131,164 @@ class SettingsRestaurantSectionPage extends StatelessWidget {
         ),
       );
     });
+  }
+}
+
+class SettingsPermissionsSectionPage extends StatefulWidget {
+  const SettingsPermissionsSectionPage({super.key});
+
+  @override
+  State<SettingsPermissionsSectionPage> createState() =>
+      _SettingsPermissionsSectionPageState();
+}
+
+class _SettingsPermissionsSectionPageState
+    extends State<SettingsPermissionsSectionPage> {
+  late final SettingsController _settings;
+  late final TextEditingController _limitController;
+
+  @override
+  void initState() {
+    super.initState();
+    _settings = Get.find<SettingsController>();
+    _limitController = TextEditingController();
+    _loadFields();
+  }
+
+  Future<void> _loadFields() async {
+    await _settings.loadStaffPermissionSettings();
+    if (!mounted) return;
+    _limitController.text =
+        _settings.staffEditDeleteLimitMinutes.value.toString();
+    setState(() {});
+  }
+
+  Future<void> _save() async {
+    final minutes = int.tryParse(_limitController.text.trim());
+    if (minutes == null || minutes < 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a valid number of minutes (0 or more).'),
+        ),
+      );
+      return;
+    }
+
+    final ok = await _settings.saveStaffEditDeleteLimit(minutes);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? 'Permission settings saved.' : 'Could not save permissions.',
+        ),
+        backgroundColor: ok ? const Color(0xFF2E7D32) : Colors.red.shade700,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _limitController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsSectionScaffold(
+      title: 'Permissions',
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          SettingsGroupedSection(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor:
+                              SettingsColors.orange.withValues(alpha: 0.12),
+                          child: const Icon(
+                            Icons.lock_clock_rounded,
+                            color: SettingsColors.orange,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Staff edit/delete time limit',
+                                style: TextStyle(
+                                  fontFamily: fontMulishSemiBold,
+                                  fontSize: 15,
+                                  color: SettingsColors.navy,
+                                ),
+                              ),
+                              Text(
+                                'Minutes staff can edit/delete the latest order '
+                                'after it is placed (0 = no limit). Admins are '
+                                'never restricted.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF6B7280),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _limitController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Time limit (minutes)',
+                        hintText: 'e.g. 10',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Obx(
+                        () => FilledButton(
+                          onPressed: _settings.isSavingPermissions.value
+                              ? null
+                              : _save,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: SettingsColors.orange,
+                          ),
+                          child: _settings.isSavingPermissions.value
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('Save'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -174,7 +174,8 @@ class OrderItemRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          // padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          padding: const EdgeInsets.only(left: 0, top: 2, bottom: 2),
           child: row,
         ),
       ),

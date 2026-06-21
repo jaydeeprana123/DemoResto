@@ -196,6 +196,16 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
     });
   }
 
+  /// Sets a controller's text while keeping the caret at the end, so typing
+  /// in the split-payment fields appends instead of selecting/replacing.
+  void _setControllerText(TextEditingController controller, String text) {
+    if (controller.text == text) return;
+    controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
   void _updatePaymentAmounts() {
     if (paymentMode == 'Cash') {
       cashController.text = total.toString();
@@ -770,15 +780,22 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                               controller: cashController,
                               decoration: _inputDecoration('Cash ₹'),
                               keyboardType: TextInputType.number,
-                              onChanged: (_) {
-                                setState(() {
-                                  var cash =
-                                      int.tryParse(cashController.text) ?? 0;
-                                  if (cash > total) cash = total;
-                                  cashController.text = cash.toString();
-                                  onlineController.text =
-                                      (total - cash).toString();
-                                });
+                              onChanged: (value) {
+                                var cash = int.tryParse(value.trim()) ?? 0;
+                                // Only rewrite the field being typed in when we
+                                // must clamp it; otherwise leave the caret be.
+                                if (cash > total) {
+                                  cash = total;
+                                  _setControllerText(
+                                    cashController,
+                                    cash.toString(),
+                                  );
+                                }
+                                _setControllerText(
+                                  onlineController,
+                                  (total - cash).toString(),
+                                );
+                                setState(() {});
                               },
                             ),
                           ),
@@ -788,15 +805,20 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                               controller: onlineController,
                               decoration: _inputDecoration('Online ₹'),
                               keyboardType: TextInputType.number,
-                              onChanged: (_) {
-                                setState(() {
-                                  var online =
-                                      int.tryParse(onlineController.text) ?? 0;
-                                  if (online > total) online = total;
-                                  onlineController.text = online.toString();
-                                  cashController.text =
-                                      (total - online).toString();
-                                });
+                              onChanged: (value) {
+                                var online = int.tryParse(value.trim()) ?? 0;
+                                if (online > total) {
+                                  online = total;
+                                  _setControllerText(
+                                    onlineController,
+                                    online.toString(),
+                                  );
+                                }
+                                _setControllerText(
+                                  cashController,
+                                  (total - online).toString(),
+                                );
+                                setState(() {});
                               },
                             ),
                           ),

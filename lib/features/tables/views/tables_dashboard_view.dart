@@ -1920,6 +1920,29 @@ class _TableDashboardViewState extends State<TableDashboardView>
   bool get _isAdmin =>
       Get.find<RestaurantSession>().profile.value?.isAdmin ?? false;
 
+  /// Minutes a Staff user may edit/delete the latest order after it was placed.
+  /// `0` means no restriction. Admins are never restricted by this.
+  int get _staffEditDeleteLimitMinutes =>
+      Get.find<RestaurantSession>()
+          .activeRestaurant
+          .value
+          ?.staffEditDeleteLimitMinutes ??
+      0;
+
+  /// Whether the current user may still edit/delete the latest order group.
+  /// Admins always can; staff only within the admin-configured time limit.
+  /// Existing "latest group only" rules are unchanged — this only gates whether
+  /// the edit/delete icons are offered.
+  bool _staffCanModifyLatestGroup(List<List<Map<String, dynamic>>> groups) {
+    if (_isAdmin) return true;
+    final limit = _staffEditDeleteLimitMinutes;
+    if (limit <= 0) return true;
+    if (groups.isEmpty || groups.last.isEmpty) return true;
+    final addedAt = _parseAddedAt(groups.last.first['addedAt']);
+    if (addedAt == null) return true;
+    return DateTime.now().difference(addedAt) <= Duration(minutes: limit);
+  }
+
   String _shortDisplayName(String tableName) {
     if (tableName.startsWith('Table ')) {
       final num = tableName.substring('Table '.length).trim();
@@ -2333,7 +2356,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
                         ),
                       ),
                     // Action icons
-                    if (hasItems && !paid)
+                    if (hasItems && !paid && _staffCanModifyLatestGroup(groups))
                       _cardIconBtn(Icons.edit_outlined, () async {
                         final lastGroup = groups.last;
                         final pastForEdit = groups.length > 1
@@ -2544,7 +2567,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
                         TableItemSelectionActionBar(
                           docId: docId,
                           controller: _itemSelection,
-                          showDeleteButton: true,
+                          showDeleteButton: _staffCanModifyLatestGroup(groups),
                         ),
 
                         // Total row
