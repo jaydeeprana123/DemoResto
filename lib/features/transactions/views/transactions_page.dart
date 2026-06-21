@@ -168,19 +168,13 @@ class _TransactionsPageState extends State<TransactionsPage> {
   void _applyFilter() async {
     if (fromDate != null) {
       final now = DateTime.now();
-      final effectiveFrom = DateTime(
-        fromDate!.year,
-        fromDate!.month,
-        fromDate!.day,
-        0,
-        0,
-        0,
-      );
-      final effectiveTo = (toDate != null)
-          ? DateTime(toDate!.year, toDate!.month, toDate!.day, 23, 59, 59, 999)
-          : DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+      // Use the exact selected date & time so the totals match the filtered
+      // transaction list (and the Excel export) for the same range.
+      final effectiveFrom = fromDate!;
+      final effectiveTo =
+          toDate ?? DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
 
-      // fetch grand total from daily_stats
+      // Sum the actual transactions in the precise range.
       final result = await getRevenueBetweenDates(effectiveFrom, effectiveTo);
 
       setState(() {
@@ -200,17 +194,21 @@ class _TransactionsPageState extends State<TransactionsPage> {
     }
   }
 
+  /// Sums the actual transactions whose `createdAt` falls within the exact
+  /// [from]..[to] window. This keeps the totals consistent with the filtered
+  /// transaction list and the Excel export (which both filter by exact time),
+  /// rather than the day-granular `daily_stats` aggregates.
   Future<Map<String, dynamic>> getRevenueBetweenDates(
     DateTime from,
     DateTime to,
   ) async {
-    final fromKey = DateFormat("yyyy-MM-dd").format(from);
-    final toKey = DateFormat("yyyy-MM-dd").format(to);
-
     final snapshot = await FirestorePaths
-        .scoped('daily_stats')
-        .where(FieldPath.documentId, isGreaterThanOrEqualTo: fromKey)
-        .where(FieldPath.documentId, isLessThanOrEqualTo: toKey)
+        .scoped('transactions')
+        .where(
+          'createdAt',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(from),
+        )
+        .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(to))
         .get();
 
     double totalRevenue = 0;
@@ -219,10 +217,11 @@ class _TransactionsPageState extends State<TransactionsPage> {
     int totalTransactions = 0;
 
     for (var doc in snapshot.docs) {
-      totalRevenue += (doc["revenue"] as num?)?.toDouble() ?? 0.0;
-      totalCash += (doc["totalCash"] as num?)?.toDouble() ?? 0.0;
-      totalOnline += (doc["totalOnline"] as num?)?.toDouble() ?? 0.0;
-      totalTransactions += (doc["transactions"] as int?) ?? 0;
+      final data = doc.data();
+      totalRevenue += (data["total"] as num?)?.toDouble() ?? 0.0;
+      totalCash += (data["cashAmount"] as num?)?.toDouble() ?? 0.0;
+      totalOnline += (data["onlineAmount"] as num?)?.toDouble() ?? 0.0;
+      totalTransactions += 1;
     }
 
     return {
@@ -267,17 +266,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
     });
     if (isFilterApplied && fromDate != null) {
       final now = DateTime.now();
-      final effectiveFrom = DateTime(
-        fromDate!.year,
-        fromDate!.month,
-        fromDate!.day,
-        0,
-        0,
-        0,
-      );
-      final effectiveTo = (toDate != null)
-          ? DateTime(toDate!.year, toDate!.month, toDate!.day, 23, 59, 59, 999)
-          : DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+      final effectiveFrom = fromDate!;
+      final effectiveTo =
+          toDate ?? DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
       final result =
           await getRevenueBetweenDates(effectiveFrom, effectiveTo);
       if (!mounted) return;
