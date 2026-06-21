@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:demo/Styles/my_font.dart';
 
 class EditableTextField extends StatefulWidget {
   final TextEditingController controller;
@@ -56,7 +57,7 @@ class _EditableTextFieldState extends State<EditableTextField> {
                 child: TextField(
 
                   controller: widget.controller,
-                  style: TextStyle(fontSize: 16, fontFamily: 'Mulish-Bold', color: Colors.white),
+                  style: TextStyle(fontSize: 16, fontFamily: fontMulishBold, color: Colors.white),
                   autofocus: true,
                   decoration: InputDecoration(
                     hintText: "",
@@ -67,7 +68,7 @@ class _EditableTextFieldState extends State<EditableTextField> {
               )
             : Text(
                 widget.controller.text,
-                style: TextStyle(fontSize: 16, fontFamily: 'Mulish-Bold', color: Colors.white),
+                style: TextStyle(fontSize: 16, fontFamily: fontMulishBold, color: Colors.white),
               ),
         const SizedBox(width: 8),
         IconButton(

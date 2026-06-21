@@ -1,5 +1,6 @@
 import 'package:demo/core/models/restaurant.dart';
 import 'package:demo/core/repositories/user_repository.dart';
+import 'package:demo/core/widgets/logout_confirmation_dialog.dart';
 import 'package:demo/features/super_admin/repositories/super_admin_repository.dart';
 import 'package:get/get.dart';
 
@@ -104,6 +105,7 @@ class SuperAdminController extends GetxController {
   }
 
   Future<void> signOut() async {
+    if (!await confirmLogout()) return;
     await _userRepository.signOut();
   }
 }

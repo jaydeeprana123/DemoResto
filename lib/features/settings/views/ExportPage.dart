@@ -26,14 +26,16 @@ class _ExportPageState extends State<ExportPage> {
   bool _exportingTransactions = false;
   bool _exportingExpenses = false;
 
+  static final DateFormat _dateTimeFormat = DateFormat('dd-MM-yyyy hh:mm a');
+
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
     _fromDate = DateTime(now.year, now.month, 1);
     _toDate = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
-    _fromController.text = DateFormat('dd-MM-yyyy').format(_fromDate!);
-    _toController.text = DateFormat('dd-MM-yyyy').format(now);
+    _fromController.text = _dateTimeFormat.format(_fromDate!);
+    _toController.text = _dateTimeFormat.format(_toDate!);
   }
 
   @override
@@ -45,45 +47,63 @@ class _ExportPageState extends State<ExportPage> {
 
   Future<void> _pickDate({required bool isFrom}) async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    final base = isFrom ? (_fromDate ?? now) : (_toDate ?? _fromDate ?? now);
+
+    final pickedDate = await showDatePicker(
       context: context,
-      initialDate: isFrom ? (_fromDate ?? now) : (_toDate ?? _fromDate ?? now),
+      initialDate: base,
       firstDate: isFrom ? DateTime(2023) : (_fromDate ?? DateTime(2023)),
       lastDate: now,
     );
-    if (picked == null || !mounted) return;
+    if (pickedDate == null || !mounted) return;
+
+    // Automatically follow up with a time picker so the user can export by an
+    // exact date and time range.
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(base),
+    );
+    if (!mounted) return;
+
+    // If the time picker is dismissed, fall back to the day's boundary time.
+    final time =
+        pickedTime ??
+        (isFrom
+            ? const TimeOfDay(hour: 0, minute: 0)
+            : const TimeOfDay(hour: 23, minute: 59));
+
+    final selected = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      time.hour,
+      time.minute,
+      isFrom ? 0 : 59,
+      isFrom ? 0 : 999,
+    );
 
     setState(() {
       if (isFrom) {
-        _fromDate = DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
-        _fromController.text = DateFormat('dd-MM-yyyy').format(picked);
+        _fromDate = selected;
+        _fromController.text = _dateTimeFormat.format(selected);
         if (_toDate == null) {
-          _toDate = DateTime(
-            now.year,
-            now.month,
-            now.day,
-            23,
-            59,
-            59,
-            999,
-          );
-          _toController.text = DateFormat('dd-MM-yyyy').format(now);
+          _toDate = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+          _toController.text = _dateTimeFormat.format(_toDate!);
         }
       } else {
         if (_fromDate == null) {
-          _fromDate = DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
-          _fromController.text = DateFormat('dd-MM-yyyy').format(picked);
+          _fromDate = DateTime(
+            selected.year,
+            selected.month,
+            selected.day,
+            0,
+            0,
+            0,
+          );
+          _fromController.text = _dateTimeFormat.format(_fromDate!);
         }
-        _toDate = DateTime(
-          picked.year,
-          picked.month,
-          picked.day,
-          23,
-          59,
-          59,
-          999,
-        );
-        _toController.text = DateFormat('dd-MM-yyyy').format(picked);
+        _toDate = selected;
+        _toController.text = _dateTimeFormat.format(selected);
       }
     });
   }
@@ -227,7 +247,7 @@ class _ExportPageState extends State<ExportPage> {
                         child: TextField(
                           controller: _fromController,
                           readOnly: true,
-                          decoration: _dateDecoration('From Date'),
+                          decoration: _dateDecoration('From Date & Time'),
                           style: const TextStyle(
                             fontSize: 14,
                             fontFamily: fontMulishSemiBold,
@@ -241,7 +261,7 @@ class _ExportPageState extends State<ExportPage> {
                         child: TextField(
                           controller: _toController,
                           readOnly: true,
-                          decoration: _dateDecoration('To Date'),
+                          decoration: _dateDecoration('To Date & Time'),
                           style: const TextStyle(
                             fontSize: 14,
                             fontFamily: fontMulishSemiBold,
@@ -300,7 +320,7 @@ class _ExportPageState extends State<ExportPage> {
         fontSize: 13,
         fontFamily: fontMulishRegular,
       ),
-      prefixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+      prefixIcon: const Icon(Icons.event_outlined, size: 18),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: _navy, width: 1),

@@ -1,3 +1,4 @@
+import 'package:demo/core/network/app_http_overrides.dart';
 import 'package:demo/bindings/app_binding.dart';
 import 'package:demo/core/firebase/firebase_options.dart';
 import 'package:demo/core/firestore/firestore_desktop_config.dart';
@@ -7,11 +8,13 @@ import 'package:demo/features/kitchen/services/kitchen_settings.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/features/shell/services/app_tab_settings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:get/get.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppHttpOverrides.installIfNeeded();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

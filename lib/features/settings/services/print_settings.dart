@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum PosPrinterType {
   tvs80,
+  rugtek80,
   generic80,
   narrow58,
 }
@@ -11,6 +13,7 @@ enum PosPrinterType {
 extension PosPrinterTypeLabel on PosPrinterType {
   String get label => switch (this) {
         PosPrinterType.tvs80 => 'TVS Printer (80mm)',
+        PosPrinterType.rugtek80 => 'Rugtek RP326 (80mm)',
         PosPrinterType.generic80 => 'Generic POS (80mm)',
         PosPrinterType.narrow58 => 'Narrow POS (58mm)',
       };
@@ -18,7 +21,10 @@ extension PosPrinterTypeLabel on PosPrinterType {
   String get subtitle => switch (this) {
         PosPrinterType.tvs80 =>
           'Optimized for TVS RP / LP / MLP thermal series',
-        PosPrinterType.generic80 => 'Standard 80mm thermal roll',
+        PosPrinterType.rugtek80 =>
+          'Rugtek RP326 / RP327 / RP328 and Rongta USB printers',
+        PosPrinterType.generic80 =>
+          'Epson, Rugtek & other 80mm USB thermal printers',
         PosPrinterType.narrow58 => '58mm thermal roll printers',
       };
 }
@@ -27,11 +33,13 @@ class PrintSettings {
   static const _keyPrintPdfEnabled = 'print_pdf_enabled';
   static const _keyPrinterType = 'pos_printer_type';
   static const _keyBillPdfIncludeLogos = 'bill_pdf_include_logos';
+  static const _keyPreferredPrinterName = 'pos_preferred_printer_name';
 
   static final ValueNotifier<bool> printPdfEnabled = ValueNotifier(false);
   static final ValueNotifier<PosPrinterType> printerType =
-      ValueNotifier(PosPrinterType.tvs80);
+      ValueNotifier(PosPrinterType.rugtek80);
   static final ValueNotifier<bool> billPdfIncludeLogos = ValueNotifier(false);
+  static String? preferredPrinterName;
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -41,6 +49,19 @@ class PrintSettings {
     );
     billPdfIncludeLogos.value =
         prefs.getBool(_keyBillPdfIncludeLogos) ?? false;
+    preferredPrinterName = prefs.getString(_keyPreferredPrinterName);
+  }
+
+  static Future<void> setPreferredPrinterName(String? name) async {
+    final prefs = await SharedPreferences.getInstance();
+    final trimmed = name?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      await prefs.remove(_keyPreferredPrinterName);
+      preferredPrinterName = null;
+      return;
+    }
+    await prefs.setString(_keyPreferredPrinterName, trimmed);
+    preferredPrinterName = trimmed;
   }
 
   static Future<bool> getPrintPdfEnabled() async {
@@ -79,7 +100,7 @@ class PrintSettings {
   static PosPrinterType _parsePrinterType(String? raw) {
     return PosPrinterType.values.firstWhere(
       (e) => e.name == raw,
-      orElse: () => PosPrinterType.tvs80,
+      orElse: () => PosPrinterType.rugtek80,
     );
   }
 
@@ -89,6 +110,7 @@ class PrintSettings {
     PosPrinterType type, {
     required int itemCount,
     bool hasDiscount = false,
+    bool hasExtra = false,
     bool hasPaymentLines = false,
     bool hasTaxLines = false,
     bool includeLogos = false,
@@ -102,6 +124,7 @@ class PrintSettings {
     heightMm += 30.0;
     if (hasTaxLines) heightMm += 12.0;
     if (hasDiscount) heightMm += 6.0;
+    if (hasExtra) heightMm += 6.0;
     if (hasPaymentLines) heightMm += 12.0;
     heightMm += 24.0;
     if (!includeLogos) heightMm -= 10.0;
@@ -127,6 +150,7 @@ class PrintSettings {
           top: 3 * PdfPageFormat.mm,
           bottom: 5 * PdfPageFormat.mm,
         );
+      case PosPrinterType.rugtek80:
       case PosPrinterType.generic80:
         return (
           left: 4 * PdfPageFormat.mm,
@@ -146,11 +170,178 @@ class PrintSettings {
 
   static bool isTvsPrinterName(String name) {
     final lower = name.toLowerCase();
+    if (lower.contains('rugtek') ||
+        lower.contains('rug tek') ||
+        lower.contains('rp326') ||
+        lower.contains('rp327') ||
+        lower.contains('rp328') ||
+        lower.contains('rongta')) {
+      return false;
+    }
     return lower.contains('tvs') ||
         lower.contains('rp-') ||
         lower.contains('rp ') ||
         lower.contains('lp-') ||
         lower.contains('lp ') ||
         lower.contains('mlp');
+  }
+
+  static bool isRugtekPrinterName(String name) {
+    final lower = name.toLowerCase();
+    return lower.contains('rugtek') ||
+        lower.contains('rug tek') ||
+        lower.contains('rp326') ||
+        lower.contains('rp-326') ||
+        lower.contains('rp 326') ||
+        lower.contains('rp327') ||
+        lower.contains('rp328') ||
+        isRongtaPrinterName(name);
+  }
+
+  static bool isRongtaPrinterName(String name) {
+    final lower = name.toLowerCase();
+    return lower.contains('rongta') || lower.contains('rong ta');
+  }
+
+  static bool isEpsonPrinterName(String name) {
+    final lower = name.toLowerCase();
+    return lower.contains('epson') ||
+        lower.contains('tm-t') ||
+        lower.contains('tm-m') ||
+        lower.contains('tm t') ||
+        lower.contains('tm m');
+  }
+
+  static bool isThermalReceiptPrinterName(String name) {
+    return isTvsPrinterName(name) ||
+        isRugtekPrinterName(name) ||
+        isEpsonPrinterName(name) ||
+        name.toLowerCase().contains('thermal') ||
+        name.toLowerCase().contains('receipt');
+  }
+
+  /// Windows virtual printers (OneNote, PDF, XPS, etc.) — not for POS receipts.
+  static bool isVirtualPrinterName(String name) {
+    final lower = name.toLowerCase();
+    return lower.contains('onenote') ||
+        lower.contains('one note') ||
+        lower.contains('print to pdf') ||
+        lower.contains('microsoft print') ||
+        lower.contains('xps document') ||
+        lower.contains('microsoft xps') ||
+        lower.contains(' fax') ||
+        lower.startsWith('fax') ||
+        lower.contains('adobe pdf') ||
+        lower.contains('cutepdf') ||
+        lower.contains('send to') ||
+        lower.contains('virtual') ||
+        lower.contains('pdf writer') ||
+        lower.contains('snagit');
+  }
+
+  static List<Printer> physicalPrinters(List<Printer> printers) {
+    return printers.where((p) => !isVirtualPrinterName(p.name)).toList();
+  }
+
+  static bool _matchesSettingsType(Printer printer, PosPrinterType type) {
+    switch (type) {
+      case PosPrinterType.tvs80:
+        return isTvsPrinterName(printer.name);
+      case PosPrinterType.rugtek80:
+        return isRugtekPrinterName(printer.name);
+      case PosPrinterType.narrow58:
+        return isThermalReceiptPrinterName(printer.name);
+      case PosPrinterType.generic80:
+        return isThermalReceiptPrinterName(printer.name);
+    }
+  }
+
+  static void _addCandidate(Printer printer, List<Printer> ordered, Set<String> seen) {
+    if (seen.contains(printer.name)) return;
+    seen.add(printer.name);
+    ordered.add(printer);
+  }
+
+  /// Ordered candidates for silent receipt printing (best match first).
+  static List<Printer> receiptPrinterCandidates(
+    List<Printer> printers, {
+    PosPrinterType type = PosPrinterType.rugtek80,
+  }) {
+    final candidates = physicalPrinters(printers);
+    if (candidates.isEmpty) return const [];
+
+    final ordered = <Printer>[];
+    final seen = <String>{};
+
+    final saved = preferredPrinterName;
+    if (saved != null && saved.isNotEmpty) {
+      for (final printer in candidates) {
+        if (printer.name == saved) {
+          _addCandidate(printer, ordered, seen);
+          break;
+        }
+      }
+    }
+
+    for (final printer in candidates) {
+      if (printer.isDefault && _matchesSettingsType(printer, type)) {
+        _addCandidate(printer, ordered, seen);
+      }
+    }
+
+    for (final printer in candidates) {
+      if (isRugtekPrinterName(printer.name)) {
+        _addCandidate(printer, ordered, seen);
+      }
+    }
+    for (final printer in candidates) {
+      if (isEpsonPrinterName(printer.name)) {
+        _addCandidate(printer, ordered, seen);
+      }
+    }
+    if (type == PosPrinterType.tvs80) {
+      for (final printer in candidates) {
+        if (isTvsPrinterName(printer.name)) {
+          _addCandidate(printer, ordered, seen);
+        }
+      }
+    }
+    for (final printer in candidates) {
+      if (isThermalReceiptPrinterName(printer.name)) {
+        _addCandidate(printer, ordered, seen);
+      }
+    }
+    for (final printer in candidates) {
+      if (printer.isDefault) {
+        _addCandidate(printer, ordered, seen);
+      }
+    }
+    for (final printer in candidates) {
+      if (_matchesSettingsType(printer, type)) {
+        _addCandidate(printer, ordered, seen);
+      }
+    }
+    if (ordered.isEmpty && candidates.length == 1) {
+      _addCandidate(candidates.first, ordered, seen);
+    }
+
+    return ordered;
+  }
+
+  static bool hasReceiptPrinter(
+    List<Printer> printers, {
+    PosPrinterType type = PosPrinterType.rugtek80,
+  }) {
+    return receiptPrinterCandidates(printers, type: type).isNotEmpty;
+  }
+
+  /// Picks the best USB/network POS printer for one-shot printing.
+  static Printer? pickReceiptPrinter(
+    List<Printer> printers, {
+    PosPrinterType type = PosPrinterType.rugtek80,
+  }) {
+    final candidates = receiptPrinterCandidates(printers, type: type);
+    if (candidates.isEmpty) return null;
+    return candidates.first;
   }
 }

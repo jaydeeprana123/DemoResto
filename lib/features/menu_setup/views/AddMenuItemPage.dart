@@ -19,6 +19,9 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
   String? _selectedCategoryName;
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
+  final _halfPriceController = TextEditingController();
+  final _fullPriceController = TextEditingController();
+  bool _halfFullPricing = false;
   bool _isAdding = false;
 
   Future<void> _addMenuItem() async {
@@ -38,16 +41,36 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
         'items',
       );
       final sortOrder = await nextSortOrder(itemsRef);
-      await itemsRef.add({
+
+      final data = <String, dynamic>{
         'name': _nameController.text.trim(),
-        'price': double.tryParse(_priceController.text.trim()) ?? 0.0,
         'sortOrder': sortOrder,
         'inStock': true,
         'createdAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      if (_halfFullPricing) {
+        final halfPrice =
+            double.tryParse(_halfPriceController.text.trim()) ?? 0.0;
+        final fullPrice =
+            double.tryParse(_fullPriceController.text.trim()) ?? 0.0;
+        data['priceType'] = 'half_full';
+        data['halfPrice'] = halfPrice;
+        data['fullPrice'] = fullPrice;
+        // Keep `price` populated (full portion) for backward compatibility
+        // with screens that read a single price.
+        data['price'] = fullPrice;
+      } else {
+        data['priceType'] = 'single';
+        data['price'] = double.tryParse(_priceController.text.trim()) ?? 0.0;
+      }
+
+      await itemsRef.add(data);
 
       _nameController.clear();
       _priceController.clear();
+      _halfPriceController.clear();
+      _fullPriceController.clear();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -58,6 +81,201 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
     } finally {
       if (mounted) setState(() => _isAdding = false);
     }
+  }
+
+  Widget _buildPriceLabel(Map<String, dynamic> data) {
+    final isHalfFull = data['priceType'] == 'half_full';
+
+    if (isHalfFull) {
+      final half = (data['halfPrice'] as num?)?.toDouble() ?? 0.0;
+      final full = (data['fullPrice'] as num?)?.toDouble() ?? 0.0;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _portionPriceRow('Half', half),
+          const SizedBox(height: 2),
+          _portionPriceRow('Full', full),
+        ],
+      );
+    }
+
+    final price = (data['price'] as num?)?.toDouble() ?? 0.0;
+    return Text(
+      '₹${price.toStringAsFixed(0)}',
+      style: const TextStyle(
+        fontFamily: fontMulishBold,
+        fontSize: 15,
+        color: SetupPageColors.navy,
+      ),
+    );
+  }
+
+  Widget _portionPriceRow(String label, double price) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$label ',
+          style: TextStyle(
+            fontFamily: fontMulishSemiBold,
+            fontSize: 11,
+            color: Colors.grey.shade500,
+          ),
+        ),
+        Text(
+          '₹${price.toStringAsFixed(0)}',
+          style: const TextStyle(
+            fontFamily: fontMulishBold,
+            fontSize: 14,
+            color: SetupPageColors.navy,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String? _priceValidator(String? value, {required String label}) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Enter $label';
+    }
+    final price = double.tryParse(value.trim());
+    if (price == null || price < 0) {
+      return 'Enter a valid $label';
+    }
+    return null;
+  }
+
+  Widget _buildPricingModeToggle() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          _pricingModeOption(label: 'Normal Price', halfFull: false),
+          _pricingModeOption(label: 'Half + Full', halfFull: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _pricingModeOption({required String label, required bool halfFull}) {
+    final selected = _halfFullPricing == halfFull;
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          if (_halfFullPricing == halfFull) return;
+          setState(() => _halfFullPricing = halfFull);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: selected ? SetupPageColors.orange : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontFamily: fontMulishSemiBold,
+              color: selected ? Colors.white : SetupPageColors.navy,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSinglePriceField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SetupPageStyle.label('Price (₹)'),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _priceController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          validator: (value) => _priceValidator(value, label: 'price'),
+          style: const TextStyle(
+            fontSize: 14,
+            fontFamily: fontMulishRegular,
+            color: SetupPageColors.navy,
+          ),
+          decoration: SetupPageStyle.inputDecoration(
+            hint: 'e.g. 250',
+            icon: Icons.currency_rupee_rounded,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHalfFullPriceFields() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SetupPageStyle.label('Half Price (₹)'),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _halfPriceController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                validator: (value) =>
+                    _priceValidator(value, label: 'half price'),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontFamily: fontMulishRegular,
+                  color: SetupPageColors.navy,
+                ),
+                decoration: SetupPageStyle.inputDecoration(
+                  hint: 'e.g. 150',
+                  icon: Icons.currency_rupee_rounded,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SetupPageStyle.label('Full Price (₹)'),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _fullPriceController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                validator: (value) =>
+                    _priceValidator(value, label: 'full price'),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontFamily: fontMulishRegular,
+                  color: SetupPageColors.navy,
+                ),
+                decoration: SetupPageStyle.inputDecoration(
+                  hint: 'e.g. 250',
+                  icon: Icons.currency_rupee_rounded,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _deleteMenuItem(
@@ -82,6 +300,8 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
   void dispose() {
     _nameController.dispose();
     _priceController.dispose();
+    _halfPriceController.dispose();
+    _fullPriceController.dispose();
     super.dispose();
   }
 
@@ -128,33 +348,14 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                SetupPageStyle.label('Price (₹)'),
+                SetupPageStyle.label('Pricing'),
                 const SizedBox(height: 8),
-                TextFormField(
-                  controller: _priceController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Enter price';
-                    }
-                    final price = double.tryParse(value.trim());
-                    if (price == null || price < 0) {
-                      return 'Enter a valid price';
-                    }
-                    return null;
-                  },
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontFamily: fontMulishRegular,
-                    color: SetupPageColors.navy,
-                  ),
-                  decoration: SetupPageStyle.inputDecoration(
-                    hint: 'e.g. 250',
-                    icon: Icons.currency_rupee_rounded,
-                  ),
-                ),
+                _buildPricingModeToggle(),
+                const SizedBox(height: 16),
+                if (_halfFullPricing)
+                  _buildHalfFullPriceFields()
+                else
+                  _buildSinglePriceField(),
                 const SizedBox(height: 16),
                 _isAdding
                     ? const Center(
@@ -343,11 +544,9 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
 
                         return Column(
                           children: items.map((item) {
+                            final itemData = item.data();
                             final itemName =
-                                item.data()['name']?.toString() ?? '';
-                            final price =
-                                (item.data()['price'] as num?)?.toDouble() ??
-                                0.0;
+                                itemData['name']?.toString() ?? '';
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 6),
@@ -375,14 +574,7 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(
-                                      '₹${price.toStringAsFixed(0)}',
-                                      style: const TextStyle(
-                                        fontFamily: fontMulishBold,
-                                        fontSize: 15,
-                                        color: SetupPageColors.navy,
-                                      ),
-                                    ),
+                                    _buildPriceLabel(itemData),
                                     IconButton(
                                       icon: const Icon(
                                         Icons.delete_outline_rounded,

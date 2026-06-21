@@ -1,7 +1,9 @@
 import 'package:demo/core/repositories/user_repository.dart';
+import 'package:demo/core/widgets/logout_confirmation_dialog.dart';
 import 'package:demo/features/kitchen/services/kitchen_settings.dart';
 import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
+import 'package:demo/features/settings/services/staff_permission_settings_service.dart';
 import 'package:demo/features/settings/services/tax_settings_service.dart';
 import 'package:demo/features/shell/controllers/shell_controller.dart';
 import 'package:demo/features/shell/services/app_tab_settings.dart';
@@ -25,13 +27,16 @@ class SettingsController extends GetxController {
   final appTabMode = AppTabMode.dashboardAndKitchen.obs;
   final kitchenShowTableAllOrders = true.obs;
   final kitchenShowServeOrderScreen = false.obs;
+  final kitchenPreparationViewEnabled = false.obs;
   final kitchenBackgroundOrderRingtoneEnabled = true.obs;
   final printPdfEnabled = false.obs;
-  final printerType = PosPrinterType.tvs80.obs;
+  final printerType = PosPrinterType.rugtek80.obs;
   final billPdfIncludeLogos = false.obs;
   final cgstPercentage = 0.0.obs;
   final sgstPercentage = 0.0.obs;
   final isSavingTaxSettings = false.obs;
+  final staffEditDeleteLimitMinutes = 0.obs;
+  final isSavingPermissions = false.obs;
 
   Future<void> loadUserRole() async {
     isLoadingRole.value = true;
@@ -50,6 +55,8 @@ class SettingsController extends GetxController {
         await KitchenSettings.getShowTableAllOrders();
     kitchenShowServeOrderScreen.value =
         await KitchenSettings.getShowServeOrderScreen();
+    kitchenPreparationViewEnabled.value =
+        await KitchenSettings.getPreparationViewEnabled();
     kitchenBackgroundOrderRingtoneEnabled.value =
         await KitchenSettings.getBackgroundOrderRingtoneEnabled();
   }
@@ -74,6 +81,11 @@ class SettingsController extends GetxController {
   Future<void> setKitchenShowServeOrderScreen(bool value) async {
     await KitchenSettings.setShowServeOrderScreen(value);
     kitchenShowServeOrderScreen.value = value;
+  }
+
+  Future<void> setKitchenPreparationViewEnabled(bool value) async {
+    await KitchenSettings.setPreparationViewEnabled(value);
+    kitchenPreparationViewEnabled.value = value;
   }
 
   Future<void> setKitchenBackgroundOrderRingtoneEnabled(bool value) async {
@@ -131,7 +143,28 @@ class SettingsController extends GetxController {
     }
   }
 
-  Future<void> signOut() => _userRepository.signOut();
+  Future<void> loadStaffPermissionSettings() async {
+    staffEditDeleteLimitMinutes.value =
+        await StaffPermissionSettingsService.loadEditDeleteLimitMinutes();
+  }
+
+  Future<bool> saveStaffEditDeleteLimit(int minutes) async {
+    if (minutes < 0) return false;
+
+    isSavingPermissions.value = true;
+    try {
+      await StaffPermissionSettingsService.saveEditDeleteLimitMinutes(minutes);
+      staffEditDeleteLimitMinutes.value = minutes;
+      return true;
+    } finally {
+      isSavingPermissions.value = false;
+    }
+  }
+
+  Future<void> signOut() async {
+    if (!await confirmLogout()) return;
+    await _userRepository.signOut();
+  }
 
   bool get isAdmin => userRole.value == 'Admin';
 }

@@ -41,20 +41,20 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
   BottomNavigationBarItem _navItem(ShellTab tab) {
     return switch (tab) {
       ShellTab.dashboard => const BottomNavigationBarItem(
-          icon: Icon(Icons.grid_view_rounded, size: 24),
-          activeIcon: Icon(Icons.grid_view_rounded, size: 26),
-          label: 'Dashboard',
-        ),
+        icon: Icon(Icons.grid_view_rounded, size: 24),
+        activeIcon: Icon(Icons.grid_view_rounded, size: 26),
+        label: 'Dashboard',
+      ),
       ShellTab.kitchen => const BottomNavigationBarItem(
-          icon: Icon(Icons.soup_kitchen_rounded, size: 24),
-          activeIcon: Icon(Icons.soup_kitchen_rounded, size: 26),
-          label: 'Kitchen',
-        ),
+        icon: Icon(Icons.soup_kitchen_rounded, size: 24),
+        activeIcon: Icon(Icons.soup_kitchen_rounded, size: 26),
+        label: 'Kitchen',
+      ),
       ShellTab.settings => const BottomNavigationBarItem(
-          icon: Icon(Icons.settings_rounded, size: 24),
-          activeIcon: Icon(Icons.settings_rounded, size: 26),
-          label: 'Settings',
-        ),
+        icon: Icon(Icons.settings_rounded, size: 24),
+        activeIcon: Icon(Icons.settings_rounded, size: 26),
+        label: 'Settings',
+      ),
     };
   }
 
@@ -67,12 +67,10 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
           return IndexedStack(
             index: _shell.stackIndex,
             children: [
-              DragListBetweenTables(
+              TableDashboardView(
                 isTabActive: _shell.currentTab == ShellTab.dashboard,
               ),
-              KitchenOrdersListView(
-                isTabActive: _shell.isKitchenTabActive,
-              ),
+              KitchenOrdersListView(isTabActive: _shell.isKitchenTabActive),
               const SettingsPage(),
             ],
           );
