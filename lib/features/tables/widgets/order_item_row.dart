@@ -213,8 +213,8 @@ class OrderItemRow extends StatelessWidget {
   Widget _qtyBadge(int qty, {required bool served}) {
     if (style == OrderItemRowStyle.dashboard) {
       return Container(
-        margin: const EdgeInsets.only(right: 5),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        margin: const EdgeInsets.only(right: 0),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
         decoration: BoxDecoration(
           color: served
               ? Colors.green.withValues(alpha: 0.12)
@@ -224,7 +224,7 @@ class OrderItemRow extends StatelessWidget {
         child: Text(
           '×$qty',
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 12.5,
             color: served ? Colors.green.shade700 : const Color(0xFFf57c35),
             fontFamily: fontMulishBold,
           ),
@@ -259,7 +259,7 @@ class OrderItemRow extends StatelessWidget {
   TextStyle _nameStyle({required bool served}) {
     if (style == OrderItemRowStyle.dashboard) {
       return TextStyle(
-        fontSize: 14,
+        fontSize: 13.5,
         fontFamily: fontMulishSemiBold,
         color: served ? Colors.green.shade700 : const Color(0xFF212121),
       );
