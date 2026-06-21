@@ -1,15 +1,6 @@
-import 'package:demo/features/menu_setup/menu_setup.dart';
 import 'package:demo/features/settings/controllers/settings_controller.dart';
-import 'package:demo/features/shell/services/app_tab_settings.dart';
-import 'package:demo/features/settings/views/AdminDashboardPage.dart';
-import 'package:demo/features/settings/views/ExpensesPage.dart';
-import 'package:demo/features/settings/views/profile_view.dart';
-import 'package:demo/features/settings/views/staff_list_view.dart';
-import 'package:demo/features/settings/views/stock_management_page.dart';
-import 'package:demo/features/settings/views/ExportPage.dart';
-import 'package:demo/features/tables/tables.dart';
-import 'package:demo/features/transactions/transactions.dart';
-import 'package:demo/features/zomato/views/imagekit_settings_page.dart';
+import 'package:demo/features/settings/views/settings_section_pages.dart';
+import 'package:demo/features/settings/views/settings_ui.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -22,78 +13,21 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  static const _navy = Color(0xFF1A3A5C);
-  static const _orange = Color(0xFFf57c35);
-
   late final SettingsController _settings;
-  late final TextEditingController _cgstController;
-  late final TextEditingController _sgstController;
 
   @override
   void initState() {
     super.initState();
     _settings = Get.find<SettingsController>();
-    _cgstController = TextEditingController();
-    _sgstController = TextEditingController();
     _settings.loadUserRole();
-    _settings.loadKitchenSettings();
-    _settings.loadAppTabSettings();
-    _loadTaxFields();
-  }
-
-  Future<void> _loadTaxFields() async {
-    await _settings.loadTaxSettings();
-    if (!mounted) return;
-    _cgstController.text = _formatTaxField(_settings.cgstPercentage.value);
-    _sgstController.text = _formatTaxField(_settings.sgstPercentage.value);
-    setState(() {});
-  }
-
-  String _formatTaxField(double value) {
-    if (value == 0) return '0';
-    if (value == value.roundToDouble()) return value.toStringAsFixed(0);
-    return value.toString();
-  }
-
-  Future<void> _saveTaxSettings() async {
-    final cgst = double.tryParse(_cgstController.text.trim()) ?? 0;
-    final sgst = double.tryParse(_sgstController.text.trim()) ?? 0;
-
-    if (cgst < 0 || sgst < 0 || cgst > 100 || sgst > 100) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter valid tax percentages between 0 and 100.')),
-      );
-      return;
-    }
-
-    final ok = await _settings.saveTaxSettings(cgst: cgst, sgst: sgst);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(ok ? 'GST settings saved.' : 'Could not save GST settings.'),
-        backgroundColor: ok ? const Color(0xFF2E7D32) : Colors.red.shade700,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _cgstController.dispose();
-    _sgstController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _signOut() async {
-    await _settings.signOut();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: SettingsColors.background,
       appBar: AppBar(
-        backgroundColor: _navy,
+        backgroundColor: SettingsColors.navy,
         elevation: 0,
         automaticallyImplyLeading: false,
         title: const Text(
@@ -107,446 +41,59 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: Obx(() {
         if (_settings.isLoadingRole.value) {
-          return const Center(child: CircularProgressIndicator(color: _orange));
+          return const Center(
+            child: CircularProgressIndicator(color: SettingsColors.orange),
+          );
         }
 
-        final isAdmin = _settings.isAdmin;
-
         return ListView(
-              padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
+          children: [
+            SettingsGroupedSection(
               children: [
-                const Text(
-                  'Business',
-                  style: TextStyle(
-                    fontFamily: fontMulishSemiBold,
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                  ),
+                SettingsHubRow(
+                  icon: Icons.business_center_outlined,
+                  title: 'Business',
+                  subtitle: 'Dashboard, transactions, expenses & export',
+                  onTap: () => Get.to(() => const SettingsBusinessSectionPage()),
                 ),
-                const SizedBox(height: 8),
-                if (isAdmin)
-                  _SettingsTile(
-                    icon: Icons.dashboard_rounded,
-                    title: 'Dashboard',
-                    subtitle: 'Sales, expenses & reserved tables overview',
-                    onTap: () => Get.to(() => const AdminDashboardPage()),
-                  ),
-                if (isAdmin)
-                  _SettingsTile(
-                    icon: Icons.receipt_long_rounded,
-                    title: 'Transactions',
-                    subtitle: 'View sales and payment history',
-                    onTap: () => Get.to(() => const TransactionsPage()),
-                  ),
-                _SettingsTile(
-                  icon: Icons.payments_outlined,
-                  title: 'Expenses',
-                  subtitle: 'Track and add business expenses',
-                  onTap: () => Get.to(() => const ExpensesPage()),
+                SettingsHubRow(
+                  icon: Icons.restaurant_outlined,
+                  title: 'Restaurant setup',
+                  subtitle: 'Tables, menu, staff, Zomato & stock',
+                  onTap: () =>
+                      Get.to(() => const SettingsRestaurantSectionPage()),
                 ),
-                if (isAdmin)
-                  _SettingsTile(
-                    icon: Icons.file_download_outlined,
-                    title: 'Export',
-                    subtitle: 'Download transactions & expenses to Excel',
-                    onTap: () => Get.to(() => ExportPage(isAdmin: true)),
-                  ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Restaurant setup',
-                  style: TextStyle(
-                    fontFamily: fontMulishSemiBold,
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                  ),
+                SettingsHubRow(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'Billing',
+                  subtitle: 'GST, printer & receipt options',
+                  onTap: () => Get.to(() => const SettingsBillingSectionPage()),
                 ),
-                const SizedBox(height: 8),
-                _SettingsTile(
-                  icon: Icons.table_restaurant_rounded,
-                  title: 'Tables',
-                  subtitle: 'Add or manage dining tables',
-                  onTap: () => Get.to(() => AddTablePage()),
+                SettingsHubRow(
+                  icon: Icons.navigation_outlined,
+                  title: 'Navigation',
+                  subtitle: 'App tab layout',
+                  onTap: () =>
+                      Get.to(() => const SettingsNavigationSectionPage()),
                 ),
-                if (isAdmin)
-                  _SettingsTile(
-                    icon: Icons.menu_book_rounded,
-                    title: 'Menu',
-                    subtitle: 'Categories and menu items',
-                    onTap: () => Get.to(() => AddCategoryPage()),
-                  ),
-                if (isAdmin)
-                  _SettingsTile(
-                    icon: Icons.group_add_rounded,
-                    title: 'Staff',
-                    subtitle: 'Add staff, send password reset & remove access',
-                    onTap: () => Get.to(() => const StaffListView()),
-                  ),
-                if (isAdmin)
-                  _SettingsTile(
-                    icon: Icons.delivery_dining_rounded,
-                    title: 'Zomato / ImageKit',
-                    subtitle: 'ImageKit keys for Zomato orders and WhatsApp bills',
-                    onTap: () => Get.to(() => const ImageKitSettingsPage()),
-                  ),
-                _SettingsTile(
-                  icon: Icons.inventory_2_outlined,
-                  title: 'Stock Management',
-                  subtitle: 'Mark menu items in stock or out of stock',
-                  onTap: () => Get.to(() => const StockManagementPage()),
+                SettingsHubRow(
+                  icon: Icons.soup_kitchen_outlined,
+                  title: 'Kitchen',
+                  subtitle: 'Kitchen display & alerts',
+                  onTap: () => Get.to(() => const SettingsKitchenSectionPage()),
                 ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Billing',
-                  style: TextStyle(
-                    fontFamily: fontMulishSemiBold,
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (isAdmin)
-                  Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: _orange.withOpacity(0.12),
-                                child: const Icon(
-                                  Icons.percent_rounded,
-                                  color: _orange,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'CGST & SGST',
-                                      style: TextStyle(
-                                        fontFamily: fontMulishSemiBold,
-                                        fontSize: 15,
-                                        color: _navy,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Applied on final billing (0 = hidden)',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFF6B7280),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _cgstController,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                                  decoration: InputDecoration(
-                                    labelText: 'CGST %',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    isDense: true,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextField(
-                                  controller: _sgstController,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                                  decoration: InputDecoration(
-                                    labelText: 'SGST %',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    isDense: true,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Obx(
-                              () => FilledButton(
-                                onPressed: _settings.isSavingTaxSettings.value
-                                    ? null
-                                    : _saveTaxSettings,
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: _orange,
-                                ),
-                                child: _settings.isSavingTaxSettings.value
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Text('Save GST'),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Navigation',
-                  style: TextStyle(
-                    fontFamily: fontMulishSemiBold,
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-                    child: Column(
-                      children: AppTabMode.values.map((mode) {
-                        return RadioListTile<AppTabMode>(
-                          value: mode,
-                          groupValue: _settings.appTabMode.value,
-                          activeColor: _orange,
-                          title: Text(
-                            mode.label,
-                            style: const TextStyle(
-                              fontFamily: fontMulishSemiBold,
-                              fontSize: 15,
-                              color: _navy,
-                            ),
-                          ),
-                          subtitle: Text(
-                            mode.subtitle,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          onChanged: (value) async {
-                            if (value == null) return;
-                            await _settings.setAppTabMode(value);
-                          },
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Kitchen',
-                  style: TextStyle(
-                    fontFamily: fontMulishSemiBold,
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: SwitchListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    secondary: CircleAvatar(
-                      backgroundColor: _orange.withOpacity(0.12),
-                      child: const Icon(Icons.soup_kitchen_rounded, color: _orange),
-                    ),
-                    title: const Text(
-                      'Show all table orders',
-                      style: TextStyle(
-                        fontFamily: fontMulishSemiBold,
-                        fontSize: 15,
-                        color: _navy,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'Group items by table with time for each round',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    ),
-                    value: _settings.kitchenShowTableAllOrders.value,
-                    activeColor: _orange,
-                    onChanged: (value) async {
-                      if (value == null) return;
-                      await _settings.setKitchenShowTableAllOrders(value);
-                    },
-                  ),
-                ),
-                Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: SwitchListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    secondary: CircleAvatar(
-                      backgroundColor: _orange.withOpacity(0.12),
-                      child: const Icon(Icons.check_circle_outline, color: _orange),
-                    ),
-                    title: const Text(
-                      'Show Serve Orders screen',
-                      style: TextStyle(
-                        fontFamily: fontMulishSemiBold,
-                        fontSize: 15,
-                        color: _navy,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'When off, hide Served Orders tab and combine all items in All Orders',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    ),
-                    value: _settings.kitchenShowServeOrderScreen.value,
-                    activeColor: _orange,
-                    onChanged: (value) async {
-                      if (value == null) return;
-                      await _settings.setKitchenShowServeOrderScreen(value);
-                    },
-                  ),
-                ),
-                Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: SwitchListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    secondary: CircleAvatar(
-                      backgroundColor: _orange.withOpacity(0.12),
-                      child: const Icon(Icons.notifications_active_outlined, color: _orange),
-                    ),
-                    title: const Text(
-                      'Enable Order Ringtone in Background',
-                      style: TextStyle(
-                        fontFamily: fontMulishSemiBold,
-                        fontSize: 15,
-                        color: _navy,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'When on, new-order bells play while the screen is locked. Android will ask to allow notifications and disable battery optimization for reliable alerts.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    ),
-                    value: _settings.kitchenBackgroundOrderRingtoneEnabled.value,
-                    activeColor: _orange,
-                    onChanged: (value) async {
-                      if (value == null) return;
-                      await _settings.setKitchenBackgroundOrderRingtoneEnabled(value);
-                    },
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Account',
-                  style: TextStyle(
-                    fontFamily: fontMulishSemiBold,
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _SettingsTile(
+                SettingsHubRow(
                   icon: Icons.person_outline_rounded,
-                  title: 'My Profile',
-                  subtitle: isAdmin
-                      ? 'View account details and change password'
-                      : 'View your name and email',
-                  onTap: () => Get.to(() => const ProfileView()),
-                ),
-                _SettingsTile(
-                  icon: Icons.logout_rounded,
-                  title: 'Sign out',
-                  subtitle: 'Log out of your account',
-                  iconColor: Colors.red.shade400,
-                  onTap: _signOut,
+                  title: 'Account',
+                  subtitle: 'Profile & sign out',
+                  onTap: () => Get.to(() => const SettingsAccountSectionPage()),
                 ),
               ],
-            );
+            ),
+          ],
+        );
       }),
-    );
-  }
-}
-
-class _SettingsTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final Color? iconColor;
-
-  const _SettingsTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.iconColor,
-  });
-
-  static const _navy = Color(0xFF1A3A5C);
-  static const _orange = Color(0xFFf57c35);
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        onTap: onTap,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        leading: CircleAvatar(
-          backgroundColor: (iconColor ?? _orange).withOpacity(0.12),
-          child: Icon(icon, color: iconColor ?? _orange),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontFamily: fontMulishSemiBold,
-            fontSize: 15,
-            color: _navy,
-          ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-        ),
-        trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
-      ),
     );
   }
 }

@@ -39,7 +39,6 @@ dependencies:
   pasteboard: ^0.5.0
   flutter_foreground_task: ^9.2.2
 
-
 dev_dependencies:
   flutter_test:    # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
     sdk: flutter   # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
@@ -49,12 +48,12 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/images/logo.png
-  adaptive_icon_background: "#2B5494"
-  adaptive_icon_foreground: assets/images/logo.png
+  image_path: assets/images/app_icon.png
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: assets/images/app_icon_foreground.png
   web:
     generate: true
-    background_color: "#2B5494"
+    background_color: "#FFFFFF"
     theme_color: "#2B5494"
   windows:
     generate: true
@@ -66,6 +65,7 @@ flutter:
   uses-material-design: true # CRITICAL: Required for Material icon font - DO NOT REMOVE
   assets:
     - assets/
+    - assets/certs/
     - assets/sounds/
     - assets/images/
 

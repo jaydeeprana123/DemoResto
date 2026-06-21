@@ -11,9 +11,11 @@ import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/core/services/restaurant_session.dart';
+import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
 import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
 import 'package:demo/features/ordering/views/cart_page.dart';
 import 'package:demo/features/ordering/views/final_billing_view.dart';
+import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
 import 'package:demo/features/ordering/utils/menu_item_variants.dart';
 import 'package:demo/MyWidgets/EditableTextField.dart';
 import 'package:demo/Styles/my_colors.dart';
@@ -51,6 +53,9 @@ class MenuPage extends StatefulWidget {
 
   final Set<String> existingOrderNames;
 
+  /// Called after menu is refreshed and saved to local cache.
+  final VoidCallback? onMenuCacheUpdated;
+
   const MenuPage({
     required this.onConfirm,
     required this.menuList,
@@ -59,6 +64,7 @@ class MenuPage extends StatefulWidget {
     required this.showBilling,
     required this.isFromFinalBilling,
     this.onDeleteTable,
+    this.onMenuCacheUpdated,
     this.existingOrderNames = const {},
     this.initialItems = const [],
     this.pastItems = const [],
@@ -101,6 +107,25 @@ class _MenuPageState extends State<MenuPage>
 
   // Overall order remarks built up via Voice STT
   String _overallRemarks = '';
+  bool _isRefreshingMenu = false;
+  bool _menuBootstrapping = true;
+
+  bool get _showMenuRefreshButton =>
+      kIsWeb ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.linux;
+
+  bool get _supportsMenuPullToRefresh => !_showMenuRefreshButton;
+
+  Widget _wrapMenuPullRefresh(Widget child) {
+    if (!_supportsMenuPullToRefresh) return child;
+    return RefreshIndicator(
+      color: _kOrange,
+      onRefresh: _refreshMenuFromNetwork,
+      child: child,
+    );
+  }
 
   @override
   void initState() {
@@ -110,17 +135,18 @@ class _MenuPageState extends State<MenuPage>
     _pastItems = widget.pastItems
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
-    // Group menuList by category; merge Half/Full pairs for display.
     menuData = {};
-    final normalizedMenu = MenuItemVariants.normalizeMenuList(widget.menuList);
+    _loadSelectedCategories();
+    _bootstrapMenu();
+  }
 
-    for (var item in normalizedMenu) {
-      final category = item['category'] as String;
-      menuData[category] ??= [];
-      menuData[category]!.add(item);
-    }
+  void _applyMenuSource(List<Map<String, dynamic>> source) {
+    menuData = _groupMenuByCategory(
+      MenuItemVariants.normalizeMenuList(source),
+    );
+  }
 
-    // Pre-fill quantities from initialItems if any
+  void _applyInitialItemQuantities() {
     for (var category in menuData.keys) {
       for (var item in menuData[category]!) {
         if (MenuItemVariants.hasVariants(item)) {
@@ -145,9 +171,113 @@ class _MenuPageState extends State<MenuPage>
         }
       }
     }
+  }
 
-    _loadSelectedCategories();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncStockStatus());
+  Future<void> _bootstrapMenu() async {
+    var source = widget.menuList;
+    try {
+      final cached = await Get.find<MenuCacheService>().loadFromCacheOnly();
+      if (cached.isNotEmpty) {
+        source = cached;
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+    setState(() {
+      _applyMenuSource(source);
+      _applyInitialItemQuantities();
+      _menuBootstrapping = false;
+    });
+  }
+
+  Map<String, int> _collectMenuQuantities() {
+    final qtyByName = <String, int>{};
+    for (final category in menuData.keys) {
+      for (final item in menuData[category]!) {
+        if (MenuItemVariants.hasVariants(item)) {
+          for (final variant in MenuItemVariants.variantsOf(item)) {
+            final name = variant['name']?.toString() ?? '';
+            final qty = (variant['qty'] as num?)?.toInt() ?? 0;
+            if (name.isNotEmpty && qty > 0) {
+              qtyByName[name] = qty;
+            }
+          }
+        } else {
+          final name = item['name']?.toString() ?? '';
+          final qty = (item['qty'] as num?)?.toInt() ?? 0;
+          if (name.isNotEmpty && qty > 0) {
+            qtyByName[name] = qty;
+          }
+        }
+      }
+    }
+    return qtyByName;
+  }
+
+  void _applyMenuQuantities(Map<String, int> qtyByName) {
+    for (final category in menuData.keys) {
+      for (final item in menuData[category]!) {
+        if (MenuItemVariants.hasVariants(item)) {
+          for (final variant in MenuItemVariants.variantsOf(item)) {
+            final name = variant['name']?.toString() ?? '';
+            final qty = qtyByName[name];
+            if (qty != null) {
+              variant['qty'] = qty;
+            }
+          }
+        } else {
+          final name = item['name']?.toString() ?? '';
+          final qty = qtyByName[name];
+          if (qty != null) {
+            item['qty'] = qty;
+          }
+        }
+      }
+    }
+  }
+
+  Map<String, List<Map<String, dynamic>>> _groupMenuByCategory(
+    List<Map<String, dynamic>> items,
+  ) {
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final item in items) {
+      final category = item['category'] as String;
+      grouped[category] ??= [];
+      grouped[category]!.add(item);
+    }
+    return grouped;
+  }
+
+  Future<void> _refreshMenuFromNetwork() async {
+    if (_isRefreshingMenu || !mounted) return;
+
+    setState(() => _isRefreshingMenu = true);
+    try {
+      final savedQty = _collectMenuQuantities();
+      final loadedMenu =
+          await Get.find<MenuCacheService>().refreshFromNetwork();
+      if (!mounted) return;
+
+      final normalizedMenu = MenuItemVariants.normalizeMenuList(loadedMenu);
+      setState(() {
+        menuData = _groupMenuByCategory(normalizedMenu);
+        _applyMenuQuantities(savedQty);
+      });
+      widget.onMenuCacheUpdated?.call();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Menu refreshed from server')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not refresh menu: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshingMenu = false);
+      }
+    }
   }
 
   Future<void> _syncStockStatus() async {
@@ -402,7 +532,7 @@ class _MenuPageState extends State<MenuPage>
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     height: 1.25,
                     fontFamily: fontMulishBold,
                     letterSpacing: 0.3,
@@ -422,10 +552,36 @@ class _MenuPageState extends State<MenuPage>
   Widget _buildMenuItemsList(String category) {
     final items = menuData[category] ?? [];
 
-    return ListView.builder(
-      itemCount: items.length,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemBuilder: (context, index) => _buildMenuItem(category, index),
+    if (items.isEmpty) {
+      return _wrapMenuPullRefresh(
+        ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.35,
+              child: Center(
+                child: Text(
+                  'No items in this category.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    fontFamily: fontMulishRegular,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return _wrapMenuPullRefresh(
+      ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: items.length,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemBuilder: (context, index) => _buildMenuItem(category, index),
+      ),
     );
   }
 
@@ -433,14 +589,24 @@ class _MenuPageState extends State<MenuPage>
     final categories = _visibleCategories;
 
     if (categories.isEmpty) {
-      return Center(
-        child: Text(
-          'No categories selected.',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey.shade600,
-            fontFamily: fontMulishRegular,
-          ),
+      return _wrapMenuPullRefresh(
+        ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.35,
+              child: Center(
+                child: Text(
+                  'No categories selected.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    fontFamily: fontMulishRegular,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -1210,8 +1376,7 @@ class _MenuPageState extends State<MenuPage>
                                                               as String? ??
                                                           '',
                                                       style: TextStyle(
-                                                        fontFamily:
-                                                            fontMulishBold,
+                                                        fontFamily: fontMulishBold,
                                                         fontSize: 14,
                                                         color: Colors.black87,
                                                       ),
@@ -1253,8 +1418,7 @@ class _MenuPageState extends State<MenuPage>
                                                     child: Text(
                                                       'Qty: ${r.quantity}',
                                                       style: TextStyle(
-                                                        fontFamily:
-                                                            fontMulishBold,
+                                                        fontFamily: fontMulishBold,
                                                         fontSize: 12,
                                                         color: isSuggestion
                                                             ? Colors
@@ -1971,21 +2135,12 @@ class _MenuPageState extends State<MenuPage>
 
   void _popMenuAfterBilling() {
     if (!mounted) return;
-    final navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
-    }
+    TableBillingSheet.popToDashboard(context);
   }
 
   void _popCartAndMenuAfterBilling() {
     if (!mounted) return;
-    final navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
-    }
-    if (navigator.canPop()) {
-      navigator.pop();
-    }
+    TableBillingSheet.popToDashboard(context);
   }
 
   void _openCartPage() {
@@ -2081,6 +2236,12 @@ class _MenuPageState extends State<MenuPage>
   }
 
   Widget _buildMenuBodyContent() {
+    if (_menuBootstrapping) {
+      return const Center(
+        child: CircularProgressIndicator(color: _kOrange),
+      );
+    }
+
     return Column(
       children: [
         Expanded(
@@ -2213,6 +2374,21 @@ class _MenuPageState extends State<MenuPage>
                 _showSearch = !_showSearch;
                 setState(() {});
               },
+            ),
+          if (!isNameEdit && _showMenuRefreshButton)
+            IconButton(
+              icon: _isRefreshingMenu
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: _kOrange,
+                      ),
+                    )
+                  : const Icon(Icons.refresh_rounded, color: Colors.white),
+              tooltip: 'Refresh menu',
+              onPressed: _isRefreshingMenu ? null : _refreshMenuFromNetwork,
             ),
           if (!isNameEdit)
             Stack(
@@ -2480,26 +2656,39 @@ class _MenuPageState extends State<MenuPage>
     }).toList();
 
     if (filtered.isEmpty) {
-      return const Center(
-        child: Text(
-          'No matching items found.',
-          style: TextStyle(fontSize: 15, color: Colors.grey),
+      return _wrapMenuPullRefresh(
+        ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.35,
+              child: const Center(
+                child: Text(
+                  'No matching items found.',
+                  style: TextStyle(fontSize: 15, color: Colors.grey),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
 
-    return ListView.builder(
-      itemCount: filtered.length,
-      padding: const EdgeInsets.only(top: 8),
-      itemBuilder: (context, index) {
-        final item = filtered[index];
-        final category = item['category'] as String;
-        final itemIndex = menuData[category]!.indexWhere(
-          (e) => e['name'] == item['name'],
-        );
-        if (itemIndex < 0) return const SizedBox.shrink();
-        return _buildMenuItem(category, itemIndex);
-      },
+    return _wrapMenuPullRefresh(
+      ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: filtered.length,
+        padding: const EdgeInsets.only(top: 8),
+        itemBuilder: (context, index) {
+          final item = filtered[index];
+          final category = item['category'] as String;
+          final itemIndex = menuData[category]!.indexWhere(
+            (e) => e['name'] == item['name'],
+          );
+          if (itemIndex < 0) return const SizedBox.shrink();
+          return _buildMenuItem(category, itemIndex);
+        },
+      ),
     );
   }
 }

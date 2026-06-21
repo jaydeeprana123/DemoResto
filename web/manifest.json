@@ -3,7 +3,7 @@
     "short_name": "Flavor Flow",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#2B5494",
+    "background_color": "#FFFFFF",
     "theme_color": "#2B5494",
     "description": "Flavor Flow restaurant POS.",
     "orientation": "portrait-primary",

@@ -22,6 +22,7 @@ class Restaurant {
     this.createdAt,
     this.cgstPercentage = 0,
     this.sgstPercentage = 0,
+    this.staffEditDeleteLimitMinutes = 0,
   });
 
   final String id;
@@ -34,6 +35,11 @@ class Restaurant {
   final DateTime? createdAt;
   final double cgstPercentage;
   final double sgstPercentage;
+
+  /// Minutes a Staff user is allowed to edit/delete the latest order after it
+  /// was placed. `0` means no time restriction (Staff can always modify).
+  /// Admins are never restricted by this value.
+  final int staffEditDeleteLimitMinutes;
 
   bool get isAccessible => status == RestaurantStatus.active;
 
@@ -59,6 +65,36 @@ class Restaurant {
           : null,
       cgstPercentage: (data['cgstPercentage'] as num?)?.toDouble() ?? 0,
       sgstPercentage: (data['sgstPercentage'] as num?)?.toDouble() ?? 0,
+      staffEditDeleteLimitMinutes:
+          (data['staffEditDeleteLimitMinutes'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Restaurant copyWith({
+    String? name,
+    RestaurantStatus? status,
+    DateTime? subscriptionStart,
+    DateTime? subscriptionEnd,
+    String? adminEmail,
+    String? address,
+    DateTime? createdAt,
+    double? cgstPercentage,
+    double? sgstPercentage,
+    int? staffEditDeleteLimitMinutes,
+  }) {
+    return Restaurant(
+      id: id,
+      name: name ?? this.name,
+      status: status ?? this.status,
+      subscriptionStart: subscriptionStart ?? this.subscriptionStart,
+      subscriptionEnd: subscriptionEnd ?? this.subscriptionEnd,
+      adminEmail: adminEmail ?? this.adminEmail,
+      address: address ?? this.address,
+      createdAt: createdAt ?? this.createdAt,
+      cgstPercentage: cgstPercentage ?? this.cgstPercentage,
+      sgstPercentage: sgstPercentage ?? this.sgstPercentage,
+      staffEditDeleteLimitMinutes:
+          staffEditDeleteLimitMinutes ?? this.staffEditDeleteLimitMinutes,
     );
   }
 
@@ -72,6 +108,7 @@ class Restaurant {
       if (address != null) 'address': address,
       'cgstPercentage': cgstPercentage,
       'sgstPercentage': sgstPercentage,
+      'staffEditDeleteLimitMinutes': staffEditDeleteLimitMinutes,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }

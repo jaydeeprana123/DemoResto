@@ -19,16 +19,9 @@ ExportDateRange buildExportDateRange({
   DateTime? toDate,
 }) {
   final now = DateTime.now();
-  final effectiveFrom = DateTime(
-    fromDate.year,
-    fromDate.month,
-    fromDate.day,
-    0,
-    0,
-    0,
-  );
-  final effectiveTo = (toDate != null)
-      ? DateTime(toDate.year, toDate.month, toDate.day, 23, 59, 59, 999)
-      : DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
-  return ExportDateRange(from: effectiveFrom, to: effectiveTo);
+  // Honor the exact date & time the user selected; only fall back to
+  // end-of-today when no upper bound was provided.
+  final effectiveTo =
+      toDate ?? DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+  return ExportDateRange(from: fromDate, to: effectiveTo);
 }

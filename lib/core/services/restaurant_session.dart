@@ -106,18 +106,7 @@ class RestaurantSession extends GetxService {
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }
-      return Restaurant(
-        id: restaurant.id,
-        name: restaurant.name,
-        status: RestaurantStatus.expired,
-        subscriptionStart: restaurant.subscriptionStart,
-        subscriptionEnd: restaurant.subscriptionEnd,
-        adminEmail: restaurant.adminEmail,
-        address: restaurant.address,
-        createdAt: restaurant.createdAt,
-        cgstPercentage: restaurant.cgstPercentage,
-        sgstPercentage: restaurant.sgstPercentage,
-      );
+      return restaurant.copyWith(status: RestaurantStatus.expired);
     }
 
     return restaurant;

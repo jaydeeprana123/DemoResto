@@ -16,6 +16,7 @@ import 'package:demo/features/ordering/widgets/billing_progress_dialog.dart';
 import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
 import 'package:demo/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
+import 'package:demo/core/network/ssl_error_utils.dart';
 import 'package:demo/features/zomato/services/imagekit_settings.dart';
 import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
 import 'package:demo/core/utils/tax_calculator.dart';
@@ -29,6 +30,7 @@ class FoodBillPdfData {
     required this.tax,
     required this.discount,
     required this.total,
+    this.extra = 0,
     this.invoiceNumber,
     this.cashAmount = 0,
     this.onlineAmount = 0,
@@ -43,6 +45,7 @@ class FoodBillPdfData {
   final int subtotal;
   final int tax;
   final int discount;
+  final int extra;
   final int total;
   final String? invoiceNumber;
   final int cashAmount;
@@ -109,6 +112,7 @@ class FoodBillPdfService {
       printerType,
       itemCount: data.items.length,
       hasDiscount: data.discount > 0,
+      hasExtra: data.extra > 0,
       hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
       hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
       includeLogos: includeLogos,
@@ -123,6 +127,7 @@ class FoodBillPdfService {
         printerType: printerType,
         pageFormat: pageFormat,
         includeLogos: includeLogos,
+        toPrinter: true,
       );
     } catch (e) {
       if (context.mounted) {
@@ -146,15 +151,16 @@ class FoodBillPdfService {
   /// Applies print or WhatsApp share based on the billing dialog choice.
   static Future<void> deliverReceiptByAction(
     FoodBillPdfData data,
-    BillReceiptAction action,
-  ) async {
+    BillReceiptAction action, {
+    String? whatsappPhone,
+  }) async {
     switch (action) {
       case BillReceiptAction.withoutPrint:
         return;
       case BillReceiptAction.print:
         await _deliverReceiptForced(data);
       case BillReceiptAction.shareWhatsApp:
-        await _shareReceiptOnWhatsApp(data);
+        await _shareReceiptOnWhatsApp(data, whatsappPhone: whatsappPhone);
     }
   }
 
@@ -167,6 +173,7 @@ class FoodBillPdfService {
         printerType,
         itemCount: data.items.length,
         hasDiscount: data.discount > 0,
+        hasExtra: data.extra > 0,
         hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
         hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
         includeLogos: includeLogos,
@@ -176,13 +183,17 @@ class FoodBillPdfService {
         printerType: printerType,
         pageFormat: pageFormat,
         includeLogos: includeLogos,
+        toPrinter: true,
       );
     } catch (e) {
       AppMessenger.show('Receipt', 'Could not print receipt: $e');
     }
   }
 
-  static Future<void> _shareReceiptOnWhatsApp(FoodBillPdfData data) async {
+  static Future<void> _shareReceiptOnWhatsApp(
+    FoodBillPdfData data, {
+    String? whatsappPhone,
+  }) async {
     final context = Get.key.currentContext ?? Get.context;
     if (context == null || !context.mounted) {
       AppMessenger.show('Receipt', 'Could not open WhatsApp share dialog.');
@@ -197,7 +208,7 @@ class FoodBillPdfService {
       return;
     }
 
-    final phone = await WhatsAppSharePhoneDialog.show(context);
+    final phone = whatsappPhone ?? await WhatsAppSharePhoneDialog.show(context);
     if (phone == null || phone.isEmpty) return;
 
     BillingProgressDialog.show(
@@ -214,6 +225,7 @@ class FoodBillPdfService {
         printerType,
         itemCount: data.items.length,
         hasDiscount: data.discount > 0,
+        hasExtra: data.extra > 0,
         hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
         hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
         includeLogos: includeLogos,
@@ -246,7 +258,7 @@ class FoodBillPdfService {
         duration: const Duration(seconds: 8),
       );
     } catch (e) {
-      AppMessenger.show('Receipt', 'Could not share bill on WhatsApp: $e');
+      AppMessenger.show('Receipt', SslErrorUtils.userMessage(e));
     } finally {
       if (context.mounted) {
         BillingProgressDialog.hide(context);
@@ -284,6 +296,7 @@ class FoodBillPdfService {
         printerType,
         itemCount: data.items.length,
         hasDiscount: data.discount > 0,
+        hasExtra: data.extra > 0,
         hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
         hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
         includeLogos: includeLogos,
@@ -293,6 +306,7 @@ class FoodBillPdfService {
         printerType: printerType,
         pageFormat: pageFormat,
         includeLogos: includeLogos,
+        toPrinter: true,
       );
     } catch (e) {
       AppMessenger.show('Receipt', 'Could not open receipt: $e');
@@ -304,6 +318,7 @@ class FoodBillPdfService {
     required PosPrinterType printerType,
     required PdfPageFormat pageFormat,
     required bool includeLogos,
+    bool toPrinter = false,
   }) async {
     final pdfBytes = await _buildPdf(
       data,
@@ -313,7 +328,7 @@ class FoodBillPdfService {
     );
     final fileName = buildReceiptPdfFileName(data);
 
-    if (isDesktopPlatform || kIsWeb) {
+    if ((isDesktopPlatform || kIsWeb) && !toPrinter) {
       final path = await writeReceiptPdfFile(pdfBytes, fileName);
       if (isDesktopPlatform) {
         await openReceiptPdfFile(path);
@@ -328,21 +343,34 @@ class FoodBillPdfService {
       return;
     }
 
-    final sentToTvs = await _tryDirectTvsPrint(
+    final sentDirect = await _tryDirectPosPrint(
       pdfBytes: pdfBytes,
       pageFormat: pageFormat,
       printerType: printerType,
       fileName: fileName,
     );
 
-    if (!sentToTvs) {
-      await Printing.layoutPdf(
-        onLayout: (_) async => pdfBytes,
-        name: fileName,
-        format: pageFormat,
-        usePrinterSettings: true,
-      );
+    if (sentDirect) return;
+
+    if (isDesktopPlatform) {
+      final printers = await Printing.listPrinters();
+      if (!PrintSettings.hasReceiptPrinter(printers, type: printerType)) {
+        await writeReceiptPdfFile(pdfBytes, fileName);
+        AppMessenger.show(
+          'Printer not connected',
+          'Bill saved. Connect your Rugtek RP326 USB printer, then use Print again or open:\nDocuments/Flavor Flow Receipts/$fileName',
+          duration: const Duration(seconds: 8),
+        );
+        return;
+      }
     }
+
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdfBytes,
+      name: fileName,
+      format: pageFormat,
+      usePrinterSettings: true,
+    );
   }
 
   /// File name: `{Table Name} - {Bill ID}.pdf`
@@ -365,35 +393,54 @@ class FoodBillPdfService {
         .trim();
   }
 
-  /// Sends directly to a connected TVS printer when detected (USB / network).
-  static Future<bool> _tryDirectTvsPrint({
+  /// Sends directly to a connected POS thermal printer (USB / network).
+  static Future<bool> _tryDirectPosPrint({
     required Uint8List pdfBytes,
     required PdfPageFormat pageFormat,
     required PosPrinterType printerType,
     required String fileName,
   }) async {
-    if (printerType != PosPrinterType.tvs80) return false;
-    if (isDesktopPlatform) return false;
-
     try {
       final printers = await Printing.listPrinters();
-      Printer? tvsPrinter;
-      for (final printer in printers) {
-        if (PrintSettings.isTvsPrinterName(printer.name)) {
-          tvsPrinter = printer;
-          break;
+      final candidates = PrintSettings.receiptPrinterCandidates(
+        printers,
+        type: printerType,
+      );
+      if (candidates.isEmpty) return false;
+
+      for (final target in candidates) {
+        try {
+          final sent = await Printing.directPrintPdf(
+            printer: target,
+            onLayout: (_) async => pdfBytes,
+            name: fileName,
+            format: pageFormat,
+            usePrinterSettings: true,
+          );
+          if (sent) {
+            await PrintSettings.setPreferredPrinterName(target.name);
+            return true;
+          }
+        } catch (_) {
+          continue;
         }
       }
 
-      if (tvsPrinter == null) return false;
+      if (isDesktopPlatform) {
+        final path = await writeReceiptPdfFile(pdfBytes, fileName);
+        for (final target in candidates) {
+          final sent = await printPdfToNamedPrinterWindows(
+            pdfPath: path,
+            printerName: target.name,
+          );
+          if (sent) {
+            await PrintSettings.setPreferredPrinterName(target.name);
+            return true;
+          }
+        }
+      }
 
-      return Printing.directPrintPdf(
-        printer: tvsPrinter,
-        onLayout: (_) async => pdfBytes,
-        name: fileName,
-        format: pageFormat,
-        usePrinterSettings: true,
-      );
+      return false;
     } catch (_) {
       return false;
     }
@@ -492,13 +539,15 @@ class FoodBillPdfService {
                   ),
                 ),
                 pw.SizedBox(height: 6),
-              ],
+              ]else
               pw.Center(
                 child: pw.Text(
                   'AL - HAADI',
                   style: labelStyle(size: headerSize, isBold: true),
                 ),
               ),
+
+
               pw.SizedBox(height: 4),
               pw.Center(
                 child: pw.Text(
@@ -561,6 +610,12 @@ class FoodBillPdfService {
                 _amountRow(
                   'Discount',
                   -data.discount.toDouble(),
+                  labelStyle,
+                ),
+              if (data.extra > 0)
+                _amountRow(
+                  'Extra',
+                  data.extra.toDouble(),
                   labelStyle,
                 ),
               _divider(thick: true),

@@ -1,4 +1,5 @@
 import 'package:demo/core/repositories/user_repository.dart';
+import 'package:demo/core/widgets/logout_confirmation_dialog.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -48,7 +49,11 @@ class BlockedAccessView extends StatelessWidget {
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton.icon(
-                  onPressed: () => Get.find<UserRepository>().signOut(),
+                  onPressed: () async {
+                    if (await confirmLogout()) {
+                      await Get.find<UserRepository>().signOut();
+                    }
+                  },
                   icon: const Icon(Icons.logout),
                   label: const Text('Sign Out'),
                   style: ElevatedButton.styleFrom(

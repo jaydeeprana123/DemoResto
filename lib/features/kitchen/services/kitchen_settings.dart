@@ -10,9 +10,12 @@ class KitchenSettings {
   static const _keySelectedMenuItems = 'kitchen_filter_selected_menu_items';
   static const _keyOrderTypeFilterIndex = 'kitchen_filter_order_type_index';
   static const _keyBackgroundOrderRingtone = 'kitchen_background_order_ringtone';
+  static const _keyPreparationView = 'kitchen_preparation_view';
 
   static final ValueNotifier<bool> showTableAllOrders = ValueNotifier(true);
   static final ValueNotifier<bool> showServeOrderScreen = ValueNotifier(false);
+  /// Groups kitchen orders by menu item (qty × table lines) instead of by table.
+  static final ValueNotifier<bool> preparationViewEnabled = ValueNotifier(false);
   /// When true, order bells play even if the app is backgrounded or the screen is locked.
   static final ValueNotifier<bool> backgroundOrderRingtoneEnabled =
       ValueNotifier(true);
@@ -35,6 +38,8 @@ class KitchenSettings {
         prefs.getBool(_keyShowServeOrderScreen) ?? false;
     backgroundOrderRingtoneEnabled.value =
         prefs.getBool(_keyBackgroundOrderRingtone) ?? true;
+    preparationViewEnabled.value =
+        prefs.getBool(_keyPreparationView) ?? false;
     mobileOrdersGridLayout.value =
         prefs.getBool(_keyMobileOrdersGridLayout) ?? false;
 
@@ -80,6 +85,17 @@ class KitchenSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyBackgroundOrderRingtone, value);
     backgroundOrderRingtoneEnabled.value = value;
+  }
+
+  static Future<bool> getPreparationViewEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyPreparationView) ?? false;
+  }
+
+  static Future<void> setPreparationViewEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyPreparationView, value);
+    preparationViewEnabled.value = value;
   }
 
   static Future<void> setMobileOrdersGridLayout(bool value) async {

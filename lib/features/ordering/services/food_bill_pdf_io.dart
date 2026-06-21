@@ -99,6 +99,23 @@ Future<bool> openWhatsAppChat(String phone, {String? text}) async {
   return launchUrl(mobileUri, mode: LaunchMode.externalApplication);
 }
 
+/// Sends a PDF to a named Windows printer via the shell `print` command.
+Future<bool> printPdfToNamedPrinterWindows({
+  required String pdfPath,
+  required String printerName,
+}) async {
+  if (!Platform.isWindows) return false;
+  if (!await File(pdfPath).exists()) return false;
+  final safePrinter = printerName.replaceAll('"', '');
+  final safePath = pdfPath.replaceAll('"', '');
+  final result = await Process.run(
+    'cmd',
+    ['/c', 'print /D:"$safePrinter" "$safePath"'],
+    runInShell: true,
+  );
+  return result.exitCode == 0;
+}
+
 Future<void> revealReceiptPdfInFolder(String path) async {
   if (Platform.isWindows) {
     await Process.run(

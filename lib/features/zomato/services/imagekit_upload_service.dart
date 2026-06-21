@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:demo/core/network/ssl_error_utils.dart';
 import 'package:demo/features/zomato/services/imagekit_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -178,22 +179,29 @@ class ImageKitUploadService {
   static Future<ImageKitUploadResult> _sendUploadRequest(
     http.MultipartRequest request,
   ) async {
-    final response = await request.send();
-    final body = await response.stream.bytesToString();
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(_parseUploadError(response.statusCode, body));
-    }
+    try {
+      final response = await request.send();
+      final body = await response.stream.bytesToString();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(_parseUploadError(response.statusCode, body));
+      }
 
-    final decoded = jsonDecode(body) as Map<String, dynamic>;
-    final url = decoded['url']?.toString();
-    if (url == null || url.isEmpty) {
-      throw Exception('ImageKit upload did not return a URL.');
+      final decoded = jsonDecode(body) as Map<String, dynamic>;
+      final url = decoded['url']?.toString();
+      if (url == null || url.isEmpty) {
+        throw Exception('ImageKit upload did not return a URL.');
+      }
+      return ImageKitUploadResult(
+        url: url,
+        fileId: decoded['fileId']?.toString() ?? '',
+        filePath: decoded['filePath']?.toString() ?? '',
+      );
+    } catch (e) {
+      if (SslErrorUtils.isCertificateVerifyFailed(e)) {
+        throw Exception(SslErrorUtils.userMessage(e));
+      }
+      rethrow;
     }
-    return ImageKitUploadResult(
-      url: url,
-      fileId: decoded['fileId']?.toString() ?? '',
-      filePath: decoded['filePath']?.toString() ?? '',
-    );
   }
 
   /// Deletes a Zomato screenshot from ImageKit when the order is served/completed.
