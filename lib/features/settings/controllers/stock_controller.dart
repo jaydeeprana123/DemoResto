@@ -39,20 +39,50 @@ class StockController extends GetxController {
     return all.where((e) => selectedKeys.contains(e.key)).toList();
   }
 
-  Future<String?> markSelectedInStock() => _applyStock(inStock: true);
-
-  Future<String?> markSelectedOutOfStock() => _applyStock(inStock: false);
-
-  Future<String?> _applyStock({required bool inStock}) async {
+  Future<String?> markSelectedInStock() async {
     if (selectedKeys.isEmpty) {
       return 'Select at least one item.';
     }
 
     isLoading.value = true;
     try {
-      await _repository.setStockByKeys(
+      await _repository.markInStock(selectedKeys.toList());
+      selectedKeys.clear();
+      return null;
+    } catch (e) {
+      return e.toString().replaceFirst('Exception: ', '');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<String?> markSelectedOutManual() async {
+    if (selectedKeys.isEmpty) {
+      return 'Select at least one item.';
+    }
+
+    isLoading.value = true;
+    try {
+      await _repository.markOutManual(selectedKeys.toList());
+      selectedKeys.clear();
+      return null;
+    } catch (e) {
+      return e.toString().replaceFirst('Exception: ', '');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<String?> markSelectedOutAuto(DateTime nextStockTime) async {
+    if (selectedKeys.isEmpty) {
+      return 'Select at least one item.';
+    }
+
+    isLoading.value = true;
+    try {
+      await _repository.markOutAuto(
         selectedKeys.toList(),
-        inStock: inStock,
+        nextStockTime: nextStockTime,
       );
       selectedKeys.clear();
       return null;

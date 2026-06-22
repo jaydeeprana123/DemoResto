@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:demo/features/menu_setup/services/auto_stock_restock_service.dart';
 import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -20,8 +23,14 @@ class MenuSyncCoordinator extends GetxService with WidgetsBindingObserver {
   }
 
   Future<void> start() async {
+    await _processAutoRestocks();
     if (!Get.isRegistered<MenuCacheService>()) return;
     await Get.find<MenuCacheService>().startAutoSync();
+  }
+
+  Future<void> _processAutoRestocks() async {
+    if (!Get.isRegistered<AutoStockRestockService>()) return;
+    await Get.find<AutoStockRestockService>().processDueAutoRestocks();
   }
 
   @override
@@ -31,6 +40,7 @@ class MenuSyncCoordinator extends GetxService with WidgetsBindingObserver {
 
     switch (state) {
       case AppLifecycleState.resumed:
+        unawaited(_processAutoRestocks());
         cache.resumeAutoSync();
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:

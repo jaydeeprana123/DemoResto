@@ -5,10 +5,13 @@ import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/models/menu_stock_entry.dart';
 import 'package:demo/features/menu_setup/services/menu_revision.dart';
 import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
+import 'package:demo/features/menu_setup/utils/menu_stock_scope.dart';
 import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
 import 'package:demo/features/ordering/utils/menu_item_variants.dart';
 
 class StockRepository {
+  String get _restaurantId => MenuStockScope.restaurantIdForItems();
+
   List<MenuStockEntry> _buildStockEntries(
     String categoryId,
     String categoryName,
@@ -30,6 +33,8 @@ class StockRepository {
             9999,
         'itemSortOrder': (data['sortOrder'] as num?)?.toInt() ?? 9999,
         'inStock': MenuStockUtils.isInStock(data),
+        'stockMode': MenuStockUtils.stockModeFrom(data),
+        'nextStockTime': MenuStockUtils.nextStockTimeFrom(data),
       };
     }).toList();
 
@@ -41,13 +46,25 @@ class StockRepository {
     return normalized.map((item) {
       final targetKeys = _firestoreTargetKeys(item);
       var inStock = true;
+      var stockMode = MenuStockUtils.modeManual;
+      DateTime? nextStockTime;
+
       for (final key in targetKeys) {
         final parts = key.split('|');
         if (parts.length != 2) continue;
         final doc = docById[parts[1]];
-        if (doc != null && !MenuStockUtils.isInStock(doc.data())) {
+        if (doc == null) continue;
+        final data = doc.data();
+        if (!MenuStockUtils.isInStock(data)) {
           inStock = false;
-          break;
+          if (MenuStockUtils.isAutoStockMode(data)) {
+            stockMode = MenuStockUtils.modeAuto;
+            final scheduled = MenuStockUtils.nextStockTimeFrom(data);
+            if (scheduled != null &&
+                (nextStockTime == null || scheduled.isBefore(nextStockTime))) {
+              nextStockTime = scheduled;
+            }
+          }
         }
       }
 
@@ -58,6 +75,8 @@ class StockRepository {
         inStock: inStock,
         firestoreTargetKeys: targetKeys,
         hasVariants: MenuItemVariants.hasVariants(item),
+        stockMode: stockMode,
+        nextStockTime: nextStockTime,
       );
     }).toList();
   }
@@ -146,19 +165,42 @@ class StockRepository {
     return controller.stream;
   }
 
-  Future<void> setStockStatus({
-    required Iterable<MenuStockEntry> items,
-    required bool inStock,
-  }) async {
-    await setStockByKeys(
-      items.map((e) => e.key),
-      inStock: inStock,
+  Future<void> markInStock(Iterable<String> keys) {
+    return _applyStockByKeys(
+      keys,
+      inStock: true,
+      stockMode: MenuStockUtils.modeManual,
+      clearSchedule: true,
     );
   }
 
-  Future<void> setStockByKeys(
+  Future<void> markOutManual(Iterable<String> keys) {
+    return _applyStockByKeys(
+      keys,
+      inStock: false,
+      stockMode: MenuStockUtils.modeManual,
+      clearSchedule: true,
+    );
+  }
+
+  Future<void> markOutAuto(
+    Iterable<String> keys, {
+    required DateTime nextStockTime,
+  }) {
+    return _applyStockByKeys(
+      keys,
+      inStock: false,
+      stockMode: MenuStockUtils.modeAuto,
+      nextStockTime: nextStockTime,
+    );
+  }
+
+  Future<void> _applyStockByKeys(
     Iterable<String> keys, {
     required bool inStock,
+    required String stockMode,
+    DateTime? nextStockTime,
+    bool clearSchedule = false,
   }) async {
     final firestoreKeys = <String>{};
     for (final key in keys) {
@@ -174,10 +216,23 @@ class StockRepository {
     for (final firestoreKey in firestoreKeys) {
       final parts = firestoreKey.split('|');
       if (parts.length != 2) continue;
+
+      final payload = <String, dynamic>{
+        'inStock': inStock,
+        'stockMode': stockMode,
+        'restaurantId': _restaurantId,
+      };
+
+      if (clearSchedule) {
+        payload['nextStockTime'] = FieldValue.delete();
+      } else if (nextStockTime != null) {
+        payload['nextStockTime'] = Timestamp.fromDate(nextStockTime);
+      }
+
       batch.update(
         FirestorePaths.scopedSubCollection('menus', parts[0], 'items')
             .doc(parts[1]),
-        {'inStock': inStock},
+        payload,
       );
     }
     MenuRevision.bumpRevision(batch: batch);
