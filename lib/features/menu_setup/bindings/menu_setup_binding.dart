@@ -1,6 +1,7 @@
 import 'package:demo/features/menu_setup/controllers/menu_setup_controller.dart';
 import 'package:demo/features/menu_setup/repositories/menu_setup_repository.dart';
 import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
+import 'package:demo/features/menu_setup/services/menu_sync_coordinator.dart';
 import 'package:get/get.dart';
 
 class MenuSetupBinding extends Bindings {
@@ -12,5 +13,6 @@ class MenuSetupBinding extends Bindings {
       () => MenuSetupController(Get.find<MenuSetupRepository>()),
       fenix: true,
     );
+    Get.put<MenuSyncCoordinator>(MenuSyncCoordinator(), permanent: true);
   }
 }

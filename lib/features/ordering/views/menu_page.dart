@@ -109,6 +109,7 @@ class _MenuPageState extends State<MenuPage>
   String _overallRemarks = '';
   bool _isRefreshingMenu = false;
   bool _menuBootstrapping = true;
+  VoidCallback? _menuCacheListener;
 
   bool get _showMenuRefreshButton =>
       kIsWeb ||
@@ -138,6 +139,26 @@ class _MenuPageState extends State<MenuPage>
     menuData = {};
     _loadSelectedCategories();
     _bootstrapMenu();
+    _menuCacheListener = _reloadMenuFromCachePreservingQty;
+    Get.find<MenuCacheService>().revisionListenable.addListener(
+      _menuCacheListener!,
+    );
+  }
+
+  Future<void> _reloadMenuFromCachePreservingQty() async {
+    if (!mounted) return;
+
+    try {
+      final savedQty = _collectMenuQuantities();
+      final cached = await Get.find<MenuCacheService>().loadFromCacheOnly();
+      if (!mounted || cached.isEmpty) return;
+
+      setState(() {
+        _applyMenuSource(cached);
+        _applyMenuQuantities(savedQty);
+      });
+      widget.onMenuCacheUpdated?.call();
+    } catch (_) {}
   }
 
   void _applyMenuSource(List<Map<String, dynamic>> source) {
@@ -2009,6 +2030,11 @@ class _MenuPageState extends State<MenuPage>
 
   @override
   void dispose() {
+    if (_menuCacheListener != null) {
+      Get.find<MenuCacheService>().revisionListenable.removeListener(
+        _menuCacheListener!,
+      );
+    }
     tableNameController.removeListener(_onTableNameChanged);
     tableNameController.dispose();
     searchController.dispose();

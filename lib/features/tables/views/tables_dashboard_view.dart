@@ -80,6 +80,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
   final ScrollController _gridScrollController = ScrollController();
   bool _zomatoPasteInProgress = false;
   bool _mobileGridLayout = true;
+  VoidCallback? _menuCacheListener;
 
   @override
   void initState() {
@@ -92,6 +93,10 @@ class _TableDashboardViewState extends State<TableDashboardView>
       _tablesLoading = true;
       _listenToTables();
       _loadMenuFromCache();
+      _menuCacheListener = _reloadMenuFromCache;
+      Get.find<MenuCacheService>().revisionListenable.addListener(
+        _menuCacheListener!,
+      );
     }
   }
 
@@ -126,6 +131,11 @@ class _TableDashboardViewState extends State<TableDashboardView>
 
   @override
   void dispose() {
+    if (_menuCacheListener != null) {
+      Get.find<MenuCacheService>().revisionListenable.removeListener(
+        _menuCacheListener!,
+      );
+    }
     WidgetsBinding.instance.removeObserver(this);
     _gridScrollController.dispose();
     _tablesListener?.stop();
@@ -507,8 +517,18 @@ class _TableDashboardViewState extends State<TableDashboardView>
     if (!mounted) return;
 
     try {
-      final loadedMenu = await Get.find<MenuCacheService>().ensureLoaded();
+      final loadedMenu =
+          await Get.find<MenuCacheService>().loadFromCacheOnly();
       if (!mounted) return;
+      if (loadedMenu.isEmpty) {
+        final ensured = await Get.find<MenuCacheService>().ensureLoaded();
+        if (!mounted) return;
+        setState(() {
+          menu.clear();
+          menu.addAll(ensured);
+        });
+        return;
+      }
       setState(() {
         menu.clear();
         menu.addAll(loadedMenu);

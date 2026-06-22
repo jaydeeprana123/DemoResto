@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/features/menu_setup/services/menu_revision.dart';
 import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
 import 'package:demo/features/menu_setup/views/AddMenuItemPage.dart';
 import 'package:demo/features/menu_setup/views/MenuSeederPage.dart';
@@ -33,6 +34,7 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
         'sortOrder': sortOrder,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      await MenuRevision.bumpRevision();
       _nameController.clear();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -53,6 +55,7 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
     if (confirmed != true || !mounted) return;
 
     await FirestorePaths.scopedDoc('menus', docId).delete();
+    await MenuRevision.bumpRevision();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Category "$name" deleted')),
@@ -173,7 +176,11 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
           );
         }
 
-        final categories = sortMenuDocs(snapshot.data!.docs);
+        final categories = sortMenuDocs(
+          snapshot.data!.docs
+              .where((doc) => !MenuRevision.isMetaDoc(doc.id))
+              .toList(),
+        );
 
         return ListView.separated(
           itemCount: categories.length,

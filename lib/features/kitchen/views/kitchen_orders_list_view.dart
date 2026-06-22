@@ -85,6 +85,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   Set<String> _blinkingPrepItemKeys = {};
   Color _prepBlinkColor = Colors.lightGreenAccent.shade100;
   Timer? _prepBlinkTimer;
+  VoidCallback? _menuCacheListener;
   int? blinkingGroupKey;
   // Color used for the currently blinking card: green for a new order,
   // yellow for an update (quantity changed / item added on existing table).
@@ -611,7 +612,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     WidgetsBinding.instance.addObserver(this);
     unawaited(_initAudioPlayers());
     KitchenSettings.load().then((_) async {
-      await Get.find<MenuCacheService>().ensureLoaded();
+      await Get.find<MenuCacheService>().loadFromCacheOnly();
       _menuFilter.invalidate();
       await _initAudioPlayers();
       if (mounted) {
@@ -652,6 +653,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       _minuteTick.value++;
       _triggerDelayedBlinkIfNeeded();
     });
+    _menuCacheListener = _onMenuCacheRevisionChanged;
+    Get.find<MenuCacheService>().revisionListenable.addListener(
+      _menuCacheListener!,
+    );
+  }
+
+  void _onMenuCacheRevisionChanged() {
+    if (!mounted) return;
+    _menuFilter.invalidate();
+    _setStatePreservingScroll(_rebuildDisplayFromCache);
   }
 
   void _listenToKitchenTables() {
@@ -2978,6 +2989,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   @override
   void dispose() {
+    if (_menuCacheListener != null) {
+      Get.find<MenuCacheService>().revisionListenable.removeListener(
+        _menuCacheListener!,
+      );
+    }
     WidgetsBinding.instance.removeObserver(this);
     KitchenSettings.showTableAllOrders.removeListener(
       _onKitchenSettingsChanged,

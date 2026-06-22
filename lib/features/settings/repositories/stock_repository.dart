@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/models/menu_stock_entry.dart';
+import 'package:demo/features/menu_setup/services/menu_revision.dart';
 import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
 import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
 import 'package:demo/features/ordering/utils/menu_item_variants.dart';
@@ -86,7 +87,10 @@ class StockRepository {
 
   Stream<List<MenuStockEntry>> watchMenuStock() {
     return FirestorePaths.scoped('menus').snapshots().asyncExpand((catSnap) {
-      return _mergeItemSnapshots(sortMenuDocs(catSnap.docs));
+      final categories = sortMenuDocs(
+        catSnap.docs.where((doc) => !MenuRevision.isMetaDoc(doc.id)).toList(),
+      );
+      return _mergeItemSnapshots(categories);
     });
   }
 
@@ -176,6 +180,7 @@ class StockRepository {
         {'inStock': inStock},
       );
     }
+    MenuRevision.bumpRevision(batch: batch);
     await batch.commit();
   }
 }

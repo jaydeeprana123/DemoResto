@@ -1,5 +1,6 @@
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/features/kitchen/kitchen.dart';
+import 'package:demo/features/menu_setup/services/menu_sync_coordinator.dart';
 import 'package:demo/features/settings/settings.dart';
 import 'package:demo/features/shell/controllers/shell_controller.dart';
 import 'package:demo/features/tables/tables.dart';
@@ -22,6 +23,9 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
     super.initState();
     _shell = Get.find<ShellController>();
     _shell.loadUserRole();
+    if (Get.isRegistered<MenuSyncCoordinator>()) {
+      Get.find<MenuSyncCoordinator>().start();
+    }
     if (Get.isRegistered<ZomatoShareIntentService>()) {
       Get.find<ZomatoShareIntentService>().markUiReady();
     }

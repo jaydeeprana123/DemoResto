@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/features/menu_setup/services/menu_revision.dart';
 import 'package:demo/Styles/my_font.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -341,6 +342,7 @@ class _MenuSeederPageState extends State<MenuSeederPage> {
       _log_('🗑️  Deleting existing menu...');
       final existing = await FirestorePaths.scoped('menus').get();
       for (final doc in existing.docs) {
+        if (MenuRevision.isMetaDoc(doc.id)) continue;
         // Delete subcollection items first
         final items = await FirestorePaths
             .scopedSubCollection('menus', doc.id, 'items')
@@ -394,6 +396,7 @@ class _MenuSeederPageState extends State<MenuSeederPage> {
         }
       }
 
+      await MenuRevision.bumpRevision();
       _log_('🎉 Done! $_categoriesAdded categories, $_itemsAdded items imported.');
       setState(() {
         _done = true;
