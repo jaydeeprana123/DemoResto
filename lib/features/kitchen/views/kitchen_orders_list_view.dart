@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_sync_channel.dart';
-import 'package:demo/core/firestore/resilient_firestore_listener.dart';
-import 'package:demo/core/services/firestore_sync_status_service.dart';
 import 'package:demo/core/widgets/firestore_sync_status_chip.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/services/restaurant_session.dart';
@@ -33,6 +31,7 @@ import 'package:demo/features/kitchen/services/kitchen_background_alert_service.
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
+import 'package:demo/features/tables/services/shared_tables_snapshot_service.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
 import 'package:demo/features/zomato/widgets/zomato_order_card_body.dart';
 import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
@@ -66,8 +65,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   // apart from an update to an already-available table.
   Set<String> _previousDocIds = {};
   Map<String, TableGroup> _previousKeyToGroup = {};
-  ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>?
-  _tablesListener;
   final ScrollController _gridScrollController = ScrollController();
   final ValueNotifier<int> _minuteTick = ValueNotifier(0);
   bool _kitchenStreamReady = false;
@@ -584,8 +581,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appLifecycleState = state;
-    if (state == AppLifecycleState.resumed) {
-      _tablesListener?.restart();
+    if (state == AppLifecycleState.resumed &&
+        Get.isRegistered<SharedTablesSnapshotService>()) {
+      Get.find<SharedTablesSnapshotService>().restart();
     }
     if (KitchenSettings.backgroundOrderRingtoneEnabled.value &&
         (state == AppLifecycleState.paused ||
@@ -666,18 +664,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }
 
   void _listenToKitchenTables() {
-    final syncStatus = Get.find<FirestoreSyncStatusService>();
-    _tablesListener?.stop();
-    _tablesListener =
-        ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>(
-          debugLabel: 'kitchen',
-          streamFactory: () => FirestorePaths.scoped(
-            'tables',
-          ).orderBy('createdAt', descending: false).snapshots(),
-          onStatus: (status) =>
-              syncStatus.setStatus(FirestoreSyncChannel.kitchen, status),
-          onData: _handleTablesSnapshot,
-        )..start();
+    Get.find<SharedTablesSnapshotService>().subscribe(
+      this,
+      _handleTablesSnapshot,
+    );
   }
 
   Future<void> _refreshKitchenOrders() async {
@@ -688,7 +678,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       final snapshot = await Get.find<TablesRepository>().fetchAllTablesFresh();
       if (!mounted) return;
       _handleTablesSnapshot(snapshot);
-      _tablesListener?.restart();
+      Get.find<SharedTablesSnapshotService>().restart();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3010,7 +3000,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     KitchenSettings.backgroundOrderRingtoneEnabled.removeListener(
       _onBackgroundRingtoneSettingChanged,
     );
-    _tablesListener?.stop();
+    if (Get.isRegistered<SharedTablesSnapshotService>()) {
+      Get.find<SharedTablesSnapshotService>().unsubscribe(this);
+    }
     _gridScrollController.dispose();
     _timer?.cancel();
     _delayedBlinkTimer?.cancel();
