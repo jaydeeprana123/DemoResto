@@ -12,6 +12,7 @@ import 'package:demo/core/utils/table_name_utils.dart';
 import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/core/services/restaurant_session.dart';
 import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
+import 'package:demo/features/menu_setup/services/auto_stock_restock_service.dart';
 import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
 import 'package:demo/features/ordering/views/cart_page.dart';
 import 'package:demo/features/ordering/views/final_billing_view.dart';
@@ -109,6 +110,7 @@ class _MenuPageState extends State<MenuPage>
   String _overallRemarks = '';
   bool _isRefreshingMenu = false;
   bool _menuBootstrapping = true;
+  VoidCallback? _menuCacheListener;
 
   bool get _showMenuRefreshButton =>
       kIsWeb ||
@@ -138,6 +140,26 @@ class _MenuPageState extends State<MenuPage>
     menuData = {};
     _loadSelectedCategories();
     _bootstrapMenu();
+    _menuCacheListener = _reloadMenuFromCachePreservingQty;
+    Get.find<MenuCacheService>().revisionListenable.addListener(
+      _menuCacheListener!,
+    );
+  }
+
+  Future<void> _reloadMenuFromCachePreservingQty() async {
+    if (!mounted) return;
+
+    try {
+      final savedQty = _collectMenuQuantities();
+      final cached = await Get.find<MenuCacheService>().loadFromCacheOnly();
+      if (!mounted || cached.isEmpty) return;
+
+      setState(() {
+        _applyMenuSource(cached);
+        _applyMenuQuantities(savedQty);
+      });
+      widget.onMenuCacheUpdated?.call();
+    } catch (_) {}
   }
 
   void _applyMenuSource(List<Map<String, dynamic>> source) {
@@ -174,6 +196,10 @@ class _MenuPageState extends State<MenuPage>
   }
 
   Future<void> _bootstrapMenu() async {
+    if (Get.isRegistered<AutoStockRestockService>()) {
+      await Get.find<AutoStockRestockService>().processDueAutoRestocks();
+    }
+
     var source = widget.menuList;
     try {
       final cached = await Get.find<MenuCacheService>().loadFromCacheOnly();
@@ -2009,6 +2035,11 @@ class _MenuPageState extends State<MenuPage>
 
   @override
   void dispose() {
+    if (_menuCacheListener != null) {
+      Get.find<MenuCacheService>().revisionListenable.removeListener(
+        _menuCacheListener!,
+      );
+    }
     tableNameController.removeListener(_onTableNameChanged);
     tableNameController.dispose();
     searchController.dispose();

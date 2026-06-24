@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/features/menu_setup/services/menu_revision.dart';
 import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
 import 'package:demo/features/menu_setup/widgets/setup_page_layout.dart';
 import 'package:flutter/material.dart';
@@ -66,6 +67,7 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
       }
 
       await itemsRef.add(data);
+      await MenuRevision.bumpRevision();
 
       _nameController.clear();
       _priceController.clear();
@@ -294,6 +296,7 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
         .scopedSubCollection('menus', categoryId, 'items')
         .doc(itemId)
         .delete();
+    await MenuRevision.bumpRevision();
   }
 
   @override

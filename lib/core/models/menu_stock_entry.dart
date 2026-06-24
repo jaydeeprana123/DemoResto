@@ -1,3 +1,5 @@
+import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
+
 class MenuStockEntry {
   const MenuStockEntry({
     required this.categoryId,
@@ -6,6 +8,8 @@ class MenuStockEntry {
     required this.inStock,
     required this.firestoreTargetKeys,
     this.hasVariants = false,
+    this.stockMode = MenuStockUtils.modeManual,
+    this.nextStockTime,
   });
 
   final String categoryId;
@@ -15,6 +19,13 @@ class MenuStockEntry {
   /// One or more Firestore docs to update (`categoryId|itemId`).
   final List<String> firestoreTargetKeys;
   final bool hasVariants;
+  final String stockMode;
+  final DateTime? nextStockTime;
+
+  bool get isAutoOut =>
+      !inStock &&
+      stockMode == MenuStockUtils.modeAuto &&
+      nextStockTime != null;
 
   String get key => firestoreTargetKeys.join('~');
 }
