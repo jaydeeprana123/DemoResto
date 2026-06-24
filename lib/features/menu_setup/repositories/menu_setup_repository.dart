@@ -1,17 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/features/menu_setup/services/menu_revision.dart';
 
 class MenuSetupRepository {
   Stream<QuerySnapshot<Map<String, dynamic>>> watchCategories() {
     return FirestorePaths.scoped('menus').snapshots();
   }
 
-  Future<DocumentReference<Map<String, dynamic>>> addCategory(String name) {
-    return FirestorePaths.scoped('menus').add({'name': name});
+  Future<DocumentReference<Map<String, dynamic>>> addCategory(String name) async {
+    final ref = await FirestorePaths.scoped('menus').add({'name': name});
+    await MenuRevision.bumpRevision();
+    return ref;
   }
 
-  Future<void> deleteCategory(String categoryId) {
-    return FirestorePaths.scopedDoc('menus', categoryId).delete();
+  Future<void> deleteCategory(String categoryId) async {
+    await FirestorePaths.scopedDoc('menus', categoryId).delete();
+    await MenuRevision.bumpRevision();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchItems(String categoryId) {
@@ -24,10 +28,11 @@ class MenuSetupRepository {
     required String categoryId,
     required String name,
     required dynamic price,
-  }) {
-    return FirestorePaths
+  }) async {
+    await FirestorePaths
         .scopedSubCollection('menus', categoryId, 'items')
         .add({'name': name, 'price': price, 'inStock': true});
+    await MenuRevision.bumpRevision();
   }
 
   Future<void> updateItem({
@@ -35,20 +40,22 @@ class MenuSetupRepository {
     required String itemId,
     required String name,
     required dynamic price,
-  }) {
-    return FirestorePaths
+  }) async {
+    await FirestorePaths
         .scopedSubCollection('menus', categoryId, 'items')
         .doc(itemId)
         .update({'name': name, 'price': price});
+    await MenuRevision.bumpRevision();
   }
 
   Future<void> deleteItem({
     required String categoryId,
     required String itemId,
-  }) {
-    return FirestorePaths
+  }) async {
+    await FirestorePaths
         .scopedSubCollection('menus', categoryId, 'items')
         .doc(itemId)
         .delete();
+    await MenuRevision.bumpRevision();
   }
 }

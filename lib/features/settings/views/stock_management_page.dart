@@ -1,8 +1,11 @@
 import 'package:demo/core/models/menu_stock_entry.dart';
+import 'package:demo/features/menu_setup/services/auto_stock_restock_service.dart';
 import 'package:demo/features/settings/controllers/stock_controller.dart';
+import 'package:demo/features/settings/widgets/stock_out_mode_sheet.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 
 const _navy = Color(0xFF1A3A5C);
 const _orange = Color(0xFFf57c35);
@@ -38,8 +41,21 @@ List<_CategoryStockGroup> _groupItemsByCategory(List<MenuStockEntry> items) {
   return order.map((id) => groups[id]!).toList();
 }
 
-class StockManagementPage extends StatelessWidget {
+class StockManagementPage extends StatefulWidget {
   const StockManagementPage({super.key});
+
+  @override
+  State<StockManagementPage> createState() => _StockManagementPageState();
+}
+
+class _StockManagementPageState extends State<StockManagementPage> {
+  @override
+  void initState() {
+    super.initState();
+    if (Get.isRegistered<AutoStockRestockService>()) {
+      Get.find<AutoStockRestockService>().processDueAutoRestocks();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -253,11 +269,7 @@ class StockManagementPage extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: busy
                         ? null
-                        : () => _applyStock(
-                              context,
-                              controller,
-                              inStock: true,
-                            ),
+                        : () => _applyStockIn(context, controller),
                     icon: const Icon(Icons.check_circle_outline),
                     label: const Text('Stock In'),
                     style: OutlinedButton.styleFrom(
@@ -272,11 +284,7 @@ class StockManagementPage extends StatelessWidget {
                   child: FilledButton.icon(
                     onPressed: busy
                         ? null
-                        : () => _applyStock(
-                              context,
-                              controller,
-                              inStock: false,
-                            ),
+                        : () => _applyStockOut(context, controller),
                     icon: const Icon(Icons.remove_circle_outline),
                     label: const Text('Stock Out'),
                     style: FilledButton.styleFrom(
@@ -293,14 +301,49 @@ class StockManagementPage extends StatelessWidget {
     );
   }
 
-  Future<void> _applyStock(
+  Future<void> _applyStockOut(
     BuildContext context,
-    StockController controller, {
-    required bool inStock,
-  }) async {
-    final error = inStock
-        ? await controller.markSelectedInStock()
-        : await controller.markSelectedOutOfStock();
+    StockController controller,
+  ) async {
+    if (controller.selectedKeys.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select at least one item.')),
+      );
+      return;
+    }
+
+    final choice = await StockOutModeSheet.show(context);
+    if (choice == null || !context.mounted) return;
+
+    final String? error;
+    if (choice.mode == StockOutMode.manual) {
+      error = await controller.markSelectedOutManual();
+    } else {
+      error = await controller.markSelectedOutAuto(choice.nextStockTime!);
+    }
+
+    if (!context.mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+      return;
+    }
+
+    final message = choice.mode == StockOutMode.manual
+        ? 'Selected items marked Out of Stock (manual).'
+        : 'Selected items will return in stock at '
+            '${DateFormat('EEE, d MMM · h:mm a').format(choice.nextStockTime!)}.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _applyStockIn(
+    BuildContext context,
+    StockController controller,
+  ) async {
+    final error = await controller.markSelectedInStock();
 
     if (!context.mounted) return;
     if (error != null) {
@@ -311,12 +354,8 @@ class StockManagementPage extends StatelessWidget {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          inStock
-              ? 'Selected items marked In Stock.'
-              : 'Selected items marked Out of Stock.',
-        ),
+      const SnackBar(
+        content: Text('Selected items marked In Stock.'),
       ),
     );
   }
@@ -375,32 +414,63 @@ class _StockItemCard extends StatelessWidget {
                       style: MyFont.regular(12, color: Colors.grey.shade600),
                     ),
                   ],
+                  if (item.isAutoOut && item.nextStockTime != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Auto restock: ${DateFormat('EEE, d MMM · h:mm a').format(item.nextStockTime!)}',
+                      style: MyFont.regular(11, color: Colors.orange.shade800),
+                    ),
+                  ],
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: outOfStock
-                    ? Colors.red.shade50
-                    : Colors.green.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: outOfStock
-                      ? Colors.red.shade200
-                      : Colors.green.shade200,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (item.isAutoOut)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Text(
+                      'AUTO',
+                      style: TextStyle(
+                        fontFamily: fontMulishBold,
+                        fontSize: 9,
+                        color: Colors.orange.shade800,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: outOfStock
+                        ? Colors.red.shade50
+                        : Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: outOfStock
+                          ? Colors.red.shade200
+                          : Colors.green.shade200,
+                    ),
+                  ),
+                  child: Text(
+                    outOfStock ? 'Out of Stock' : 'In Stock',
+                    style: TextStyle(
+                      fontFamily: fontMulishBold,
+                      fontSize: 11,
+                      color: outOfStock
+                          ? Colors.red.shade700
+                          : Colors.green.shade700,
+                    ),
+                  ),
                 ),
-              ),
-              child: Text(
-                outOfStock ? 'Out of Stock' : 'In Stock',
-                style: TextStyle(
-                  fontFamily: fontMulishBold,
-                  fontSize: 11,
-                  color: outOfStock
-                      ? Colors.red.shade700
-                      : Colors.green.shade700,
-                ),
-              ),
+              ],
             ),
           ],
         ),

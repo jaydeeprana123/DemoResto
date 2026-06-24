@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/services/restaurant_session.dart';
+import 'package:demo/features/menu_setup/services/menu_revision.dart';
 import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
 import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,6 +17,14 @@ class MenuCacheService {
 
   List<Map<String, dynamic>> _menu = [];
   String? _loadedRestaurantKey;
+  int? _lastSyncedRevision;
+  bool _syncInProgress = false;
+  bool _autoSyncActive = false;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _metaSubscription;
+  Timer? _revisionDebounce;
+
+  /// Bumped whenever cached menu content changes after a network sync.
+  final ValueNotifier<int> revisionListenable = ValueNotifier<int>(0);
 
   List<Map<String, dynamic>> get menu => List.unmodifiable(_menu);
 
@@ -28,6 +40,9 @@ class MenuCacheService {
 
   String _prefsKeyFor(String restaurantKey) => '$_cacheKeyPrefix$restaurantKey';
 
+  String _revisionPrefsKeyFor(String restaurantKey) =>
+      '${MenuRevision.prefsKeyPrefix}$restaurantKey';
+
   Future<void> _ensureRestaurantLoaded() async {
     final restaurantKey = _restaurantCacheKey();
     if (_loadedRestaurantKey == restaurantKey && _menu.isNotEmpty) {
@@ -36,6 +51,7 @@ class MenuCacheService {
 
     _loadedRestaurantKey = restaurantKey;
     _menu = await _readFromDisk(restaurantKey);
+    _lastSyncedRevision = await _readRevisionFromDisk(restaurantKey);
   }
 
   Future<List<Map<String, dynamic>>> loadFromCacheOnly() async {
@@ -52,13 +68,121 @@ class MenuCacheService {
     return refreshFromNetwork();
   }
 
+  /// Phase 2 entry: load cache, check revision, listen for remote changes.
+  Future<void> startAutoSync() async {
+    if (_autoSyncActive) {
+      await syncIfChanged();
+      return;
+    }
+
+    _autoSyncActive = true;
+    await loadFromCacheOnly();
+    await syncIfChanged();
+    _startMetaListener();
+  }
+
+  void pauseAutoSync() {
+    _revisionDebounce?.cancel();
+    _metaSubscription?.cancel();
+    _metaSubscription = null;
+  }
+
+  Future<void> resumeAutoSync() async {
+    if (!_autoSyncActive) return;
+    await syncIfChanged();
+    _startMetaListener();
+  }
+
+  void stopAutoSync() {
+    _autoSyncActive = false;
+    pauseAutoSync();
+  }
+
+  void resetForLogout() {
+    stopAutoSync();
+    _menu = [];
+    _loadedRestaurantKey = null;
+    _lastSyncedRevision = null;
+    revisionListenable.value = 0;
+  }
+
+  /// Returns true when menu data was refreshed from Firestore.
+  Future<bool> syncIfChanged({bool force = false}) async {
+    if (_syncInProgress) return false;
+
+    _syncInProgress = true;
+    try {
+      final restaurantKey = _restaurantCacheKey();
+      await _ensureRestaurantLoaded();
+      final localRevision =
+          _lastSyncedRevision ?? await _readRevisionFromDisk(restaurantKey);
+      final remoteRevision = await MenuRevision.readRemoteRevision();
+
+      final needsFetch =
+          force || _menu.isEmpty || remoteRevision != localRevision;
+      if (!needsFetch) return false;
+
+      await _fetchSaveAndNotify(restaurantKey, remoteRevision);
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      _syncInProgress = false;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> refreshFromNetwork() async {
     final restaurantKey = _restaurantCacheKey();
+    final remoteRevision = await MenuRevision.readRemoteRevision();
+    await _fetchSaveAndNotify(restaurantKey, remoteRevision);
+    return List<Map<String, dynamic>>.from(_menu);
+  }
+
+  Future<void> _fetchSaveAndNotify(
+    String restaurantKey,
+    int remoteRevision,
+  ) async {
     final loadedMenu = await _fetchFromFirestore();
     _menu = loadedMenu;
     _loadedRestaurantKey = restaurantKey;
+    _lastSyncedRevision = remoteRevision;
     await _writeToDisk(restaurantKey, loadedMenu);
-    return List<Map<String, dynamic>>.from(_menu);
+    await _writeRevisionToDisk(restaurantKey, remoteRevision);
+    revisionListenable.value++;
+  }
+
+  void _startMetaListener() {
+    if (!_autoSyncActive || _metaSubscription != null) return;
+
+    _metaSubscription = MenuRevision.metaRef().snapshots().listen(
+      (snapshot) {
+        final remote = MenuRevision.revisionFromSnapshot(snapshot);
+        _scheduleRevisionReaction(remote);
+      },
+      onError: (_) {},
+    );
+  }
+
+  void _scheduleRevisionReaction(int remoteRevision) {
+    _revisionDebounce?.cancel();
+    _revisionDebounce = Timer(const Duration(milliseconds: 350), () {
+      unawaited(_handleRemoteRevision(remoteRevision));
+    });
+  }
+
+  Future<void> _handleRemoteRevision(int remoteRevision) async {
+    if (!_autoSyncActive || _syncInProgress) return;
+
+    final restaurantKey = _restaurantCacheKey();
+    if (_loadedRestaurantKey != null && _loadedRestaurantKey != restaurantKey) {
+      await _ensureRestaurantLoaded();
+    }
+
+    final localRevision =
+        _lastSyncedRevision ?? await _readRevisionFromDisk(restaurantKey);
+    if (remoteRevision == localRevision && _menu.isNotEmpty) return;
+
+    await syncIfChanged();
   }
 
   List<String> getCategoryNamesSorted() {
@@ -107,7 +231,11 @@ class MenuCacheService {
   Future<List<Map<String, dynamic>>> _fetchFromFirestore() async {
     final loadedMenu = <Map<String, dynamic>>[];
     final menuSnapshot = await FirestorePaths.scoped('menus').get();
-    final categoryDocs = sortMenuDocs(menuSnapshot.docs);
+    final categoryDocs = sortMenuDocs(
+      menuSnapshot.docs
+          .where((doc) => !MenuRevision.isMetaDoc(doc.id))
+          .toList(),
+    );
 
     for (final categoryDoc in categoryDocs) {
       final categoryId = categoryDoc.id;
@@ -163,11 +291,25 @@ class MenuCacheService {
     }
   }
 
+  Future<int> _readRevisionFromDisk(String restaurantKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_revisionPrefsKeyFor(restaurantKey)) ?? 0;
+  }
+
   Future<void> _writeToDisk(
     String restaurantKey,
     List<Map<String, dynamic>> menu,
   ) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKeyFor(restaurantKey), jsonEncode(menu));
+  }
+
+  Future<void> _writeRevisionToDisk(
+    String restaurantKey,
+    int revision,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_revisionPrefsKeyFor(restaurantKey), revision);
+    _lastSyncedRevision = revision;
   }
 }

@@ -1,7 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_sync_channel.dart';
-import 'package:demo/core/firestore/resilient_firestore_listener.dart';
-import 'package:demo/core/services/firestore_sync_status_service.dart';
 import 'package:demo/core/widgets/firestore_sync_status_chip.dart';
 import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/core/utils/table_name_utils.dart';
@@ -19,6 +17,7 @@ import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
 import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
+import 'package:demo/features/tables/services/shared_tables_snapshot_service.dart';
 import 'package:demo/features/tables/services/dashboard_table_filter_settings.dart';
 import 'package:demo/features/tables/views/AddTablePage.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
@@ -75,11 +74,10 @@ class _TableDashboardViewState extends State<TableDashboardView>
   final Map<String, String> tableSources = {};
   final Map<String, String> tableScreenshotUrls = {};
   final Map<String, String> tableZomatoStatuses = {};
-  ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>?
-  _tablesListener;
   final ScrollController _gridScrollController = ScrollController();
   bool _zomatoPasteInProgress = false;
   bool _mobileGridLayout = true;
+  VoidCallback? _menuCacheListener;
 
   @override
   void initState() {
@@ -92,6 +90,10 @@ class _TableDashboardViewState extends State<TableDashboardView>
       _tablesLoading = true;
       _listenToTables();
       _loadMenuFromCache();
+      _menuCacheListener = _reloadMenuFromCache;
+      Get.find<MenuCacheService>().revisionListenable.addListener(
+        _menuCacheListener!,
+      );
     }
   }
 
@@ -126,16 +128,24 @@ class _TableDashboardViewState extends State<TableDashboardView>
 
   @override
   void dispose() {
+    if (_menuCacheListener != null) {
+      Get.find<MenuCacheService>().revisionListenable.removeListener(
+        _menuCacheListener!,
+      );
+    }
     WidgetsBinding.instance.removeObserver(this);
     _gridScrollController.dispose();
-    _tablesListener?.stop();
+    if (Get.isRegistered<SharedTablesSnapshotService>()) {
+      Get.find<SharedTablesSnapshotService>().unsubscribe(this);
+    }
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _tablesListener?.restart();
+    if (state == AppLifecycleState.resumed &&
+        Get.isRegistered<SharedTablesSnapshotService>()) {
+      Get.find<SharedTablesSnapshotService>().restart();
     }
   }
 
@@ -301,18 +311,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
 
   // Listen to Firestore tables collection changes - UPDATED for flattened structure
   void _listenToTables() {
-    final syncStatus = Get.find<FirestoreSyncStatusService>();
-    _tablesListener?.stop();
-    _tablesListener =
-        ResilientFirestoreListener<QuerySnapshot<Map<String, dynamic>>>(
-          debugLabel: 'dashboard',
-          streamFactory: () => FirestorePaths.scoped(
-            'tables',
-          ).orderBy('createdAt', descending: false).snapshots(),
-          onStatus: (status) =>
-              syncStatus.setStatus(FirestoreSyncChannel.dashboard, status),
-          onData: _onTablesSnapshot,
-        )..start();
+    Get.find<SharedTablesSnapshotService>().subscribe(this, _onTablesSnapshot);
   }
 
   void _onTablesSnapshot(QuerySnapshot<Map<String, dynamic>> querySnapshot) {
@@ -507,8 +506,18 @@ class _TableDashboardViewState extends State<TableDashboardView>
     if (!mounted) return;
 
     try {
-      final loadedMenu = await Get.find<MenuCacheService>().ensureLoaded();
+      final loadedMenu =
+          await Get.find<MenuCacheService>().loadFromCacheOnly();
       if (!mounted) return;
+      if (loadedMenu.isEmpty) {
+        final ensured = await Get.find<MenuCacheService>().ensureLoaded();
+        if (!mounted) return;
+        setState(() {
+          menu.clear();
+          menu.addAll(ensured);
+        });
+        return;
+      }
       setState(() {
         menu.clear();
         menu.addAll(loadedMenu);
@@ -541,7 +550,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
       final snapshot = await Get.find<TablesRepository>().fetchAllTablesFresh();
       if (!mounted) return;
       _onTablesSnapshot(snapshot);
-      _tablesListener?.restart();
+      Get.find<SharedTablesSnapshotService>().restart();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(

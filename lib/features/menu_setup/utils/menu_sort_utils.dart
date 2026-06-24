@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:demo/features/menu_setup/services/menu_revision.dart';
 
 /// Sorts menu category/item Firestore docs by [sortOrder], then [createdAt], then id.
 List<QueryDocumentSnapshot<Map<String, dynamic>>> sortMenuDocs(
@@ -39,6 +40,7 @@ Future<int> nextSortOrder(CollectionReference<Map<String, dynamic>> ref) async {
   final snap = await ref.get();
   var max = -1;
   for (final doc in snap.docs) {
+    if (MenuRevision.isMetaDoc(doc.id)) continue;
     final order = (doc.data()['sortOrder'] as num?)?.toInt();
     if (order != null && order > max) max = order;
   }
