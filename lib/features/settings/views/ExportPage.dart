@@ -1,3 +1,4 @@
+import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/features/settings/repositories/export_repository.dart';
 import 'package:demo/features/settings/services/export_excel_service.dart';
 import 'package:demo/features/settings/utils/export_date_range.dart';
@@ -122,19 +123,30 @@ class _ExportPageState extends State<ExportPage> {
     return buildExportDateRange(fromDate: _fromDate!, toDate: _toDate);
   }
 
+  String _exportSuccessMessage(String savedPath) {
+    if (isDesktopPlatform) {
+      return 'Excel saved to:\n$savedPath\n\nUse the share window to send the file. '
+          'If an app only shares text, attach the saved file manually.';
+    }
+    return 'Excel file saved and ready to share.';
+  }
+
   Future<void> _exportTransactions() async {
     final range = _buildRange();
     if (range == null) return;
 
     setState(() => _exportingTransactions = true);
     try {
-      await Get.find<ExportRepository>().exportTransactions(range);
+      final savedPath = await Get.find<ExportRepository>().exportTransactions(
+        range,
+      );
       Get.snackbar(
-        'Export ready',
-        'Transactions Excel file is ready to save or share.',
+        'Export saved',
+        _exportSuccessMessage(savedPath),
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.green.shade700,
         colorText: Colors.white,
+        duration: const Duration(seconds: 5),
       );
     } on ExportException catch (e) {
       Get.snackbar(
@@ -163,13 +175,14 @@ class _ExportPageState extends State<ExportPage> {
 
     setState(() => _exportingExpenses = true);
     try {
-      await Get.find<ExportRepository>().exportExpenses(range);
+      final savedPath = await Get.find<ExportRepository>().exportExpenses(range);
       Get.snackbar(
-        'Export ready',
-        'Expenses Excel file is ready to save or share.',
+        'Export saved',
+        _exportSuccessMessage(savedPath),
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.green.shade700,
         colorText: Colors.white,
+        duration: const Duration(seconds: 5),
       );
     } on ExportException catch (e) {
       Get.snackbar(
@@ -299,7 +312,11 @@ class _ExportPageState extends State<ExportPage> {
           const SizedBox(height: 16),
           Text(
             widget.isAdmin
-                ? 'After export, use the share sheet to save to Files, Google Drive, email, or WhatsApp.'
+                ? (isDesktopPlatform
+                      ? 'On desktop, choose where to save the file, then use the share '
+                          'window to email or send it.'
+                      : 'After export, use the share sheet to save to Files, Google Drive, '
+                          'email, or WhatsApp.')
                 : 'Expense export uses the date range above.',
             style: TextStyle(
               fontSize: 12,
