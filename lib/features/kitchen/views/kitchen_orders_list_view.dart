@@ -30,6 +30,8 @@ import 'package:demo/features/kitchen/widgets/kitchen_theme.dart';
 import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
+import 'package:demo/features/tables/services/serve_notification_service.dart';
+import 'package:demo/features/tables/utils/table_serve_change_utils.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/services/shared_tables_snapshot_service.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
@@ -93,6 +95,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   static final Color _newOrderBlinkColor = Colors.lightGreenAccent.shade100;
   static final Color _updateBlinkColor = Colors.yellow.shade300;
+  static final Color _serveBlinkColor = const Color(TableServeChangeUtils.serveBlinkColor);
   static final Color _delayedItemBackground = KitchenTheme.delayedBarBg;
   static final Color _delayedItemBlinkBackground = KitchenTheme.delayedBarBlink;
   static const int _delayThresholdMinutes = 15;
@@ -254,6 +257,55 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             .toList()
           ..sort();
     return parts.join('|');
+  }
+
+  void _scheduleServeBlink({
+    required String key,
+    required Map<String, TableGroup> keyToGroup,
+    required Set<String> currentKeys,
+    required Map<String, String> currentSignatures,
+    required Set<String> currentDocIds,
+    required String serveEventKey,
+  }) {
+    previousKeys = currentKeys;
+    _previousSignatures = currentSignatures;
+    _previousDocIds = currentDocIds;
+    _previousKeyToGroup = keyToGroup;
+
+    if (_showPreparationView && _orderTypeFilterIndex != 3) {
+      return;
+    }
+
+    final group = keyToGroup[key];
+    final shouldPlaySound = group != null
+        ? _shouldPlaySoundForGroup(group)
+        : true;
+
+    if (shouldPlaySound && _canRingBell) {
+      unawaited(
+        Get.find<ServeNotificationService>().tryPlayServeAlert(
+          eventKey: serveEventKey,
+          kitchenEligible: true,
+          dashboardEligible: false,
+        ),
+      );
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      _setStatePreservingScroll(() {
+        blinkingGroupKey = key.hashCode;
+        _blinkColor = _serveBlinkColor;
+      });
+
+      Timer(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        if (blinkingGroupKey == key.hashCode) {
+          _setStatePreservingScroll(() => blinkingGroupKey = null);
+        }
+      });
+    });
   }
 
   void _scheduleBlink({
@@ -883,6 +935,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   void _schedulePreparationItemBlink(
     Set<String> normalizedItemKeys, {
     required bool isUpdate,
+    bool isServe = false,
   }) {
     if (normalizedItemKeys.isEmpty) return;
 
@@ -891,7 +944,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       if (!mounted) return;
       _setStatePreservingScroll(() {
         _blinkingPrepItemKeys = Set<String>.from(normalizedItemKeys);
-        _prepBlinkColor = isUpdate ? _updateBlinkColor : _newOrderBlinkColor;
+        _prepBlinkColor = isServe
+            ? _serveBlinkColor
+            : isUpdate
+            ? _updateBlinkColor
+            : _newOrderBlinkColor;
       });
       _prepBlinkTimer = Timer(const Duration(seconds: 3), () {
         if (!mounted) return;
@@ -903,19 +960,33 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   void _notifyPreparationItemsAffected(
     Set<String> normalizedItemKeys, {
     required bool isUpdate,
+    bool isServe = false,
+    String serveEventKey = '',
   }) {
     if (normalizedItemKeys.isEmpty) return;
 
     final shouldPlay = normalizedItemKeys.any(_shouldPlaySoundForPrepItem);
     if (shouldPlay && _canRingBell) {
-      if (isUpdate) {
+      if (isServe) {
+        unawaited(
+          Get.find<ServeNotificationService>().tryPlayServeAlert(
+            eventKey: serveEventKey,
+            kitchenEligible: true,
+            dashboardEligible: false,
+          ),
+        );
+      } else if (isUpdate) {
         _playUpdateSound();
       } else {
         _playNotificationSound();
       }
     }
 
-    _schedulePreparationItemBlink(normalizedItemKeys, isUpdate: isUpdate);
+    _schedulePreparationItemBlink(
+      normalizedItemKeys,
+      isUpdate: isUpdate,
+      isServe: isServe,
+    );
   }
 
   void _handlePreparationItemAlerts(List<TableGroup> filteredGroups) {
@@ -940,6 +1011,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     final affected = <String>{};
     var anyNew = false;
     var anyUpdate = false;
+    var anyServe = false;
+    String serveEventKey = '';
 
     for (final entry in currentTokens.entries) {
       final previous = _previousPrepItemLineTokens[entry.key];
@@ -952,7 +1025,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       final addedLines = entry.value.difference(previous);
       if (addedLines.isNotEmpty) {
         affected.add(entry.key);
-        anyUpdate = true;
+        if (TableServeChangeUtils.isServeOnlyPrepTokenChange(
+          previous,
+          entry.value,
+        )) {
+          anyServe = true;
+          serveEventKey = 'prep:${entry.key}:${addedLines.join(';')}';
+        } else {
+          anyUpdate = true;
+        }
       }
     }
 
@@ -960,7 +1041,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
     if (affected.isEmpty) return;
 
-    _notifyPreparationItemsAffected(affected, isUpdate: anyUpdate && !anyNew);
+    _notifyPreparationItemsAffected(
+      affected,
+      isUpdate: anyUpdate && !anyNew && !anyServe,
+      isServe: anyServe && !anyNew,
+      serveEventKey: serveEventKey,
+    );
   }
 
   void _rebuildPreparationItemGroups(List<TableGroup> groups) {
@@ -1336,14 +1422,53 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           isUpdate: false,
         );
       } else if (updateKeys.isNotEmpty) {
-        _scheduleBlink(
-          key: updateKeys.last,
-          keyToGroup: keyToGroup,
-          currentKeys: currentKeys,
-          currentSignatures: currentSignatures,
-          currentDocIds: currentDocIds,
-          isUpdate: true,
-        );
+        final serveKeys = <String>[];
+        final editKeys = <String>[];
+        String serveEventKey = '';
+
+        for (final key in updateKeys) {
+          final previous = _previousKeyToGroup[key];
+          final current = keyToGroup[key];
+          if (previous != null &&
+              current != null &&
+              TableServeChangeUtils.isServeOnlyItemsChange(
+                previous.items,
+                current.items,
+              )) {
+            serveKeys.add(key);
+            final docId = current.docId;
+            final itemKeys = TableServeChangeUtils.newlyServedItemKeys(
+              previous.items,
+              current.items,
+            );
+            serveEventKey = TableServeChangeUtils.eventKeyForDoc(
+              docId,
+              itemKeys,
+            );
+          } else {
+            editKeys.add(key);
+          }
+        }
+
+        if (serveKeys.isNotEmpty) {
+          _scheduleServeBlink(
+            key: serveKeys.last,
+            keyToGroup: keyToGroup,
+            currentKeys: currentKeys,
+            currentSignatures: currentSignatures,
+            currentDocIds: currentDocIds,
+            serveEventKey: serveEventKey,
+          );
+        } else if (editKeys.isNotEmpty) {
+          _scheduleBlink(
+            key: editKeys.last,
+            keyToGroup: keyToGroup,
+            currentKeys: currentKeys,
+            currentSignatures: currentSignatures,
+            currentDocIds: currentDocIds,
+            isUpdate: true,
+          );
+        }
       } else if (removedKeys.isNotEmpty || removedDocIds.isNotEmpty) {
         _notifyOrderRemoved(
           removedKeys: removedKeys,

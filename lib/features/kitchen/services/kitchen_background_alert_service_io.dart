@@ -127,6 +127,12 @@ class KitchenBackgroundAlertService {
           title: 'Kitchen order removed',
           body: 'An order was removed from the kitchen list',
         );
+      case KitchenBellSound.serve:
+        return const _AlertConfig(
+          rawSound: 'serve_bell',
+          title: 'Items served',
+          body: 'Kitchen items were marked as served',
+        );
     }
   }
 }

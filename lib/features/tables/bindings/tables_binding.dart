@@ -1,6 +1,7 @@
 import 'package:demo/features/tables/controllers/tables_controller.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/services/shared_tables_snapshot_service.dart';
+import 'package:demo/features/tables/services/serve_notification_service.dart';
 import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
 import 'package:demo/features/zomato/services/zomato_share_intent_service.dart';
 import 'package:get/get.dart';
@@ -11,6 +12,10 @@ class TablesBinding extends Bindings {
     Get.lazyPut<TablesRepository>(() => TablesRepository(), fenix: true);
     Get.lazyPut<SharedTablesSnapshotService>(
       () => SharedTablesSnapshotService(Get.find<TablesRepository>()),
+      fenix: true,
+    );
+    Get.lazyPut<ServeNotificationService>(
+      () => ServeNotificationService(),
       fenix: true,
     );
     Get.lazyPut<ZomatoOrdersRepository>(() => ZomatoOrdersRepository(), fenix: true);
