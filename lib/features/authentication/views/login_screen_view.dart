@@ -1,4 +1,5 @@
 import 'package:demo/Styles/my_font.dart';
+import 'package:demo/features/authentication/auth_navigation.dart';
 import 'package:demo/features/authentication/controllers/login_controller.dart';
 import 'package:demo/features/authentication/services/login_remember_me_settings.dart';
 import 'package:demo/core/constants/auth_constants.dart';
@@ -80,6 +81,7 @@ class _LoginPageState extends State<LoginPage>
       return;
     }
     await _persistRememberMeChoice();
+    openAuthenticatedApp();
   }
 
   Future<void> _createSuperAdminAccount() async {
@@ -89,6 +91,7 @@ class _LoginPageState extends State<LoginPage>
       return;
     }
     await _persistRememberMeChoice();
+    openAuthenticatedApp();
   }
 
   bool get _isSuperAdminEmail =>
