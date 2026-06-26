@@ -343,6 +343,12 @@ class _TableDashboardViewState extends State<TableDashboardView>
 
     for (final entry in updatedTables.entries) {
       final tableName = entry.key;
+      // When a table filter is active, only react to serves on the selected
+      // tables so the ringtone (and blink) ignore non-selected tables.
+      if (_tableFilterSelection.isNotEmpty &&
+          !_tableFilterSelection.contains(tableName)) {
+        continue;
+      }
       final previousGroups = tables[tableName];
       if (previousGroups == null) continue;
       if (!TableServeChangeUtils.isServeOnlyTableChange(
