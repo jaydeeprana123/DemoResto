@@ -54,6 +54,39 @@ class TableServeChangeUtils {
     return true;
   }
 
+  static Set<String> newlyServedTableItemKeyIds(
+    String docId,
+    List<dynamic> previousItems,
+    List<dynamic> currentItems,
+  ) {
+    final prevMap = _itemStateMap(previousItems);
+    final ids = <String>{};
+
+    for (final raw in currentItems) {
+      final item = TableItemServed.asItemMap(raw);
+      if (item == null) continue;
+
+      final contentKey = _itemContentKey(item);
+      final wasServed = prevMap[contentKey] ?? false;
+      if (wasServed || !TableItemServed.isServed(item)) continue;
+
+      final groupIndex = TableItemServed.firestoreGroupIndexFor(
+        item,
+        TableItemServed.parseGroupIndex(item['groupIndex']),
+      );
+      final itemIndex = TableItemServed.itemIndexInGroupFor(item, 0);
+      ids.add(
+        TableItemKey(
+          docId: docId,
+          groupIndex: groupIndex,
+          itemIndexInGroup: itemIndex,
+        ).id,
+      );
+    }
+
+    return ids;
+  }
+
   static String eventKeyForDoc(String docId, Iterable<String> itemKeys) {
     final sorted = itemKeys.toList()..sort();
     return '$docId:${sorted.join(',')}';

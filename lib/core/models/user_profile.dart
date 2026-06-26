@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class UserProfile {
   const UserProfile({
     required this.uid,
@@ -6,6 +8,7 @@ class UserProfile {
     this.name,
     this.restaurantId,
     this.active = true,
+    this.createdAt,
   });
 
   final String uid;
@@ -14,6 +17,7 @@ class UserProfile {
   final String? name;
   final String? restaurantId;
   final bool active;
+  final DateTime? createdAt;
 
   bool get isSuperAdmin => role == 'SuperAdmin';
   bool get isAdmin => role == 'Admin';
@@ -28,6 +32,9 @@ class UserProfile {
       name: data['name']?.toString(),
       restaurantId: data['restaurantId']?.toString(),
       active: data['active'] != false,
+      createdAt: data['createdAt'] is Timestamp
+          ? (data['createdAt'] as Timestamp).toDate()
+          : null,
     );
   }
 }

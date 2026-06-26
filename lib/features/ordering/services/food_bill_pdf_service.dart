@@ -8,6 +8,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import 'package:demo/core/services/restaurant_print_profile_service.dart';
 import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/core/utils/app_messenger.dart';
 import 'package:demo/features/ordering/services/food_bill_pdf_io.dart'
@@ -57,9 +58,10 @@ class FoodBillPdfData {
 }
 
 class FoodBillPdfService {
-  static const _restaurantAddress =
+  static const _legacyRestaurantAddress =
       '05, Ground Floor, Ayesha Complex, Tandalja, Opposite JP Police Station, Diwalipura, Vadodara';
-  static const _restaurantPhone = '+91 85113 33998';
+  static const _legacyRestaurantPhone = '+91 85113 33998';
+  static const _legacyRestaurantName = 'AL - HAADI';
 
   static pw.Font? _cachedFont;
   static pw.MemoryImage? _cachedRestaurantLogo;
@@ -81,6 +83,12 @@ class FoodBillPdfService {
   }
 
   static Future<void> _loadLogos() async {
+    _cachedRestaurantLogo = null;
+    if (Get.isRegistered<RestaurantPrintProfileService>()) {
+      final profile = Get.find<RestaurantPrintProfileService>();
+      await profile.ensureLogoReady();
+      _cachedRestaurantLogo = profile.logoImage;
+    }
     if (_cachedRestaurantLogo == null) {
       final restaurantLogoBytes = await _loadAssetBytes(
         'assets/images/restaurant_bill_logo.png',
@@ -494,6 +502,40 @@ class FoodBillPdfService {
     );
   }
 
+  static RestaurantPrintProfileService? get _printProfile =>
+      Get.isRegistered<RestaurantPrintProfileService>()
+          ? Get.find<RestaurantPrintProfileService>()
+          : null;
+
+  static String get _headerRestaurantName {
+    final name = _printProfile?.name.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return _legacyRestaurantName;
+  }
+
+  static String get _headerRestaurantAddress {
+    final address = _printProfile?.address?.trim();
+    if (address != null && address.isNotEmpty) return address;
+    return _legacyRestaurantAddress;
+  }
+
+  static List<String> get _headerRestaurantPhones {
+    final profile = _printProfile;
+    final phones = <String>[];
+    final mobile1 = profile?.displayMobile1;
+    if (mobile1 != null && mobile1.isNotEmpty) {
+      phones.add(mobile1);
+    }
+    final mobile2 = profile?.displayMobile2;
+    if (mobile2 != null && mobile2.isNotEmpty) {
+      phones.add(mobile2);
+    }
+    if (phones.isEmpty) {
+      phones.add(_legacyRestaurantPhone);
+    }
+    return phones;
+  }
+
   static Future<Uint8List> _buildPdf(
     FoodBillPdfData data,
     PosPrinterType printerType,
@@ -539,28 +581,30 @@ class FoodBillPdfService {
                   ),
                 ),
                 pw.SizedBox(height: 6),
-              ]else
-              pw.Center(
-                child: pw.Text(
-                  'AL - HAADI',
-                  style: labelStyle(size: headerSize, isBold: true),
+              ] else
+                pw.Center(
+                  child: pw.Text(
+                    _headerRestaurantName,
+                    style: labelStyle(size: headerSize, isBold: true),
+                  ),
                 ),
-              ),
-
-
               pw.SizedBox(height: 4),
               pw.Center(
                 child: pw.Text(
-                  _restaurantAddress,
+                  _headerRestaurantAddress,
                   textAlign: pw.TextAlign.center,
                   style: labelStyle(size: baseSize - 1),
                 ),
               ),
-              pw.SizedBox(height: 2),
-              pw.Center(
-                child: pw.Text(
-                  _restaurantPhone,
-                  style: labelStyle(size: baseSize - 1),
+              ..._headerRestaurantPhones.map(
+                (phone) => pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 2),
+                  child: pw.Center(
+                    child: pw.Text(
+                      phone,
+                      style: labelStyle(size: baseSize - 1),
+                    ),
+                  ),
                 ),
               ),
               pw.SizedBox(height: 6),

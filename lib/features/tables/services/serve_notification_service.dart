@@ -1,19 +1,49 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+
+class _LocalServeSuppression {
+  _LocalServeSuppression({
+    required this.tokens,
+    required this.expiresAt,
+  });
+
+  final Set<String> tokens;
+  final DateTime expiresAt;
+}
 
 /// Plays one serving ringtone per serve event across Kitchen and Dashboard.
 class ServeNotificationService extends GetxService {
   final AudioPlayer _servePlayer = AudioPlayer();
+  final List<_LocalServeSuppression> _localSuppressions = [];
   String? _lastEventKey;
   DateTime? _lastPlayedAt;
+
+  static const _suppressionTtl = Duration(seconds: 8);
+
+  /// Call when this device taps Serve, before the Firestore write completes.
+  void suppressLocalServe(Iterable<TableItemKey> keys) {
+    final tokens = keys.map((key) => key.id).where((id) => id.isNotEmpty).toSet();
+    if (tokens.isEmpty) return;
+
+    _pruneExpiredSuppressions();
+    _localSuppressions.add(
+      _LocalServeSuppression(
+        tokens: tokens,
+        expiresAt: DateTime.now().add(_suppressionTtl),
+      ),
+    );
+  }
 
   Future<void> tryPlayServeAlert({
     required String eventKey,
     required bool kitchenEligible,
     required bool dashboardEligible,
+    Set<String> servedItemKeyIds = const {},
   }) async {
     if (!kitchenEligible && !dashboardEligible) return;
+    if (shouldSkipServeSound(servedItemKeyIds)) return;
 
     final now = DateTime.now();
     if (_lastEventKey == eventKey &&
@@ -25,6 +55,22 @@ class ServeNotificationService extends GetxService {
     _lastEventKey = eventKey;
     _lastPlayedAt = now;
     await _playServeSound();
+  }
+
+  bool shouldSkipServeSound(Set<String> servedItemKeyIds) {
+    if (servedItemKeyIds.isEmpty) return false;
+
+    _pruneExpiredSuppressions();
+    for (final entry in _localSuppressions) {
+      if (entry.tokens.intersection(servedItemKeyIds).isEmpty) continue;
+      return true;
+    }
+    return false;
+  }
+
+  void _pruneExpiredSuppressions() {
+    final now = DateTime.now();
+    _localSuppressions.removeWhere((entry) => !now.isBefore(entry.expiresAt));
   }
 
   Future<void> _playServeSound() async {

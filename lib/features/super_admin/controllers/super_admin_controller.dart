@@ -1,7 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:demo/core/models/restaurant.dart';
+import 'package:demo/core/models/user_profile.dart';
 import 'package:demo/core/repositories/user_repository.dart';
 import 'package:demo/core/widgets/logout_confirmation_dialog.dart';
 import 'package:demo/features/super_admin/repositories/super_admin_repository.dart';
+import 'package:demo/features/super_admin/widgets/restaurant_profile_fields.dart';
 import 'package:get/get.dart';
 
 class SuperAdminController extends GetxController {
@@ -11,34 +15,143 @@ class SuperAdminController extends GetxController {
   final UserRepository _userRepository;
 
   final restaurants = <Restaurant>[].obs;
+  final admins = <UserProfile>[].obs;
   final isLoading = false.obs;
   final errorMessage = RxnString();
 
-  Stream<List<Restaurant>>? _subscription;
+  Stream<List<Restaurant>>? _restaurantsSubscription;
+  Stream<List<UserProfile>>? _adminsSubscription;
 
   @override
   void onInit() {
     super.onInit();
-    _subscription = _repository.watchRestaurants();
-    _subscription!.listen(
+    _restaurantsSubscription = _repository.watchRestaurants();
+    _restaurantsSubscription!.listen(
       (list) => restaurants.assignAll(list),
       onError: (e) => errorMessage.value = e.toString(),
     );
+
+    _adminsSubscription = _repository.watchRestaurantAdmins();
+    _adminsSubscription!.listen(
+      (list) => admins.assignAll(list),
+      onError: (e) => errorMessage.value = e.toString(),
+    );
+  }
+
+  List<UserProfile> adminsForRestaurant(String restaurantId) {
+    return admins
+        .where((admin) => admin.restaurantId == restaurantId)
+        .toList();
+  }
+
+  String adminSummaryForRestaurant(String restaurantId) {
+    final restaurantAdmins = adminsForRestaurant(restaurantId);
+    if (restaurantAdmins.isEmpty) return 'None';
+
+    return restaurantAdmins
+        .map((admin) {
+          final name = admin.name?.trim();
+          if (name != null && name.isNotEmpty) return name;
+          return admin.email;
+        })
+        .join(', ');
   }
 
   Future<String?> createRestaurant({
     required String name,
     String? address,
+    required String mobile1,
+    String? mobile2,
+    Uint8List? logoBytes,
     required int subscriptionYears,
   }) async {
-    if (name.trim().isEmpty) return 'Restaurant name is required.';
+    final validationError = validateRestaurantForm(
+      name: name,
+      mobile1: mobile1,
+      mobile2: mobile2,
+    );
+    if (validationError != null) return validationError;
+
     isLoading.value = true;
     try {
-      await _repository.createRestaurant(
+      final restaurantId = await _repository.createRestaurant(
         name: name,
         address: address,
+        mobile1: normalizeRestaurantMobile(mobile1),
+        mobile2: mobile2 != null && mobile2.trim().isNotEmpty
+            ? normalizeRestaurantMobile(mobile2)
+            : null,
         subscriptionYears: subscriptionYears,
       );
+
+      if (logoBytes != null) {
+        final logoUrl = await uploadRestaurantLogo(
+          restaurantId: restaurantId,
+          bytes: logoBytes,
+        );
+        await _repository.updateRestaurantProfile(
+          restaurantId: restaurantId,
+          name: name.trim(),
+          address: address,
+          mobile1: normalizeRestaurantMobile(mobile1),
+          mobile2: mobile2 != null && mobile2.trim().isNotEmpty
+              ? normalizeRestaurantMobile(mobile2)
+              : null,
+          logoUrl: logoUrl,
+        );
+      }
+      return null;
+    } catch (e) {
+      return e.toString();
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<String?> updateRestaurant({
+    required Restaurant restaurant,
+    required String name,
+    String? address,
+    required String mobile1,
+    String? mobile2,
+    Uint8List? logoBytes,
+    bool removeLogo = false,
+    DateTime? subscriptionEnd,
+  }) async {
+    final validationError = validateRestaurantForm(
+      name: name,
+      mobile1: mobile1,
+      mobile2: mobile2,
+    );
+    if (validationError != null) return validationError;
+
+    isLoading.value = true;
+    try {
+      String? logoUrl = removeLogo ? null : restaurant.logoUrl;
+      if (logoBytes != null) {
+        logoUrl = await uploadRestaurantLogo(
+          restaurantId: restaurant.id,
+          bytes: logoBytes,
+        );
+      }
+
+      await _repository.updateRestaurantProfile(
+        restaurantId: restaurant.id,
+        name: name,
+        address: address,
+        mobile1: normalizeRestaurantMobile(mobile1),
+        mobile2: mobile2 != null && mobile2.trim().isNotEmpty
+            ? normalizeRestaurantMobile(mobile2)
+            : null,
+        logoUrl: logoUrl,
+      );
+
+      if (subscriptionEnd != null) {
+        await _repository.updateSubscriptionEnd(
+          restaurantId: restaurant.id,
+          subscriptionEnd: subscriptionEnd,
+        );
+      }
       return null;
     } catch (e) {
       return e.toString();

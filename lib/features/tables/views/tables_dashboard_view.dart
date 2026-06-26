@@ -339,6 +339,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
   }) {
     final servedTables = <String>{};
     final eventKeys = <String>[];
+    final servedItemKeyIds = <String>{};
 
     for (final entry in updatedTables.entries) {
       final tableName = entry.key;
@@ -355,12 +356,14 @@ class _TableDashboardViewState extends State<TableDashboardView>
       final docId = updatedDocIds[tableName] ?? tableDocIds[tableName] ?? '';
       final prevItems = _flattenDashboardItems(previousGroups);
       final currItems = _flattenDashboardItems(entry.value);
-      final itemKeys = TableServeChangeUtils.newlyServedItemKeys(
+      final tableServedIds = TableServeChangeUtils.newlyServedTableItemKeyIds(
+        docId,
         prevItems,
         currItems,
       );
+      servedItemKeyIds.addAll(tableServedIds);
       eventKeys.add(
-        TableServeChangeUtils.eventKeyForDoc(docId, itemKeys),
+        TableServeChangeUtils.eventKeyForDoc(docId, tableServedIds),
       );
     }
 
@@ -374,6 +377,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
           eventKey: eventKeys.join('|'),
           kitchenEligible: false,
           dashboardEligible: true,
+          servedItemKeyIds: servedItemKeyIds,
         ),
       );
     }

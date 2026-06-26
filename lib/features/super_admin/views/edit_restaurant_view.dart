@@ -1,26 +1,43 @@
 import 'dart:typed_data';
 
+import 'package:demo/core/models/restaurant.dart';
 import 'package:demo/features/super_admin/controllers/super_admin_controller.dart';
 import 'package:demo/features/super_admin/widgets/restaurant_profile_fields.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 
-class CreateRestaurantView extends StatefulWidget {
-  const CreateRestaurantView({super.key});
+class EditRestaurantView extends StatefulWidget {
+  const EditRestaurantView({super.key, required this.restaurant});
+
+  final Restaurant restaurant;
 
   @override
-  State<CreateRestaurantView> createState() => _CreateRestaurantViewState();
+  State<EditRestaurantView> createState() => _EditRestaurantViewState();
 }
 
-class _CreateRestaurantViewState extends State<CreateRestaurantView> {
+class _EditRestaurantViewState extends State<EditRestaurantView> {
   final _formKey = GlobalKey<FormState>();
-  final _nameCtrl = TextEditingController();
-  final _addressCtrl = TextEditingController();
-  final _mobile1Ctrl = TextEditingController();
-  final _mobile2Ctrl = TextEditingController();
-  int _subscriptionYears = 1;
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _addressCtrl;
+  late final TextEditingController _mobile1Ctrl;
+  late final TextEditingController _mobile2Ctrl;
+
   Uint8List? _logoBytes;
+  bool _removeLogo = false;
+  late DateTime _subscriptionEnd;
+
+  @override
+  void initState() {
+    super.initState();
+    final restaurant = widget.restaurant;
+    _nameCtrl = TextEditingController(text: restaurant.name);
+    _addressCtrl = TextEditingController(text: restaurant.address ?? '');
+    _mobile1Ctrl = TextEditingController(text: restaurant.mobile1 ?? '');
+    _mobile2Ctrl = TextEditingController(text: restaurant.mobile2 ?? '');
+    _subscriptionEnd = restaurant.subscriptionEnd;
+  }
 
   @override
   void dispose() {
@@ -31,17 +48,45 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
     super.dispose();
   }
 
+  Future<void> _pickSubscriptionEnd() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _subscriptionEnd,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (date == null || !mounted) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_subscriptionEnd),
+    );
+    if (time == null || !mounted) return;
+
+    setState(() {
+      _subscriptionEnd = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
+    });
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final controller = Get.find<SuperAdminController>();
-    final error = await controller.createRestaurant(
+    final error = await controller.updateRestaurant(
+      restaurant: widget.restaurant,
       name: _nameCtrl.text,
       address: _addressCtrl.text,
       mobile1: _mobile1Ctrl.text,
       mobile2: _mobile2Ctrl.text,
       logoBytes: _logoBytes,
-      subscriptionYears: _subscriptionYears,
+      removeLogo: _removeLogo,
+      subscriptionEnd: _subscriptionEnd,
     );
     if (!mounted) return;
     if (error != null) {
@@ -49,7 +94,7 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Restaurant created successfully.')),
+      const SnackBar(content: Text('Restaurant updated successfully.')),
     );
     Get.back();
   }
@@ -57,12 +102,13 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<SuperAdminController>();
+    final dateFmt = DateFormat('dd MMM yyyy, hh:mm a');
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: superAdminNavy,
         foregroundColor: Colors.white,
-        title: Text('Create Restaurant', style: MyFont.bold(18, color: Colors.white)),
+        title: Text('Edit Restaurant', style: MyFont.bold(18, color: Colors.white)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -73,9 +119,16 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
             children: [
               RestaurantLogoPicker(
                 logoBytes: _logoBytes,
-                existingLogoUrl: null,
-                onPicked: (bytes) => setState(() => _logoBytes = bytes),
-                onClear: () => setState(() => _logoBytes = null),
+                existingLogoUrl:
+                    _removeLogo ? null : widget.restaurant.logoUrl,
+                onPicked: (bytes) => setState(() {
+                  _logoBytes = bytes;
+                  _removeLogo = false;
+                }),
+                onClear: () => setState(() {
+                  _logoBytes = null;
+                  _removeLogo = true;
+                }),
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -104,23 +157,30 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
                 mobile2Controller: _mobile2Ctrl,
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<int>(
-                value: _subscriptionYears,
+              InputDecorator(
                 decoration: const InputDecoration(
-                  labelText: 'Subscription Duration',
+                  labelText: 'Subscription Expiry',
                   border: OutlineInputBorder(),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 1, child: Text('1 Year')),
-                  DropdownMenuItem(value: 2, child: Text('2 Years')),
-                  DropdownMenuItem(value: 3, child: Text('3 Years')),
-                ],
-                onChanged: (v) => setState(() => _subscriptionYears = v ?? 1),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        dateFmt.format(_subscriptionEnd),
+                        style: MyFont.regular(14),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _pickSubscriptionEnd,
+                      child: const Text('Change'),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
               superAdminSubmitButton(
                 controller: controller,
-                label: 'Create Restaurant',
+                label: 'Save Changes',
                 onPressed: _submit,
               ),
             ],

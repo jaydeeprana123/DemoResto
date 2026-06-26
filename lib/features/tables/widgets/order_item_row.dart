@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
+import 'package:demo/features/tables/services/serve_notification_service.dart';
 import 'package:demo/features/kitchen/widgets/kitchen_cross_table_pending_sheet.dart';
 
 /// Per-screen controller for tap-to-select on one order card at a time.
@@ -60,6 +62,9 @@ class TableItemSelectionController {
   Future<bool> submitSelected() async {
     if (_selected.isEmpty) return false;
     final keys = _selected.toList();
+    if (Get.isRegistered<ServeNotificationService>()) {
+      Get.find<ServeNotificationService>().suppressLocalServe(keys);
+    }
     final updated = await TableItemServed.markItemsServed(keys);
     if (updated) {
       cancel();

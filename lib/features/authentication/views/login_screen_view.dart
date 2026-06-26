@@ -1,5 +1,6 @@
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/features/authentication/controllers/login_controller.dart';
+import 'package:demo/features/authentication/services/login_remember_me_settings.dart';
 import 'package:demo/core/constants/auth_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -29,6 +30,7 @@ class _LoginPageState extends State<LoginPage>
   void initState() {
     super.initState();
     _loginController = Get.find<LoginController>();
+    _loadRememberedCredentials();
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -39,6 +41,30 @@ class _LoginPageState extends State<LoginPage>
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut));
     _animCtrl.forward();
+  }
+
+  Future<void> _loadRememberedCredentials() async {
+    final saved = await LoginRememberMeSettings.load();
+    if (!mounted) return;
+
+    setState(() {
+      _rememberMe = saved.rememberMe;
+      if (saved.rememberMe) {
+        _loginController.emailController.text = saved.email ?? '';
+        _loginController.passwordController.text = saved.password ?? '';
+      } else {
+        _loginController.emailController.clear();
+        _loginController.passwordController.clear();
+      }
+    });
+  }
+
+  Future<void> _persistRememberMeChoice() {
+    return LoginRememberMeSettings.save(
+      rememberMe: _rememberMe,
+      email: _loginController.emailController.text,
+      password: _loginController.passwordController.text,
+    );
   }
 
   @override
@@ -53,13 +79,16 @@ class _LoginPageState extends State<LoginPage>
       _snack(error);
       return;
     }
+    await _persistRememberMeChoice();
   }
 
   Future<void> _createSuperAdminAccount() async {
     final error = await _loginController.createSuperAdminAccount();
     if (error != null) {
       _snack(error);
+      return;
     }
+    await _persistRememberMeChoice();
   }
 
   bool get _isSuperAdminEmail =>

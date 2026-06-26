@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firebase/secondary_auth_service.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/models/restaurant.dart';
+import 'package:demo/core/models/user_profile.dart';
 
 class SuperAdminRepository {
   Stream<List<Restaurant>> watchRestaurants() {
@@ -18,6 +19,9 @@ class SuperAdminRepository {
   Future<String> createRestaurant({
     required String name,
     String? address,
+    required String mobile1,
+    String? mobile2,
+    String? logoUrl,
     required int subscriptionYears,
   }) async {
     final now = DateTime.now();
@@ -33,6 +37,9 @@ class SuperAdminRepository {
     final doc = await FirestorePaths.restaurants().add({
       'name': name.trim(),
       if (address != null && address.trim().isNotEmpty) 'address': address.trim(),
+      'mobile1': mobile1.trim(),
+      if (mobile2 != null && mobile2.trim().isNotEmpty) 'mobile2': mobile2.trim(),
+      if (logoUrl != null && logoUrl.trim().isNotEmpty) 'logoUrl': logoUrl.trim(),
       'status': RestaurantStatus.active.name,
       'subscriptionStart': Timestamp.fromDate(now),
       'subscriptionEnd': Timestamp.fromDate(end),
@@ -40,6 +47,54 @@ class SuperAdminRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     });
     return doc.id;
+  }
+
+  Future<void> updateRestaurantProfile({
+    required String restaurantId,
+    required String name,
+    String? address,
+    required String mobile1,
+    String? mobile2,
+    String? logoUrl,
+  }) {
+    final updates = <String, dynamic>{
+      'name': name.trim(),
+      'mobile1': mobile1.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    final trimmedAddress = address?.trim();
+    if (trimmedAddress != null && trimmedAddress.isNotEmpty) {
+      updates['address'] = trimmedAddress;
+    } else {
+      updates['address'] = FieldValue.delete();
+    }
+
+    final trimmedMobile2 = mobile2?.trim();
+    if (trimmedMobile2 != null && trimmedMobile2.isNotEmpty) {
+      updates['mobile2'] = trimmedMobile2;
+    } else {
+      updates['mobile2'] = FieldValue.delete();
+    }
+
+    final trimmedLogo = logoUrl?.trim();
+    if (trimmedLogo != null && trimmedLogo.isNotEmpty) {
+      updates['logoUrl'] = trimmedLogo;
+    } else {
+      updates['logoUrl'] = FieldValue.delete();
+    }
+
+    return FirestorePaths.restaurant(restaurantId).update(updates);
+  }
+
+  Future<void> updateSubscriptionEnd({
+    required String restaurantId,
+    required DateTime subscriptionEnd,
+  }) {
+    return FirestorePaths.restaurant(restaurantId).update({
+      'subscriptionEnd': Timestamp.fromDate(subscriptionEnd),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> setRestaurantStatus({
@@ -76,6 +131,29 @@ class SuperAdminRepository {
       'status': RestaurantStatus.active.name,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Stream<List<UserProfile>> watchRestaurantAdmins() {
+    return FirestorePaths.users()
+        .where('role', isEqualTo: 'Admin')
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map((d) => UserProfile.fromFirestore(d.id, d.data()))
+              .toList()
+            ..sort(_compareAdmins),
+        );
+  }
+
+  static int _compareAdmins(UserProfile a, UserProfile b) {
+    final aCreated = a.createdAt;
+    final bCreated = b.createdAt;
+    if (aCreated != null && bCreated != null) {
+      return bCreated.compareTo(aCreated);
+    }
+    final aName = (a.name ?? a.email).toLowerCase();
+    final bName = (b.name ?? b.email).toLowerCase();
+    return aName.compareTo(bName);
   }
 
   Future<void> createRestaurantAdmin({

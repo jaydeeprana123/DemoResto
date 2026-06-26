@@ -267,6 +267,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     required Set<String> currentDocIds,
     required String serveEventKey,
   }) {
+    final previousGroup = _previousKeyToGroup[key];
+    final currentGroup = keyToGroup[key];
+
     previousKeys = currentKeys;
     _previousSignatures = currentSignatures;
     _previousDocIds = currentDocIds;
@@ -276,17 +279,23 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       return;
     }
 
-    final group = keyToGroup[key];
+    final group = currentGroup;
     final shouldPlaySound = group != null
         ? _shouldPlaySoundForGroup(group)
         : true;
 
     if (shouldPlaySound && _canRingBell) {
+      final servedItemKeyIds = TableServeChangeUtils.newlyServedTableItemKeyIds(
+        currentGroup?.docId ?? '',
+        previousGroup?.items ?? const [],
+        currentGroup?.items ?? const [],
+      );
       unawaited(
         Get.find<ServeNotificationService>().tryPlayServeAlert(
           eventKey: serveEventKey,
           kitchenEligible: true,
           dashboardEligible: false,
+          servedItemKeyIds: servedItemKeyIds,
         ),
       );
     }
@@ -968,11 +977,24 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     final shouldPlay = normalizedItemKeys.any(_shouldPlaySoundForPrepItem);
     if (shouldPlay && _canRingBell) {
       if (isServe) {
+        final servedItemKeyIds = <String>{};
+        for (final group in _lastUpdatedGroups) {
+          final previous = _previousKeyToGroup[group.key];
+          if (previous == null) continue;
+          servedItemKeyIds.addAll(
+            TableServeChangeUtils.newlyServedTableItemKeyIds(
+              group.docId,
+              previous.items,
+              group.items,
+            ),
+          );
+        }
         unawaited(
           Get.find<ServeNotificationService>().tryPlayServeAlert(
             eventKey: serveEventKey,
             kitchenEligible: true,
             dashboardEligible: false,
+            servedItemKeyIds: servedItemKeyIds,
           ),
         );
       } else if (isUpdate) {
@@ -1437,13 +1459,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               )) {
             serveKeys.add(key);
             final docId = current.docId;
-            final itemKeys = TableServeChangeUtils.newlyServedItemKeys(
+            final servedItemKeyIds = TableServeChangeUtils.newlyServedTableItemKeyIds(
+              docId,
               previous.items,
               current.items,
             );
             serveEventKey = TableServeChangeUtils.eventKeyForDoc(
               docId,
-              itemKeys,
+              servedItemKeyIds,
             );
           } else {
             editKeys.add(key);
