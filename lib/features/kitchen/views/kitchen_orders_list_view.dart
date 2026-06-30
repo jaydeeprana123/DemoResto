@@ -36,8 +36,7 @@ import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/services/shared_tables_snapshot_service.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
 import 'package:demo/features/zomato/widgets/zomato_order_card_body.dart';
-import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
-import 'package:demo/features/zomato/widgets/zomato_order_progress_dialog.dart';
+import 'package:demo/features/zomato/services/zomato_order_serve_service.dart';
 import 'package:demo/models/GroupOrder.dart';
 
 class KitchenOrdersListView extends StatefulWidget {
@@ -2793,11 +2792,20 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     showServedDialog(context, tableName, () async {
       _playDeleteSound();
       if (ZomatoOrderUtils.isZomatoOrderName(tableName)) {
-        await ZomatoOrderProgressDialog.run(
-          context,
-          action: () =>
-              Get.find<ZomatoOrdersRepository>().removeOrder(docId: docId),
-        );
+        try {
+          await Get.find<ZomatoOrderServeService>().serveOrder(docId: docId);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Zomato order served.')),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Could not mark as served: $e')),
+            );
+          }
+        }
       } else if (isDiningTableName(tableName)) {
         await _updateTableItemsInFirestore(tableName, [], false);
       } else {

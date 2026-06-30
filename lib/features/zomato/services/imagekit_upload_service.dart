@@ -14,6 +14,7 @@ class ImageKitUploadService {
 
   static const _uploadUrl = 'https://upload.imagekit.io/api/v1/files/upload';
   static const _filesApiUrl = 'https://api.imagekit.io/v1/files';
+  static const _httpTimeout = Duration(seconds: 15);
 
   static Future<ImageKitUploadResult> uploadScreenshot({
     required Uint8List bytes,
@@ -205,13 +206,13 @@ class ImageKitUploadService {
   }
 
   /// Deletes a Zomato screenshot from ImageKit when the order is served/completed.
-  /// Failures are ignored so Firestore cleanup can still proceed.
-  static Future<void> deleteScreenshot({
+  /// Returns `true` when deleted or nothing remains to delete.
+  static Future<bool> deleteScreenshot({
     String? fileId,
     String? screenshotUrl,
   }) async {
     final config = await ImageKitSettings.load();
-    if (!config.isValid) return;
+    if (!config.isValid) return true;
 
     try {
       final resolvedId = await _resolveFileId(
@@ -219,16 +220,21 @@ class ImageKitUploadService {
         fileId: fileId,
         screenshotUrl: screenshotUrl,
       );
-      if (resolvedId == null || resolvedId.isEmpty) return;
+      if (resolvedId == null || resolvedId.isEmpty) return true;
 
-      final response = await http.delete(
-        Uri.parse('$_filesApiUrl/$resolvedId'),
-        headers: _basicAuthHeaders(config.privateKey),
-      );
-      if (response.statusCode >= 200 && response.statusCode < 300) return;
-      if (response.statusCode == 404) return;
+      final response = await http
+          .delete(
+            Uri.parse('$_filesApiUrl/$resolvedId'),
+            headers: _basicAuthHeaders(config.privateKey),
+          )
+          .timeout(_httpTimeout);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return true;
+      }
+      if (response.statusCode == 404) return true;
+      return false;
     } catch (_) {
-      // Best-effort cleanup — do not block order removal.
+      return false;
     }
   }
 
@@ -258,7 +264,9 @@ class ImageKitUploadService {
         'limit': '1',
       },
     );
-    final response = await http.get(uri, headers: _basicAuthHeaders(config.privateKey));
+    final response = await http
+        .get(uri, headers: _basicAuthHeaders(config.privateKey))
+        .timeout(_httpTimeout);
     if (response.statusCode < 200 || response.statusCode >= 300) return null;
 
     final decoded = jsonDecode(response.body);

@@ -3,6 +3,7 @@ import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/services/shared_tables_snapshot_service.dart';
 import 'package:demo/features/tables/services/serve_notification_service.dart';
 import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
+import 'package:demo/features/zomato/services/zomato_order_serve_service.dart';
 import 'package:demo/features/zomato/services/zomato_share_intent_service.dart';
 import 'package:get/get.dart';
 
@@ -19,6 +20,10 @@ class TablesBinding extends Bindings {
       fenix: true,
     );
     Get.lazyPut<ZomatoOrdersRepository>(() => ZomatoOrdersRepository(), fenix: true);
+    Get.lazyPut<ZomatoOrderServeService>(
+      () => ZomatoOrderServeService(Get.find<ZomatoOrdersRepository>()),
+      fenix: true,
+    );
     if (!Get.isRegistered<ZomatoShareIntentService>()) {
       Get.put<ZomatoShareIntentService>(ZomatoShareIntentService(), permanent: true);
     }

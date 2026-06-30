@@ -25,11 +25,10 @@ import 'package:demo/features/tables/services/dashboard_table_filter_settings.da
 import 'package:demo/features/tables/views/AddTablePage.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
 import 'package:demo/features/zomato/widgets/add_zomato_order_sheet.dart';
-import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
 import 'package:demo/features/zomato/services/zomato_clipboard_paste_service.dart';
 import 'package:demo/features/zomato/widgets/dashboard_zomato_paste_scope.dart';
 import 'package:demo/features/zomato/widgets/import_shared_zomato_sheet.dart';
-import 'package:demo/features/zomato/widgets/zomato_order_progress_dialog.dart';
+import 'package:demo/features/zomato/services/zomato_order_serve_service.dart';
 import 'package:demo/features/zomato/widgets/zomato_order_card_body.dart';
 import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
@@ -2322,12 +2321,17 @@ class _TableDashboardViewState extends State<TableDashboardView>
                   showServedDialog(context, tableName, () async {
                     if (isZomato) {
                       try {
-                        await ZomatoOrderProgressDialog.run(
-                          context,
-                          action: () => Get.find<ZomatoOrdersRepository>()
-                              .removeOrder(docId: docId),
+                        await Get.find<ZomatoOrderServeService>().serveOrder(
+                          docId: docId,
                         );
-                        if (mounted) setState(() {});
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Zomato order served.'),
+                            ),
+                          );
+                          setState(() {});
+                        }
                       } catch (e) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(

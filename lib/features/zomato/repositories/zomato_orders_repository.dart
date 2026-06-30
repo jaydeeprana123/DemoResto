@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/utils/zomato_order_utils.dart';
+import 'package:demo/features/zomato/models/zomato_imagekit_cleanup_job.dart';
 import 'package:demo/features/zomato/models/zomato_order_ref.dart';
-import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
 
 class ZomatoOrdersRepository {
   Future<String> createFromScreenshot({
@@ -25,7 +25,6 @@ class ZomatoOrdersRepository {
     return docRef.id;
   }
 
-  /// Active Zomato orders that do not have a screenshot yet.
   Future<List<ZomatoOrderRef>> listActiveOrdersMissingScreenshot() async {
     final snap = await FirestorePaths.scoped('tables').get();
     final results = <ZomatoOrderRef>[];
@@ -70,33 +69,30 @@ class ZomatoOrdersRepository {
     return snap.data()?['name']?.toString();
   }
 
-  Future<void> updateStatus({
+  Future<ZomatoScreenshotInfo?> readScreenshotInfo(String docId) async {
+    final snap = await FirestorePaths.scopedDoc('tables', docId).get();
+    if (!snap.exists) return null;
+
+    final data = snap.data() ?? {};
+    return ZomatoScreenshotInfo(
+      docId: docId,
+      fileId: data['imagekitFileId']?.toString(),
+      screenshotUrl: data['screenshotUrl']?.toString(),
+    );
+  }
+
+  Future<void> deleteOrderDoc(String docId) async {
+    await FirestorePaths.scopedDoc('tables', docId).delete();
+  }
+
+  Future<void> updateStatusOnly({
     required String docId,
     required String status,
   }) async {
-    final normalized = ZomatoOrderUtils.normalizeStatus(status);
-    if (ZomatoOrderUtils.isCompletedStatus(normalized)) {
-      await removeOrder(docId: docId);
-      return;
-    }
     await FirestorePaths.scopedDoc('tables', docId).update({
-      'zomatoStatus': normalized,
+      'zomatoStatus': ZomatoOrderUtils.normalizeStatus(status),
       'updatedAt': FieldValue.serverTimestamp(),
     });
-  }
-
-  /// Removes a Zomato order and deletes its screenshot from ImageKit.
-  Future<void> removeOrder({required String docId}) async {
-    final docRef = FirestorePaths.scopedDoc('tables', docId);
-    final snap = await docRef.get();
-    if (snap.exists) {
-      final data = snap.data() ?? {};
-      await ImageKitUploadService.deleteScreenshot(
-        fileId: data['imagekitFileId']?.toString(),
-        screenshotUrl: data['screenshotUrl']?.toString(),
-      );
-    }
-    await docRef.delete();
   }
 
   Future<String> _nextZomatoOrderName() async {
