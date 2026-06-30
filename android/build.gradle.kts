@@ -28,6 +28,8 @@ subprojects {
     }
 
     tasks.withType<KotlinCompile>().configureEach {
+        // Windows: pub cache and project on different drives (e.g. C: vs D:).
+        incremental = false
         kotlinOptions {
             jvmTarget = JavaVersion.VERSION_11.toString()
         }
