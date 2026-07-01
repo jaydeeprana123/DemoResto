@@ -2112,6 +2112,41 @@ class _TableDashboardViewState extends State<TableDashboardView>
     }
   }
 
+  bool _tableHasOrderItems(String tableName) {
+    final groups = tables[tableName];
+    return groups != null && groups.isNotEmpty;
+  }
+
+  Future<void> _showTableDragBlockedDialog({
+    required String destinationTable,
+  }) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Cannot move items',
+          style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
+        ),
+        content: Text(
+          '${_shortDisplayName(destinationTable)} already has items. '
+          'You can only drag orders to an empty table.',
+          style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              'OK',
+              style: TextStyle(fontFamily: fontMulishSemiBold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTableCard(
     String tableName,
     List<List<Map<String, dynamic>>> groups, {
@@ -2121,41 +2156,48 @@ class _TableDashboardViewState extends State<TableDashboardView>
     final docId = tableDocIds[tableName] ?? '';
 
     return DragTarget<String>(
+      onWillAcceptWithDetails: (details) => details.data != tableName,
       onAccept: (sourceTable) async {
-        if (sourceTable != tableName) {
-          final sourcePaidStatus = tableIsPaid[sourceTable] == true;
+        if (sourceTable == tableName) return;
 
-          final sourceGroups = tables[sourceTable]!;
-          final destGroups = tables[tableName]!;
-
-          setState(() {
-            // Append deep copy of source groups to destination
-            final copiedGroups = sourceGroups.map((group) {
-              return group
-                  .map((item) => Map<String, dynamic>.from(item))
-                  .toList();
-            }).toList();
-
-            destGroups.addAll(copiedGroups);
-            sourceGroups.clear();
-            _syncFirestoreGroupIndices(tableName, destGroups.length);
-            _syncFirestoreGroupIndices(sourceTable, 0);
-          });
-
-          // Update destination with source's paid status
-          await _updateTableItemsInFirestore(
-            tableName,
-            tables[tableName]!,
-            sourcePaidStatus,
-          );
-          await _updateTableItemsInFirestore(sourceTable, [], false);
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Moved all items from $sourceTable to $tableName'),
-            ),
-          );
+        if (_tableHasOrderItems(tableName)) {
+          await _showTableDragBlockedDialog(destinationTable: tableName);
+          return;
         }
+
+        final sourcePaidStatus = tableIsPaid[sourceTable] == true;
+
+        final sourceGroups = tables[sourceTable]!;
+        final destGroups = tables[tableName]!;
+
+        setState(() {
+          // Append deep copy of source groups to destination
+          final copiedGroups = sourceGroups.map((group) {
+            return group
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList();
+          }).toList();
+
+          destGroups.addAll(copiedGroups);
+          sourceGroups.clear();
+          _syncFirestoreGroupIndices(tableName, destGroups.length);
+          _syncFirestoreGroupIndices(sourceTable, 0);
+        });
+
+        // Update destination with source's paid status
+        await _updateTableItemsInFirestore(
+          tableName,
+          tables[tableName]!,
+          sourcePaidStatus,
+        );
+        await _updateTableItemsInFirestore(sourceTable, [], false);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Moved all items from $sourceTable to $tableName'),
+          ),
+        );
       },
       builder: (context, candidateData, rejectedData) {
         return LongPressDraggable<String>(
