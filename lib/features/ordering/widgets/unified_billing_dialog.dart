@@ -11,6 +11,7 @@ import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/transactions/repositories/transactions_repository.dart';
 import 'package:demo/features/zomato/services/imagekit_settings.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 const _dialogNavy = Color(0xFF1A3A5C);
@@ -142,6 +143,7 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
   void initState() {
     super.initState();
     _items = widget.items.map((e) => Map<String, dynamic>.from(e)).toList();
+    customerNameController.text = widget.tableName;
     _updatePaymentAmounts();
   }
 
@@ -302,6 +304,7 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
 
       receiptData = FoodBillPdfData(
         tableName: widget.tableName,
+        customerName: customerNameController.text.trim(),
         items: confirmedItems,
         subtotal: _subtotal.round(),
         tax: taxAmount,
@@ -737,6 +740,28 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                       ),
                     ],
                     const Divider(height: 24, color: _dialogBorder),
+                    _label('Customer Name'),
+                    TextField(
+                      controller: customerNameController,
+                      decoration: _inputDecoration('Customer name'),
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: 12),
+                    _label('Mobile Number'),
+                    TextField(
+                      controller: mobileController,
+                      decoration: _inputDecoration(
+                        receiptAction == BillReceiptAction.shareWhatsApp
+                            ? '10-digit mobile (required for WhatsApp)'
+                            : '10-digit mobile (optional)',
+                      ),
+                      keyboardType: TextInputType.phone,
+                      maxLength: 12,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
+                    ),
+                    const Divider(height: 24, color: _dialogBorder),
                     _label('Payment Mode'),
                     Row(
                       children: [
@@ -860,21 +885,6 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                         ),
                       ],
                     ),
-                    if (receiptAction == BillReceiptAction.shareWhatsApp) ...[
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: mobileController,
-                        decoration: _inputDecoration('10-digit mobile'),
-                        keyboardType: TextInputType.phone,
-                        maxLength: 10,
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: customerNameController,
-                        decoration: _inputDecoration('Customer name'),
-                        textCapitalization: TextCapitalization.words,
-                      ),
-                    ],
                   ],
                 ),
               ),

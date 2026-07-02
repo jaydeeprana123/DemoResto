@@ -31,6 +31,7 @@ class FoodBillPdfData {
     required this.tax,
     required this.discount,
     required this.total,
+    this.customerName,
     this.extra = 0,
     this.invoiceNumber,
     this.cashAmount = 0,
@@ -42,6 +43,7 @@ class FoodBillPdfData {
   });
 
   final String tableName;
+  final String? customerName;
   final List<Map<String, dynamic>> items;
   final int subtotal;
   final int tax;
@@ -55,6 +57,22 @@ class FoodBillPdfData {
   final double sgstPercentage;
   final int cgstAmount;
   final int sgstAmount;
+
+  /// Name printed on the receipt (customer field, else table name).
+  String get receiptCustomerName {
+    final customer = customerName?.trim();
+    if (customer != null && customer.isNotEmpty) return customer;
+    return tableName.trim();
+  }
+
+  /// Receipt line label: "Table:" for dine-in names, else "Customer Name:".
+  String get receiptCustomerLabelLine {
+    final name = receiptCustomerName;
+    if (name.toLowerCase().contains('table')) {
+      return 'Table: $name';
+    }
+    return 'Customer Name: $name';
+  }
 }
 
 class FoodBillPdfService {
@@ -275,11 +293,11 @@ class FoodBillPdfService {
   }
 
   static String _buildWhatsAppBillMessage(FoodBillPdfData data, String pdfUrl) {
-    final table = data.tableName.trim();
+    final customer = data.receiptCustomerName;
     final billId = data.invoiceNumber?.trim();
     final buffer = StringBuffer('Thank you for visiting Al-Haadi!\n\nBill');
-    if (table.isNotEmpty) {
-      buffer.write(' for $table');
+    if (customer.isNotEmpty) {
+      buffer.write(' for $customer');
     }
     if (billId != null && billId.isNotEmpty) {
       buffer.write(' ($billId)');
@@ -383,15 +401,15 @@ class FoodBillPdfService {
 
   /// File name: `{Table Name} - {Bill ID}.pdf`
   static String buildReceiptPdfFileName(FoodBillPdfData data) {
-    final tablePart = _sanitizeFileNamePart(data.tableName);
+    final namePart = _sanitizeFileNamePart(data.receiptCustomerName);
     final billPart = _sanitizeFileNamePart(
       data.invoiceNumber?.trim().isNotEmpty == true
           ? data.invoiceNumber!.trim()
           : 'receipt',
     );
 
-    if (tablePart.isEmpty) return '$billPart.pdf';
-    return '$tablePart - $billPart.pdf';
+    if (namePart.isEmpty) return '$billPart.pdf';
+    return '$namePart - $billPart.pdf';
   }
 
   static String _sanitizeFileNamePart(String value) {
@@ -608,7 +626,10 @@ class FoodBillPdfService {
                 ),
               ),
               pw.SizedBox(height: 6),
-              pw.Text('Table: ${data.tableName}', style: labelStyle()),
+              pw.Text(
+                data.receiptCustomerLabelLine,
+                style: labelStyle(),
+              ),
               pw.SizedBox(height: 4),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
