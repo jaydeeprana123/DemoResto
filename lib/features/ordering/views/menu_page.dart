@@ -437,7 +437,7 @@ class _MenuPageState extends State<MenuPage>
           ),
         ),
         content: Text(
-          forDecrement ? 'Remove which size?' : 'Select Half or Full',
+          forDecrement ? 'Remove which size?' : 'Select a size',
           style: TextStyle(
             fontFamily: fontMulishRegular,
             fontSize: 14,
