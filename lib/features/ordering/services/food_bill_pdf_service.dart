@@ -187,6 +187,9 @@ class FoodBillPdfService {
         await _deliverReceiptForced(data);
       case BillReceiptAction.shareWhatsApp:
         await _shareReceiptOnWhatsApp(data, whatsappPhone: whatsappPhone);
+      case BillReceiptAction.printAndShareWhatsApp:
+        await _deliverReceiptForced(data);
+        await _shareReceiptOnWhatsApp(data, whatsappPhone: whatsappPhone);
     }
   }
 

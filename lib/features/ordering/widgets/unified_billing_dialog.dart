@@ -227,7 +227,10 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
     if (_submitting) return;
 
     String? whatsappPhone;
-    if (receiptAction == BillReceiptAction.shareWhatsApp) {
+    final requiresWhatsApp =
+        receiptAction == BillReceiptAction.shareWhatsApp ||
+        receiptAction == BillReceiptAction.printAndShareWhatsApp;
+    if (requiresWhatsApp) {
       final phoneError =
           WhatsAppSharePhoneDialog.validatePhone(mobileController.text);
       if (phoneError != null) {
@@ -751,7 +754,9 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                     TextField(
                       controller: mobileController,
                       decoration: _inputDecoration(
-                        receiptAction == BillReceiptAction.shareWhatsApp
+                        receiptAction == BillReceiptAction.shareWhatsApp ||
+                                receiptAction ==
+                                    BillReceiptAction.printAndShareWhatsApp
                             ? '10-digit mobile (required for WhatsApp)'
                             : '10-digit mobile (optional)',
                       ),
@@ -872,7 +877,11 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                             () => receiptAction = BillReceiptAction.print,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
                         _selectBox(
                           selected:
                               receiptAction == BillReceiptAction.shareWhatsApp,
@@ -881,6 +890,17 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                           onTap: () => setState(
                             () => receiptAction =
                                 BillReceiptAction.shareWhatsApp,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _selectBox(
+                          selected: receiptAction ==
+                              BillReceiptAction.printAndShareWhatsApp,
+                          label: 'WhatsApp & Print',
+                          icon: Icons.print_rounded,
+                          onTap: () => setState(
+                            () => receiptAction =
+                                BillReceiptAction.printAndShareWhatsApp,
                           ),
                         ),
                       ],
