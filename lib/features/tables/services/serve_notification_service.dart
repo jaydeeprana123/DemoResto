@@ -1,5 +1,8 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:demo/features/kitchen/services/kitchen_web_bell_service.dart';
+import 'package:demo/features/kitchen/services/kitchen_bell_sound.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
@@ -74,6 +77,10 @@ class ServeNotificationService extends GetxService {
   }
 
   Future<void> _playServeSound() async {
+    if (kIsWeb) {
+      await KitchenWebBellService.play(KitchenBellSound.serve);
+      return;
+    }
     try {
       await _servePlayer.stop();
       await _servePlayer.setReleaseMode(ReleaseMode.stop);

@@ -46,12 +46,13 @@ class SettingsBusinessSectionPage extends StatelessWidget {
                     subtitle: 'View sales and payment history',
                     onTap: () => Get.to(() => const TransactionsPage()),
                   ),
-                SettingsNavRow(
-                  icon: Icons.payments_outlined,
-                  title: 'Expenses',
-                  subtitle: 'Track and add business expenses',
-                  onTap: () => Get.to(() => const ExpensesPage()),
-                ),
+                if (isAdmin)
+                  SettingsNavRow(
+                    icon: Icons.payments_outlined,
+                    title: 'Expenses',
+                    subtitle: 'Track and add business expenses',
+                    onTap: () => Get.to(() => const ExpensesPage()),
+                  ),
                 if (isAdmin)
                   SettingsNavRow(
                     icon: Icons.file_download_outlined,

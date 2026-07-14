@@ -518,7 +518,8 @@ class _MenuPageState extends State<MenuPage>
   Widget _buildCategorySidebar(List<String> categories, int activeIndex) {
     if (categories.isEmpty) return const SizedBox.shrink();
 
-    final sidebarWidth = useWideMenuLayout ? 132.0 : 108.0;
+    final sidebarWidth =
+        useWideMenuLayoutFor(MediaQuery.sizeOf(this.context)) ? 132.0 : 108.0;
 
     return Container(
       width: sidebarWidth,
@@ -2007,8 +2008,10 @@ class _MenuPageState extends State<MenuPage>
     return total;
   }
 
-  bool get _useWebSideCart =>
-      useWideMenuLayout && !widget.isFromFinalBilling;
+  bool _useWebSideCart([BuildContext? context]) {
+    final size = MediaQuery.sizeOf(context ?? this.context);
+    return useWideMenuLayoutFor(size) && !widget.isFromFinalBilling;
+  }
 
   List<Map<String, dynamic>> _getSelectedItems() {
     final selectedItems = <Map<String, dynamic>>[];
@@ -2280,7 +2283,7 @@ class _MenuPageState extends State<MenuPage>
               ? _buildGlobalSearchList()
               : _buildSidebarMenuLayout(),
         ),
-        if (!_useWebSideCart && _hasOrderItems)
+        if (!_useWebSideCart() && _hasOrderItems)
           InkWell(
             onTap: _openCartPage,
             child: Container(
@@ -2459,7 +2462,7 @@ class _MenuPageState extends State<MenuPage>
             ),
         ],
       ),
-      body: _useWebSideCart
+      body: _useWebSideCart()
           ? Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

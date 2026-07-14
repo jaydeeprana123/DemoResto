@@ -1,12 +1,18 @@
 {
     "name": "Flavor Flow",
     "short_name": "Flavor Flow",
-    "start_url": ".",
+    "id": "/",
+    "start_url": "/",
+    "scope": "/",
     "display": "standalone",
+    "display_override": [
+        "standalone",
+        "window-controls-overlay"
+    ],
     "background_color": "#FFFFFF",
     "theme_color": "#2B5494",
     "description": "Flavor Flow restaurant POS.",
-    "orientation": "portrait-primary",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

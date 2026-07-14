@@ -28,6 +28,8 @@ import 'package:demo/features/kitchen/widgets/kitchen_cross_table_pending_sheet.
 import 'package:demo/features/kitchen/widgets/kitchen_new_order_dialog.dart';
 import 'package:demo/features/kitchen/widgets/kitchen_preparation_orders_list.dart';
 import 'package:demo/features/kitchen/widgets/kitchen_theme.dart';
+import 'package:demo/features/kitchen/services/kitchen_web_bell_service.dart';
+import 'package:demo/features/kitchen/services/kitchen_bell_sound.dart';
 import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
@@ -395,19 +397,24 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         : true;
 
     if (shouldPlaySound && _canRingBell) {
-      final servedItemKeyIds = TableServeChangeUtils.newlyServedTableItemKeyIds(
-        currentGroup?.docId ?? '',
-        previousGroup?.items ?? const [],
-        currentGroup?.items ?? const [],
-      );
-      unawaited(
-        Get.find<ServeNotificationService>().tryPlayServeAlert(
-          eventKey: serveEventKey,
-          kitchenEligible: true,
-          dashboardEligible: false,
-          servedItemKeyIds: servedItemKeyIds,
-        ),
-      );
+      if (kIsWeb) {
+        unawaited(_playWebKitchenBell(KitchenBellSound.serve));
+      } else {
+        final servedItemKeyIds =
+            TableServeChangeUtils.newlyServedTableItemKeyIds(
+          currentGroup?.docId ?? '',
+          previousGroup?.items ?? const [],
+          currentGroup?.items ?? const [],
+        );
+        unawaited(
+          Get.find<ServeNotificationService>().tryPlayServeAlert(
+            eventKey: serveEventKey,
+            kitchenEligible: true,
+            dashboardEligible: false,
+            servedItemKeyIds: servedItemKeyIds,
+          ),
+        );
+      }
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -555,6 +562,19 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     });
   }
 
+  bool get _useWebBackgroundAlert =>
+      kIsWeb &&
+      KitchenSettings.backgroundOrderRingtoneEnabled.value &&
+      _isAppInBackground;
+
+  Future<void> _playWebKitchenBell(KitchenBellSound sound) async {
+    if (_useWebBackgroundAlert || _useAndroidLockedAlert) {
+      await KitchenBackgroundAlertService.playAlert(sound);
+      return;
+    }
+    await KitchenWebBellService.play(sound);
+  }
+
   bool get _useAndroidLockedAlert =>
       !kIsWeb &&
       defaultTargetPlatform == TargetPlatform.android &&
@@ -563,6 +583,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   void _playNotificationSound() async {
     if (!_canRingBell) return;
+    if (kIsWeb) {
+      await _playWebKitchenBell(KitchenBellSound.newOrder);
+      return;
+    }
     if (_useAndroidLockedAlert) {
       await KitchenBackgroundAlertService.playAlert(KitchenBellSound.newOrder);
       return;
@@ -595,6 +619,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     }
     _lastDeleteSoundAt = now;
 
+    if (kIsWeb) {
+      await _playWebKitchenBell(KitchenBellSound.delete);
+      return;
+    }
     if (_useAndroidLockedAlert) {
       await KitchenBackgroundAlertService.playAlert(KitchenBellSound.delete);
       return;
@@ -677,6 +705,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   // brand-new order's ring.
   void _playUpdateSound() async {
     if (!_canRingBell) return;
+    if (kIsWeb) {
+      await _playWebKitchenBell(KitchenBellSound.update);
+      return;
+    }
     if (_useAndroidLockedAlert) {
       await KitchenBackgroundAlertService.playAlert(KitchenBellSound.update);
       return;
@@ -805,6 +837,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(_initAudioPlayers());
+    if (kIsWeb) {
+      unawaited(KitchenWebBellService.ensureInitialized());
+    }
     KitchenSettings.load().then((_) async {
       await Get.find<MenuCacheService>().loadFromCacheOnly();
       _menuFilter.invalidate();

@@ -293,9 +293,12 @@ class FoodBillPdfService {
   }
 
   static String _buildWhatsAppBillMessage(FoodBillPdfData data, String pdfUrl) {
+    final restaurantName = _headerRestaurantName;
     final customer = data.receiptCustomerName;
     final billId = data.invoiceNumber?.trim();
-    final buffer = StringBuffer('Thank you for visiting Al-Haadi!\n\nBill');
+    final buffer = StringBuffer(
+      'Thank you for visiting $restaurantName!\n\nBill',
+    );
     if (customer.isNotEmpty) {
       buffer.write(' for $customer');
     }
@@ -304,8 +307,10 @@ class FoodBillPdfService {
     }
     buffer.writeln();
     buffer.write('\nDownload Bill PDF:\n$pdfUrl');
-    buffer.writeln('\n\nWe appreciate your visit and look forward to serving you again soon.');
-    buffer.write('\nRegards\nTeam Al-Haadi');
+    buffer.writeln(
+      '\n\nWe appreciate your visit and look forward to serving you again soon.',
+    );
+    buffer.write('\nRegards\nTeam $restaurantName');
     return buffer.toString();
   }
 
