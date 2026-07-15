@@ -17,9 +17,9 @@ class PresetMenu {
   int get categoryCount => categories.length;
 
   int get itemCount => categories.fold<int>(
-        0,
-        (sum, category) => sum + ((category['items'] as List?)?.length ?? 0),
-      );
+    0,
+    (sum, category) => sum + ((category['items'] as List?)?.length ?? 0),
+  );
 }
 
 const List<PresetMenu> kPresetMenus = [
@@ -138,7 +138,11 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Peri Peri Alfaham', 'halfPrice': 320.0, 'fullPrice': 570.0},
       {'name': 'Honey Chilly Alfaham', 'halfPrice': 320.0, 'fullPrice': 570.0},
       {'name': 'Classic Alfaham', 'halfPrice': 320.0, 'fullPrice': 570.0},
-      {'name': 'Peri Peri Grill Chicken', 'halfPrice': 320.0, 'fullPrice': 570.0},
+      {
+        'name': 'Peri Peri Grill Chicken',
+        'halfPrice': 320.0,
+        'fullPrice': 570.0,
+      },
       {'name': 'Afghani Grill Chicken', 'halfPrice': 320.0, 'fullPrice': 570.0},
       {'name': 'Smoky Grill', 'halfPrice': 300.0, 'fullPrice': 550.0},
     ],
@@ -160,8 +164,16 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Chicken Fried Rice', 'halfPrice': 110.0, 'fullPrice': 170.0},
       {'name': 'Chicken Hakka Rice', 'halfPrice': 120.0, 'fullPrice': 190.0},
       {'name': 'Talmari Rice', 'halfPrice': 120.0, 'fullPrice': 190.0},
-      {'name': 'Chicken Alfaham Masala Rice', 'halfPrice': 120.0, 'fullPrice': 190.0},
-      {'name': 'Chicken Singapuri Rice', 'halfPrice': 120.0, 'fullPrice': 190.0},
+      {
+        'name': 'Chicken Alfaham Masala Rice',
+        'halfPrice': 120.0,
+        'fullPrice': 190.0,
+      },
+      {
+        'name': 'Chicken Singapuri Rice',
+        'halfPrice': 120.0,
+        'fullPrice': 190.0,
+      },
       {'name': 'Chicken Bombay Rice', 'halfPrice': 120.0, 'fullPrice': 190.0},
       {'name': 'Chicken Shezwan Rice', 'halfPrice': 120.0, 'fullPrice': 190.0},
       {'name': 'Chicken Garlic Rice', 'halfPrice': 120.0, 'fullPrice': 190.0},
@@ -176,13 +188,41 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
       {'name': 'Chicken Fried Noodles', 'halfPrice': 110.0, 'fullPrice': 170.0},
       {'name': 'Chicken Hakka Noodles', 'halfPrice': 120.0, 'fullPrice': 190.0},
       {'name': 'Talmari Noodles', 'halfPrice': 120.0, 'fullPrice': 190.0},
-      {'name': 'Chicken Alfaham Masala Noodles', 'halfPrice': 120.0, 'fullPrice': 190.0},
-      {'name': 'Chicken Singapuri Noodles', 'halfPrice': 120.0, 'fullPrice': 190.0},
-      {'name': 'Chicken Bombay Noodles', 'halfPrice': 120.0, 'fullPrice': 190.0},
-      {'name': 'Chicken Shezwan Noodles', 'halfPrice': 120.0, 'fullPrice': 190.0},
-      {'name': 'Chicken Garlic Noodles', 'halfPrice': 120.0, 'fullPrice': 190.0},
-      {'name': 'Chicken Chilli Noodles', 'halfPrice': 270.0, 'fullPrice': 370.0},
-      {'name': 'Chicken Lolipop Noodles', 'halfPrice': 270.0, 'fullPrice': 370.0},
+      {
+        'name': 'Chicken Alfaham Masala Noodles',
+        'halfPrice': 120.0,
+        'fullPrice': 190.0,
+      },
+      {
+        'name': 'Chicken Singapuri Noodles',
+        'halfPrice': 120.0,
+        'fullPrice': 190.0,
+      },
+      {
+        'name': 'Chicken Bombay Noodles',
+        'halfPrice': 120.0,
+        'fullPrice': 190.0,
+      },
+      {
+        'name': 'Chicken Shezwan Noodles',
+        'halfPrice': 120.0,
+        'fullPrice': 190.0,
+      },
+      {
+        'name': 'Chicken Garlic Noodles',
+        'halfPrice': 120.0,
+        'fullPrice': 190.0,
+      },
+      {
+        'name': 'Chicken Chilli Noodles',
+        'halfPrice': 270.0,
+        'fullPrice': 370.0,
+      },
+      {
+        'name': 'Chicken Lolipop Noodles',
+        'halfPrice': 270.0,
+        'fullPrice': 370.0,
+      },
       {'name': 'Egg Fried Noodles', 'halfPrice': 70.0, 'fullPrice': 120.0},
     ],
   },
@@ -190,22 +230,58 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
     'category': 'Veg Rice',
     'items': [
       {'name': 'Manchurian Fried Rice', 'halfPrice': 80.0, 'fullPrice': 140.0},
-      {'name': 'Manchurian Singapuri Rice', 'halfPrice': 90.0, 'fullPrice': 160.0},
+      {
+        'name': 'Manchurian Singapuri Rice',
+        'halfPrice': 90.0,
+        'fullPrice': 160.0,
+      },
       {'name': 'Manchurian Bombay Rice', 'halfPrice': 90.0, 'fullPrice': 160.0},
-      {'name': 'Manchurian Shezwan Rice', 'halfPrice': 90.0, 'fullPrice': 160.0},
+      {
+        'name': 'Manchurian Shezwan Rice',
+        'halfPrice': 90.0,
+        'fullPrice': 160.0,
+      },
       {'name': 'Manchurian Garlic Rice', 'halfPrice': 90.0, 'fullPrice': 160.0},
-      {'name': 'Manchurian Talmari Rice', 'halfPrice': 90.0, 'fullPrice': 160.0},
+      {
+        'name': 'Manchurian Talmari Rice',
+        'halfPrice': 90.0,
+        'fullPrice': 160.0,
+      },
     ],
   },
   {
     'category': 'Veg Noodles',
     'items': [
-      {'name': 'Manchurian Fried Noodle', 'halfPrice': 80.0, 'fullPrice': 140.0},
-      {'name': 'Manchurian Singapuri Noodle', 'halfPrice': 90.0, 'fullPrice': 160.0},
-      {'name': 'Manchurian Bombay Noodle', 'halfPrice': 90.0, 'fullPrice': 160.0},
-      {'name': 'Manchurian Shezwan Noodle', 'halfPrice': 90.0, 'fullPrice': 160.0},
-      {'name': 'Manchurian Garlic Noodle', 'halfPrice': 90.0, 'fullPrice': 160.0},
-      {'name': 'Manchurian Talmari Noodle', 'halfPrice': 90.0, 'fullPrice': 160.0},
+      {
+        'name': 'Manchurian Fried Noodle',
+        'halfPrice': 80.0,
+        'fullPrice': 140.0,
+      },
+      {
+        'name': 'Manchurian Singapuri Noodle',
+        'halfPrice': 90.0,
+        'fullPrice': 160.0,
+      },
+      {
+        'name': 'Manchurian Bombay Noodle',
+        'halfPrice': 90.0,
+        'fullPrice': 160.0,
+      },
+      {
+        'name': 'Manchurian Shezwan Noodle',
+        'halfPrice': 90.0,
+        'fullPrice': 160.0,
+      },
+      {
+        'name': 'Manchurian Garlic Noodle',
+        'halfPrice': 90.0,
+        'fullPrice': 160.0,
+      },
+      {
+        'name': 'Manchurian Talmari Noodle',
+        'halfPrice': 90.0,
+        'fullPrice': 160.0,
+      },
       {'name': 'Hakka Noodle', 'halfPrice': 80.0, 'fullPrice': 140.0},
     ],
   },
@@ -213,8 +289,16 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
     'category': 'Mix Bhel',
     'items': [
       {'name': 'Chicken Fried Bhel', 'halfPrice': 110.0, 'fullPrice': 170.0},
-      {'name': 'Chicken Alfaham Masala Bhel', 'halfPrice': 120.0, 'fullPrice': 190.0},
-      {'name': 'Chicken Singapuri Bhel', 'halfPrice': 120.0, 'fullPrice': 190.0},
+      {
+        'name': 'Chicken Alfaham Masala Bhel',
+        'halfPrice': 120.0,
+        'fullPrice': 190.0,
+      },
+      {
+        'name': 'Chicken Singapuri Bhel',
+        'halfPrice': 120.0,
+        'fullPrice': 190.0,
+      },
       {'name': 'Chicken Bombay Bhel', 'halfPrice': 120.0, 'fullPrice': 190.0},
       {'name': 'Chicken Shezwan Bhel', 'halfPrice': 120.0, 'fullPrice': 190.0},
       {'name': 'Chicken Garlic Bhel', 'halfPrice': 120.0, 'fullPrice': 190.0},
@@ -298,18 +382,7 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
 ];
 
 const List<Map<String, dynamic>> _arabianGrillMenu = [
-  {
-    'category': 'Veg & Nonveg Soup',
-    'items': [
-      {'name': 'Chicken Lemon Coriander Soup', 'price': 120.0},
-      {'name': 'Chicken Manchow Soup', 'price': 120.0},
-      {'name': 'Chicken Dragon Soup', 'price': 130.0},
-      {'name': 'Chicken Clear Soup', 'price': 120.0},
-      {'name': 'Chicken Hot & Sour Soup', 'price': 120.0},
-      {'name': 'Grill Special Soup', 'price': 150.0},
-      {'name': 'Royal Chicken Soup', 'price': 140.0},
-    ],
-  },
+
   {
     'category': 'Papad',
     'items': [
@@ -321,7 +394,7 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
   {
     'category': 'French Fries',
     'items': [
-      {'name': 'Salted French Fries', 'price': 80.0},
+      {'name': 'French Fries', 'price': 80.0},
       {'name': 'Mayo Fries', 'price': 90.0},
       {'name': 'Peri Peri Fries', 'price': 90.0},
       {'name': 'Cheesy Fries', 'price': 110.0},
@@ -332,6 +405,7 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
     'category': 'Chicken Shawarma',
     'items': [
       {'name': 'Special Grilled Shawarma', 'price': 170.0},
+      {'name': 'Only Chicken Samoli', 'price': 80.0},
       {'name': 'Only Chicken Shawarma', 'price': 140.0},
       {
         'name': 'Container Shawarma',
@@ -405,7 +479,11 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
     'category': 'Chicken Tandoori (Sigdi)',
     'items': [
       {'name': 'Grilled Chicken', 'halfPrice': 280.0, 'fullPrice': 500.0},
-      {'name': 'Zaafraani Grill Chicken', 'halfPrice': 400.0, 'fullPrice': 700.0},
+      {
+        'name': 'Zaafraani Grill Chicken',
+        'halfPrice': 400.0,
+        'fullPrice': 700.0,
+      },
       {
         'name': 'Chicken Al Faham',
         'variants': [
@@ -467,28 +545,59 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
   {
     'category': 'Fried Chicken Feast',
     'items': [
-      {'name': 'Crispy Fried Chicken (3 pcs)', 'price': 270.0},
-      {'name': 'Crispy Fried Chicken (6 pcs)', 'price': 500.0},
+      {
+        'name': 'Crispy Fried Chicken',
+        'variants': [
+          {'label': '3 pcs', 'price': 270.0},
+          {'label': '6 pcs', 'price': 500.0},
+        ],
+      },
+
       {'name': 'Chicken Popcorn (10 pcs)', 'price': 200.0},
-      {'name': 'Fried Strips (6 pcs)', 'price': 200.0},
-      {'name': 'Fried Strips (12 pcs)', 'price': 380.0},
+      {
+        'name': 'Fried Strips',
+        'variants': [
+          {'label': '6 pcs', 'price': 200.0},
+          {'label': '12 pcs', 'price': 380.0},
+        ],
+      },
     ],
   },
   {
     'category': 'Mughlai Gravy - Chicken',
     'items': [
       {'name': 'Chicken Masala', 'halfPrice': 220.0, 'fullPrice': 430.0},
-      {'name': 'Butter Chicken Boneless', 'halfPrice': 220.0, 'fullPrice': 430.0},
-      {'name': 'Butter Chicken With Bone', 'halfPrice': 200.0, 'fullPrice': 380.0},
+      {
+        'name': 'Butter Chicken Boneless',
+        'halfPrice': 220.0,
+        'fullPrice': 430.0,
+      },
+      {
+        'name': 'Butter Chicken With Bone',
+        'halfPrice': 200.0,
+        'fullPrice': 380.0,
+      },
       {'name': 'Murgh Musallam', 'halfPrice': 400.0, 'fullPrice': 680.0},
       {'name': 'Murgh Bhuna', 'halfPrice': 400.0, 'fullPrice': 680.0},
       {'name': 'Methi Chicken', 'halfPrice': 220.0, 'fullPrice': 430.0},
       {'name': 'Chicken Tikka Masala', 'halfPrice': 220.0, 'fullPrice': 430.0},
-      {'name': 'Chicken Afghani Masala', 'halfPrice': 220.0, 'fullPrice': 430.0},
+      {
+        'name': 'Chicken Afghani Masala',
+        'halfPrice': 220.0,
+        'fullPrice': 430.0,
+      },
       {'name': 'Chicken Haandi', 'halfPrice': 220.0, 'fullPrice': 430.0},
       {'name': 'Kashmiri Chicken', 'halfPrice': 220.0, 'fullPrice': 430.0},
-      {'name': 'Tandoori Chicken Masala', 'halfPrice': 400.0, 'fullPrice': 680.0},
-      {'name': 'Special Arbian Chicken Masala', 'halfPrice': 280.0, 'fullPrice': 530.0},
+      {
+        'name': 'Tandoori Chicken Masala',
+        'halfPrice': 400.0,
+        'fullPrice': 680.0,
+      },
+      {
+        'name': 'Special Arbian Chicken Masala',
+        'halfPrice': 280.0,
+        'fullPrice': 530.0,
+      },
     ],
   },
   {
@@ -534,35 +643,95 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
     ],
   },
   {
-    'category': 'Chinese Rice & Noodles - Chicken',
+    'category': 'Chinese Rice - Chicken',
     'items': [
-      {'name': 'Chicken Fried Rice & Noodles', 'halfPrice': 120.0, 'fullPrice': 180.0},
-      {'name': 'Chicken Schezwan Rice & Noodles', 'halfPrice': 130.0, 'fullPrice': 200.0},
-      {'name': 'Chicken Triple Rice & Noodles', 'price': 300.0},
-      {'name': 'Chicken 3 Triple Rice & Noodles', 'price': 350.0},
-      {'name': 'Chicken Lemon Rice & Noodles', 'halfPrice': 130.0, 'fullPrice': 200.0},
-      {'name': 'Chicken Korean Rice & Noodles', 'halfPrice': 130.0, 'fullPrice': 200.0},
-      {'name': 'Chicken Singapore Rice & Noodles', 'halfPrice': 130.0, 'fullPrice': 200.0},
-      {'name': 'Chicken Mongolian Rice & Noodles', 'halfPrice': 130.0, 'fullPrice': 200.0},
-      {'name': 'Chicken Soya Stick Rice & Noodles', 'price': 290.0},
-      {'name': 'Chicken Chopper Rice & Noodles', 'price': 290.0},
-      {'name': 'Chicken Chilly Rice & Noodles', 'price': 290.0},
-      {'name': 'Chicken Crispy Rice & Noodles', 'price': 290.0},
-      {'name': 'Chicken Chipotle Rice & Noodles', 'price': 320.0},
-      {'name': 'Chicken Hot Spot Rice & Noodles', 'price': 400.0},
-      {'name': 'Chicken 1000 Rice & Noodles', 'price': 400.0},
-      {'name': 'Chicken Khabsa Rice & Noodles', 'price': 375.0},
+      {'name': 'Chicken Fried Rice', 'halfPrice': 120.0, 'fullPrice': 180.0},
+      {'name': 'Chicken Schezwan Rice', 'halfPrice': 130.0, 'fullPrice': 200.0},
+      {'name': 'Chicken Triple Rice', 'price': 300.0},
+      {'name': 'Chicken 3 Triple Rice', 'price': 350.0},
+      {'name': 'Chicken Lemon Rice', 'halfPrice': 130.0, 'fullPrice': 200.0},
+      {'name': 'Chicken Korean Rice', 'halfPrice': 130.0, 'fullPrice': 200.0},
+      {
+        'name': 'Chicken Singapore Rice',
+        'halfPrice': 130.0,
+        'fullPrice': 200.0,
+      },
+      {
+        'name': 'Chicken Mongolian Rice',
+        'halfPrice': 130.0,
+        'fullPrice': 200.0,
+      },
+      {'name': 'Chicken Soya Stick Rice', 'price': 290.0},
+      {'name': 'Chicken Chopper Rice', 'price': 290.0},
+      {'name': 'Chicken Chilly Rice', 'price': 290.0},
+      {'name': 'Chicken Crispy Rice', 'price': 290.0},
+      {'name': 'Chicken Chipotle Rice', 'price': 320.0},
+      {'name': 'Chicken Hot Spot Rice', 'price': 400.0},
+      {'name': 'Chicken 1000 Rice', 'price': 400.0},
+      {'name': 'Chicken Khabsa Rice', 'price': 375.0},
     ],
   },
+
   {
-    'category': 'Chinese Rice & Noodles - Veg',
+    'category': 'Chinese Noodles - Chicken',
     'items': [
-      {'name': 'Manchurian Fried Rice & Noodles', 'halfPrice': 100.0, 'fullPrice': 170.0},
-      {'name': 'Paneer Rice & Noodles', 'halfPrice': 120.0, 'fullPrice': 200.0},
-      {'name': 'Arabian Plain Rice & Noodles', 'price': 70.0},
-      {'name': 'Jeera Rice & Noodles', 'price': 80.0},
+      {'name': 'Chicken Fried Noodles', 'halfPrice': 120.0, 'fullPrice': 180.0},
+      {
+        'name': 'Chicken Schezwan Noodles',
+        'halfPrice': 130.0,
+        'fullPrice': 200.0,
+      },
+      {'name': 'Chicken Triple Noodles', 'price': 300.0},
+      {'name': 'Chicken 3 Triple Noodles', 'price': 350.0},
+      {'name': 'Chicken Lemon Noodles', 'halfPrice': 130.0, 'fullPrice': 200.0},
+      {
+        'name': 'Chicken Korean Noodles',
+        'halfPrice': 130.0,
+        'fullPrice': 200.0,
+      },
+      {
+        'name': 'Chicken Singapore Noodles',
+        'halfPrice': 130.0,
+        'fullPrice': 200.0,
+      },
+      {
+        'name': 'Chicken Mongolian Noodles',
+        'halfPrice': 130.0,
+        'fullPrice': 200.0,
+      },
+      {'name': 'Chicken Soya Stick Noodles', 'price': 290.0},
+      {'name': 'Chicken Chopper Noodles', 'price': 290.0},
+      {'name': 'Chicken Chilly Noodles', 'price': 290.0},
+      {'name': 'Chicken Crispy Noodles', 'price': 290.0},
+      {'name': 'Chicken Chipotle Noodles', 'price': 320.0},
+      {'name': 'Chicken Khabsa Noodles', 'price': 375.0},
     ],
   },
+
+  {
+    'category': 'Chinese Rice - Veg',
+    'items': [
+      {'name': 'Manchurian Fried Rice', 'halfPrice': 100.0, 'fullPrice': 170.0},
+      {'name': 'Paneer Rice', 'halfPrice': 120.0, 'fullPrice': 200.0},
+      {'name': 'Arabian Plain Rice', 'price': 70.0},
+      {'name': 'Jeera Rice', 'price': 80.0},
+    ],
+  },
+
+  {
+    'category': 'Chinese Noodles - Veg',
+    'items': [
+      {
+        'name': 'Manchurian Fried Noodles',
+        'halfPrice': 100.0,
+        'fullPrice': 170.0,
+      },
+
+      {'name': 'Arabian Plain Noodles', 'price': 70.0},
+
+    ],
+  },
+
   {
     'category': 'Special Aap Ke Liye',
     'items': [
@@ -615,12 +784,14 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
       {
         'name': 'Crispy Snacks',
         'price': 320.0,
-        'includes': 'Crispy Chicken (1pc) + Al-Faham (1pc) + Soft Drink (250ml)',
+        'includes':
+            'Crispy Chicken (1pc) + Al-Faham (1pc) + Soft Drink (250ml)',
       },
       {
         'name': 'Dinner Delite',
         'price': 630.0,
-        'includes': 'Crispy Chicken (3pc) + Al-Faham (Half) + Fries + Soft Drink (250ml)',
+        'includes':
+            'Crispy Chicken (3pc) + Al-Faham (Half) + Fries + Soft Drink (250ml)',
       },
       {
         'name': 'Mixed Pack',
@@ -648,17 +819,20 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
       {
         'name': 'Combo 1',
         'price': 230.0,
-        'includes': 'Fish Popcorn (6pc) + Samoli Shawarma (2) + Soft Drink (250ml)',
+        'includes':
+            'Fish Popcorn (6pc) + Samoli Shawarma (2) + Soft Drink (250ml)',
       },
       {
         'name': 'Combo 2',
         'price': 320.0,
-        'includes': 'Grilled Strips (6pcs) + Samoli Shawarma (2) + Soft Drink (250ml)',
+        'includes':
+            'Grilled Strips (6pcs) + Samoli Shawarma (2) + Soft Drink (250ml)',
       },
       {
         'name': 'Combo 3',
         'price': 430.0,
-        'includes': 'Fish Tikka Grilled (6pcs) + Samoli Shawarma (2) + Soft Drink (250ml)',
+        'includes':
+            'Fish Tikka Grilled (6pcs) + Samoli Shawarma (2) + Soft Drink (250ml)',
       },
       {
         'name': 'Combo 4',
@@ -674,6 +848,41 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
       {'name': 'Shahi Chicken Biryani', 'price': 200.0},
       {'name': 'Tikka Biryani', 'price': 350.0},
       {'name': 'Sheek Biryani', 'price': 350.0},
+    ],
+  },
+
+  {
+    'category': 'Veg & Nonveg Soup',
+    'items': [
+      {'name': 'Chicken Lemon Coriander Soup', 'price': 120.0},
+      {'name': 'Chicken Manchow Soup', 'price': 120.0},
+      {'name': 'Chicken Dragon Soup', 'price': 130.0},
+      {'name': 'Chicken Clear Soup', 'price': 120.0},
+      {'name': 'Chicken Hot & Sour Soup', 'price': 120.0},
+      {'name': 'Grill Special Soup', 'price': 150.0},
+      {'name': 'Royal Chicken Soup', 'price': 140.0},
+    ],
+  },
+
+  {
+    'category': 'Cold Drinks',
+    'items': [
+      {
+        'name': 'Water Bottle',
+        'variants': [
+          {'label': 'S', 'price': 10.0},
+          {'label': 'L', 'price': 20.0},
+        ],
+      },
+
+      {
+        'name': 'Campa',
+        'variants': [
+          {'label': 'S', 'price': 10.0},
+          {'label': 'M', 'price': 20.0},
+          {'label': 'L', 'price': 40.0},
+        ],
+      },
     ],
   },
 ];
