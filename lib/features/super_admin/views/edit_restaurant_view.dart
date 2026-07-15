@@ -23,6 +23,7 @@ class _EditRestaurantViewState extends State<EditRestaurantView> {
   late final TextEditingController _addressCtrl;
   late final TextEditingController _mobile1Ctrl;
   late final TextEditingController _mobile2Ctrl;
+  late final TextEditingController _mobile3Ctrl;
 
   Uint8List? _logoBytes;
   bool _removeLogo = false;
@@ -36,6 +37,7 @@ class _EditRestaurantViewState extends State<EditRestaurantView> {
     _addressCtrl = TextEditingController(text: restaurant.address ?? '');
     _mobile1Ctrl = TextEditingController(text: restaurant.mobile1 ?? '');
     _mobile2Ctrl = TextEditingController(text: restaurant.mobile2 ?? '');
+    _mobile3Ctrl = TextEditingController(text: restaurant.mobile3 ?? '');
     _subscriptionEnd = restaurant.subscriptionEnd;
   }
 
@@ -45,6 +47,7 @@ class _EditRestaurantViewState extends State<EditRestaurantView> {
     _addressCtrl.dispose();
     _mobile1Ctrl.dispose();
     _mobile2Ctrl.dispose();
+    _mobile3Ctrl.dispose();
     super.dispose();
   }
 
@@ -84,6 +87,7 @@ class _EditRestaurantViewState extends State<EditRestaurantView> {
       address: _addressCtrl.text,
       mobile1: _mobile1Ctrl.text,
       mobile2: _mobile2Ctrl.text,
+      mobile3: _mobile3Ctrl.text,
       logoBytes: _logoBytes,
       removeLogo: _removeLogo,
       subscriptionEnd: _subscriptionEnd,
@@ -155,6 +159,7 @@ class _EditRestaurantViewState extends State<EditRestaurantView> {
               RestaurantMobileFields(
                 mobile1Controller: _mobile1Ctrl,
                 mobile2Controller: _mobile2Ctrl,
+                mobile3Controller: _mobile3Ctrl,
               ),
               const SizedBox(height: 16),
               InputDecorator(

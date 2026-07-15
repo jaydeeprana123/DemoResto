@@ -62,6 +62,7 @@ class SuperAdminController extends GetxController {
     String? address,
     required String mobile1,
     String? mobile2,
+    String? mobile3,
     Uint8List? logoBytes,
     required int subscriptionYears,
   }) async {
@@ -69,6 +70,7 @@ class SuperAdminController extends GetxController {
       name: name,
       mobile1: mobile1,
       mobile2: mobile2,
+      mobile3: mobile3,
     );
     if (validationError != null) return validationError;
 
@@ -80,6 +82,9 @@ class SuperAdminController extends GetxController {
         mobile1: normalizeRestaurantMobile(mobile1),
         mobile2: mobile2 != null && mobile2.trim().isNotEmpty
             ? normalizeRestaurantMobile(mobile2)
+            : null,
+        mobile3: mobile3 != null && mobile3.trim().isNotEmpty
+            ? normalizeRestaurantMobile(mobile3)
             : null,
         subscriptionYears: subscriptionYears,
       );
@@ -96,6 +101,9 @@ class SuperAdminController extends GetxController {
           mobile1: normalizeRestaurantMobile(mobile1),
           mobile2: mobile2 != null && mobile2.trim().isNotEmpty
               ? normalizeRestaurantMobile(mobile2)
+              : null,
+          mobile3: mobile3 != null && mobile3.trim().isNotEmpty
+              ? normalizeRestaurantMobile(mobile3)
               : null,
           logoUrl: logoUrl,
         );
@@ -114,6 +122,7 @@ class SuperAdminController extends GetxController {
     String? address,
     required String mobile1,
     String? mobile2,
+    String? mobile3,
     Uint8List? logoBytes,
     bool removeLogo = false,
     DateTime? subscriptionEnd,
@@ -122,6 +131,7 @@ class SuperAdminController extends GetxController {
       name: name,
       mobile1: mobile1,
       mobile2: mobile2,
+      mobile3: mobile3,
     );
     if (validationError != null) return validationError;
 
@@ -142,6 +152,9 @@ class SuperAdminController extends GetxController {
         mobile1: normalizeRestaurantMobile(mobile1),
         mobile2: mobile2 != null && mobile2.trim().isNotEmpty
             ? normalizeRestaurantMobile(mobile2)
+            : null,
+        mobile3: mobile3 != null && mobile3.trim().isNotEmpty
+            ? normalizeRestaurantMobile(mobile3)
             : null,
         logoUrl: logoUrl,
       );

@@ -21,6 +21,7 @@ class SuperAdminRepository {
     String? address,
     required String mobile1,
     String? mobile2,
+    String? mobile3,
     String? logoUrl,
     required int subscriptionYears,
   }) async {
@@ -39,6 +40,7 @@ class SuperAdminRepository {
       if (address != null && address.trim().isNotEmpty) 'address': address.trim(),
       'mobile1': mobile1.trim(),
       if (mobile2 != null && mobile2.trim().isNotEmpty) 'mobile2': mobile2.trim(),
+      if (mobile3 != null && mobile3.trim().isNotEmpty) 'mobile3': mobile3.trim(),
       if (logoUrl != null && logoUrl.trim().isNotEmpty) 'logoUrl': logoUrl.trim(),
       'status': RestaurantStatus.active.name,
       'subscriptionStart': Timestamp.fromDate(now),
@@ -55,6 +57,7 @@ class SuperAdminRepository {
     String? address,
     required String mobile1,
     String? mobile2,
+    String? mobile3,
     String? logoUrl,
   }) {
     final updates = <String, dynamic>{
@@ -75,6 +78,13 @@ class SuperAdminRepository {
       updates['mobile2'] = trimmedMobile2;
     } else {
       updates['mobile2'] = FieldValue.delete();
+    }
+
+    final trimmedMobile3 = mobile3?.trim();
+    if (trimmedMobile3 != null && trimmedMobile3.isNotEmpty) {
+      updates['mobile3'] = trimmedMobile3;
+    } else {
+      updates['mobile3'] = FieldValue.delete();
     }
 
     final trimmedLogo = logoUrl?.trim();

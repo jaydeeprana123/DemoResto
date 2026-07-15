@@ -126,11 +126,10 @@ class _RestaurantCard extends StatelessWidget {
               'Subscription: ${dateFmt.format(restaurant.subscriptionStart)} – ${dateFmt.format(restaurant.subscriptionEnd)}',
               style: MyFont.regular(13, color: Colors.grey.shade700),
             ),
-            if (restaurant.mobile1 != null && restaurant.mobile1!.isNotEmpty) ...[
+            if (restaurant.mobileNumbersLine.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
-                'Mobile: ${restaurant.mobile1}'
-                '${restaurant.mobile2 != null && restaurant.mobile2!.isNotEmpty ? ', ${restaurant.mobile2}' : ''}',
+                'Mobile: ${restaurant.mobileNumbersLine}',
                 style: MyFont.regular(13, color: Colors.grey.shade700),
               ),
             ],

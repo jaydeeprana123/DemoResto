@@ -19,6 +19,7 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
   final _addressCtrl = TextEditingController();
   final _mobile1Ctrl = TextEditingController();
   final _mobile2Ctrl = TextEditingController();
+  final _mobile3Ctrl = TextEditingController();
   int _subscriptionYears = 1;
   Uint8List? _logoBytes;
 
@@ -28,6 +29,7 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
     _addressCtrl.dispose();
     _mobile1Ctrl.dispose();
     _mobile2Ctrl.dispose();
+    _mobile3Ctrl.dispose();
     super.dispose();
   }
 
@@ -40,6 +42,7 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
       address: _addressCtrl.text,
       mobile1: _mobile1Ctrl.text,
       mobile2: _mobile2Ctrl.text,
+      mobile3: _mobile3Ctrl.text,
       logoBytes: _logoBytes,
       subscriptionYears: _subscriptionYears,
     );
@@ -102,6 +105,7 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
               RestaurantMobileFields(
                 mobile1Controller: _mobile1Ctrl,
                 mobile2Controller: _mobile2Ctrl,
+                mobile3Controller: _mobile3Ctrl,
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<int>(

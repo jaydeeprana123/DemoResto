@@ -545,21 +545,10 @@ class FoodBillPdfService {
     return _legacyRestaurantAddress;
   }
 
-  static List<String> get _headerRestaurantPhones {
-    final profile = _printProfile;
-    final phones = <String>[];
-    final mobile1 = profile?.displayMobile1;
-    if (mobile1 != null && mobile1.isNotEmpty) {
-      phones.add(mobile1);
-    }
-    final mobile2 = profile?.displayMobile2;
-    if (mobile2 != null && mobile2.isNotEmpty) {
-      phones.add(mobile2);
-    }
-    if (phones.isEmpty) {
-      phones.add(_legacyRestaurantPhone);
-    }
-    return phones;
+  static String get _headerRestaurantPhonesLine {
+    final line = _printProfile?.displayMobilesLine.trim();
+    if (line != null && line.isNotEmpty) return line;
+    return _legacyRestaurantPhone;
   }
 
   static Future<Uint8List> _buildPdf(
@@ -622,15 +611,11 @@ class FoodBillPdfService {
                   style: labelStyle(size: baseSize - 1),
                 ),
               ),
-              ..._headerRestaurantPhones.map(
-                (phone) => pw.Padding(
-                  padding: const pw.EdgeInsets.only(top: 2),
-                  child: pw.Center(
-                    child: pw.Text(
-                      phone,
-                      style: labelStyle(size: baseSize - 1),
-                    ),
-                  ),
+              pw.Center(
+                child: pw.Text(
+                  _headerRestaurantPhonesLine,
+                  textAlign: pw.TextAlign.center,
+                  style: labelStyle(size: baseSize - 1),
                 ),
               ),
               pw.SizedBox(height: 6),

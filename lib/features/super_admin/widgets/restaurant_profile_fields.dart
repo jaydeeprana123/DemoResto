@@ -100,11 +100,13 @@ class RestaurantMobileFields extends StatelessWidget {
     super.key,
     required this.mobile1Controller,
     required this.mobile2Controller,
+    required this.mobile3Controller,
     this.mobile1Required = true,
   });
 
   final TextEditingController mobile1Controller;
   final TextEditingController mobile2Controller;
+  final TextEditingController mobile3Controller;
   final bool mobile1Required;
 
   String? _validateMobile(String? value, {required bool required}) {
@@ -140,6 +142,17 @@ class RestaurantMobileFields extends StatelessWidget {
           ),
           validator: (value) => _validateMobile(value, required: false),
         ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: mobile3Controller,
+          keyboardType: TextInputType.phone,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(
+            labelText: 'Mobile Number 3 (optional)',
+            border: OutlineInputBorder(),
+          ),
+          validator: (value) => _validateMobile(value, required: false),
+        ),
       ],
     );
   }
@@ -170,13 +183,16 @@ String? validateRestaurantForm({
   required String name,
   required String mobile1,
   String? mobile2,
+  String? mobile3,
 }) {
   if (name.trim().isEmpty) return 'Restaurant name is required.';
   final mobile1Error = WhatsAppSharePhoneDialog.validatePhone(mobile1);
   if (mobile1Error != null) return mobile1Error;
-  if (mobile2 != null && mobile2.trim().isNotEmpty) {
-    final mobile2Error = WhatsAppSharePhoneDialog.validatePhone(mobile2);
-    if (mobile2Error != null) return mobile2Error;
+  for (final mobile in [mobile2, mobile3]) {
+    if (mobile != null && mobile.trim().isNotEmpty) {
+      final error = WhatsAppSharePhoneDialog.validatePhone(mobile);
+      if (error != null) return error;
+    }
   }
   return null;
 }

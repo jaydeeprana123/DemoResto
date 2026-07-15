@@ -12,6 +12,7 @@ class RestaurantPrintProfileService extends GetxService {
   String? _address;
   String? _mobile1;
   String? _mobile2;
+  String? _mobile3;
   String? _logoUrl;
   String? _loadedLogoUrl;
   pw.MemoryImage? _cachedLogo;
@@ -20,6 +21,7 @@ class RestaurantPrintProfileService extends GetxService {
   String? get address => _address;
   String? get mobile1 => _mobile1;
   String? get mobile2 => _mobile2;
+  String? get mobile3 => _mobile3;
   String? get logoUrl => _logoUrl;
   pw.MemoryImage? get logoImage => _cachedLogo;
 
@@ -35,11 +37,28 @@ class RestaurantPrintProfileService extends GetxService {
     return WhatsAppSharePhoneDialog.formatForDisplay(value);
   }
 
+  String? get displayMobile3 {
+    final value = _mobile3?.trim();
+    if (value == null || value.isEmpty) return null;
+    return WhatsAppSharePhoneDialog.formatForDisplay(value);
+  }
+
+  /// Formatted mobile numbers for receipt headers, comma-separated on one line.
+  String get displayMobilesLine {
+    final phones = [
+      displayMobile1,
+      displayMobile2,
+      displayMobile3,
+    ].whereType<String>().where((phone) => phone.isNotEmpty).toList();
+    return phones.join(', ');
+  }
+
   Future<void> loadFromRestaurant(Restaurant restaurant) async {
     _name = restaurant.name;
     _address = restaurant.address;
     _mobile1 = restaurant.mobile1;
     _mobile2 = restaurant.mobile2;
+    _mobile3 = restaurant.mobile3;
     _logoUrl = restaurant.logoUrl;
 
     if (_logoUrl != _loadedLogoUrl) {
@@ -72,6 +91,7 @@ class RestaurantPrintProfileService extends GetxService {
     _address = null;
     _mobile1 = null;
     _mobile2 = null;
+    _mobile3 = null;
     _logoUrl = null;
     _loadedLogoUrl = null;
     _cachedLogo = null;
