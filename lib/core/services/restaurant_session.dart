@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/models/restaurant.dart';
 import 'package:demo/core/models/user_profile.dart';
+import 'package:demo/core/services/restaurant_print_profile_service.dart';
 import 'package:demo/core/repositories/user_repository.dart';
 import 'package:demo/core/services/auth_bootstrap_service.dart';
 import 'package:get/get.dart';
@@ -92,6 +93,12 @@ class RestaurantSession extends GetxService {
     var restaurant = Restaurant.fromFirestore(restaurantId, doc.data()!);
     restaurant = await _syncSubscriptionStatus(restaurant);
     activeRestaurant.value = restaurant;
+
+    if (Get.isRegistered<RestaurantPrintProfileService>()) {
+      await Get.find<RestaurantPrintProfileService>().loadFromRestaurant(
+        restaurant,
+      );
+    }
   }
 
   Future<Restaurant> _syncSubscriptionStatus(Restaurant restaurant) async {
@@ -204,5 +211,8 @@ class RestaurantSession extends GetxService {
     profile.value = null;
     activeRestaurant.value = null;
     useLegacyCollections = false;
+    if (Get.isRegistered<RestaurantPrintProfileService>()) {
+      Get.find<RestaurantPrintProfileService>().clear();
+    }
   }
 }

@@ -1,16 +1,21 @@
+import 'dart:async';
+
 import 'package:demo/core/network/app_http_overrides.dart';
 import 'package:demo/bindings/app_binding.dart';
 import 'package:demo/core/firebase/firebase_options.dart';
 import 'package:demo/core/firestore/firestore_desktop_config.dart';
+import 'package:demo/core/pwa/widgets/pwa_install_host.dart';
 import 'package:demo/features/authentication/authentication.dart';
 import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/kitchen/services/kitchen_settings.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/features/shell/services/app_tab_settings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:get/get.dart';
+import 'package:demo/features/kitchen/services/kitchen_web_bell_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +31,10 @@ void main() async {
   );
   await AppTabSettings.load();
   await PrintSettings.load();
+  if (kIsWeb) {
+    unawaited(KitchenWebBellService.ensureInitialized());
+    unawaited(KitchenBackgroundAlertService.initialize());
+  }
 
   runApp(const MyApp());
 }
@@ -43,6 +52,9 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
+      builder: (context, child) {
+        return PwaInstallHost(child: child ?? const SizedBox.shrink());
+      },
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {

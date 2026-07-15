@@ -17,6 +17,7 @@ enum BillReceiptAction {
   withoutPrint,
   print,
   shareWhatsApp,
+  printAndShareWhatsApp,
 }
 
 class TableBillingSubmission {
@@ -545,6 +546,10 @@ Future<TableBillingDialogResult?> showTableBillingModeDialog(
                           BillReceiptAction.shareWhatsApp,
                           'Send bill link on WhatsApp',
                         ),
+                        receiptRadio(
+                          BillReceiptAction.printAndShareWhatsApp,
+                          'WhatsApp & Print',
+                        ),
                         // if (receiptAction == BillReceiptAction.shareWhatsApp)
                         //   Padding(
                         //     padding: const EdgeInsets.only(left: 36, top: 2),
@@ -665,6 +670,15 @@ Future<BillReceiptAction?> showBillReceiptOptionsDialog(
             subtitle: 'WhatsApp with ImageKit PDF link to any mobile number',
             color: const Color(0xFF25D366),
             onTap: () => Navigator.pop(ctx, BillReceiptAction.shareWhatsApp),
+          ),
+          const SizedBox(height: 10),
+          _ModeButton(
+            icon: Icons.print_rounded,
+            label: 'WhatsApp & Print',
+            subtitle: 'Print the bill and send WhatsApp PDF link',
+            color: const Color(0xFF128C7E),
+            onTap: () =>
+                Navigator.pop(ctx, BillReceiptAction.printAndShareWhatsApp),
           ),
           const SizedBox(height: 10),
           _ModeButton(

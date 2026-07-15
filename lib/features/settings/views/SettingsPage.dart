@@ -46,17 +46,21 @@ class _SettingsPageState extends State<SettingsPage> {
           );
         }
 
+        final isAdmin = _settings.isAdmin;
+
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
             SettingsGroupedSection(
               children: [
-                SettingsHubRow(
-                  icon: Icons.business_center_outlined,
-                  title: 'Business',
-                  subtitle: 'Dashboard, transactions, expenses & export',
-                  onTap: () => Get.to(() => const SettingsBusinessSectionPage()),
-                ),
+                if (isAdmin)
+                  SettingsHubRow(
+                    icon: Icons.business_center_outlined,
+                    title: 'Business',
+                    subtitle: 'Dashboard, transactions, expenses & export',
+                    onTap: () =>
+                        Get.to(() => const SettingsBusinessSectionPage()),
+                  ),
                 SettingsHubRow(
                   icon: Icons.restaurant_outlined,
                   title: 'Restaurant setup',

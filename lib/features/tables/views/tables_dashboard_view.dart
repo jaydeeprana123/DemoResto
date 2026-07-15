@@ -17,16 +17,18 @@ import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
 import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
+import 'package:demo/features/tables/services/dashboard_settings.dart';
+import 'package:demo/features/tables/services/serve_notification_service.dart';
 import 'package:demo/features/tables/services/shared_tables_snapshot_service.dart';
+import 'package:demo/features/tables/utils/table_serve_change_utils.dart';
 import 'package:demo/features/tables/services/dashboard_table_filter_settings.dart';
 import 'package:demo/features/tables/views/AddTablePage.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
 import 'package:demo/features/zomato/widgets/add_zomato_order_sheet.dart';
-import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
 import 'package:demo/features/zomato/services/zomato_clipboard_paste_service.dart';
 import 'package:demo/features/zomato/widgets/dashboard_zomato_paste_scope.dart';
 import 'package:demo/features/zomato/widgets/import_shared_zomato_sheet.dart';
-import 'package:demo/features/zomato/widgets/zomato_order_progress_dialog.dart';
+import 'package:demo/features/zomato/services/zomato_order_serve_service.dart';
 import 'package:demo/features/zomato/widgets/zomato_order_card_body.dart';
 import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
@@ -78,6 +80,11 @@ class _TableDashboardViewState extends State<TableDashboardView>
   bool _zomatoPasteInProgress = false;
   bool _mobileGridLayout = true;
   VoidCallback? _menuCacheListener;
+  final Set<String> _blinkingTableNames = {};
+  static final Color _serveBlinkColor = const Color(
+    TableServeChangeUtils.serveBlinkColor,
+  );
+  Timer? _dashboardServeBlinkTimer;
 
   @override
   void initState() {
@@ -95,6 +102,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
         _menuCacheListener!,
       );
     }
+    unawaited(DashboardSettings.load());
   }
 
   Future<void> _loadTableFilter() async {
@@ -134,6 +142,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
       );
     }
     WidgetsBinding.instance.removeObserver(this);
+    _dashboardServeBlinkTimer?.cancel();
     _gridScrollController.dispose();
     if (Get.isRegistered<SharedTablesSnapshotService>()) {
       Get.find<SharedTablesSnapshotService>().unsubscribe(this);
@@ -309,6 +318,97 @@ class _TableDashboardViewState extends State<TableDashboardView>
     }).toList();
   }
 
+  void _scheduleDashboardServeBlink(Set<String> tableNames) {
+    if (tableNames.isEmpty) return;
+
+    _dashboardServeBlinkTimer?.cancel();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _blinkingTableNames.addAll(tableNames));
+      _dashboardServeBlinkTimer = Timer(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        setState(() => _blinkingTableNames.removeAll(tableNames));
+      });
+    });
+  }
+
+  void _handleDashboardServeAlerts({
+    required Map<String, List<List<Map<String, dynamic>>>> updatedTables,
+    required Map<String, String> updatedDocIds,
+  }) {
+    final servedTables = <String>{};
+    final eventKeys = <String>[];
+    final servedItemKeyIds = <String>{};
+
+    for (final entry in updatedTables.entries) {
+      final tableName = entry.key;
+      // When a table filter is active, only react to serves on the selected
+      // tables so the ringtone (and blink) ignore non-selected tables.
+      if (_tableFilterSelection.isNotEmpty &&
+          !_tableFilterSelection.contains(tableName)) {
+        continue;
+      }
+      final previousGroups = tables[tableName];
+      if (previousGroups == null) continue;
+      if (!TableServeChangeUtils.isServeOnlyTableChange(
+        previousGroups,
+        entry.value,
+      )) {
+        continue;
+      }
+
+      servedTables.add(tableName);
+      final docId = updatedDocIds[tableName] ?? tableDocIds[tableName] ?? '';
+      final prevItems = _flattenDashboardItems(previousGroups);
+      final currItems = _flattenDashboardItems(entry.value);
+      final tableServedIds = TableServeChangeUtils.newlyServedTableItemKeyIds(
+        docId,
+        prevItems,
+        currItems,
+      );
+      servedItemKeyIds.addAll(tableServedIds);
+      eventKeys.add(
+        TableServeChangeUtils.eventKeyForDoc(docId, tableServedIds),
+      );
+    }
+
+    if (servedTables.isEmpty) return;
+
+    _scheduleDashboardServeBlink(servedTables);
+
+    if (widget.isTabActive && DashboardSettings.serveRingtoneEnabled.value) {
+      unawaited(
+        Get.find<ServeNotificationService>().tryPlayServeAlert(
+          eventKey: eventKeys.join('|'),
+          kitchenEligible: false,
+          dashboardEligible: true,
+          servedItemKeyIds: servedItemKeyIds,
+        ),
+      );
+    }
+  }
+
+  List<Map<String, dynamic>> _flattenDashboardItems(
+    List<List<Map<String, dynamic>>> groups,
+  ) {
+    final flat = <Map<String, dynamic>>[];
+    for (var gi = 0; gi < groups.length; gi++) {
+      for (var ii = 0; ii < groups[gi].length; ii++) {
+        final item = Map<String, dynamic>.from(groups[gi][ii]);
+        item.putIfAbsent(
+          '__firestoreGroupIndex',
+          () => TableItemServed.firestoreGroupIndexFor(item, gi),
+        );
+        item.putIfAbsent(
+          '__itemIndex',
+          () => TableItemServed.itemIndexInGroupFor(item, ii),
+        );
+        flat.add(item);
+      }
+    }
+    return flat;
+  }
+
   // Listen to Firestore tables collection changes - UPDATED for flattened structure
   void _listenToTables() {
     Get.find<SharedTablesSnapshotService>().subscribe(this, _onTablesSnapshot);
@@ -457,6 +557,11 @@ class _TableDashboardViewState extends State<TableDashboardView>
       }
       return;
     }
+
+    _handleDashboardServeAlerts(
+      updatedTables: updatedTables,
+      updatedDocIds: updatedDocIds,
+    );
 
     if (!mounted) return;
     setState(() {
@@ -2007,6 +2112,41 @@ class _TableDashboardViewState extends State<TableDashboardView>
     }
   }
 
+  bool _tableHasOrderItems(String tableName) {
+    final groups = tables[tableName];
+    return groups != null && groups.isNotEmpty;
+  }
+
+  Future<void> _showTableDragBlockedDialog({
+    required String destinationTable,
+  }) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Cannot move items',
+          style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
+        ),
+        content: Text(
+          '${_shortDisplayName(destinationTable)} already has items. '
+          'You can only drag orders to an empty table.',
+          style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              'OK',
+              style: TextStyle(fontFamily: fontMulishSemiBold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTableCard(
     String tableName,
     List<List<Map<String, dynamic>>> groups, {
@@ -2016,41 +2156,48 @@ class _TableDashboardViewState extends State<TableDashboardView>
     final docId = tableDocIds[tableName] ?? '';
 
     return DragTarget<String>(
+      onWillAcceptWithDetails: (details) => details.data != tableName,
       onAccept: (sourceTable) async {
-        if (sourceTable != tableName) {
-          final sourcePaidStatus = tableIsPaid[sourceTable] == true;
+        if (sourceTable == tableName) return;
 
-          final sourceGroups = tables[sourceTable]!;
-          final destGroups = tables[tableName]!;
-
-          setState(() {
-            // Append deep copy of source groups to destination
-            final copiedGroups = sourceGroups.map((group) {
-              return group
-                  .map((item) => Map<String, dynamic>.from(item))
-                  .toList();
-            }).toList();
-
-            destGroups.addAll(copiedGroups);
-            sourceGroups.clear();
-            _syncFirestoreGroupIndices(tableName, destGroups.length);
-            _syncFirestoreGroupIndices(sourceTable, 0);
-          });
-
-          // Update destination with source's paid status
-          await _updateTableItemsInFirestore(
-            tableName,
-            tables[tableName]!,
-            sourcePaidStatus,
-          );
-          await _updateTableItemsInFirestore(sourceTable, [], false);
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Moved all items from $sourceTable to $tableName'),
-            ),
-          );
+        if (_tableHasOrderItems(tableName)) {
+          await _showTableDragBlockedDialog(destinationTable: tableName);
+          return;
         }
+
+        final sourcePaidStatus = tableIsPaid[sourceTable] == true;
+
+        final sourceGroups = tables[sourceTable]!;
+        final destGroups = tables[tableName]!;
+
+        setState(() {
+          // Append deep copy of source groups to destination
+          final copiedGroups = sourceGroups.map((group) {
+            return group
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList();
+          }).toList();
+
+          destGroups.addAll(copiedGroups);
+          sourceGroups.clear();
+          _syncFirestoreGroupIndices(tableName, destGroups.length);
+          _syncFirestoreGroupIndices(sourceTable, 0);
+        });
+
+        // Update destination with source's paid status
+        await _updateTableItemsInFirestore(
+          tableName,
+          tables[tableName]!,
+          sourcePaidStatus,
+        );
+        await _updateTableItemsInFirestore(sourceTable, [], false);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Moved all items from $sourceTable to $tableName'),
+          ),
+        );
       },
       builder: (context, candidateData, rejectedData) {
         return LongPressDraggable<String>(
@@ -2193,7 +2340,9 @@ class _TableDashboardViewState extends State<TableDashboardView>
             },
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: _blinkingTableNames.contains(tableName)
+              ? _serveBlinkColor
+              : Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -2214,12 +2363,17 @@ class _TableDashboardViewState extends State<TableDashboardView>
                   showServedDialog(context, tableName, () async {
                     if (isZomato) {
                       try {
-                        await ZomatoOrderProgressDialog.run(
-                          context,
-                          action: () => Get.find<ZomatoOrdersRepository>()
-                              .removeOrder(docId: docId),
+                        await Get.find<ZomatoOrderServeService>().serveOrder(
+                          docId: docId,
                         );
-                        if (mounted) setState(() {});
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Zomato order served.'),
+                            ),
+                          );
+                          setState(() {});
+                        }
                       } catch (e) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(

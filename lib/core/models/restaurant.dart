@@ -19,6 +19,10 @@ class Restaurant {
     required this.subscriptionEnd,
     this.adminEmail,
     this.address,
+    this.logoUrl,
+    this.mobile1,
+    this.mobile2,
+    this.mobile3,
     this.createdAt,
     this.cgstPercentage = 0,
     this.sgstPercentage = 0,
@@ -32,6 +36,10 @@ class Restaurant {
   final DateTime subscriptionEnd;
   final String? adminEmail;
   final String? address;
+  final String? logoUrl;
+  final String? mobile1;
+  final String? mobile2;
+  final String? mobile3;
   final DateTime? createdAt;
   final double cgstPercentage;
   final double sgstPercentage;
@@ -51,6 +59,13 @@ class Restaurant {
   bool get isExpiringSoon =>
       status == RestaurantStatus.active && daysUntilExpiry <= 7;
 
+  /// Non-empty mobile numbers joined for display (e.g. "9876543210, 9123456789").
+  String get mobileNumbersLine => [mobile1, mobile2, mobile3]
+      .whereType<String>()
+      .map((m) => m.trim())
+      .where((m) => m.isNotEmpty)
+      .join(', ');
+
   factory Restaurant.fromFirestore(String id, Map<String, dynamic> data) {
     return Restaurant(
       id: id,
@@ -60,6 +75,10 @@ class Restaurant {
       subscriptionEnd: _toDate(data['subscriptionEnd']),
       adminEmail: data['adminEmail']?.toString(),
       address: data['address']?.toString(),
+      logoUrl: data['logoUrl']?.toString(),
+      mobile1: data['mobile1']?.toString(),
+      mobile2: data['mobile2']?.toString(),
+      mobile3: data['mobile3']?.toString(),
       createdAt: data['createdAt'] is Timestamp
           ? (data['createdAt'] as Timestamp).toDate()
           : null,
@@ -77,6 +96,10 @@ class Restaurant {
     DateTime? subscriptionEnd,
     String? adminEmail,
     String? address,
+    String? logoUrl,
+    String? mobile1,
+    String? mobile2,
+    String? mobile3,
     DateTime? createdAt,
     double? cgstPercentage,
     double? sgstPercentage,
@@ -90,6 +113,10 @@ class Restaurant {
       subscriptionEnd: subscriptionEnd ?? this.subscriptionEnd,
       adminEmail: adminEmail ?? this.adminEmail,
       address: address ?? this.address,
+      logoUrl: logoUrl ?? this.logoUrl,
+      mobile1: mobile1 ?? this.mobile1,
+      mobile2: mobile2 ?? this.mobile2,
+      mobile3: mobile3 ?? this.mobile3,
       createdAt: createdAt ?? this.createdAt,
       cgstPercentage: cgstPercentage ?? this.cgstPercentage,
       sgstPercentage: sgstPercentage ?? this.sgstPercentage,
@@ -106,6 +133,10 @@ class Restaurant {
       'subscriptionEnd': Timestamp.fromDate(subscriptionEnd),
       if (adminEmail != null) 'adminEmail': adminEmail,
       if (address != null) 'address': address,
+      if (logoUrl != null) 'logoUrl': logoUrl,
+      if (mobile1 != null) 'mobile1': mobile1,
+      if (mobile2 != null) 'mobile2': mobile2,
+      if (mobile3 != null) 'mobile3': mobile3,
       'cgstPercentage': cgstPercentage,
       'sgstPercentage': sgstPercentage,
       'staffEditDeleteLimitMinutes': staffEditDeleteLimitMinutes,

@@ -7,6 +7,7 @@ import 'package:demo/features/settings/services/staff_permission_settings_servic
 import 'package:demo/features/settings/services/tax_settings_service.dart';
 import 'package:demo/features/shell/controllers/shell_controller.dart';
 import 'package:demo/features/shell/services/app_tab_settings.dart';
+import 'package:demo/features/tables/services/dashboard_settings.dart';
 import 'package:get/get.dart';
 
 class SettingsController extends GetxController {
@@ -20,6 +21,7 @@ class SettingsController extends GetxController {
     loadKitchenSettings();
     loadAppTabSettings();
     loadPrintSettings();
+    loadDashboardSettings();
   }
 
   final userRole = Rxn<String>();
@@ -29,6 +31,7 @@ class SettingsController extends GetxController {
   final kitchenShowServeOrderScreen = false.obs;
   final kitchenPreparationViewEnabled = false.obs;
   final kitchenBackgroundOrderRingtoneEnabled = true.obs;
+  final dashboardServeRingtoneEnabled = true.obs;
   final printPdfEnabled = false.obs;
   final printerType = PosPrinterType.rugtek80.obs;
   final billPdfIncludeLogos = false.obs;
@@ -48,6 +51,16 @@ class SettingsController extends GetxController {
     }
     userRole.value = await _userRepository.getUserRole(user.uid);
     isLoadingRole.value = false;
+  }
+
+  Future<void> loadDashboardSettings() async {
+    dashboardServeRingtoneEnabled.value =
+        await DashboardSettings.getServeRingtoneEnabled();
+  }
+
+  Future<void> setDashboardServeRingtoneEnabled(bool value) async {
+    await DashboardSettings.setServeRingtoneEnabled(value);
+    dashboardServeRingtoneEnabled.value = value;
   }
 
   Future<void> loadKitchenSettings() async {

@@ -11,6 +11,7 @@ import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/transactions/repositories/transactions_repository.dart';
 import 'package:demo/features/zomato/services/imagekit_settings.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 const _dialogNavy = Color(0xFF1A3A5C);
@@ -125,6 +126,8 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
   final cashController = TextEditingController();
   final onlineController = TextEditingController();
   final totalController = TextEditingController();
+  final discountAmountController = TextEditingController(text: '0');
+  final discountPercentController = TextEditingController(text: '0');
   final mobileController = TextEditingController();
   final customerNameController = TextEditingController();
 
@@ -134,6 +137,7 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
   double extraAmount = 0;
   bool _isEditingTotal = false;
   bool _totalOverridden = false;
+  bool _syncingDiscountFields = false;
   String paymentMode = 'Cash';
   BillReceiptAction receiptAction = BillReceiptAction.withoutPrint;
   bool _submitting = false;
@@ -142,6 +146,8 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
   void initState() {
     super.initState();
     _items = widget.items.map((e) => Map<String, dynamic>.from(e)).toList();
+    customerNameController.text = widget.tableName;
+    totalController.text = _computedTotal.toString();
     _updatePaymentAmounts();
   }
 
@@ -150,6 +156,8 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
     cashController.dispose();
     onlineController.dispose();
     totalController.dispose();
+    discountAmountController.dispose();
+    discountPercentController.dispose();
     mobileController.dispose();
     customerNameController.dispose();
     super.dispose();
@@ -158,10 +166,12 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
   double get _subtotal => TablesRepository.orderItemsSubtotal(_items);
 
   TaxBreakdown get _taxBreakdown => TaxCalculator.calculate(
-        _subtotal,
-        cgstPercent: widget.cgstPercent,
-        sgstPercent: widget.sgstPercent,
-      );
+    _subtotal,
+    cgstPercent: widget.cgstPercent,
+    sgstPercent: widget.sgstPercent,
+  );
+
+  int get _taxableTotal => (_subtotal + _taxBreakdown.totalTax).round();
 
   int get _computedTotal =>
       (_subtotal + _taxBreakdown.totalTax - discountAmount + extraAmount)
@@ -174,13 +184,99 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
     return _computedTotal;
   }
 
-  void _applyManualTotal() {
+  double get _discountPercent {
+    final taxable = _taxableTotal;
+    if (taxable <= 0 || discountAmount <= 0) return 0;
+    return (discountAmount / taxable) * 100;
+  }
+
+  String _formatPercent(double pct) {
+    if ((pct - pct.roundToDouble()).abs() < 0.0001) {
+      return pct.round().toString();
+    }
+    return pct.toStringAsFixed(2);
+  }
+
+  void _syncDiscountControllersFromState({bool syncTotal = true}) {
+    if (_syncingDiscountFields) return;
+    _syncingDiscountFields = true;
+    _setControllerText(
+      discountAmountController,
+      discountAmount.round().toString(),
+    );
+    _setControllerText(
+      discountPercentController,
+      _formatPercent(_discountPercent),
+    );
+    if (syncTotal && !_isEditingTotal) {
+      _setControllerText(totalController, total.toString());
+    }
+    _syncingDiscountFields = false;
+  }
+
+  void _applyDiscountAmount(String value) {
+    if (_syncingDiscountFields) return;
+    final parsed = double.tryParse(value.trim());
+    if (parsed == null && value.trim().isNotEmpty) return;
+
+    final taxable = _taxableTotal.toDouble();
+    final amount = (parsed ?? 0).clamp(0, taxable).toDouble();
+
+    setState(() {
+      _totalOverridden = false;
+      discountAmount = amount;
+      extraAmount = 0;
+      _syncingDiscountFields = true;
+      if (parsed != null && parsed != amount) {
+        _setControllerText(discountAmountController, amount.round().toString());
+      }
+      _setControllerText(
+        discountPercentController,
+        _formatPercent(_discountPercent),
+      );
+      _setControllerText(totalController, _computedTotal.toString());
+      _syncingDiscountFields = false;
+      _updatePaymentAmounts();
+    });
+  }
+
+  void _applyDiscountPercent(String value) {
+    if (_syncingDiscountFields) return;
+    final parsed = double.tryParse(value.trim());
+    if (parsed == null && value.trim().isNotEmpty) return;
+
+    final pct = (parsed ?? 0).clamp(0, 100).toDouble();
+    final taxable = _taxableTotal;
+
+    setState(() {
+      _totalOverridden = false;
+      discountAmount = taxable * pct / 100;
+      extraAmount = 0;
+      _syncingDiscountFields = true;
+      if (parsed != null && parsed != pct) {
+        _setControllerText(discountPercentController, _formatPercent(pct));
+      }
+      _setControllerText(
+        discountAmountController,
+        discountAmount.round().toString(),
+      );
+      _setControllerText(totalController, _computedTotal.toString());
+      _syncingDiscountFields = false;
+      _updatePaymentAmounts();
+    });
+  }
+
+  void _recalculateFromFinalAmount({bool commit = false}) {
     final edited = int.tryParse(totalController.text.trim());
     if (edited == null || edited < 0) return;
+
     setState(() {
       _totalOverridden = true;
-      _isEditingTotal = false;
-      final taxable = (_subtotal + _taxBreakdown.totalTax).round();
+      if (commit) {
+        _isEditingTotal = false;
+        totalController.text = edited.toString();
+      }
+      final taxable = _taxableTotal;
       if (edited < taxable) {
         discountAmount = (taxable - edited).toDouble();
         extraAmount = 0;
@@ -191,10 +287,12 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
         discountAmount = 0;
         extraAmount = 0;
       }
-      totalController.text = edited.toString();
+      _syncDiscountControllersFromState(syncTotal: commit);
       _updatePaymentAmounts();
     });
   }
+
+  void _applyManualTotal() => _recalculateFromFinalAmount(commit: true);
 
   /// Sets a controller's text while keeping the caret at the end, so typing
   /// in the split-payment fields appends instead of selecting/replacing.
@@ -225,13 +323,17 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
     if (_submitting) return;
 
     String? whatsappPhone;
-    if (receiptAction == BillReceiptAction.shareWhatsApp) {
-      final phoneError =
-          WhatsAppSharePhoneDialog.validatePhone(mobileController.text);
+    final requiresWhatsApp =
+        receiptAction == BillReceiptAction.shareWhatsApp ||
+        receiptAction == BillReceiptAction.printAndShareWhatsApp;
+    if (requiresWhatsApp) {
+      final phoneError = WhatsAppSharePhoneDialog.validatePhone(
+        mobileController.text,
+      );
       if (phoneError != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(phoneError)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(phoneError)));
         return;
       }
       if (!await ImageKitSettings.isConfigured()) {
@@ -244,8 +346,9 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
         );
         return;
       }
-      whatsappPhone =
-          WhatsAppSharePhoneDialog.normalizePhone(mobileController.text);
+      whatsappPhone = WhatsAppSharePhoneDialog.normalizePhone(
+        mobileController.text,
+      );
     }
 
     setState(() => _submitting = true);
@@ -257,8 +360,9 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
       final online = int.tryParse(onlineController.text) ?? 0;
       final taxes = _taxBreakdown;
       final taxAmount = taxes.totalTax;
-      final confirmedItems =
-          _items.map((e) => Map<String, dynamic>.from(e)).toList();
+      final confirmedItems = _items
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
 
       final result = await Get.find<TransactionsRepository>().createTransaction(
         items: confirmedItems,
@@ -302,6 +406,7 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
 
       receiptData = FoodBillPdfData(
         tableName: widget.tableName,
+        customerName: customerNameController.text.trim(),
         items: confirmedItems,
         subtotal: _subtotal.round(),
         tax: taxAmount,
@@ -318,9 +423,9 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Billing failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Billing failed: $e')));
       }
       return;
     } finally {
@@ -442,10 +547,7 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(
-        fontSize: 14,
-        fontFamily: fontMulishRegular,
-      ),
+      labelStyle: const TextStyle(fontSize: 14, fontFamily: fontMulishRegular),
       isDense: true,
       filled: true,
       fillColor: Colors.white,
@@ -488,16 +590,11 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
           textAlign: TextAlign.center,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontFamily: fontMulishSemiBold,
-            fontSize: 14,
-          ),
+          style: const TextStyle(fontFamily: fontMulishSemiBold, fontSize: 14),
         ),
       ),
     );
   }
-
-
 
   Widget _headerTotalChip() {
     if (_isEditingTotal) {
@@ -539,6 +636,7 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
               borderSide: const BorderSide(color: primary_color),
             ),
           ),
+          onChanged: (_) => _recalculateFromFinalAmount(),
           onSubmitted: (_) => _applyManualTotal(),
         ),
       );
@@ -549,9 +647,7 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
       decoration: BoxDecoration(
         color: primary_color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: primary_color.withValues(alpha: 0.35),
-        ),
+        border: Border.all(color: primary_color.withValues(alpha: 0.35)),
       ),
       child: Text(
         '₹$total',
@@ -632,8 +728,7 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                           size: 20,
                         ),
                         color: primary_color,
-                        tooltip:
-                            _isEditingTotal ? 'Apply total' : 'Edit total',
+                        tooltip: _isEditingTotal ? 'Apply total' : 'Edit total',
                         onPressed: _isEditingTotal
                             ? _applyManualTotal
                             : () {
@@ -671,15 +766,14 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                       ),
                       child: ListView.separated(
                         itemCount: _items.length,
-                        separatorBuilder: (_, __) => Divider(
-                          height: 10,
-                          color: _dialogBorder,
-                        ),
+                        separatorBuilder: (_, __) =>
+                            Divider(height: 10, color: _dialogBorder),
                         itemBuilder: (_, index) {
                           final item = _items[index];
                           final qty = (item['qty'] as num?)?.toInt() ?? 0;
                           final name = item['name']?.toString() ?? '-';
-                          final price = (item['price'] as num?)?.toDouble() ?? 0;
+                          final price =
+                              (item['price'] as num?)?.toDouble() ?? 0;
                           return Row(
                             children: [
                               Expanded(
@@ -720,14 +814,6 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                       const SizedBox(height: 4),
                       TaxSummaryRows(breakdown: taxes),
                     ],
-                    if (discountAmount > 0) ...[
-                      const SizedBox(height: 4),
-                      _summaryLine(
-                        'Discount',
-                        '-₹${discountAmount.round()}',
-                        valueColor: _dialogSuccess,
-                      ),
-                    ],
                     if (extraAmount > 0) ...[
                       const SizedBox(height: 4),
                       _summaryLine(
@@ -736,6 +822,74 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                         valueColor: primary_color,
                       ),
                     ],
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _label('Discount Amount'),
+                              TextField(
+                                controller: discountAmountController,
+                                decoration: _inputDecoration(""),
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                                onChanged: _applyDiscountAmount,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _label('Discount Percentage (%)'),
+                              TextField(
+                                controller: discountPercentController,
+                                decoration: _inputDecoration(''),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'[0-9.]'),
+                                  ),
+                                ],
+                                onChanged: _applyDiscountPercent,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 24, color: _dialogBorder),
+                    _label('Customer Name'),
+                    TextField(
+                      controller: customerNameController,
+                      decoration: _inputDecoration('Customer name'),
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: 12),
+                    _label('Mobile Number'),
+                    TextField(
+                      controller: mobileController,
+                      decoration: _inputDecoration(
+                        receiptAction == BillReceiptAction.shareWhatsApp ||
+                                receiptAction ==
+                                    BillReceiptAction.printAndShareWhatsApp
+                            ? '10-digit mobile (required for WhatsApp)'
+                            : '10-digit mobile (optional)',
+                      ),
+                      keyboardType: TextInputType.phone,
+                      maxLength: 12,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
                     const Divider(height: 24, color: _dialogBorder),
                     _label('Payment Mode'),
                     Row(
@@ -835,7 +989,8 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                           label: 'No Print',
                           icon: Icons.block_outlined,
                           onTap: () => setState(
-                            () => receiptAction = BillReceiptAction.withoutPrint,
+                            () =>
+                                receiptAction = BillReceiptAction.withoutPrint,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -847,34 +1002,35 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                             () => receiptAction = BillReceiptAction.print,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
                         _selectBox(
                           selected:
                               receiptAction == BillReceiptAction.shareWhatsApp,
                           label: 'WhatsApp',
                           icon: Icons.chat_outlined,
                           onTap: () => setState(
+                            () =>
+                                receiptAction = BillReceiptAction.shareWhatsApp,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _selectBox(
+                          selected:
+                              receiptAction ==
+                              BillReceiptAction.printAndShareWhatsApp,
+                          label: 'WhatsApp & Print',
+                          icon: Icons.print_rounded,
+                          onTap: () => setState(
                             () => receiptAction =
-                                BillReceiptAction.shareWhatsApp,
+                                BillReceiptAction.printAndShareWhatsApp,
                           ),
                         ),
                       ],
                     ),
-                    if (receiptAction == BillReceiptAction.shareWhatsApp) ...[
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: mobileController,
-                        decoration: _inputDecoration('10-digit mobile'),
-                        keyboardType: TextInputType.phone,
-                        maxLength: 10,
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: customerNameController,
-                        decoration: _inputDecoration('Customer name'),
-                        textCapitalization: TextCapitalization.words,
-                      ),
-                    ],
                   ],
                 ),
               ),

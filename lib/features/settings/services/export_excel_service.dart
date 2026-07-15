@@ -1,19 +1,20 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:flutter/foundation.dart';
+import 'package:demo/core/utils/platform_utils.dart';
+import 'package:demo/features/settings/services/export_excel_io.dart'
+    if (dart.library.html) 'package:demo/features/settings/services/export_excel_io_web.dart';
 import 'package:demo/features/settings/utils/export_date_range.dart';
 import 'package:excel/excel.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 class ExportExcelService {
   static final _dateTimeFmt = DateFormat('dd MMM yyyy, hh:mm a');
 
-  static Future<void> exportTransactions(ExportDateRange range) async {
+  static Future<String> exportTransactions(ExportDateRange range) async {
     final docs = await _fetchTransactions(range);
     if (docs.isEmpty) {
       throw ExportException('No transactions found for ${range.label}.');
@@ -83,14 +84,14 @@ class ExportExcelService {
       IntCellValue(totalOnline),
     ]);
 
-    await _shareWorkbook(
+    return _deliverWorkbook(
       excel,
       fileName: 'transactions_${_fileSuffix(range)}.xlsx',
       subject: 'Transactions ${range.label}',
     );
   }
 
-  static Future<void> exportExpenses(ExportDateRange range) async {
+  static Future<String> exportExpenses(ExportDateRange range) async {
     final docs = await _fetchExpenses(range);
     if (docs.isEmpty) {
       throw ExportException('No expenses found for ${range.label}.');
@@ -140,7 +141,7 @@ class ExportExcelService {
       TextCellValue(''),
     ]);
 
-    await _shareWorkbook(
+    return _deliverWorkbook(
       excel,
       fileName: 'expenses_${_fileSuffix(range)}.xlsx',
       subject: 'Expenses ${range.label}',
@@ -214,7 +215,7 @@ class ExportExcelService {
     return '${fmt.format(range.from)}_${fmt.format(range.to)}';
   }
 
-  static Future<void> _shareWorkbook(
+  static Future<String> _deliverWorkbook(
     Excel excel, {
     required String fileName,
     required String subject,
@@ -224,33 +225,81 @@ class ExportExcelService {
       throw ExportException('Could not generate Excel file.');
     }
 
-    final xFile = kIsWeb
-        ? XFile.fromData(
-            Uint8List.fromList(bytes),
-            name: fileName,
-            mimeType: _xlsxMime,
-          )
-        : XFile(
-            await _writeTempFile(bytes, fileName),
-            mimeType: _xlsxMime,
-          );
+    final data = Uint8List.fromList(bytes);
 
-    await Share.shareXFiles(
-      [xFile],
-      subject: subject,
-      text: 'Flavor Flow export: $subject',
-    );
+    if (kIsWeb) {
+      return _deliverWorkbookWeb(data, fileName: fileName, subject: subject);
+    }
+    if (isDesktopPlatform) {
+      return _deliverWorkbookDesktop(data, fileName: fileName, subject: subject);
+    }
+    return _deliverWorkbookMobile(data, fileName: fileName, subject: subject);
   }
 
-  static Future<String> _writeTempFile(List<int> bytes, String fileName) async {
-    final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/$fileName';
-    await File(path).writeAsBytes(bytes);
+  static Future<String> _deliverWorkbookDesktop(
+    Uint8List bytes, {
+    required String fileName,
+    required String subject,
+  }) async {
+    final savedPath = await saveExportExcelWithDialog(bytes, fileName);
+    if (savedPath == null) {
+      throw ExportException('Export cancelled.');
+    }
+
+    await _shareSavedFile(
+      XFile(savedPath, mimeType: exportXlsxMime, name: fileName),
+      subject: subject,
+    );
+
+    return savedPath;
+  }
+
+  static Future<String> _deliverWorkbookMobile(
+    Uint8List bytes, {
+    required String fileName,
+    required String subject,
+  }) async {
+    final path = await writeExportExcelTempFile(bytes, fileName);
+    await _shareSavedFile(
+      XFile(path, mimeType: exportXlsxMime, name: fileName),
+      subject: subject,
+    );
     return path;
   }
 
-  static const _xlsxMime =
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  static Future<String> _deliverWorkbookWeb(
+    Uint8List bytes, {
+    required String fileName,
+    required String subject,
+  }) async {
+    final savedName = await saveExportExcelWithDialog(bytes, fileName);
+    if (savedName == null) {
+      throw ExportException('Could not download Excel file.');
+    }
+
+    await _shareSavedFile(
+      XFile.fromData(
+        bytes,
+        name: fileName,
+        mimeType: exportXlsxMime,
+      ),
+      subject: subject,
+    );
+
+    return savedName;
+  }
+
+  static Future<void> _shareSavedFile(
+    XFile file, {
+    required String subject,
+  }) async {
+    // Do not pass [text] with files — on Windows it shares text only and drops
+    // the Excel attachment.
+    await Share.shareXFiles(
+      [file],
+      subject: subject,
+    );
+  }
 }
 
 class ExportException implements Exception {

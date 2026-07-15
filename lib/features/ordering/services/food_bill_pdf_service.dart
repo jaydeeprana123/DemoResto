@@ -8,6 +8,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import 'package:demo/core/services/restaurant_print_profile_service.dart';
 import 'package:demo/core/utils/platform_utils.dart';
 import 'package:demo/core/utils/app_messenger.dart';
 import 'package:demo/features/ordering/services/food_bill_pdf_io.dart'
@@ -30,6 +31,7 @@ class FoodBillPdfData {
     required this.tax,
     required this.discount,
     required this.total,
+    this.customerName,
     this.extra = 0,
     this.invoiceNumber,
     this.cashAmount = 0,
@@ -41,6 +43,7 @@ class FoodBillPdfData {
   });
 
   final String tableName;
+  final String? customerName;
   final List<Map<String, dynamic>> items;
   final int subtotal;
   final int tax;
@@ -54,12 +57,29 @@ class FoodBillPdfData {
   final double sgstPercentage;
   final int cgstAmount;
   final int sgstAmount;
+
+  /// Name printed on the receipt (customer field, else table name).
+  String get receiptCustomerName {
+    final customer = customerName?.trim();
+    if (customer != null && customer.isNotEmpty) return customer;
+    return tableName.trim();
+  }
+
+  /// Receipt line label: "Table:" for dine-in names, else "Customer Name:".
+  String get receiptCustomerLabelLine {
+    final name = receiptCustomerName;
+    if (name.toLowerCase().contains('table')) {
+      return 'Table: $name';
+    }
+    return 'Customer Name: $name';
+  }
 }
 
 class FoodBillPdfService {
-  static const _restaurantAddress =
+  static const _legacyRestaurantAddress =
       '05, Ground Floor, Ayesha Complex, Tandalja, Opposite JP Police Station, Diwalipura, Vadodara';
-  static const _restaurantPhone = '+91 85113 33998';
+  static const _legacyRestaurantPhone = '+91 85113 33998';
+  static const _legacyRestaurantName = 'AL - HAADI';
 
   static pw.Font? _cachedFont;
   static pw.MemoryImage? _cachedRestaurantLogo;
@@ -81,6 +101,12 @@ class FoodBillPdfService {
   }
 
   static Future<void> _loadLogos() async {
+    _cachedRestaurantLogo = null;
+    if (Get.isRegistered<RestaurantPrintProfileService>()) {
+      final profile = Get.find<RestaurantPrintProfileService>();
+      await profile.ensureLogoReady();
+      _cachedRestaurantLogo = profile.logoImage;
+    }
     if (_cachedRestaurantLogo == null) {
       final restaurantLogoBytes = await _loadAssetBytes(
         'assets/images/restaurant_bill_logo.png',
@@ -160,6 +186,9 @@ class FoodBillPdfService {
       case BillReceiptAction.print:
         await _deliverReceiptForced(data);
       case BillReceiptAction.shareWhatsApp:
+        await _shareReceiptOnWhatsApp(data, whatsappPhone: whatsappPhone);
+      case BillReceiptAction.printAndShareWhatsApp:
+        await _deliverReceiptForced(data);
         await _shareReceiptOnWhatsApp(data, whatsappPhone: whatsappPhone);
     }
   }
@@ -267,19 +296,24 @@ class FoodBillPdfService {
   }
 
   static String _buildWhatsAppBillMessage(FoodBillPdfData data, String pdfUrl) {
-    final table = data.tableName.trim();
+    final restaurantName = _headerRestaurantName;
+    final customer = data.receiptCustomerName;
     final billId = data.invoiceNumber?.trim();
-    final buffer = StringBuffer('Thank you for visiting Al-Haadi!\n\nBill');
-    if (table.isNotEmpty) {
-      buffer.write(' for $table');
+    final buffer = StringBuffer(
+      'Thank you for visiting $restaurantName!\n\nBill',
+    );
+    if (customer.isNotEmpty) {
+      buffer.write(' for $customer');
     }
     if (billId != null && billId.isNotEmpty) {
       buffer.write(' ($billId)');
     }
     buffer.writeln();
     buffer.write('\nDownload Bill PDF:\n$pdfUrl');
-    buffer.writeln('\n\nWe appreciate your visit and look forward to serving you again soon.');
-    buffer.write('\nRegards\nTeam Al-Haadi');
+    buffer.writeln(
+      '\n\nWe appreciate your visit and look forward to serving you again soon.',
+    );
+    buffer.write('\nRegards\nTeam $restaurantName');
     return buffer.toString();
   }
 
@@ -375,15 +409,15 @@ class FoodBillPdfService {
 
   /// File name: `{Table Name} - {Bill ID}.pdf`
   static String buildReceiptPdfFileName(FoodBillPdfData data) {
-    final tablePart = _sanitizeFileNamePart(data.tableName);
+    final namePart = _sanitizeFileNamePart(data.receiptCustomerName);
     final billPart = _sanitizeFileNamePart(
       data.invoiceNumber?.trim().isNotEmpty == true
           ? data.invoiceNumber!.trim()
           : 'receipt',
     );
 
-    if (tablePart.isEmpty) return '$billPart.pdf';
-    return '$tablePart - $billPart.pdf';
+    if (namePart.isEmpty) return '$billPart.pdf';
+    return '$namePart - $billPart.pdf';
   }
 
   static String _sanitizeFileNamePart(String value) {
@@ -494,6 +528,29 @@ class FoodBillPdfService {
     );
   }
 
+  static RestaurantPrintProfileService? get _printProfile =>
+      Get.isRegistered<RestaurantPrintProfileService>()
+          ? Get.find<RestaurantPrintProfileService>()
+          : null;
+
+  static String get _headerRestaurantName {
+    final name = _printProfile?.name.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return _legacyRestaurantName;
+  }
+
+  static String get _headerRestaurantAddress {
+    final address = _printProfile?.address?.trim();
+    if (address != null && address.isNotEmpty) return address;
+    return _legacyRestaurantAddress;
+  }
+
+  static String get _headerRestaurantPhonesLine {
+    final line = _printProfile?.displayMobilesLine.trim();
+    if (line != null && line.isNotEmpty) return line;
+    return _legacyRestaurantPhone;
+  }
+
   static Future<Uint8List> _buildPdf(
     FoodBillPdfData data,
     PosPrinterType printerType,
@@ -539,32 +596,33 @@ class FoodBillPdfService {
                   ),
                 ),
                 pw.SizedBox(height: 6),
-              ]else
-              pw.Center(
-                child: pw.Text(
-                  'AL - HAADI',
-                  style: labelStyle(size: headerSize, isBold: true),
+              ] else
+                pw.Center(
+                  child: pw.Text(
+                    _headerRestaurantName,
+                    style: labelStyle(size: headerSize, isBold: true),
+                  ),
                 ),
-              ),
-
-
               pw.SizedBox(height: 4),
               pw.Center(
                 child: pw.Text(
-                  _restaurantAddress,
+                  _headerRestaurantAddress,
                   textAlign: pw.TextAlign.center,
                   style: labelStyle(size: baseSize - 1),
                 ),
               ),
-              pw.SizedBox(height: 2),
               pw.Center(
                 child: pw.Text(
-                  _restaurantPhone,
+                  _headerRestaurantPhonesLine,
+                  textAlign: pw.TextAlign.center,
                   style: labelStyle(size: baseSize - 1),
                 ),
               ),
               pw.SizedBox(height: 6),
-              pw.Text('Table: ${data.tableName}', style: labelStyle()),
+              pw.Text(
+                data.receiptCustomerLabelLine,
+                style: labelStyle(),
+              ),
               pw.SizedBox(height: 4),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,

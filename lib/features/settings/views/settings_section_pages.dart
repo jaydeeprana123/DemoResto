@@ -46,12 +46,13 @@ class SettingsBusinessSectionPage extends StatelessWidget {
                     subtitle: 'View sales and payment history',
                     onTap: () => Get.to(() => const TransactionsPage()),
                   ),
-                SettingsNavRow(
-                  icon: Icons.payments_outlined,
-                  title: 'Expenses',
-                  subtitle: 'Track and add business expenses',
-                  onTap: () => Get.to(() => const ExpensesPage()),
-                ),
+                if (isAdmin)
+                  SettingsNavRow(
+                    icon: Icons.payments_outlined,
+                    title: 'Expenses',
+                    subtitle: 'Track and add business expenses',
+                    onTap: () => Get.to(() => const ExpensesPage()),
+                  ),
                 if (isAdmin)
                   SettingsNavRow(
                     icon: Icons.file_download_outlined,
@@ -586,6 +587,7 @@ class _SettingsNavigationSectionPageState
     super.initState();
     _settings = Get.find<SettingsController>();
     _settings.loadAppTabSettings();
+    _settings.loadDashboardSettings();
   }
 
   @override
@@ -628,6 +630,17 @@ class _SettingsNavigationSectionPageState
                       );
                     }).toList(),
                   ),
+                ),
+                SettingsSwitchRow(
+                  icon: Icons.notifications_active_outlined,
+                  title: 'Dashboard serve ringtone',
+                  subtitle:
+                      'Play a sound when items are marked served on the Dashboard',
+                  value: _settings.dashboardServeRingtoneEnabled.value,
+                  onChanged: (value) async {
+                    if (value == null) return;
+                    await _settings.setDashboardServeRingtoneEnabled(value);
+                  },
                 ),
               ],
             ),

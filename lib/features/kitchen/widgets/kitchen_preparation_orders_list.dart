@@ -3,8 +3,10 @@ import 'package:demo/features/kitchen/services/kitchen_preparation_view_index.da
 import 'package:demo/features/kitchen/services/kitchen_cross_table_pending_index.dart';
 import 'package:demo/features/kitchen/widgets/kitchen_theme.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
+import 'package:demo/features/tables/services/serve_notification_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 class KitchenPreparationOrdersList extends StatefulWidget {
@@ -96,6 +98,10 @@ class _KitchenPreparationOrdersListState
       }
     }
     if (keys.isEmpty) return;
+
+    if (Get.isRegistered<ServeNotificationService>()) {
+      Get.find<ServeNotificationService>().suppressLocalServe(keys);
+    }
 
     setState(() => _submitting = true);
     try {

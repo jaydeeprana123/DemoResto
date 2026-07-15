@@ -41,19 +41,14 @@ class MenuItemVariants {
       return '₹${((item['price'] as num?) ?? 0).toStringAsFixed(0)}';
     }
     final variants = variantsOf(item);
-    if (variants.length >= 2) {
-      final half = variants.firstWhere(
-        (v) => v['label']?.toString().toLowerCase() == 'half',
-        orElse: () => variants.first,
-      );
-      final full = variants.firstWhere(
-        (v) => v['label']?.toString().toLowerCase() == 'full',
-        orElse: () => variants.last,
-      );
-      return '₹${(half['price'] as num).toStringAsFixed(0)} / '
-          '₹${(full['price'] as num).toStringAsFixed(0)}';
+    if (variants.isEmpty) {
+      return '₹${((item['price'] as num?) ?? 0).toStringAsFixed(0)}';
     }
-    return '₹${((item['price'] as num?) ?? 0).toStringAsFixed(0)}';
+    // Show every variant price so the list matches the selection dialog
+    // (e.g. S/M/L → ₹180 / ₹200 / ₹220).
+    return variants
+        .map((v) => '₹${((v['price'] as num?) ?? 0).toStringAsFixed(0)}')
+        .join(' / ');
   }
 
   static List<Map<String, dynamic>> normalizeMenuList(

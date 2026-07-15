@@ -260,6 +260,8 @@ class MenuCacheService {
           'price': data['price'],
           if (data.containsKey('halfPrice')) 'halfPrice': data['halfPrice'],
           if (data.containsKey('fullPrice')) 'fullPrice': data['fullPrice'],
+          if (data['variants'] is List) 'variants': data['variants'],
+          if (data['includes'] != null) 'includes': data['includes'],
           'categoryId': categoryId,
           'itemId': itemDoc.id,
           'categorySortOrder': categorySortOrder,
