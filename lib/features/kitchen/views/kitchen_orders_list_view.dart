@@ -25,17 +25,21 @@ import 'package:demo/features/kitchen/services/kitchen_cross_table_pending_index
 import 'package:demo/features/kitchen/services/kitchen_menu_filter.dart';
 import 'package:demo/features/kitchen/services/kitchen_preparation_view_index.dart';
 import 'package:demo/features/kitchen/widgets/kitchen_cross_table_pending_sheet.dart';
+import 'package:demo/features/kitchen/widgets/kitchen_new_order_dialog.dart';
 import 'package:demo/features/kitchen/widgets/kitchen_preparation_orders_list.dart';
 import 'package:demo/features/kitchen/widgets/kitchen_theme.dart';
+import 'package:demo/features/kitchen/services/kitchen_web_bell_service.dart';
+import 'package:demo/features/kitchen/services/kitchen_bell_sound.dart';
 import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
+import 'package:demo/features/tables/services/serve_notification_service.dart';
+import 'package:demo/features/tables/utils/table_serve_change_utils.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/services/shared_tables_snapshot_service.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
 import 'package:demo/features/zomato/widgets/zomato_order_card_body.dart';
-import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
-import 'package:demo/features/zomato/widgets/zomato_order_progress_dialog.dart';
+import 'package:demo/features/zomato/services/zomato_order_serve_service.dart';
 import 'package:demo/models/GroupOrder.dart';
 
 class KitchenOrdersListView extends StatefulWidget {
@@ -84,6 +88,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   Timer? _prepBlinkTimer;
   VoidCallback? _menuCacheListener;
   int? blinkingGroupKey;
+  // Per-line highlights when items are added or edited on an existing table.
+  Map<String, _KitchenItemHighlightKind> _highlightedItemKinds = {};
+  Timer? _itemHighlightTimer;
   // Color used for the currently blinking card: green for a new order,
   // yellow for an update (quantity changed / item added on existing table).
   Color _blinkColor = Colors.lightGreenAccent.shade100;
@@ -93,6 +100,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   static final Color _newOrderBlinkColor = Colors.lightGreenAccent.shade100;
   static final Color _updateBlinkColor = Colors.yellow.shade300;
+  static final Color _newItemHighlightColor = Colors.brown.shade100;
+  static final Color _serveBlinkColor = const Color(TableServeChangeUtils.serveBlinkColor);
   static final Color _delayedItemBackground = KitchenTheme.delayedBarBg;
   static final Color _delayedItemBlinkBackground = KitchenTheme.delayedBarBlink;
   static const int _delayThresholdMinutes = 15;
@@ -256,6 +265,193 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     return parts.join('|');
   }
 
+  String _itemContentSignature(Map<String, dynamic> item) {
+    final name = item['name']?.toString() ?? '';
+    final qty = item['qty']?.toString() ?? '1';
+    final remarks = item['remarks']?.toString() ?? '';
+    final price = item['price']?.toString() ?? '';
+    return '$name~$qty~$remarks~$price';
+  }
+
+  Map<String, String> _itemSignatureMapForGroup(TableGroup group) {
+    final signatures = <String, String>{};
+    for (var i = 0; i < group.items.length; i++) {
+      final item = TableItemServed.asItemMap(group.items[i]);
+      if (item == null) continue;
+      final key = TableItemServed.keyForItem(
+        docId: group.docId,
+        item: item,
+        groupIndexFallback: group.groupIndex,
+        itemIndexFallback: i,
+      );
+      signatures[key.id] = _itemContentSignature(item);
+    }
+    return signatures;
+  }
+
+  void _collectNewItemHighlights(
+    TableGroup group,
+    Map<String, _KitchenItemHighlightKind> highlights,
+  ) {
+    for (var i = 0; i < group.items.length; i++) {
+      final item = TableItemServed.asItemMap(group.items[i]);
+      if (item == null) continue;
+      final key = TableItemServed.keyForItem(
+        docId: group.docId,
+        item: item,
+        groupIndexFallback: group.groupIndex,
+        itemIndexFallback: i,
+      );
+      highlights[key.id] = _KitchenItemHighlightKind.newItem;
+    }
+  }
+
+  void _collectChangedItemHighlights({
+    required TableGroup previous,
+    required TableGroup current,
+    required Map<String, _KitchenItemHighlightKind> highlights,
+  }) {
+    final previousSignatures = _itemSignatureMapForGroup(previous);
+
+    for (var i = 0; i < current.items.length; i++) {
+      final item = TableItemServed.asItemMap(current.items[i]);
+      if (item == null) continue;
+      final key = TableItemServed.keyForItem(
+        docId: current.docId,
+        item: item,
+        groupIndexFallback: current.groupIndex,
+        itemIndexFallback: i,
+      );
+      final previousSignature = previousSignatures[key.id];
+      final currentSignature = _itemContentSignature(item);
+
+      if (previousSignature == null) {
+        highlights[key.id] = _KitchenItemHighlightKind.newItem;
+      } else if (previousSignature != currentSignature) {
+        highlights[key.id] = _KitchenItemHighlightKind.edited;
+      }
+    }
+  }
+
+  void _scheduleItemHighlightsForUpdates({
+    required Iterable<String> groupKeys,
+    required Map<String, TableGroup> keyToGroup,
+  }) {
+    if (_showPreparationView && _orderTypeFilterIndex != 3) return;
+
+    final highlights = <String, _KitchenItemHighlightKind>{};
+    for (final groupKey in groupKeys) {
+      final current = keyToGroup[groupKey];
+      if (current == null) continue;
+
+      final previous = _previousKeyToGroup[groupKey];
+      if (previous == null) {
+        _collectNewItemHighlights(current, highlights);
+      } else {
+        _collectChangedItemHighlights(
+          previous: previous,
+          current: current,
+          highlights: highlights,
+        );
+      }
+    }
+
+    if (highlights.isEmpty) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _itemHighlightTimer?.cancel();
+      _setStatePreservingScroll(() {
+        _highlightedItemKinds = highlights;
+      });
+      _itemHighlightTimer = Timer(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        _setStatePreservingScroll(() => _highlightedItemKinds = {});
+      });
+    });
+  }
+
+  void _scheduleServeBlink({
+    required String key,
+    required Map<String, TableGroup> keyToGroup,
+    required Set<String> currentKeys,
+    required Map<String, String> currentSignatures,
+    required Set<String> currentDocIds,
+    required String serveEventKey,
+  }) {
+    final previousGroup = _previousKeyToGroup[key];
+    final currentGroup = keyToGroup[key];
+
+    previousKeys = currentKeys;
+    _previousSignatures = currentSignatures;
+    _previousDocIds = currentDocIds;
+    _previousKeyToGroup = keyToGroup;
+
+    if (_showPreparationView && _orderTypeFilterIndex != 3) {
+      return;
+    }
+
+    final group = currentGroup;
+    final shouldPlaySound = group != null
+        ? _shouldPlaySoundForGroup(group)
+        : true;
+
+    if (shouldPlaySound && _canRingBell) {
+      if (kIsWeb) {
+        unawaited(_playWebKitchenBell(KitchenBellSound.serve));
+      } else {
+        final servedItemKeyIds =
+            TableServeChangeUtils.newlyServedTableItemKeyIds(
+          currentGroup?.docId ?? '',
+          previousGroup?.items ?? const [],
+          currentGroup?.items ?? const [],
+        );
+        unawaited(
+          Get.find<ServeNotificationService>().tryPlayServeAlert(
+            eventKey: serveEventKey,
+            kitchenEligible: true,
+            dashboardEligible: false,
+            servedItemKeyIds: servedItemKeyIds,
+          ),
+        );
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      _setStatePreservingScroll(() {
+        blinkingGroupKey = key.hashCode;
+        _blinkColor = _serveBlinkColor;
+      });
+
+      Timer(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        if (blinkingGroupKey == key.hashCode) {
+          _setStatePreservingScroll(() => blinkingGroupKey = null);
+        }
+      });
+    });
+  }
+
+  void _showNewOrderDialog(TableGroup group) {
+    if (!mounted) return;
+    if (_appLifecycleState != AppLifecycleState.resumed || !widget.isTabActive) {
+      return;
+    }
+
+    unawaited(
+      KitchenNewOrderDialog.show(
+        context,
+        tableName: group.tableName,
+        items: group.items,
+        isZomato: group.isZomato,
+        orderTime: DateTime.fromMillisecondsSinceEpoch(group.groupTime),
+        screenshotUrl: group.screenshotUrl,
+      ),
+    );
+  }
+
   void _scheduleBlink({
     required String key,
     required Map<String, TableGroup> keyToGroup,
@@ -295,6 +491,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         blinkingGroupKey = key.hashCode;
         _blinkColor = isUpdate ? _updateBlinkColor : _newOrderBlinkColor;
       });
+
+      if (!isUpdate) {
+        final group = keyToGroup[key];
+        if (group != null) {
+          _showNewOrderDialog(group);
+        }
+      }
 
       Timer(const Duration(seconds: 3), () {
         if (!mounted) return;
@@ -359,6 +562,19 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     });
   }
 
+  bool get _useWebBackgroundAlert =>
+      kIsWeb &&
+      KitchenSettings.backgroundOrderRingtoneEnabled.value &&
+      _isAppInBackground;
+
+  Future<void> _playWebKitchenBell(KitchenBellSound sound) async {
+    if (_useWebBackgroundAlert || _useAndroidLockedAlert) {
+      await KitchenBackgroundAlertService.playAlert(sound);
+      return;
+    }
+    await KitchenWebBellService.play(sound);
+  }
+
   bool get _useAndroidLockedAlert =>
       !kIsWeb &&
       defaultTargetPlatform == TargetPlatform.android &&
@@ -367,6 +583,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   void _playNotificationSound() async {
     if (!_canRingBell) return;
+    if (kIsWeb) {
+      await _playWebKitchenBell(KitchenBellSound.newOrder);
+      return;
+    }
     if (_useAndroidLockedAlert) {
       await KitchenBackgroundAlertService.playAlert(KitchenBellSound.newOrder);
       return;
@@ -399,6 +619,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     }
     _lastDeleteSoundAt = now;
 
+    if (kIsWeb) {
+      await _playWebKitchenBell(KitchenBellSound.delete);
+      return;
+    }
     if (_useAndroidLockedAlert) {
       await KitchenBackgroundAlertService.playAlert(KitchenBellSound.delete);
       return;
@@ -481,6 +705,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   // brand-new order's ring.
   void _playUpdateSound() async {
     if (!_canRingBell) return;
+    if (kIsWeb) {
+      await _playWebKitchenBell(KitchenBellSound.update);
+      return;
+    }
     if (_useAndroidLockedAlert) {
       await KitchenBackgroundAlertService.playAlert(KitchenBellSound.update);
       return;
@@ -609,6 +837,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(_initAudioPlayers());
+    if (kIsWeb) {
+      unawaited(KitchenWebBellService.ensureInitialized());
+    }
     KitchenSettings.load().then((_) async {
       await Get.find<MenuCacheService>().loadFromCacheOnly();
       _menuFilter.invalidate();
@@ -883,6 +1114,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   void _schedulePreparationItemBlink(
     Set<String> normalizedItemKeys, {
     required bool isUpdate,
+    bool isServe = false,
   }) {
     if (normalizedItemKeys.isEmpty) return;
 
@@ -891,7 +1123,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       if (!mounted) return;
       _setStatePreservingScroll(() {
         _blinkingPrepItemKeys = Set<String>.from(normalizedItemKeys);
-        _prepBlinkColor = isUpdate ? _updateBlinkColor : _newOrderBlinkColor;
+        _prepBlinkColor = isServe
+            ? _serveBlinkColor
+            : isUpdate
+            ? _updateBlinkColor
+            : _newOrderBlinkColor;
       });
       _prepBlinkTimer = Timer(const Duration(seconds: 3), () {
         if (!mounted) return;
@@ -903,19 +1139,46 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   void _notifyPreparationItemsAffected(
     Set<String> normalizedItemKeys, {
     required bool isUpdate,
+    bool isServe = false,
+    String serveEventKey = '',
   }) {
     if (normalizedItemKeys.isEmpty) return;
 
     final shouldPlay = normalizedItemKeys.any(_shouldPlaySoundForPrepItem);
     if (shouldPlay && _canRingBell) {
-      if (isUpdate) {
+      if (isServe) {
+        final servedItemKeyIds = <String>{};
+        for (final group in _lastUpdatedGroups) {
+          final previous = _previousKeyToGroup[group.key];
+          if (previous == null) continue;
+          servedItemKeyIds.addAll(
+            TableServeChangeUtils.newlyServedTableItemKeyIds(
+              group.docId,
+              previous.items,
+              group.items,
+            ),
+          );
+        }
+        unawaited(
+          Get.find<ServeNotificationService>().tryPlayServeAlert(
+            eventKey: serveEventKey,
+            kitchenEligible: true,
+            dashboardEligible: false,
+            servedItemKeyIds: servedItemKeyIds,
+          ),
+        );
+      } else if (isUpdate) {
         _playUpdateSound();
       } else {
         _playNotificationSound();
       }
     }
 
-    _schedulePreparationItemBlink(normalizedItemKeys, isUpdate: isUpdate);
+    _schedulePreparationItemBlink(
+      normalizedItemKeys,
+      isUpdate: isUpdate,
+      isServe: isServe,
+    );
   }
 
   void _handlePreparationItemAlerts(List<TableGroup> filteredGroups) {
@@ -940,6 +1203,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     final affected = <String>{};
     var anyNew = false;
     var anyUpdate = false;
+    var anyServe = false;
+    String serveEventKey = '';
 
     for (final entry in currentTokens.entries) {
       final previous = _previousPrepItemLineTokens[entry.key];
@@ -952,7 +1217,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       final addedLines = entry.value.difference(previous);
       if (addedLines.isNotEmpty) {
         affected.add(entry.key);
-        anyUpdate = true;
+        if (TableServeChangeUtils.isServeOnlyPrepTokenChange(
+          previous,
+          entry.value,
+        )) {
+          anyServe = true;
+          serveEventKey = 'prep:${entry.key}:${addedLines.join(';')}';
+        } else {
+          anyUpdate = true;
+        }
       }
     }
 
@@ -960,7 +1233,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
     if (affected.isEmpty) return;
 
-    _notifyPreparationItemsAffected(affected, isUpdate: anyUpdate && !anyNew);
+    _notifyPreparationItemsAffected(
+      affected,
+      isUpdate: anyUpdate && !anyNew && !anyServe,
+      isServe: anyServe && !anyNew,
+      serveEventKey: serveEventKey,
+    );
   }
 
   void _rebuildPreparationItemGroups(List<TableGroup> groups) {
@@ -1336,14 +1614,58 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           isUpdate: false,
         );
       } else if (updateKeys.isNotEmpty) {
-        _scheduleBlink(
-          key: updateKeys.last,
-          keyToGroup: keyToGroup,
-          currentKeys: currentKeys,
-          currentSignatures: currentSignatures,
-          currentDocIds: currentDocIds,
-          isUpdate: true,
-        );
+        final serveKeys = <String>[];
+        final editKeys = <String>[];
+        String serveEventKey = '';
+
+        for (final key in updateKeys) {
+          final previous = _previousKeyToGroup[key];
+          final current = keyToGroup[key];
+          if (previous != null &&
+              current != null &&
+              TableServeChangeUtils.isServeOnlyItemsChange(
+                previous.items,
+                current.items,
+              )) {
+            serveKeys.add(key);
+            final docId = current.docId;
+            final servedItemKeyIds = TableServeChangeUtils.newlyServedTableItemKeyIds(
+              docId,
+              previous.items,
+              current.items,
+            );
+            serveEventKey = TableServeChangeUtils.eventKeyForDoc(
+              docId,
+              servedItemKeyIds,
+            );
+          } else {
+            editKeys.add(key);
+          }
+        }
+
+        if (serveKeys.isNotEmpty) {
+          _scheduleServeBlink(
+            key: serveKeys.last,
+            keyToGroup: keyToGroup,
+            currentKeys: currentKeys,
+            currentSignatures: currentSignatures,
+            currentDocIds: currentDocIds,
+            serveEventKey: serveEventKey,
+          );
+        } else if (editKeys.isNotEmpty) {
+          _scheduleItemHighlightsForUpdates(
+            groupKeys: editKeys,
+            keyToGroup: keyToGroup,
+          );
+          _scheduleBlink(
+            key: editKeys.last,
+            keyToGroup: keyToGroup,
+            currentKeys: currentKeys,
+            currentSignatures: currentSignatures,
+            currentDocIds: currentDocIds,
+            isUpdate: true,
+          );
+        }
       } else if (removedKeys.isNotEmpty || removedDocIds.isNotEmpty) {
         _notifyOrderRemoved(
           removedKeys: removedKeys,
@@ -2645,11 +2967,20 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     showServedDialog(context, tableName, () async {
       _playDeleteSound();
       if (ZomatoOrderUtils.isZomatoOrderName(tableName)) {
-        await ZomatoOrderProgressDialog.run(
-          context,
-          action: () =>
-              Get.find<ZomatoOrdersRepository>().removeOrder(docId: docId),
-        );
+        try {
+          await Get.find<ZomatoOrderServeService>().serveOrder(docId: docId);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Zomato order served.')),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Could not mark as served: $e')),
+            );
+          }
+        }
       } else if (isDiningTableName(tableName)) {
         await _updateTableItemsInFirestore(tableName, [], false);
       } else {
@@ -2919,6 +3250,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         : null;
     final showCrossTableBadge =
         pendingSummary != null && pendingSummary.spansMultipleTables;
+    final highlightKind = _highlightedItemKinds[key.id];
 
     final row = OrderItemRow(
       item: item,
@@ -2942,6 +3274,18 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             )
           : null,
     );
+
+    if (highlightKind != null) {
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
+          color: _newItemHighlightColor,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: row,
+      );
+    }
 
     if (!showDelayedBackground) return row;
 
@@ -3007,6 +3351,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     _timer?.cancel();
     _delayedBlinkTimer?.cancel();
     _prepBlinkTimer?.cancel();
+    _itemHighlightTimer?.cancel();
     _minuteTick.dispose();
     audioPlayer.dispose();
     updateAudioPlayer.dispose();
@@ -3099,6 +3444,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     }
   }
 }
+
+enum _KitchenItemHighlightKind { newItem, edited }
 
 class TableGroup {
   final String tableName;

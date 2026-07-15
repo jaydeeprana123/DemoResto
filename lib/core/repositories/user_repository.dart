@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/models/user_profile.dart';
 import 'package:demo/core/services/restaurant_session.dart';
+import 'package:demo/features/authentication/auth_navigation.dart';
 import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
@@ -31,6 +31,8 @@ class UserRepository {
       Get.find<RestaurantSession>().clear();
     }
     await FirebaseAuth.instance.signOut();
+    Get.closeAllSnackbars();
+    openLoginPage();
   }
 
   Future<void> changePassword({

@@ -21,6 +21,7 @@ class SetupPageLayout extends StatefulWidget {
     this.wideTitle,
     this.wideSubtitle,
     this.appBarActions,
+    this.floatingActionButton,
   });
 
   final String appBarTitle;
@@ -30,6 +31,7 @@ class SetupPageLayout extends StatefulWidget {
   final String? wideTitle;
   final String? wideSubtitle;
   final List<Widget>? appBarActions;
+  final Widget? floatingActionButton;
   final Widget child;
 
   @override
@@ -83,6 +85,7 @@ class _SetupPageLayoutState extends State<SetupPageLayout>
         ),
         actions: widget.appBarActions,
       ),
+      floatingActionButton: widget.floatingActionButton,
       body: isWide ? _wideLayout() : _narrowLayout(),
     );
   }

@@ -84,7 +84,11 @@ class _AddCategoryPageState extends State<AddCategoryPage> {
       ),
       appBarActions: [
         TextButton.icon(
-          onPressed: () => Get.to(() => const MenuSeederPage()),
+          onPressed: () async {
+            final menu = await showPresetMenuPicker(context);
+            if (menu == null || !mounted) return;
+            Get.to(() => MenuSeederPage(presetMenuId: menu.id));
+          },
           icon: const Icon(Icons.cloud_upload_outlined, size: 18),
           label: const Text(
             'Import',

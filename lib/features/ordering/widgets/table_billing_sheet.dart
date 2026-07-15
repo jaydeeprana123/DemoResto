@@ -44,8 +44,10 @@ class TableBillingSheet {
 
   /// Print / WhatsApp delivery after navigation — must not block UI pop.
   static void deliverReceiptInBackground(BillingFlowResult result) {
-    if (result.receiptAction == BillReceiptAction.shareWhatsApp &&
-        result.whatsappPhone != null) {
+    final needsWhatsApp =
+        result.receiptAction == BillReceiptAction.shareWhatsApp ||
+        result.receiptAction == BillReceiptAction.printAndShareWhatsApp;
+    if (needsWhatsApp && result.whatsappPhone != null) {
       unawaited(
         _saveCustomerContactSafely(
           name: result.customerName ?? '',

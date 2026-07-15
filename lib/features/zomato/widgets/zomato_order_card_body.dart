@@ -1,7 +1,6 @@
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/core/utils/zomato_order_utils.dart';
-import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
-import 'package:demo/features/zomato/widgets/zomato_order_progress_dialog.dart';
+import 'package:demo/features/zomato/services/zomato_order_serve_service.dart';
 import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -136,17 +135,17 @@ class ZomatoOrderCardBody extends StatelessWidget {
               if (value == null || value == normalized) return;
               try {
                 if (ZomatoOrderUtils.isCompletedStatus(value)) {
-                  await ZomatoOrderProgressDialog.run(
-                    context,
-                    action: () => Get.find<ZomatoOrdersRepository>().updateStatus(
-                      docId: docId,
-                      status: value,
-                    ),
-                    message: 'Completing Zomato order...',
-                    subtitle: 'Removing screenshot and closing order',
+                  await Get.find<ZomatoOrderServeService>().updateStatus(
+                    docId: docId,
+                    status: value,
                   );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Zomato order served.')),
+                    );
+                  }
                 } else {
-                  await Get.find<ZomatoOrdersRepository>().updateStatus(
+                  await Get.find<ZomatoOrderServeService>().updateStatus(
                     docId: docId,
                     status: value,
                   );

@@ -12,5 +12,6 @@ export 'utils/auto_stock_schedule.dart';
 export 'utils/menu_stock_scope.dart';
 export 'views/AddCategoryPage.dart';
 export 'views/AddMenuItemPage.dart';
+export 'data/preset_menus.dart';
 export 'views/MenuSeederPage.dart';
 export 'widgets/setup_page_layout.dart';

@@ -2,6 +2,8 @@ import 'package:demo/core/models/restaurant.dart';
 import 'package:demo/features/super_admin/controllers/super_admin_controller.dart';
 import 'package:demo/features/super_admin/views/create_restaurant_admin_view.dart';
 import 'package:demo/features/super_admin/views/create_restaurant_view.dart';
+import 'package:demo/features/super_admin/views/edit_restaurant_view.dart';
+import 'package:demo/features/super_admin/views/restaurant_admins_view.dart';
 import 'package:demo/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -124,18 +126,39 @@ class _RestaurantCard extends StatelessWidget {
               'Subscription: ${dateFmt.format(restaurant.subscriptionStart)} – ${dateFmt.format(restaurant.subscriptionEnd)}',
               style: MyFont.regular(13, color: Colors.grey.shade700),
             ),
-            if (restaurant.adminEmail != null) ...[
+            if (restaurant.mobileNumbersLine.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
-                'Admin: ${restaurant.adminEmail}',
+                'Mobile: ${restaurant.mobileNumbersLine}',
                 style: MyFont.regular(13, color: Colors.grey.shade700),
               ),
             ],
+            const SizedBox(height: 4),
+            Obx(
+              () => Text(
+                'Admins: ${controller.adminSummaryForRestaurant(restaurant.id)}',
+                style: MyFont.regular(13, color: Colors.grey.shade700),
+              ),
+            ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
+                OutlinedButton.icon(
+                  onPressed: () => Get.to(
+                    () => EditRestaurantView(restaurant: restaurant),
+                  ),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Edit'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => Get.to(
+                    () => RestaurantAdminsView(restaurant: restaurant),
+                  ),
+                  icon: const Icon(Icons.people_outline, size: 18),
+                  label: const Text('View Admins'),
+                ),
                 OutlinedButton.icon(
                   onPressed: () => Get.to(
                     () => CreateRestaurantAdminView(restaurant: restaurant),
