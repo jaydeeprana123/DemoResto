@@ -101,7 +101,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   static final Color _newOrderBlinkColor = Colors.lightGreenAccent.shade100;
   static final Color _updateBlinkColor = Colors.yellow.shade300;
   static final Color _newItemHighlightColor = Colors.brown.shade100;
-  static final Color _serveBlinkColor = const Color(TableServeChangeUtils.serveBlinkColor);
+  static final Color _serveBlinkColor = const Color(
+    TableServeChangeUtils.serveBlinkColor,
+  );
   static final Color _delayedItemBackground = KitchenTheme.delayedBarBg;
   static final Color _delayedItemBlinkBackground = KitchenTheme.delayedBarBlink;
   static const int _delayThresholdMinutes = 15;
@@ -402,10 +404,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       } else {
         final servedItemKeyIds =
             TableServeChangeUtils.newlyServedTableItemKeyIds(
-          currentGroup?.docId ?? '',
-          previousGroup?.items ?? const [],
-          currentGroup?.items ?? const [],
-        );
+              currentGroup?.docId ?? '',
+              previousGroup?.items ?? const [],
+              currentGroup?.items ?? const [],
+            );
         unawaited(
           Get.find<ServeNotificationService>().tryPlayServeAlert(
             eventKey: serveEventKey,
@@ -436,7 +438,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   void _showNewOrderDialog(TableGroup group) {
     if (!mounted) return;
-    if (_appLifecycleState != AppLifecycleState.resumed || !widget.isTabActive) {
+    if (_appLifecycleState != AppLifecycleState.resumed ||
+        !widget.isTabActive) {
       return;
     }
 
@@ -727,6 +730,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     List<dynamic>? itemsFromDb, {
     required bool isPaid,
     required String docId,
+    required bool isPriority,
     String? lastTransactionId,
     String? source,
     String? screenshotUrl,
@@ -773,6 +777,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           key: '${tableName}_$index',
           docId: docId,
           isPaid: isPaid,
+          isPriority: isPriority,
           groupIndex: index,
           lastTransactionId: lastTransactionId,
           source: source,
@@ -794,6 +799,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           key: '${tableName}_zomato_0',
           docId: docId,
           isPaid: isPaid,
+          isPriority: isPriority,
           groupIndex: 0,
           lastTransactionId: lastTransactionId,
           source: source,
@@ -1372,6 +1378,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             key: group.key,
             docId: group.docId,
             isPaid: group.isPaid,
+            isPriority: group.isPriority,
             groupIndex: group.groupIndex,
             lastTransactionId: group.lastTransactionId,
             source: group.source,
@@ -1438,6 +1445,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             key: group.key,
             docId: group.docId,
             isPaid: group.isPaid,
+            isPriority: group.isPriority,
             groupIndex: group.groupIndex,
             lastTransactionId: group.lastTransactionId,
             source: group.source,
@@ -1454,6 +1462,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     for (var i = 0; i < a.length; i++) {
       if (a[i].key != b[i].key ||
           a[i].isPaid != b[i].isPaid ||
+          a[i].isPriority != b[i].isPriority ||
           _groupSignature(a[i]) != _groupSignature(b[i])) {
         return false;
       }
@@ -1464,7 +1473,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   bool _sameTableCards(List<KitchenTableCard> a, List<KitchenTableCard> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
-      if (a[i].docId != b[i].docId || a[i].isPaid != b[i].isPaid) {
+      if (a[i].docId != b[i].docId ||
+          a[i].isPaid != b[i].isPaid ||
+          a[i].isPriority != b[i].isPriority) {
         return false;
       }
       if (a[i].batches.length != b[i].batches.length) return false;
@@ -1513,6 +1524,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       final data = doc.data();
       final tableName = (data['name'] ?? 'Unknown Table') as String;
       final isPaid = data['isPaid'] == true;
+      final isPriority = data['kitchenPriority'] == true;
       final lastTransactionId = data['lastTransactionId']?.toString();
       final source = data['source']?.toString();
       final screenshotUrl = data['screenshotUrl']?.toString();
@@ -1527,6 +1539,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           itemsFromDb,
           isPaid: isPaid,
           docId: doc.id,
+          isPriority: isPriority,
           lastTransactionId: lastTransactionId,
           source: source,
           screenshotUrl: screenshotUrl,
@@ -1536,7 +1549,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       );
     }
 
-    updatedGroups.sort((a, b) => a.groupTime.compareTo(b.groupTime));
+    updatedGroups.sort(_compareKitchenOrdersByPriorityAndTime);
     _lastUpdatedGroups = updatedGroups;
     _rebuildCrossTablePendingIndex();
 
@@ -1629,11 +1642,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               )) {
             serveKeys.add(key);
             final docId = current.docId;
-            final servedItemKeyIds = TableServeChangeUtils.newlyServedTableItemKeyIds(
-              docId,
-              previous.items,
-              current.items,
-            );
+            final servedItemKeyIds =
+                TableServeChangeUtils.newlyServedTableItemKeyIds(
+                  docId,
+                  previous.items,
+                  current.items,
+                );
             serveEventKey = TableServeChangeUtils.eventKeyForDoc(
               docId,
               servedItemKeyIds,
@@ -1950,12 +1964,14 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           tableName: group.tableName,
           docId: group.docId,
           isPaid: group.isPaid,
+          isPriority: group.isPriority,
           lastTransactionId: group.lastTransactionId,
           batches: [group],
         );
       } else {
         map[group.docId]!.batches.add(group);
         if (group.isPaid) map[group.docId]!.isPaid = true;
+        if (group.isPriority) map[group.docId]!.isPriority = true;
         if (group.lastTransactionId != null &&
             group.lastTransactionId!.isNotEmpty) {
           map[group.docId]!.lastTransactionId = group.lastTransactionId;
@@ -1968,11 +1984,25 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     }
 
     final cards = map.values.toList()
-      ..sort(
-        (a, b) =>
-            a.batches.first.groupTime.compareTo(b.batches.first.groupTime),
-      );
+      ..sort(_compareKitchenTableCardsByPriorityAndTime);
     return cards;
+  }
+
+  int _compareKitchenOrdersByPriorityAndTime(TableGroup a, TableGroup b) {
+    if (a.isPriority != b.isPriority) {
+      return a.isPriority ? -1 : 1;
+    }
+    return a.groupTime.compareTo(b.groupTime);
+  }
+
+  int _compareKitchenTableCardsByPriorityAndTime(
+    KitchenTableCard a,
+    KitchenTableCard b,
+  ) {
+    if (a.isPriority != b.isPriority) {
+      return a.isPriority ? -1 : 1;
+    }
+    return a.batches.first.groupTime.compareTo(b.batches.first.groupTime);
   }
 
   bool get _hasActiveCategoryFilter => _menuFilter.hasActiveFilter(
@@ -2309,6 +2339,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             key: group.key,
             docId: group.docId,
             isPaid: group.isPaid,
+            isPriority: group.isPriority,
             groupIndex: group.groupIndex,
             lastTransactionId: group.lastTransactionId,
             source: group.source,
@@ -2646,110 +2677,118 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       deleteTable(group.docId);
     }
 
-    return KeyedSubtree(
-      key: ValueKey(group.key),
-      child: ListenableBuilder(
-        listenable: _minuteTick,
-        builder: (context, _) {
-          final tickTime = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
-          final tickIsDelayed = _isOrderDelayed(tickTime);
-          final headerColor = KitchenTheme.headerForOrderTable(
-            group.tableName,
-            isZomato: group.isZomato,
-            isDelayed: tickIsDelayed,
-          );
-          return _orderCardShell(
-            isBlinking: isBlinking,
-            animationDuration: const Duration(milliseconds: 800),
-            decoration: _orderCardDecoration(
-              isBlinking,
-              headerColor,
-              isNext: isNext,
-              compact: _isMobileGridLayout,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildOrderHeader(
-                  group.tableName,
-                  group.isPaid,
-                  queueNumber,
-                  headerColor: headerColor,
-                  isZomato: group.isZomato,
-                  isNext: isNext,
-                  onPaidHeaderTap: group.isZomato
-                      ? () => _markTableServed(group.tableName, group.docId)
-                      : null,
-                  compact: _isMobileGridLayout,
-                ),
-                _buildTimeBar(
-                  tickTime,
-                  tickIsDelayed,
-                  compact: _isMobileGridLayout,
-                ),
-                if (group.isZomato &&
-                    (group.screenshotUrl?.isNotEmpty ?? false))
-                  ZomatoOrderCardBody(
-                    docId: group.docId,
-                    screenshotUrl: group.screenshotUrl!,
-                    status: group.zomatoStatus ?? 'Pending',
+    return _wrapWithPriorityGestures(
+      docId: group.docId,
+      tableName: group.tableName,
+      isPriority: group.isPriority,
+      child: KeyedSubtree(
+        key: ValueKey(group.key),
+        child: ListenableBuilder(
+          listenable: _minuteTick,
+          builder: (context, _) {
+            final tickTime = DateTime.fromMillisecondsSinceEpoch(
+              group.groupTime,
+            );
+            final tickIsDelayed = _isOrderDelayed(tickTime);
+            final headerColor = KitchenTheme.headerForOrderTable(
+              group.tableName,
+              isZomato: group.isZomato,
+              isDelayed: tickIsDelayed,
+            );
+            return _orderCardShell(
+              isBlinking: isBlinking,
+              animationDuration: const Duration(milliseconds: 800),
+              decoration: _orderCardDecoration(
+                isBlinking,
+                headerColor,
+                isNext: isNext,
+                isPriority: group.isPriority,
+                compact: _isMobileGridLayout,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildOrderHeader(
+                    group.tableName,
+                    group.isPaid,
+                    queueNumber,
+                    headerColor: headerColor,
+                    isZomato: group.isZomato,
+                    isNext: isNext,
+                    isPriority: group.isPriority,
+                    onPaidHeaderTap: group.isZomato
+                        ? () => _markTableServed(group.tableName, group.docId)
+                        : null,
                     compact: _isMobileGridLayout,
-                  )
-                else
-                  Padding(
-                    padding: EdgeInsets.all(_isMobileGridLayout ? 6 : 12),
-                    child: ListenableBuilder(
-                      listenable: _itemSelection.listenableFor(group.docId),
-                      builder: (context, _) {
-                        final selectionMode = _itemSelection.isSelectionModeFor(
-                          group.docId,
-                        );
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ...group.items.asMap().entries.map(
-                              (entry) => _buildItemRow(
-                                entry.value,
-                                docId: group.docId,
-                                groupIndex:
-                                    TableItemServed.firestoreGroupIndexFor(
-                                      entry.value,
-                                      group.groupIndex,
-                                    ),
-                                itemIndexInGroup:
-                                    TableItemServed.itemIndexInGroupFor(
-                                      entry.value,
-                                      entry.key,
-                                    ),
-                                selectionMode: selectionMode,
-                                isDelayed: tickIsDelayed,
-                                isDelayedBlinking: isDelayedBlinking,
-                              ),
-                            ),
-                            TableItemSelectionActionBar(
-                              docId: group.docId,
-                              controller: _itemSelection,
-                              showDeleteButton:
-                                  Get.find<RestaurantSession>()
-                                      .profile
-                                      .value
-                                      ?.isAdmin ??
-                                  false,
-                              action:
-                                  _showServeOrderScreen &&
-                                      _kitchenOrderTabIndex == 1
-                                  ? TableItemSelectionAction.markPending
-                                  : TableItemSelectionAction.serve,
-                            ),
-                          ],
-                        );
-                      },
-                    ),
                   ),
-              ],
-            ),
-          );
-        },
+                  _buildTimeBar(
+                    tickTime,
+                    tickIsDelayed,
+                    compact: _isMobileGridLayout,
+                  ),
+                  if (group.isZomato &&
+                      (group.screenshotUrl?.isNotEmpty ?? false))
+                    ZomatoOrderCardBody(
+                      docId: group.docId,
+                      screenshotUrl: group.screenshotUrl!,
+                      status: group.zomatoStatus ?? 'Pending',
+                      compact: _isMobileGridLayout,
+                    )
+                  else
+                    Padding(
+                      padding: EdgeInsets.all(_isMobileGridLayout ? 6 : 12),
+                      child: ListenableBuilder(
+                        listenable: _itemSelection.listenableFor(group.docId),
+                        builder: (context, _) {
+                          final selectionMode = _itemSelection
+                              .isSelectionModeFor(group.docId);
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ...group.items.asMap().entries.map(
+                                (entry) => _buildItemRow(
+                                  entry.value,
+                                  docId: group.docId,
+                                  groupIndex:
+                                      TableItemServed.firestoreGroupIndexFor(
+                                        entry.value,
+                                        group.groupIndex,
+                                      ),
+                                  itemIndexInGroup:
+                                      TableItemServed.itemIndexInGroupFor(
+                                        entry.value,
+                                        entry.key,
+                                      ),
+                                  selectionMode: selectionMode,
+                                  isDelayed: tickIsDelayed,
+                                  isDelayedBlinking: isDelayedBlinking,
+                                ),
+                              ),
+                              TableItemSelectionActionBar(
+                                docId: group.docId,
+                                controller: _itemSelection,
+                                showDeleteButton:
+                                    Get.find<RestaurantSession>()
+                                        .profile
+                                        .value
+                                        ?.isAdmin ??
+                                    false,
+                                action:
+                                    _showServeOrderScreen &&
+                                        _kitchenOrderTabIndex == 1
+                                    ? TableItemSelectionAction.markPending
+                                    : TableItemSelectionAction.serve,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -2783,181 +2822,191 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       }
     }
 
-    return KeyedSubtree(
-      key: ValueKey(tableCard.docId),
-      child: ListenableBuilder(
-        listenable: _minuteTick,
-        builder: (context, _) {
-          final tickIsDelayed = tableCard.batches.any((batch) {
-            final batchTime = DateTime.fromMillisecondsSinceEpoch(
-              batch.groupTime,
+    return _wrapWithPriorityGestures(
+      docId: tableCard.docId,
+      tableName: tableCard.tableName,
+      isPriority: tableCard.isPriority,
+      child: KeyedSubtree(
+        key: ValueKey(tableCard.docId),
+        child: ListenableBuilder(
+          listenable: _minuteTick,
+          builder: (context, _) {
+            final tickIsDelayed = tableCard.batches.any((batch) {
+              final batchTime = DateTime.fromMillisecondsSinceEpoch(
+                batch.groupTime,
+              );
+              return _isOrderDelayed(batchTime);
+            });
+            final headerColor = KitchenTheme.headerForOrderTable(
+              tableCard.tableName,
+              isZomato: isZomato,
+              isDelayed: tickIsDelayed,
             );
-            return _isOrderDelayed(batchTime);
-          });
-          final headerColor = KitchenTheme.headerForOrderTable(
-            tableCard.tableName,
-            isZomato: isZomato,
-            isDelayed: tickIsDelayed,
-          );
-          return _orderCardShell(
-            isBlinking: isBlinking,
-            decoration: _orderCardDecoration(
-              isBlinking,
-              headerColor,
-              isNext: isNext,
-              compact: _isMobileGridLayout,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildOrderHeader(
-                  tableCard.tableName,
-                  tableCard.isPaid,
-                  queueNumber,
-                  headerColor: headerColor,
-                  isZomato: isZomato,
-                  isNext: isNext,
-                  onPaidHeaderTap: isZomato
-                      ? () => _markTableServed(
-                          tableCard.tableName,
-                          tableCard.docId,
-                        )
-                      : null,
-                  compact: _isMobileGridLayout,
-                ),
-                if (isZomato &&
-                    zomatoGroup != null &&
-                    (zomatoGroup.screenshotUrl?.isNotEmpty ?? false)) ...[
-                  _buildTimeBar(
-                    DateTime.fromMillisecondsSinceEpoch(zomatoGroup.groupTime),
-                    _isOrderDelayed(
+            return _orderCardShell(
+              isBlinking: isBlinking,
+              decoration: _orderCardDecoration(
+                isBlinking,
+                headerColor,
+                isNext: isNext,
+                isPriority: tableCard.isPriority,
+                compact: _isMobileGridLayout,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildOrderHeader(
+                    tableCard.tableName,
+                    tableCard.isPaid,
+                    queueNumber,
+                    headerColor: headerColor,
+                    isZomato: isZomato,
+                    isNext: isNext,
+                    isPriority: tableCard.isPriority,
+                    onPaidHeaderTap: isZomato
+                        ? () => _markTableServed(
+                            tableCard.tableName,
+                            tableCard.docId,
+                          )
+                        : null,
+                    compact: _isMobileGridLayout,
+                  ),
+                  if (isZomato &&
+                      zomatoGroup != null &&
+                      (zomatoGroup.screenshotUrl?.isNotEmpty ?? false)) ...[
+                    _buildTimeBar(
                       DateTime.fromMillisecondsSinceEpoch(
                         zomatoGroup.groupTime,
                       ),
+                      _isOrderDelayed(
+                        DateTime.fromMillisecondsSinceEpoch(
+                          zomatoGroup.groupTime,
+                        ),
+                      ),
+                      compact: _isMobileGridLayout,
                     ),
-                    compact: _isMobileGridLayout,
-                  ),
-                  ZomatoOrderCardBody(
-                    docId: tableCard.docId,
-                    screenshotUrl: zomatoGroup.screenshotUrl!,
-                    status: zomatoGroup.zomatoStatus ?? 'Pending',
-                    compact: _isMobileGridLayout,
-                  ),
-                ] else
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      _isMobileGridLayout ? 6 : 12,
-                      8,
-                      _isMobileGridLayout ? 4 : 6,
-                      _isMobileGridLayout ? 6 : 12,
+                    ZomatoOrderCardBody(
+                      docId: tableCard.docId,
+                      screenshotUrl: zomatoGroup.screenshotUrl!,
+                      status: zomatoGroup.zomatoStatus ?? 'Pending',
+                      compact: _isMobileGridLayout,
                     ),
-                    child: ListenableBuilder(
-                      listenable: _itemSelection.listenableFor(tableCard.docId),
-                      builder: (context, _) {
-                        final selectionMode = _itemSelection.isSelectionModeFor(
+                  ] else
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        _isMobileGridLayout ? 6 : 12,
+                        8,
+                        _isMobileGridLayout ? 4 : 6,
+                        _isMobileGridLayout ? 6 : 12,
+                      ),
+                      child: ListenableBuilder(
+                        listenable: _itemSelection.listenableFor(
                           tableCard.docId,
-                        );
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (
-                              var i = 0;
-                              i < tableCard.batches.length;
-                              i++
-                            ) ...[
-                              if (i > 0) ...[
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 4),
-                                  child: DottedLine(
-                                    dashColor: KitchenTheme.surfaceBorder,
-                                    lineThickness: 1,
-                                    dashLength: 4,
-                                    dashGapLength: 4,
+                        ),
+                        builder: (context, _) {
+                          final selectionMode = _itemSelection
+                              .isSelectionModeFor(tableCard.docId);
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (
+                                var i = 0;
+                                i < tableCard.batches.length;
+                                i++
+                              ) ...[
+                                if (i > 0) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: DottedLine(
+                                      dashColor: KitchenTheme.surfaceBorder,
+                                      lineThickness: 1,
+                                      dashLength: 4,
+                                      dashGapLength: 4,
+                                    ),
                                   ),
-                                ),
-                              ],
-                              Builder(
-                                builder: (context) {
-                                  final batch = tableCard.batches[i];
-                                  final batchTime =
-                                      DateTime.fromMillisecondsSinceEpoch(
-                                        batch.groupTime,
-                                      );
-                                  final batchDelayed = _isOrderDelayed(
-                                    batchTime,
-                                  );
-                                  final batchDelayedBlinking =
-                                      _isDelayedGroupBlinking(batch);
-                                  return Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: _KitchenRelativeTime(
-                                          time: batchTime,
-                                          tick: _minuteTick,
-                                          formatter: formatRelativeTime,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontFamily: fontMulishRegular,
-                                            color: batchDelayed
-                                                ? KitchenTheme.delayedText
-                                                : KitchenTheme.accentMuted,
-                                            fontStyle: FontStyle.italic,
+                                ],
+                                Builder(
+                                  builder: (context) {
+                                    final batch = tableCard.batches[i];
+                                    final batchTime =
+                                        DateTime.fromMillisecondsSinceEpoch(
+                                          batch.groupTime,
+                                        );
+                                    final batchDelayed = _isOrderDelayed(
+                                      batchTime,
+                                    );
+                                    final batchDelayedBlinking =
+                                        _isDelayedGroupBlinking(batch);
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: _KitchenRelativeTime(
+                                            time: batchTime,
+                                            tick: _minuteTick,
+                                            formatter: formatRelativeTime,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontFamily: fontMulishRegular,
+                                              color: batchDelayed
+                                                  ? KitchenTheme.delayedText
+                                                  : KitchenTheme.accentMuted,
+                                              fontStyle: FontStyle.italic,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      ...batch.items.asMap().entries.map(
-                                        (entry) => _buildItemRow(
-                                          entry.value,
-                                          docId: tableCard.docId,
-                                          groupIndex:
-                                              TableItemServed.firestoreGroupIndexFor(
-                                                entry.value,
-                                                batch.groupIndex,
-                                              ),
-                                          itemIndexInGroup:
-                                              TableItemServed.itemIndexInGroupFor(
-                                                entry.value,
-                                                entry.key,
-                                              ),
-                                          selectionMode: selectionMode,
-                                          isDelayed: batchDelayed,
-                                          isDelayedBlinking:
-                                              batchDelayedBlinking,
+                                        const SizedBox(height: 6),
+                                        ...batch.items.asMap().entries.map(
+                                          (entry) => _buildItemRow(
+                                            entry.value,
+                                            docId: tableCard.docId,
+                                            groupIndex:
+                                                TableItemServed.firestoreGroupIndexFor(
+                                                  entry.value,
+                                                  batch.groupIndex,
+                                                ),
+                                            itemIndexInGroup:
+                                                TableItemServed.itemIndexInGroupFor(
+                                                  entry.value,
+                                                  entry.key,
+                                                ),
+                                            selectionMode: selectionMode,
+                                            isDelayed: batchDelayed,
+                                            isDelayedBlinking:
+                                                batchDelayedBlinking,
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  );
-                                },
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ],
+                              TableItemSelectionActionBar(
+                                docId: tableCard.docId,
+                                controller: _itemSelection,
+                                showDeleteButton:
+                                    Get.find<RestaurantSession>()
+                                        .profile
+                                        .value
+                                        ?.isAdmin ??
+                                    false,
+                                action:
+                                    _showServeOrderScreen &&
+                                        _kitchenOrderTabIndex == 1
+                                    ? TableItemSelectionAction.markPending
+                                    : TableItemSelectionAction.serve,
                               ),
                             ],
-                            TableItemSelectionActionBar(
-                              docId: tableCard.docId,
-                              controller: _itemSelection,
-                              showDeleteButton:
-                                  Get.find<RestaurantSession>()
-                                      .profile
-                                      .value
-                                      ?.isAdmin ??
-                                  false,
-                              action:
-                                  _showServeOrderScreen &&
-                                      _kitchenOrderTabIndex == 1
-                                  ? TableItemSelectionAction.markPending
-                                  : TableItemSelectionAction.serve,
-                            ),
-                          ],
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
-                  ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -2966,6 +3015,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     if (selectedCategories.isNotEmpty && !showAllCategories) return;
     showServedDialog(context, tableName, () async {
       _playDeleteSound();
+      await _clearKitchenPriority(docId);
       if (ZomatoOrderUtils.isZomatoOrderName(tableName)) {
         try {
           await Get.find<ZomatoOrderServeService>().serveOrder(docId: docId);
@@ -2993,24 +3043,150 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     bool isBlinking,
     Color headerColor, {
     bool isNext = false,
+    bool isPriority = false,
     bool compact = false,
   }) {
     final radius = compact ? 8.0 : 12.0;
-    final borderWidth = compact ? (isNext ? 2.0 : 1.5) : (isNext ? 2.5 : 1.0);
+    final borderWidth = isPriority
+        ? (compact ? 2.0 : 2.5)
+        : compact
+        ? (isNext ? 2.0 : 1.5)
+        : (isNext ? 2.5 : 1.0);
+    final borderColor = isPriority
+        ? const Color(0xFFD32F2F)
+        : isNext
+        ? headerColor
+        : Colors.grey.shade200.withValues(alpha: 0.85);
     return BoxDecoration(
       color: isBlinking ? _blinkColor : KitchenTheme.cardBody,
       borderRadius: BorderRadius.circular(radius),
       boxShadow: KitchenTheme.cardShadows(
-        accentColor: headerColor,
-        emphasize: isNext,
+        accentColor: isPriority ? const Color(0xFFD32F2F) : headerColor,
+        emphasize: isNext || isPriority,
         compact: compact,
       ),
-      border: Border.all(
-        color: isNext
-            ? headerColor
-            : Colors.grey.shade200.withValues(alpha: 0.85),
-        width: borderWidth,
+      border: Border.all(color: borderColor, width: borderWidth),
+    );
+  }
+
+  Widget _wrapWithPriorityGestures({
+    required String docId,
+    required String tableName,
+    required bool isPriority,
+    required Widget child,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: () => _showKitchenPriorityDialog(
+        docId: docId,
+        tableName: tableName,
+        isPriority: isPriority,
       ),
+      onDoubleTap: () => _showKitchenPriorityDialog(
+        docId: docId,
+        tableName: tableName,
+        isPriority: isPriority,
+      ),
+      child: child,
+    );
+  }
+
+  Future<void> _showKitchenPriorityDialog({
+    required String docId,
+    required String tableName,
+    required bool isPriority,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            isPriority ? 'Remove priority?' : 'Set priority?',
+            style: const TextStyle(
+              fontFamily: fontMulishSemiBold,
+              fontSize: 18,
+            ),
+          ),
+          content: Text(
+            isPriority
+                ? 'Remove the priority tag from "$tableName"?'
+                : 'Mark "$tableName" as priority for the kitchen?',
+            style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 15),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  fontFamily: fontMulishSemiBold,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isPriority
+                    ? Colors.grey.shade700
+                    : KitchenTheme.accent,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(
+                isPriority ? 'Remove Priority' : 'Set Priority',
+                style: const TextStyle(fontFamily: fontMulishSemiBold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+    await _setKitchenPriority(docId, !isPriority);
+  }
+
+  Future<void> _setKitchenPriority(String docId, bool isPriority) async {
+    try {
+      final updates = <String, dynamic>{
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (isPriority) {
+        updates['kitchenPriority'] = true;
+      } else {
+        updates['kitchenPriority'] = FieldValue.delete();
+      }
+      await FirestorePaths.scoped('tables').doc(docId).update(updates);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not update priority: $e')));
+    }
+  }
+
+  Future<void> _clearKitchenPriority(String docId) async {
+    try {
+      await FirestorePaths.scoped('tables').doc(docId).update({
+        'kitchenPriority': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Priority may already be absent when the table document is deleted.
+    }
+  }
+
+  Widget _priorityRibbonTag({required bool compact, required bool isZomato}) {
+    final size = compact ? 18.0 : 20.0;
+    return SvgPicture.asset(
+      isZomato
+          ? 'assets/images/priority_icon_white.svg'
+          : 'assets/images/priority_icon.svg',
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
     );
   }
 
@@ -3021,6 +3197,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     required Color headerColor,
     bool isZomato = false,
     bool isNext = false,
+    bool isPriority = false,
     VoidCallback? onPaidHeaderTap,
     VoidCallback? onPaidDoubleTap,
     bool compact = false,
@@ -3070,6 +3247,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                if (isPriority) ...[
+                  SizedBox(width: compact ? 4 : 6),
+                  _priorityRibbonTag(compact: compact, isZomato: zomato),
+                ],
                 // if (zomato) ...[
                 //   const SizedBox(width: 6),
                 //   Container(
@@ -3095,32 +3276,33 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             ),
           ),
 
-          Container(
-            margin: const EdgeInsets.only(right: 0),
-            width: 26,
-            height: 26,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(36),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.22),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
+          if (!isPriority)
+            Container(
+              margin: const EdgeInsets.only(right: 0),
+              width: 26,
+              height: 26,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(36),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.22),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+              child: Text(
+                '$queueNumber',
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 12,
+                  fontFamily: fontMulishBold,
+                  height: 1,
                 ),
-              ],
-            ),
-            child: Text(
-              '$queueNumber',
-              style: const TextStyle(
-                color: Colors.black,
-                fontSize: 12,
-                fontFamily: fontMulishBold,
-                height: 1,
               ),
             ),
-          ),
 
           // if (isNext)
           //   Container(
@@ -3454,6 +3636,7 @@ class TableGroup {
   final String key;
   final String docId;
   final bool isPaid;
+  final bool isPriority;
   final int groupIndex;
   final String? lastTransactionId;
   final String? source;
@@ -3471,6 +3654,7 @@ class TableGroup {
     required this.key,
     required this.docId,
     required this.isPaid,
+    this.isPriority = false,
     required this.groupIndex,
     this.lastTransactionId,
     this.source,
@@ -3483,6 +3667,7 @@ class KitchenTableCard {
   final String tableName;
   final String docId;
   bool isPaid;
+  bool isPriority;
   String? lastTransactionId;
   final List<TableGroup> batches;
 
@@ -3490,6 +3675,7 @@ class KitchenTableCard {
     required this.tableName,
     required this.docId,
     required this.isPaid,
+    this.isPriority = false,
     this.lastTransactionId,
     required this.batches,
   });
