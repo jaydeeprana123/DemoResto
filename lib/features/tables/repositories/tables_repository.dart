@@ -7,11 +7,15 @@ class TableOrderSnapshot {
     required this.docId,
     required this.items,
     required this.isPaid,
+    this.addedByUserId,
+    this.addedByUserName,
   });
 
   final String docId;
   final List<Map<String, dynamic>> items;
   final bool isPaid;
+  final String? addedByUserId;
+  final String? addedByUserName;
 }
 
 class TablesRepository {
@@ -66,10 +70,20 @@ class TablesRepository {
     final doc = query.docs.first;
     final data = doc.data();
     final items = mergeTableItemsForBilling(data['items']);
+    final addedByUserId = data['addedByUserId']?.toString().trim();
+    final addedByUserName = data['addedByUserName']?.toString().trim();
     return TableOrderSnapshot(
       docId: doc.id,
       items: items,
       isPaid: data['isPaid'] == true,
+      addedByUserId:
+          addedByUserId != null && addedByUserId.isNotEmpty
+              ? addedByUserId
+              : null,
+      addedByUserName:
+          addedByUserName != null && addedByUserName.isNotEmpty
+              ? addedByUserName
+              : null,
     );
   }
 
@@ -116,6 +130,9 @@ class TablesRepository {
     String? docId,
     String? lastTransactionId,
     bool clearLastTransactionId = false,
+    String? addedByUserId,
+    String? addedByUserName,
+    bool clearAddedBy = false,
   }) async {
     var resolvedDocId = docId?.trim();
     if (resolvedDocId == null || resolvedDocId.isEmpty) {
@@ -160,6 +177,20 @@ class TablesRepository {
       updateData['lastTransactionId'] = lastTransactionId;
     } else if (clearLastTransactionId) {
       updateData['lastTransactionId'] = FieldValue.delete();
+    }
+
+    // First creator only — caller must omit these when already set.
+    final trimmedAddedById = addedByUserId?.trim();
+    final trimmedAddedByName = addedByUserName?.trim();
+    if (trimmedAddedById != null &&
+        trimmedAddedById.isNotEmpty &&
+        trimmedAddedByName != null &&
+        trimmedAddedByName.isNotEmpty) {
+      updateData['addedByUserId'] = trimmedAddedById;
+      updateData['addedByUserName'] = trimmedAddedByName;
+    } else if (clearAddedBy || flattenedItems.isEmpty) {
+      updateData['addedByUserId'] = FieldValue.delete();
+      updateData['addedByUserName'] = FieldValue.delete();
     }
 
     await FirestorePaths.scopedDoc('tables', resolvedDocId).update(updateData);
