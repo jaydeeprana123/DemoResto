@@ -42,6 +42,7 @@ Future<BillingFlowResult?> showUnifiedBillingDialog(
   required List<Map<String, dynamic>> fallbackItems,
   required Future<void> Function(TableBillingSubmission submission) onSubmit,
   bool hidePaidOption = false,
+  String? addedByUserName,
 }) async {
   if (!context.mounted || fallbackItems.isEmpty) return null;
 
@@ -69,12 +70,17 @@ Future<BillingFlowResult?> showUnifiedBillingDialog(
   );
 
   var items = fallbackItems.map((e) => Map<String, dynamic>.from(e)).toList();
+  var resolvedAddedByUserName = addedByUserName?.trim();
   try {
     final fresh = await Get.find<TablesRepository>().fetchTableOrderFresh(
       tableName,
     );
     if (fresh != null && fresh.items.isNotEmpty) {
       items = fresh.items;
+    }
+    // Reuse the same existing fetch — no extra read for Added By.
+    if (resolvedAddedByUserName == null || resolvedAddedByUserName.isEmpty) {
+      resolvedAddedByUserName = fresh?.addedByUserName;
     }
   } catch (_) {}
 
@@ -94,6 +100,7 @@ Future<BillingFlowResult?> showUnifiedBillingDialog(
       cgstPercent: taxSettings.cgstPercentage,
       sgstPercent: taxSettings.sgstPercentage,
       hidePaidOption: hidePaidOption,
+      addedByUserName: resolvedAddedByUserName,
       onSubmit: onSubmit,
     ),
   );
@@ -109,6 +116,7 @@ class _UnifiedBillingDialog extends StatefulWidget {
     required this.sgstPercent,
     required this.hidePaidOption,
     required this.onSubmit,
+    this.addedByUserName,
   });
 
   final String tableName;
@@ -117,6 +125,7 @@ class _UnifiedBillingDialog extends StatefulWidget {
   final double sgstPercent;
   final bool hidePaidOption;
   final Future<void> Function(TableBillingSubmission submission) onSubmit;
+  final String? addedByUserName;
 
   @override
   State<_UnifiedBillingDialog> createState() => _UnifiedBillingDialogState();
@@ -702,6 +711,18 @@ class _UnifiedBillingDialogState extends State<_UnifiedBillingDialog> {
                             style: const TextStyle(
                               fontFamily: fontMulishSemiBold,
                               fontSize: 14,
+                              color: _dialogMuted,
+                            ),
+                          ),
+                        ],
+                        if (widget.addedByUserName != null &&
+                            widget.addedByUserName!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            'Added By: ${widget.addedByUserName!.trim()}',
+                            style: const TextStyle(
+                              fontFamily: fontMulishRegular,
+                              fontSize: 12,
                               color: _dialogMuted,
                             ),
                           ),
