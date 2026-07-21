@@ -84,12 +84,14 @@ class TableBillingSheet {
     required List<Map<String, dynamic>> items,
     required Future<void> Function(TableBillingSubmission submission) onSubmit,
     bool hidePaidOption = false,
+    String? addedByUserName,
   }) {
     return showUnifiedBillingDialog(
       context,
       tableName: tableName,
       fallbackItems: items,
       hidePaidOption: hidePaidOption,
+      addedByUserName: addedByUserName,
       onSubmit: onSubmit,
     );
   }
