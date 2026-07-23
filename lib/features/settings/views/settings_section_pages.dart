@@ -5,6 +5,7 @@ import 'package:demo/features/settings/views/AdminDashboardPage.dart';
 import 'package:demo/features/settings/views/ExpensesPage.dart';
 import 'package:demo/features/settings/views/ExportPage.dart';
 import 'package:demo/features/settings/views/bill_customer_contacts_page.dart';
+import 'package:demo/features/settings/views/item_sales_report_page.dart';
 import 'package:demo/features/settings/views/profile_view.dart';
 import 'package:demo/features/settings/views/settings_ui.dart';
 import 'package:demo/features/settings/views/staff_list_view.dart';
@@ -59,6 +60,13 @@ class SettingsBusinessSectionPage extends StatelessWidget {
                     title: 'Export',
                     subtitle: 'Download transactions & expenses to Excel',
                     onTap: () => Get.to(() => ExportPage(isAdmin: true)),
+                  ),
+                if (isAdmin)
+                  SettingsNavRow(
+                    icon: Icons.bar_chart_rounded,
+                    title: 'Item Sales Report',
+                    subtitle: 'Quantity sold per menu item by date range',
+                    onTap: () => Get.to(() => const ItemSalesReportPage()),
                   ),
               ],
             ),

@@ -11,8 +11,133 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
+class ItemSalesRow {
+  const ItemSalesRow({
+    required this.itemName,
+    required this.quantitySold,
+  });
+
+  final String itemName;
+  final int quantitySold;
+}
+
+class ItemSalesReportData {
+  const ItemSalesReportData({
+    required this.range,
+    required this.rows,
+    required this.transactionCount,
+    required this.totalQuantitySold,
+  });
+
+  final ExportDateRange range;
+  final List<ItemSalesRow> rows;
+  final int transactionCount;
+  final int totalQuantitySold;
+}
+
 class ExportExcelService {
   static final _dateTimeFmt = DateFormat('dd MMM yyyy, hh:mm a');
+
+  /// Loads transactions in [range] and aggregates sold qty per item name.
+  static Future<ItemSalesReportData> loadItemSales(
+    ExportDateRange range,
+  ) async {
+    final docs = await _fetchTransactions(range);
+    if (docs.isEmpty) {
+      throw ExportException('No transactions found for ${range.label}.');
+    }
+
+    final totals = <String, int>{};
+    for (final doc in docs) {
+      final items = doc.data()['items'] as List<dynamic>? ?? const [];
+      for (final raw in items) {
+        if (raw is! Map) continue;
+        final name = raw['name']?.toString().trim() ?? '';
+        if (name.isEmpty) continue;
+        final qty = _asInt(raw['qty']);
+        if (qty <= 0) continue;
+        totals[name] = (totals[name] ?? 0) + qty;
+      }
+    }
+
+    if (totals.isEmpty) {
+      throw ExportException(
+        'No sold items found in transactions for ${range.label}.',
+      );
+    }
+
+    final rows = totals.entries
+        .map(
+          (e) => ItemSalesRow(itemName: e.key, quantitySold: e.value),
+        )
+        .toList()
+      ..sort((a, b) {
+        final byQty = b.quantitySold.compareTo(a.quantitySold);
+        if (byQty != 0) return byQty;
+        return a.itemName.toLowerCase().compareTo(b.itemName.toLowerCase());
+      });
+
+    final totalQuantitySold = rows.fold<int>(
+      0,
+      (sum, row) => sum + row.quantitySold,
+    );
+
+    return ItemSalesReportData(
+      range: range,
+      rows: rows,
+      transactionCount: docs.length,
+      totalQuantitySold: totalQuantitySold,
+    );
+  }
+
+  static Future<String> exportItemSales(
+    ExportDateRange range, {
+    ItemSalesReportData? report,
+  }) async {
+    final data = report ?? await loadItemSales(range);
+
+    final excel = Excel.createExcel();
+    final defaultName = excel.sheets.keys.first;
+    excel.rename(defaultName, 'Item Sales');
+    final sheet = excel['Item Sales']!;
+
+    sheet.appendRow([
+      TextCellValue('Item Sales Report'),
+      TextCellValue(''),
+      TextCellValue(''),
+    ]);
+    sheet.appendRow([
+      TextCellValue('Date range'),
+      TextCellValue(data.range.label),
+      TextCellValue(''),
+    ]);
+    sheet.appendRow([
+      TextCellValue('Transactions'),
+      IntCellValue(data.transactionCount),
+      TextCellValue(''),
+    ]);
+    sheet.appendRow([]);
+    _appendHeaderRow(sheet, ['Item Name', 'Quantity Sold']);
+
+    for (final row in data.rows) {
+      sheet.appendRow([
+        TextCellValue(row.itemName),
+        IntCellValue(row.quantitySold),
+      ]);
+    }
+
+    sheet.appendRow([]);
+    sheet.appendRow([
+      TextCellValue('TOTAL'),
+      IntCellValue(data.totalQuantitySold),
+    ]);
+
+    return _deliverWorkbook(
+      excel,
+      fileName: 'item_sales_${_fileSuffix(range)}.xlsx',
+      subject: 'Item Sales ${range.label}',
+    );
+  }
 
   static Future<String> exportTransactions(ExportDateRange range) async {
     final docs = await _fetchTransactions(range);

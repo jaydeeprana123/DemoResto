@@ -30,6 +30,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
   double grandTotal = 0.0;
   double grandTotalOnline = 0.0;
   double grandTotalCash = 0.0;
+  double grandTotalDiscount = 0.0;
   int totalTransactionsData = 0;
 
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> transactions = [];
@@ -182,6 +183,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
         grandTotal = result["totalRevenue"];
         grandTotalOnline = result["totalOnline"];
         grandTotalCash = result["totalCash"];
+        grandTotalDiscount = result["totalDiscount"];
         totalTransactionsData = result["totalTransactions"];
         // reset pagination
         transactions.clear();
@@ -214,6 +216,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
     double totalRevenue = 0;
     double totalCash = 0;
     double totalOnline = 0;
+    double totalDiscount = 0;
     int totalTransactions = 0;
 
     for (var doc in snapshot.docs) {
@@ -221,6 +224,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
       totalRevenue += (data["total"] as num?)?.toDouble() ?? 0.0;
       totalCash += (data["cashAmount"] as num?)?.toDouble() ?? 0.0;
       totalOnline += (data["onlineAmount"] as num?)?.toDouble() ?? 0.0;
+      totalDiscount += (data["discount"] as num?)?.toDouble() ?? 0.0;
       totalTransactions += 1;
     }
 
@@ -228,6 +232,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
       "totalRevenue": totalRevenue,
       "totalCash": totalCash,
       "totalOnline": totalOnline,
+      "totalDiscount": totalDiscount,
       "totalTransactions": totalTransactions,
     };
   }
@@ -254,6 +259,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
       grandTotal = totalRevenue;
       grandTotalOnline = totalOnline;
       grandTotalCash = totalCash;
+      // daily_stats does not store discount; show 0 until a date filter is applied.
+      grandTotalDiscount = 0.0;
       totalTransactionsData = totalTransactions;
     });
   }
@@ -276,6 +283,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
         grandTotal = result['totalRevenue'];
         grandTotalOnline = result['totalOnline'];
         grandTotalCash = result['totalCash'];
+        grandTotalDiscount = result['totalDiscount'];
         totalTransactionsData = result['totalTransactions'];
       });
     } else {
@@ -558,6 +566,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
                             (data["onlineAmount"] as int?) ?? 0;
                         final total =
                             (data["total"] as num?)?.toDouble() ?? 0.0;
+                        final discount =
+                            (data["discount"] as num?)?.toDouble() ?? 0.0;
                         final dateTime = (data["createdAt"] as Timestamp?)
                             ?.toDate();
                         final dateKey = dateTime != null
@@ -716,11 +726,12 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                           ),
                                           // Payment pills
                                           const SizedBox(height: 6),
-                                          Row(
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 4,
                                             children: [
                                               if (onlineAmount > 0)
                                                 Container(
-                                                  margin: const EdgeInsets.only(right: 6),
                                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                                   decoration: BoxDecoration(
                                                     color: Colors.blue.shade50,
@@ -753,19 +764,52 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                                     ),
                                                   ),
                                                 ),
+                                              if (discount > 0)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.red.shade50,
+                                                    borderRadius: BorderRadius.circular(20),
+                                                    border: Border.all(color: Colors.red.shade200),
+                                                  ),
+                                                  child: Text(
+                                                    "Discount ₹${discount.toStringAsFixed(0)}",
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontFamily: fontMulishSemiBold,
+                                                      color: Colors.red.shade700,
+                                                    ),
+                                                  ),
+                                                ),
                                             ],
                                           ),
                                         ],
                                       ),
                                     ),
-                                    // Total amount
-                                    Text(
-                                      "₹${total.toStringAsFixed(0)}",
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontFamily: fontMulishBold,
-                                        color: Colors.green,
-                                      ),
+                                    // Total amount + discount
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          "₹${total.toStringAsFixed(0)}",
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontFamily: fontMulishBold,
+                                            color: Colors.green,
+                                          ),
+                                        ),
+                                        if (discount > 0) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            "-₹${discount.toStringAsFixed(0)}",
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontFamily: fontMulishSemiBold,
+                                              color: Colors.red.shade600,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -788,7 +832,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   ),
           ),
 
-          // Grand Total bar
+          // Grand Total + Total Discount bar
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: const BoxDecoration(
@@ -802,23 +846,50 @@ class _TransactionsPageState extends State<TransactionsPage> {
               ],
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  "Grand Total",
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontFamily: fontMulishSemiBold,
-                    color: Colors.white70,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Grand Total",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontFamily: fontMulishSemiBold,
+                          color: Colors.white70,
+                        ),
+                      ),
+                      Text(
+                        "₹${grandTotal.toStringAsFixed(0)}",
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontFamily: fontMulishBold,
+                          color: Color(0xFFf57c35),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                Text(
-                  "₹${grandTotal.toStringAsFixed(0)}",
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontFamily: fontMulishBold,
-                    color: Color(0xFFf57c35),
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      "Total Discount",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontFamily: fontMulishSemiBold,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    Text(
+                      "₹${grandTotalDiscount.toStringAsFixed(0)}",
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontFamily: fontMulishBold,
+                        color: Color(0xFFFF8A80),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
