@@ -79,7 +79,7 @@ class ExportExcelService {
 
     final totalQuantitySold = rows.fold<int>(
       0,
-      (sum, row) => sum + row.quantitySold,
+      (acc, row) => acc + row.quantitySold,
     );
 
     return ItemSalesReportData(
