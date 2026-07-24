@@ -18,6 +18,7 @@ import 'package:demo/features/ordering/views/cart_page.dart';
 import 'package:demo/features/ordering/views/final_billing_view.dart';
 import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
 import 'package:demo/features/ordering/utils/menu_item_variants.dart';
+import 'package:demo/features/settings/utils/staff_order_edit_permission.dart';
 import 'package:demo/MyWidgets/EditableTextField.dart';
 import 'package:demo/Styles/my_colors.dart';
 import 'package:demo/Styles/my_font.dart';
@@ -57,6 +58,11 @@ class MenuPage extends StatefulWidget {
   /// Called after menu is refreshed and saved to local cache.
   final VoidCallback? onMenuCacheUpdated;
 
+  /// When set, Staff edit/delete time limit is measured from this timestamp
+  /// (typically the latest order group's `addedAt`). Prefer this over scanning
+  /// merged [pastItems], which may lose the newest stamp.
+  final DateTime? editDeletePermissionAnchorAt;
+
   const MenuPage({
     required this.onConfirm,
     required this.menuList,
@@ -69,6 +75,7 @@ class MenuPage extends StatefulWidget {
     this.existingOrderNames = const {},
     this.initialItems = const [],
     this.pastItems = const [],
+    this.editDeletePermissionAnchorAt,
     Key? key,
   }) : super(key: key);
 
@@ -111,6 +118,7 @@ class _MenuPageState extends State<MenuPage>
   bool _isRefreshingMenu = false;
   bool _menuBootstrapping = true;
   VoidCallback? _menuCacheListener;
+  Timer? _staffPermissionRefreshTimer;
 
   bool get _showMenuRefreshButton =>
       kIsWeb ||
@@ -143,6 +151,20 @@ class _MenuPageState extends State<MenuPage>
     _menuCacheListener = _reloadMenuFromCachePreservingQty;
     Get.find<MenuCacheService>().revisionListenable.addListener(
       _menuCacheListener!,
+    );
+    _startStaffPermissionRefreshTimer();
+  }
+
+  /// Rebuilds so the Delete icon hides when the Staff time limit expires.
+  void _startStaffPermissionRefreshTimer() {
+    _staffPermissionRefreshTimer?.cancel();
+    if (StaffOrderEditPermission.isAdmin) return;
+    if (StaffOrderEditPermission.limitMinutes <= 0) return;
+    _staffPermissionRefreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) {
+        if (mounted) setState(() {});
+      },
     );
   }
 
@@ -2048,6 +2070,7 @@ class _MenuPageState extends State<MenuPage>
     searchController.dispose();
     _recordingTimer?.cancel();
     _amplitudeTimer?.cancel();
+    _staffPermissionRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -2082,10 +2105,31 @@ class _MenuPageState extends State<MenuPage>
   bool get _canGenerateBill =>
       Get.find<RestaurantSession>().profile.value?.isAdmin ?? false;
 
+  /// Items used to measure the Staff edit/delete window on this screen.
+  /// Prefer the editable latest group ([initialItems]); otherwise existing
+  /// table items ([_pastItems]).
+  Iterable<Map<String, dynamic>> get _orderItemsForPermissionCheck {
+    if (widget.initialItems.isNotEmpty) return widget.initialItems;
+    return _pastItems;
+  }
+
+  /// Staff may clear/delete only while within the admin-configured time limit.
+  bool get _staffCanModifyOrder {
+    if (widget.editDeletePermissionAnchorAt != null) {
+      return StaffOrderEditPermission.canModify(
+        addedAt: widget.editDeletePermissionAnchorAt,
+      );
+    }
+    return StaffOrderEditPermission.canModifyItems(
+      _orderItemsForPermissionCheck,
+    );
+  }
+
   bool get _canDeleteTable =>
       !widget.isFromFinalBilling &&
       !isNameEdit &&
       widget.onDeleteTable != null &&
+      _staffCanModifyOrder &&
       (_pastItems.isNotEmpty ||
           _hasOrderItems ||
           (_isTakeAwayTable && widget.tableNameEditable));

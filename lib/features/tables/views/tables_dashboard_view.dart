@@ -15,6 +15,7 @@ import 'package:demo/features/menu_setup/menu_setup.dart';
 import 'package:demo/features/ordering/views/menu_page.dart';
 import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
 import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
+import 'package:demo/features/settings/utils/staff_order_edit_permission.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/services/dashboard_settings.dart';
@@ -87,6 +88,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
     TableServeChangeUtils.serveBlinkColor,
   );
   Timer? _dashboardServeBlinkTimer;
+  Timer? _staffPermissionRefreshTimer;
 
   @override
   void initState() {
@@ -105,6 +107,21 @@ class _TableDashboardViewState extends State<TableDashboardView>
       );
     }
     unawaited(DashboardSettings.load());
+    _startStaffPermissionRefreshTimer();
+  }
+
+  /// Rebuilds periodically so Edit/Delete icons hide as soon as the Staff
+  /// time limit expires without requiring a manual refresh.
+  void _startStaffPermissionRefreshTimer() {
+    _staffPermissionRefreshTimer?.cancel();
+    if (StaffOrderEditPermission.isAdmin) return;
+    if (StaffOrderEditPermission.limitMinutes <= 0) return;
+    _staffPermissionRefreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) {
+        if (mounted) setState(() {});
+      },
+    );
   }
 
   Future<void> _loadTableFilter() async {
@@ -145,6 +162,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
     }
     WidgetsBinding.instance.removeObserver(this);
     _dashboardServeBlinkTimer?.cancel();
+    _staffPermissionRefreshTimer?.cancel();
     _gridScrollController.dispose();
     if (Get.isRegistered<SharedTablesSnapshotService>()) {
       Get.find<SharedTablesSnapshotService>().unsubscribe(this);
@@ -2108,30 +2126,18 @@ class _TableDashboardViewState extends State<TableDashboardView>
     }
   }
 
-  bool get _isAdmin =>
-      Get.find<RestaurantSession>().profile.value?.isAdmin ?? false;
-
-  /// Minutes a Staff user may edit/delete the latest order after it was placed.
-  /// `0` means no restriction. Admins are never restricted by this.
-  int get _staffEditDeleteLimitMinutes =>
-      Get.find<RestaurantSession>()
-          .activeRestaurant
-          .value
-          ?.staffEditDeleteLimitMinutes ??
-      0;
+  bool get _isAdmin => StaffOrderEditPermission.isAdmin;
 
   /// Whether the current user may still edit/delete the latest order group.
   /// Admins always can; staff only within the admin-configured time limit.
   /// Existing "latest group only" rules are unchanged — this only gates whether
   /// the edit/delete icons are offered.
-  bool _staffCanModifyLatestGroup(List<List<Map<String, dynamic>>> groups) {
-    if (_isAdmin) return true;
-    final limit = _staffEditDeleteLimitMinutes;
-    if (limit <= 0) return true;
-    if (groups.isEmpty || groups.last.isEmpty) return true;
-    final addedAt = _parseAddedAt(groups.last.first['addedAt']);
-    if (addedAt == null) return true;
-    return DateTime.now().difference(addedAt) <= Duration(minutes: limit);
+  bool _staffCanModifyLatestGroup(List<List<Map<String, dynamic>>> groups) =>
+      StaffOrderEditPermission.canModifyLatestGroup(groups);
+
+  DateTime? _latestGroupAddedAt(List<List<Map<String, dynamic>>> groups) {
+    if (groups.isEmpty || groups.last.isEmpty) return null;
+    return _parseAddedAt(groups.last.first['addedAt']);
   }
 
   String _shortDisplayName(String tableName) {
@@ -2485,6 +2491,9 @@ class _TableDashboardViewState extends State<TableDashboardView>
                       existingOrderNames: tables.keys.toSet(),
                       initialItems: [],
                       pastItems: pastItems,
+                      editDeletePermissionAnchorAt: hasItems
+                          ? _latestGroupAddedAt(groups)
+                          : null,
                       showBilling: !hasItems,
                       isFromFinalBilling: false,
                       onMenuCacheUpdated: _reloadMenuFromCache,
@@ -2619,6 +2628,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
                                 lastGroup,
                               ),
                               pastItems: pastForEdit,
+                              editDeletePermissionAnchorAt:
+                                  _latestGroupAddedAt(groups),
                               showBilling: groups.length == 1,
                               isFromFinalBilling: false,
                               onMenuCacheUpdated: _reloadMenuFromCache,
