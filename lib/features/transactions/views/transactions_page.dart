@@ -238,29 +238,37 @@ class _TransactionsPageState extends State<TransactionsPage> {
   }
 
   Future<void> getTotalRevenue() async {
-    final snapshot = await FirestorePaths
-        .scoped('daily_stats')
-        .get();
+    // Revenue / cash / online / count come from daily_stats (cheap aggregate).
+    // Discount is only on transaction docs, so sum it separately.
+    final statsFuture = FirestorePaths.scoped('daily_stats').get();
+    final transactionsFuture = FirestorePaths.scoped('transactions').get();
+    final statsSnapshot = await statsFuture;
+    final transactionsSnapshot = await transactionsFuture;
 
     double totalRevenue = 0;
     double totalCash = 0;
     double totalOnline = 0;
+    double totalDiscount = 0;
     int totalTransactions = 0;
 
-    for (var doc in snapshot.docs) {
+    for (final doc in statsSnapshot.docs) {
       totalRevenue += (doc["revenue"] as num?)?.toDouble() ?? 0.0;
       totalOnline += (doc["totalOnline"] as num?)?.toDouble() ?? 0.0;
       totalCash += (doc["totalCash"] as num?)?.toDouble() ?? 0.0;
       totalTransactions += (doc["transactions"] as int?) ?? 0;
     }
 
+    for (final doc in transactionsSnapshot.docs) {
+      totalDiscount += (doc.data()["discount"] as num?)?.toDouble() ?? 0.0;
+    }
+
+    if (!mounted) return;
     setState(() {
       isFilterApplied = false;
       grandTotal = totalRevenue;
       grandTotalOnline = totalOnline;
       grandTotalCash = totalCash;
-      // daily_stats does not store discount; show 0 until a date filter is applied.
-      grandTotalDiscount = 0.0;
+      grandTotalDiscount = totalDiscount;
       totalTransactionsData = totalTransactions;
     });
   }
