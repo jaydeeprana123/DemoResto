@@ -32,6 +32,7 @@ import 'package:demo/features/kitchen/services/kitchen_web_bell_service.dart';
 import 'package:demo/features/kitchen/services/kitchen_bell_sound.dart';
 import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
+import 'package:demo/features/settings/utils/mark_as_delivered_permission.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/services/serve_notification_service.dart';
 import 'package:demo/features/tables/utils/table_serve_change_utils.dart';
@@ -2716,7 +2717,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                     isZomato: group.isZomato,
                     isNext: isNext,
                     isPriority: group.isPriority,
-                    onPaidHeaderTap: group.isZomato
+                    onPaidHeaderTap: group.isZomato &&
+                            MarkAsDeliveredPermission.canMarkAsDelivered
                         ? () => _markTableServed(group.tableName, group.docId)
                         : null,
                     compact: _isMobileGridLayout,
@@ -2862,7 +2864,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                     isZomato: isZomato,
                     isNext: isNext,
                     isPriority: tableCard.isPriority,
-                    onPaidHeaderTap: isZomato
+                    onPaidHeaderTap: isZomato &&
+                            MarkAsDeliveredPermission.canMarkAsDelivered
                         ? () => _markTableServed(
                             tableCard.tableName,
                             tableCard.docId,
@@ -3013,6 +3016,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   void _markTableServed(String tableName, String docId) {
     if (selectedCategories.isNotEmpty && !showAllCategories) return;
+    if (!MarkAsDeliveredPermission.canMarkAsDelivered) return;
     showServedDialog(context, tableName, () async {
       _playDeleteSound();
       await _clearKitchenPriority(docId);

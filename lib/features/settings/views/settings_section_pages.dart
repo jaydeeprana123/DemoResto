@@ -1,5 +1,6 @@
 import 'package:demo/features/menu_setup/menu_setup.dart';
 import 'package:demo/features/settings/controllers/settings_controller.dart';
+import 'package:demo/features/settings/controllers/staff_controller.dart';
 import 'package:demo/features/settings/services/print_settings.dart';
 import 'package:demo/features/settings/views/AdminDashboardPage.dart';
 import 'package:demo/features/settings/views/ExpensesPage.dart';
@@ -15,6 +16,7 @@ import 'package:demo/features/tables/tables.dart';
 import 'package:demo/features/transactions/transactions.dart';
 import 'package:demo/features/zomato/views/imagekit_settings_page.dart';
 import 'package:demo/Styles/my_font.dart';
+import 'package:demo/core/models/staff_member.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -116,7 +118,8 @@ class SettingsRestaurantSectionPage extends StatelessWidget {
                   SettingsNavRow(
                     icon: Icons.lock_clock_rounded,
                     title: 'Permissions',
-                    subtitle: 'Time limit for staff to edit or delete orders',
+                    subtitle:
+                        'Staff edit limits & mark-as-delivered per user',
                     onTap: () =>
                         Get.to(() => const SettingsPermissionsSectionPage()),
                   ),
@@ -204,6 +207,8 @@ class _SettingsPermissionsSectionPageState
 
   @override
   Widget build(BuildContext context) {
+    final staffController = Get.find<StaffController>();
+
     return SettingsSectionScaffold(
       title: 'Permissions',
       body: ListView(
@@ -295,8 +300,166 @@ class _SettingsPermissionsSectionPageState
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          SettingsGroupedSection(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor:
+                          SettingsColors.orange.withValues(alpha: 0.12),
+                      child: const Icon(
+                        Icons.delivery_dining_rounded,
+                        color: SettingsColors.orange,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Allow Mark as Delivered',
+                            style: TextStyle(
+                              fontFamily: fontMulishSemiBold,
+                              fontSize: 15,
+                              color: SettingsColors.navy,
+                            ),
+                          ),
+                          Text(
+                            'When enabled for a user, they can mark paid orders '
+                            'as delivered. Off by default for everyone.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              StreamBuilder<List<StaffMember>>(
+                stream: staffController.watchRestaurantUsers(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    );
+                  }
+
+                  if (snapshot.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Text(
+                        snapshot.error.toString(),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.red.shade700,
+                        ),
+                      ),
+                    );
+                  }
+
+                  final users = snapshot.data ?? [];
+                  if (users.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Text(
+                        'No users found for this restaurant.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      for (var i = 0; i < users.length; i++) ...[
+                        if (i > 0)
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                        _AllowMarkAsDeliveredUserRow(
+                          member: users[i],
+                          onChanged: (value) async {
+                            final error =
+                                await staffController.setAllowMarkAsDelivered(
+                              member: users[i],
+                              allow: value,
+                            );
+                            if (!context.mounted) return;
+                            if (error != null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(error),
+                                  backgroundColor: Colors.red.shade700,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _AllowMarkAsDeliveredUserRow extends StatelessWidget {
+  const _AllowMarkAsDeliveredUserRow({
+    required this.member,
+    required this.onChanged,
+  });
+
+  final StaffMember member;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SwitchListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      secondary: CircleAvatar(
+        backgroundColor: SettingsColors.orange.withValues(alpha: 0.12),
+        child: Text(
+          member.name.isNotEmpty ? member.name[0].toUpperCase() : 'U',
+          style: const TextStyle(
+            fontFamily: fontMulishSemiBold,
+            color: SettingsColors.orange,
+          ),
+        ),
+      ),
+      title: Text(
+        member.name,
+        style: const TextStyle(
+          fontFamily: fontMulishSemiBold,
+          fontSize: 15,
+          color: SettingsColors.navy,
+        ),
+      ),
+      subtitle: Text(
+        '${member.role} · ${member.email}',
+        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+      ),
+      value: member.allowMarkAsDelivered,
+      activeColor: SettingsColors.orange,
+      onChanged: onChanged,
     );
   }
 }

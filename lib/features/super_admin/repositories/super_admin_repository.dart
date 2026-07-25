@@ -182,6 +182,7 @@ class SuperAdminRepository {
       'email': email.trim(),
       'role': 'Admin',
       'restaurantId': restaurantId,
+      'allowMarkAsDelivered': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
 

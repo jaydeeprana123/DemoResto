@@ -16,6 +16,7 @@ import 'package:demo/features/ordering/views/menu_page.dart';
 import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
 import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
 import 'package:demo/features/settings/utils/staff_order_edit_permission.dart';
+import 'package:demo/features/settings/utils/mark_as_delivered_permission.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/services/dashboard_settings.dart';
@@ -2443,6 +2444,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
             InkWell(
               onTap: () async {
                 if (paid) {
+                  if (!MarkAsDeliveredPermission.canMarkAsDelivered) return;
                   showServedDialog(context, tableName, () async {
                     if (isZomato) {
                       try {

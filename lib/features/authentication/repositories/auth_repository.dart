@@ -29,6 +29,7 @@ class AuthRepository {
     return FirestorePaths.user(user.uid).set({
       'email': user.email,
       'role': 'Staff',
+      'allowMarkAsDelivered': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -43,6 +44,7 @@ class AuthRepository {
       'name': name,
       'email': user.email,
       'role': role,
+      'allowMarkAsDelivered': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
