@@ -26,7 +26,6 @@ class _TransactionsPageState extends State<TransactionsPage> {
   final TextEditingController searchController = TextEditingController();
   String _searchQuery = '';
 
-  bool isFilterApplied = false;
   double grandTotal = 0.0;
   double grandTotalOnline = 0.0;
   double grandTotalCash = 0.0;
@@ -44,9 +43,18 @@ class _TransactionsPageState extends State<TransactionsPage> {
   @override
   void initState() {
     super.initState();
-    getTotalRevenue(); // total revenue initially
-    fetchTransactions(); // load first page
+    _setDefaultTodayRange();
+    _applyFilter(); // today's range: Firestore query + totals from that range only
     _scrollController.addListener(_scrollListener);
+  }
+
+  /// Default From/To to start and end of today so the page never loads all-time data.
+  void _setDefaultTodayRange() {
+    final now = DateTime.now();
+    fromDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
+    toDate = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+    fromController.text = _dateTimeLabelFormat.format(fromDate!);
+    toController.text = _dateTimeLabelFormat.format(toDate!);
   }
 
   @override
@@ -179,7 +187,6 @@ class _TransactionsPageState extends State<TransactionsPage> {
       final result = await getRevenueBetweenDates(effectiveFrom, effectiveTo);
 
       setState(() {
-        isFilterApplied = true;
         grandTotal = result["totalRevenue"];
         grandTotalOnline = result["totalOnline"];
         grandTotalCash = result["totalCash"];
@@ -237,49 +244,14 @@ class _TransactionsPageState extends State<TransactionsPage> {
     };
   }
 
-  Future<void> getTotalRevenue() async {
-    // Revenue / cash / online / count come from daily_stats (cheap aggregate).
-    // Discount is only on transaction docs, so sum it separately.
-    final statsFuture = FirestorePaths.scoped('daily_stats').get();
-    final transactionsFuture = FirestorePaths.scoped('transactions').get();
-    final statsSnapshot = await statsFuture;
-    final transactionsSnapshot = await transactionsFuture;
-
-    double totalRevenue = 0;
-    double totalCash = 0;
-    double totalOnline = 0;
-    double totalDiscount = 0;
-    int totalTransactions = 0;
-
-    for (final doc in statsSnapshot.docs) {
-      totalRevenue += (doc["revenue"] as num?)?.toDouble() ?? 0.0;
-      totalOnline += (doc["totalOnline"] as num?)?.toDouble() ?? 0.0;
-      totalCash += (doc["totalCash"] as num?)?.toDouble() ?? 0.0;
-      totalTransactions += (doc["transactions"] as int?) ?? 0;
-    }
-
-    for (final doc in transactionsSnapshot.docs) {
-      totalDiscount += (doc.data()["discount"] as num?)?.toDouble() ?? 0.0;
-    }
-
-    if (!mounted) return;
-    setState(() {
-      isFilterApplied = false;
-      grandTotal = totalRevenue;
-      grandTotalOnline = totalOnline;
-      grandTotalCash = totalCash;
-      grandTotalDiscount = totalDiscount;
-      totalTransactionsData = totalTransactions;
-    });
-  }
-
   Future<void> _reloadAfterTransactionEdit() async {
     setState(() {
       transactions.clear();
       lastDoc = null;
       hasMore = true;
     });
-    if (isFilterApplied && fromDate != null) {
+    // Always reload totals from the selected date range (never all-time).
+    if (fromDate != null) {
       final now = DateTime.now();
       final effectiveFrom = fromDate!;
       final effectiveTo =
@@ -294,48 +266,39 @@ class _TransactionsPageState extends State<TransactionsPage> {
         grandTotalDiscount = result['totalDiscount'];
         totalTransactionsData = result['totalTransactions'];
       });
-    } else {
-      await getTotalRevenue();
     }
     await fetchTransactions();
   }
 
   Future<void> fetchTransactions() async {
     if (isLoading || !hasMore) return;
+    // Date range is required; never load the full collection.
+    if (fromDate == null) return;
 
     setState(() => isLoading = true);
 
+    final now = DateTime.now();
+    final effectiveFrom = fromDate!;
+    final effectiveTo =
+        toDate ?? DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+
     Query<Map<String, dynamic>> query = FirestorePaths
         .scoped('transactions')
+        .where(
+          "createdAt",
+          isGreaterThanOrEqualTo: Timestamp.fromDate(effectiveFrom),
+        )
+        .where(
+          "createdAt",
+          isLessThanOrEqualTo: Timestamp.fromDate(effectiveTo),
+        )
         .orderBy("createdAt", descending: true);
 
-    if (isFilterApplied && fromDate != null) {
-      final now = DateTime.now();
-      // Honor the exact date & time the user selected.
-      final effectiveFrom = fromDate!;
-      final effectiveTo =
-          toDate ?? DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
-
-      query =
-          FirestorePaths
-                  .scoped('transactions')
-                  .where(
-                    "createdAt",
-                    isGreaterThanOrEqualTo: Timestamp.fromDate(effectiveFrom),
-                  )
-                  .where(
-                    "createdAt",
-                    isLessThanOrEqualTo: Timestamp.fromDate(effectiveTo),
-                  )
-                  .orderBy("createdAt", descending: true)
-              as Query<Map<String, dynamic>>;
-    }
-
     if (lastDoc != null) {
-      query = query.startAfterDocument(lastDoc!) as Query<Map<String, dynamic>>;
+      query = query.startAfterDocument(lastDoc!);
     }
 
-    query = query.limit(pageSize) as Query<Map<String, dynamic>>;
+    query = query.limit(pageSize);
 
     final snapshot = await query.get();
 
@@ -855,12 +818,13 @@ class _TransactionsPageState extends State<TransactionsPage> {
             ),
             child: Row(
               children: [
+
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        "Grand Total",
+                        "Total Discount",
                         style: TextStyle(
                           fontSize: 13,
                           fontFamily: fontMulishSemiBold,
@@ -868,21 +832,22 @@ class _TransactionsPageState extends State<TransactionsPage> {
                         ),
                       ),
                       Text(
-                        "₹${grandTotal.toStringAsFixed(0)}",
+                        "₹${grandTotalDiscount.toStringAsFixed(0)}",
                         style: const TextStyle(
-                          fontSize: 22,
+                          fontSize: 20,
                           fontFamily: fontMulishBold,
-                          color: Color(0xFFf57c35),
+                          color: Color(0xFFFF8A80),
                         ),
                       ),
                     ],
                   ),
                 ),
+
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     const Text(
-                      "Total Discount",
+                      "Grand Total",
                       style: TextStyle(
                         fontSize: 13,
                         fontFamily: fontMulishSemiBold,
@@ -890,15 +855,16 @@ class _TransactionsPageState extends State<TransactionsPage> {
                       ),
                     ),
                     Text(
-                      "₹${grandTotalDiscount.toStringAsFixed(0)}",
+                      "₹${grandTotal.toStringAsFixed(0)}",
                       style: const TextStyle(
-                        fontSize: 20,
+                        fontSize: 22,
                         fontFamily: fontMulishBold,
-                        color: Color(0xFFFF8A80),
+                        color: Color(0xFFf57c35),
                       ),
                     ),
                   ],
                 ),
+
               ],
             ),
           ),
