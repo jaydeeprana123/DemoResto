@@ -7,6 +7,8 @@ export 'controllers/login_controller.dart';
 export 'controllers/signup_controller.dart';
 export 'repositories/auth_repository.dart';
 export 'services/login_remember_me_settings.dart';
+export 'services/device_session_settings.dart';
+export 'services/device_session_service.dart';
 export 'views/auth_gate_view.dart';
 export 'views/blocked_access_view.dart';
 export 'views/login_screen_view.dart';

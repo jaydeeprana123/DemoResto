@@ -2,6 +2,7 @@ import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:demo/core/models/user_profile.dart';
 import 'package:demo/core/services/restaurant_session.dart';
 import 'package:demo/features/authentication/auth_navigation.dart';
+import 'package:demo/features/authentication/services/device_session_service.dart';
 import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
@@ -23,7 +24,18 @@ class UserRepository {
     return profile?.role;
   }
 
-  Future<void> signOut() async {
+  Future<void> signOut({bool dueToOtherDeviceLogin = false}) async {
+    final uid = currentUser?.uid;
+
+    if (Get.isRegistered<DeviceSessionService>()) {
+      final deviceSession = Get.find<DeviceSessionService>();
+      if (dueToOtherDeviceLogin) {
+        await deviceSession.stopWatching();
+      } else {
+        await deviceSession.clearOwnedSession(uid);
+      }
+    }
+
     if (Get.isRegistered<MenuCacheService>()) {
       Get.find<MenuCacheService>().resetForLogout();
     }

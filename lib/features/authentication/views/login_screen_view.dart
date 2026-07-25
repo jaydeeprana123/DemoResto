@@ -1,6 +1,7 @@
 import 'package:demo/Styles/my_font.dart';
 import 'package:demo/features/authentication/auth_navigation.dart';
 import 'package:demo/features/authentication/controllers/login_controller.dart';
+import 'package:demo/features/authentication/services/device_session_settings.dart';
 import 'package:demo/features/authentication/services/login_remember_me_settings.dart';
 import 'package:demo/core/constants/auth_constants.dart';
 import 'package:flutter/material.dart';
@@ -32,6 +33,7 @@ class _LoginPageState extends State<LoginPage>
     super.initState();
     _loginController = Get.find<LoginController>();
     _loadRememberedCredentials();
+    _showPendingSessionMessage();
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -57,6 +59,21 @@ class _LoginPageState extends State<LoginPage>
         _loginController.emailController.clear();
         _loginController.passwordController.clear();
       }
+    });
+  }
+
+  Future<void> _showPendingSessionMessage() async {
+    final message = await DeviceSessionSettings.takePendingLoginMessage();
+    if (message == null || message.isEmpty || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red.shade700,
+          duration: const Duration(seconds: 5),
+        ),
+      );
     });
   }
 
