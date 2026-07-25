@@ -45,7 +45,9 @@ class SuperAdminController extends GetxController {
   }
 
   String adminSummaryForRestaurant(String restaurantId) {
-    final restaurantAdmins = adminsForRestaurant(restaurantId);
+    final restaurantAdmins = adminsForRestaurant(restaurantId)
+        .where((admin) => admin.active)
+        .toList();
     if (restaurantAdmins.isEmpty) return 'None';
 
     return restaurantAdmins
@@ -193,6 +195,24 @@ class SuperAdminController extends GetxController {
       return null;
     } catch (e) {
       return e.toString();
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<String?> deleteRestaurantAdmin({
+    required UserProfile admin,
+    required String restaurantId,
+  }) async {
+    isLoading.value = true;
+    try {
+      await _repository.deleteRestaurantAdmin(
+        admin: admin,
+        restaurantId: restaurantId,
+      );
+      return null;
+    } catch (e) {
+      return e.toString().replaceFirst('Exception: ', '');
     } finally {
       isLoading.value = false;
     }
