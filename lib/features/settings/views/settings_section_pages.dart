@@ -246,8 +246,8 @@ class _SettingsPermissionsSectionPageState
                               ),
                               Text(
                                 'Minutes staff can edit/delete the latest order '
-                                'after it is placed (0 = no limit). Admins are '
-                                'never restricted.',
+                                'after it is placed (0 = staff cannot edit or '
+                                'delete). Admins are never restricted.',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Color(0xFF6B7280),

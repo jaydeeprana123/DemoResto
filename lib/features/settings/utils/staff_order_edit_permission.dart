@@ -4,8 +4,9 @@ import 'package:get/get.dart';
 
 /// Shared Staff edit/delete time-limit checks for Table Dashboard and Menu Page.
 ///
-/// Admins are never restricted. A limit of `0` means Staff have no time
-/// restriction. The window is measured from the latest order group's `addedAt`.
+/// Admins are never restricted. A limit of `0` means Staff cannot edit or
+/// delete at all. Values greater than `0` allow Staff to edit/delete only
+/// within that many minutes after the latest order group's `addedAt`.
 class StaffOrderEditPermission {
   const StaffOrderEditPermission._();
 
@@ -14,7 +15,7 @@ class StaffOrderEditPermission {
   static bool get isAdmin => _session.profile.value?.isAdmin ?? false;
 
   /// Minutes Staff may edit/delete after the latest order was placed.
-  /// `0` = no restriction.
+  /// `0` = Staff cannot edit/delete.
   static int get limitMinutes =>
       _session.activeRestaurant.value?.staffEditDeleteLimitMinutes ?? 0;
 
@@ -40,13 +41,15 @@ class StaffOrderEditPermission {
   static bool canModify({DateTime? addedAt}) {
     if (isAdmin) return true;
     final limit = limitMinutes;
-    if (limit <= 0) return true;
+    if (limit <= 0) return false;
     if (addedAt == null) return true;
     return DateTime.now().difference(addedAt) <= Duration(minutes: limit);
   }
 
   /// Whether Staff may still edit/delete the latest order group on a table.
   static bool canModifyLatestGroup(List<List<Map<String, dynamic>>> groups) {
+    if (isAdmin) return true;
+    if (limitMinutes <= 0) return false;
     if (groups.isEmpty || groups.last.isEmpty) return true;
     return canModify(addedAt: parseAddedAt(groups.last.first['addedAt']));
   }
