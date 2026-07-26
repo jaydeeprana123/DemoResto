@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/features/activity_log/services/activity_log_service.dart';
 import 'package:demo/features/settings/utils/staff_order_edit_permission.dart';
 import 'package:flutter/material.dart';
 
@@ -110,6 +111,11 @@ class _AddTablePageState extends State<AddTablePage>
     );
 
     if (confirmed != true || !mounted) return;
+
+    ActivityLogService.instance.logDeleteTable(
+      tableName: name,
+      tableDocId: docId,
+    );
 
     await FirestorePaths.scoped('tables').doc(docId).delete();
     if (mounted) {

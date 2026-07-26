@@ -1,3 +1,4 @@
+import 'package:demo/features/activity_log/activity_log.dart';
 import 'package:demo/features/menu_setup/menu_setup.dart';
 import 'package:demo/features/settings/controllers/settings_controller.dart';
 import 'package:demo/features/settings/controllers/staff_controller.dart';
@@ -48,6 +49,13 @@ class SettingsBusinessSectionPage extends StatelessWidget {
                     title: 'Transactions',
                     subtitle: 'View sales and payment history',
                     onTap: () => Get.to(() => const TransactionsPage()),
+                  ),
+                if (isAdmin)
+                  SettingsNavRow(
+                    icon: Icons.history_rounded,
+                    title: 'Activity Log',
+                    subtitle: 'Audit trail of deletes and key actions',
+                    onTap: () => Get.to(() => const ActivityLogPage()),
                   ),
                 if (isAdmin)
                   SettingsNavRow(

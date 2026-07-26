@@ -33,6 +33,7 @@ import 'package:demo/features/zomato/widgets/import_shared_zomato_sheet.dart';
 import 'package:demo/features/zomato/services/zomato_order_serve_service.dart';
 import 'package:demo/features/zomato/widgets/zomato_order_card_body.dart';
 import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
+import 'package:demo/features/activity_log/services/activity_log_service.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
 import 'package:demo/features/transactions/repositories/transactions_repository.dart';
 import 'package:demo/Styles/my_icons.dart';
@@ -983,10 +984,25 @@ class _TableDashboardViewState extends State<TableDashboardView>
     String tableName, {
     String docId = '',
   }) async {
+    final resolvedDocId =
+        docId.isNotEmpty ? docId : (tableDocIds[tableName] ?? '');
+    final groups = tables[tableName] ?? const <List<Map<String, dynamic>>>[];
+    final items = groups
+        .expand((group) => group)
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+
+    ActivityLogService.instance.logDeleteMenuItems(
+      tableName: tableName,
+      tableDocId: resolvedDocId.isEmpty ? null : resolvedDocId,
+      items: items,
+      isTakeAway: _isTakeAway(tableName),
+    );
+
     if (_isTakeAway(tableName)) {
       await _deleteTakeAwayAfterFinalBilling(
         tableName,
-        docId.isNotEmpty ? docId : (tableDocIds[tableName] ?? ''),
+        resolvedDocId,
       );
       return;
     }
