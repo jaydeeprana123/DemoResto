@@ -45,6 +45,7 @@ class TransactionsRepository {
     required int cashAmount,
     required int onlineAmount,
     int extra = 0,
+    String? completedBy,
   }) async {
     try {
       final now = DateTime.now();
@@ -58,6 +59,7 @@ class TransactionsRepository {
       if (normalizedItems.isEmpty) {
         throw Exception('Transaction must have at least one item with quantity.');
       }
+      final trimmedCompletedBy = completedBy?.trim();
 
       if (isDesktopPlatform) {
         return _createTransactionWithBatch(
@@ -79,6 +81,7 @@ class TransactionsRepository {
           total: total,
           cashAmount: cashAmount,
           onlineAmount: onlineAmount,
+          completedBy: trimmedCompletedBy,
         );
       }
 
@@ -111,6 +114,8 @@ class TransactionsRepository {
           'total': total,
           'cashAmount': cashAmount,
           'onlineAmount': onlineAmount,
+          if (trimmedCompletedBy != null && trimmedCompletedBy.isNotEmpty)
+            'completedBy': trimmedCompletedBy,
           'createdAt': FieldValue.serverTimestamp(),
         });
 
@@ -166,6 +171,7 @@ class TransactionsRepository {
     required int cashAmount,
     required int onlineAmount,
     int extra = 0,
+    String? completedBy,
   }) async {
     final counterSnap = await counterRef.get();
     final next = ((counterSnap.data()?['seq'] as num?)?.toInt() ?? 0) + 1;
@@ -197,6 +203,7 @@ class TransactionsRepository {
       'total': total,
       'cashAmount': cashAmount,
       'onlineAmount': onlineAmount,
+      if (completedBy != null && completedBy.isNotEmpty) 'completedBy': completedBy,
       'createdAt': FieldValue.serverTimestamp(),
     });
 
@@ -224,6 +231,31 @@ class TransactionsRepository {
 
     await batch.commit();
     return (documentId: txRef.id, billId: billId);
+  }
+
+  /// Records who marked the related order as served/delivered/complete.
+  Future<void> setCompletedBy({
+    required String transactionId,
+    required String completedBy,
+  }) async {
+    final trimmed = completedBy.trim();
+    if (trimmed.isEmpty) return;
+    final id = transactionId.trim();
+    if (id.isEmpty) return;
+
+    try {
+      await FirestorePaths.scopedDoc('transactions', id).set(
+        {
+          'completedBy': trimmed,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    } on FirebaseException catch (e) {
+      throw Exception(
+        e.message ?? 'Failed to update completed by (${e.code}).',
+      );
+    }
   }
 
   Future<void> updateTransaction({

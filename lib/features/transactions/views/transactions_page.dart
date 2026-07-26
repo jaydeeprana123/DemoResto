@@ -541,6 +541,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
                             (data["discount"] as num?)?.toDouble() ?? 0.0;
                         final dateTime = (data["createdAt"] as Timestamp?)
                             ?.toDate();
+                        final completedBy =
+                            (data['completedBy']?.toString() ?? '').trim();
                         final dateKey = dateTime != null
                             ? DateFormat("dd-MM-yyyy").format(dateTime)
                             : "Unknown Date";
@@ -695,6 +697,17 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                               fontFamily: fontMulishRegular,
                                             ),
                                           ),
+                                          if (completedBy.isNotEmpty) ...[
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              'Completed By: $completedBy',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                                fontFamily: fontMulishSemiBold,
+                                              ),
+                                            ),
+                                          ],
                                           // Payment pills
                                           const SizedBox(height: 6),
                                           Wrap(

@@ -81,6 +81,20 @@ class ZomatoOrdersRepository {
     );
   }
 
+  Future<ZomatoOrderServeInfo?> readOrderForServe(String docId) async {
+    final snap = await FirestorePaths.scopedDoc('tables', docId).get();
+    if (!snap.exists) return null;
+
+    final data = snap.data() ?? {};
+    final name = data['name']?.toString().trim();
+    return ZomatoOrderServeInfo(
+      docId: docId,
+      name: (name != null && name.isNotEmpty) ? name : 'Zomato',
+      fileId: data['imagekitFileId']?.toString(),
+      screenshotUrl: data['screenshotUrl']?.toString(),
+    );
+  }
+
   Future<void> deleteOrderDoc(String docId) async {
     await FirestorePaths.scopedDoc('tables', docId).delete();
   }

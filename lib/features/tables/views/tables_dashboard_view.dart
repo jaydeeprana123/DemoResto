@@ -34,6 +34,7 @@ import 'package:demo/features/zomato/services/zomato_order_serve_service.dart';
 import 'package:demo/features/zomato/widgets/zomato_order_card_body.dart';
 import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
+import 'package:demo/features/transactions/repositories/transactions_repository.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -770,6 +771,28 @@ class _TableDashboardViewState extends State<TableDashboardView>
         : profile.email.trim();
     if (displayName.isEmpty) return null;
     return (userId: profile.uid, userName: displayName);
+  }
+
+  Future<void> _recordCompletedBy({
+    required String tableName,
+    String? completedBy,
+  }) async {
+    final name = completedBy?.trim();
+    if (name == null || name.isEmpty) return;
+    final txId = tableTransactionIds[tableName]?.trim();
+    if (txId == null || txId.isEmpty) return;
+    try {
+      await Get.find<TransactionsRepository>().setCompletedBy(
+        transactionId: txId,
+        completedBy: name,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save completed by: $e')),
+        );
+      }
+    }
   }
 
   /// Cart billing: keep items visible and mark table paid.
@@ -2446,10 +2469,12 @@ class _TableDashboardViewState extends State<TableDashboardView>
                 if (paid) {
                   if (!MarkAsDeliveredPermission.canMarkAsDelivered) return;
                   showServedDialog(context, tableName, () async {
+                    final completedBy = _currentAddedByUser()?.userName;
                     if (isZomato) {
                       try {
                         await Get.find<ZomatoOrderServeService>().serveOrder(
                           docId: docId,
+                          completedBy: completedBy,
                         );
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -2468,11 +2493,17 @@ class _TableDashboardViewState extends State<TableDashboardView>
                           );
                         }
                       }
-                    } else if (isTakeAway) {
-                      await FirestorePaths.scopedDoc('tables', docId).delete();
-                      setState(() {});
                     } else {
-                      await _updateTableItemsInFirestore(tableName, [], false);
+                      await _recordCompletedBy(
+                        tableName: tableName,
+                        completedBy: completedBy,
+                      );
+                      if (isTakeAway) {
+                        await FirestorePaths.scopedDoc('tables', docId).delete();
+                        setState(() {});
+                      } else {
+                        await _updateTableItemsInFirestore(tableName, [], false);
+                      }
                     }
                   });
                   return;

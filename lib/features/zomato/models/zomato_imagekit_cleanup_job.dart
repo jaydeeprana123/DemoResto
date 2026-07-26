@@ -60,3 +60,17 @@ class ZomatoScreenshotInfo {
   final String? fileId;
   final String? screenshotUrl;
 }
+
+class ZomatoOrderServeInfo {
+  const ZomatoOrderServeInfo({
+    required this.docId,
+    required this.name,
+    this.fileId,
+    this.screenshotUrl,
+  });
+
+  final String docId;
+  final String name;
+  final String? fileId;
+  final String? screenshotUrl;
+}
