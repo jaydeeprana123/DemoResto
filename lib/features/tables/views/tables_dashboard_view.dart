@@ -66,8 +66,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
   final Map<String, bool> tableIsPaid = {};
   final Map<String, String> tableDocIds = {};
   final Map<String, String> tableTransactionIds = {};
-  final Map<String, String> tableAddedByUserIds = {};
-  final Map<String, String> tableAddedByUserNames = {};
+  final Map<String, List<String>> tableAddedByUserIds = {};
+  final Map<String, List<String>> tableAddedByUserNames = {};
   final Map<String, List<int>> _firestoreGroupIndices = {};
   final TableItemSelectionController _itemSelection =
       TableItemSelectionController();
@@ -255,6 +255,18 @@ class _TableDashboardViewState extends State<TableDashboardView>
     return true;
   }
 
+  bool _sameStringListMap(
+    Map<String, List<String>> a,
+    Map<String, List<String>> b,
+  ) {
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      final other = b[entry.key];
+      if (other == null || !listEquals(entry.value, other)) return false;
+    }
+    return true;
+  }
+
   bool _sameBoolMap(Map<String, bool> a, Map<String, bool> b) {
     if (a.length != b.length) return false;
     for (final entry in a.entries) {
@@ -278,8 +290,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
     required Map<String, bool> updatedIsPaid,
     required Map<String, String> updatedDocIds,
     required Map<String, String> updatedTransactionIds,
-    required Map<String, String> updatedAddedByUserIds,
-    required Map<String, String> updatedAddedByUserNames,
+    required Map<String, List<String>> updatedAddedByUserIds,
+    required Map<String, List<String>> updatedAddedByUserNames,
     required Map<String, String> updatedSources,
     required Map<String, String> updatedScreenshotUrls,
     required Map<String, String> updatedZomatoStatuses,
@@ -289,8 +301,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
         _sameBoolMap(tableIsPaid, updatedIsPaid) &&
         _sameStringMap(tableDocIds, updatedDocIds) &&
         _sameStringMap(tableTransactionIds, updatedTransactionIds) &&
-        _sameStringMap(tableAddedByUserIds, updatedAddedByUserIds) &&
-        _sameStringMap(tableAddedByUserNames, updatedAddedByUserNames) &&
+        _sameStringListMap(tableAddedByUserIds, updatedAddedByUserIds) &&
+        _sameStringListMap(tableAddedByUserNames, updatedAddedByUserNames) &&
         _sameStringMap(tableSources, updatedSources) &&
         _sameStringMap(tableScreenshotUrls, updatedScreenshotUrls) &&
         _sameStringMap(tableZomatoStatuses, updatedZomatoStatuses);
@@ -448,8 +460,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
     final Map<String, bool> updatedIsPaid = {};
     final Map<String, String> updatedDocIds = {};
     final Map<String, String> updatedTransactionIds = {};
-    final Map<String, String> updatedAddedByUserIds = {};
-    final Map<String, String> updatedAddedByUserNames = {};
+    final Map<String, List<String>> updatedAddedByUserIds = {};
+    final Map<String, List<String>> updatedAddedByUserNames = {};
     final Map<String, String> updatedSources = {};
     final Map<String, String> updatedScreenshotUrls = {};
     final Map<String, String> updatedZomatoStatuses = {};
@@ -460,13 +472,14 @@ class _TableDashboardViewState extends State<TableDashboardView>
       updatedCreatedAt[tableName] = data['createdAt'] as Timestamp?;
       updatedIsPaid[tableName] = data['isPaid'] == true;
       updatedDocIds[tableName] = doc.id;
-      final addedByUserId = data['addedByUserId']?.toString().trim();
-      final addedByUserName = data['addedByUserName']?.toString().trim();
-      if (addedByUserId != null && addedByUserId.isNotEmpty) {
-        updatedAddedByUserIds[tableName] = addedByUserId;
+      final addedBy = TablesRepository.parseAddedByFromData(data);
+      final addedByIds = addedBy['ids'] ?? const <String>[];
+      final addedByNames = addedBy['names'] ?? const <String>[];
+      if (addedByIds.isNotEmpty) {
+        updatedAddedByUserIds[tableName] = addedByIds;
       }
-      if (addedByUserName != null && addedByUserName.isNotEmpty) {
-        updatedAddedByUserNames[tableName] = addedByUserName;
+      if (addedByNames.isNotEmpty) {
+        updatedAddedByUserNames[tableName] = addedByNames;
       }
       if (ZomatoOrderUtils.isZomatoDoc(data)) {
         updatedSources[tableName] = ZomatoOrderUtils.sourceZomato;
@@ -722,11 +735,21 @@ class _TableDashboardViewState extends State<TableDashboardView>
     bool clearLastTransactionId = false,
   ]) async {
     try {
-      final hasExistingAddedBy =
-          (tableAddedByUserIds[tableName]?.trim().isNotEmpty ?? false) &&
-          (tableAddedByUserNames[tableName]?.trim().isNotEmpty ?? false);
-      final shouldSetAddedBy = groups.isNotEmpty && !hasExistingAddedBy;
-      final addedBy = shouldSetAddedBy ? _currentAddedByUser() : null;
+      List<String>? nextIds;
+      List<String>? nextNames;
+      if (groups.isNotEmpty) {
+        final addedBy = _currentAddedByUser();
+        if (addedBy != null) {
+          final merged = TablesRepository.appendAddedByUser(
+            existingIds: tableAddedByUserIds[tableName] ?? const [],
+            existingNames: tableAddedByUserNames[tableName] ?? const [],
+            userId: addedBy.userId,
+            userName: addedBy.userName,
+          );
+          nextIds = merged.ids;
+          nextNames = merged.names;
+        }
+      }
 
       await Get.find<TablesRepository>().updateTableItems(
         tableName: tableName,
@@ -736,8 +759,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
         docId: tableDocIds[tableName],
         lastTransactionId: lastTransactionId,
         clearLastTransactionId: clearLastTransactionId,
-        addedByUserId: addedBy?.userId,
-        addedByUserName: addedBy?.userName,
+        addedByUserIds: nextIds,
+        addedByUserNames: nextNames,
         clearAddedBy: groups.isEmpty,
       );
       if (clearLastTransactionId) {
@@ -748,9 +771,9 @@ class _TableDashboardViewState extends State<TableDashboardView>
       if (groups.isEmpty) {
         tableAddedByUserIds.remove(tableName);
         tableAddedByUserNames.remove(tableName);
-      } else if (addedBy != null) {
-        tableAddedByUserIds[tableName] = addedBy.userId;
-        tableAddedByUserNames[tableName] = addedBy.userName;
+      } else if (nextIds != null && nextNames != null) {
+        tableAddedByUserIds[tableName] = nextIds;
+        tableAddedByUserNames[tableName] = nextNames;
       }
     } catch (e) {
       print("ERROR: Failed to update Firestore: $e");
@@ -771,6 +794,17 @@ class _TableDashboardViewState extends State<TableDashboardView>
         : profile.email.trim();
     if (displayName.isEmpty) return null;
     return (userId: profile.uid, userName: displayName);
+  }
+
+  String? _addedByDisplayName(String tableName) {
+    final names = tableAddedByUserNames[tableName];
+    if (names == null || names.isEmpty) return null;
+    final cleaned = names
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    if (cleaned.isEmpty) return null;
+    return cleaned.join(', ');
   }
 
   Future<void> _recordCompletedBy({
@@ -836,7 +870,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
       context,
       tableName: tableName,
       items: merged,
-      addedByUserName: tableAddedByUserNames[tableName],
+      addedByUserName: _addedByDisplayName(tableName),
       onSubmit: (submission) async {
         switch (submission.mode) {
           case TableBillingMode.paid:
@@ -1056,14 +1090,14 @@ class _TableDashboardViewState extends State<TableDashboardView>
     }
     final addedBy = _currentAddedByUser();
     if (addedBy != null) {
-      tableData['addedByUserId'] = addedBy.userId;
-      tableData['addedByUserName'] = addedBy.userName;
+      tableData['addedByUserIds'] = [addedBy.userId];
+      tableData['addedByUserNames'] = [addedBy.userName];
     }
 
     final docRef = await FirestorePaths.scoped('tables').add(tableData);
     if (addedBy != null) {
-      tableAddedByUserIds[orderName] = addedBy.userId;
-      tableAddedByUserNames[orderName] = addedBy.userName;
+      tableAddedByUserIds[orderName] = [addedBy.userId];
+      tableAddedByUserNames[orderName] = [addedBy.userName];
     }
     return docRef.id;
   }
@@ -1333,15 +1367,15 @@ class _TableDashboardViewState extends State<TableDashboardView>
       }
       final addedBy = _currentAddedByUser();
       if (addedBy != null) {
-        tableData['addedByUserId'] = addedBy.userId;
-        tableData['addedByUserName'] = addedBy.userName;
+        tableData['addedByUserIds'] = [addedBy.userId];
+        tableData['addedByUserNames'] = [addedBy.userName];
       }
 
       // Step 2: Add the document to Firestore
       final docRef = await FirestorePaths.scoped('tables').add(tableData);
       if (addedBy != null) {
-        tableAddedByUserIds[tableName] = addedBy.userId;
-        tableAddedByUserNames[tableName] = addedBy.userName;
+        tableAddedByUserIds[tableName] = [addedBy.userId];
+        tableAddedByUserNames[tableName] = [addedBy.userName];
       }
 
       print(
