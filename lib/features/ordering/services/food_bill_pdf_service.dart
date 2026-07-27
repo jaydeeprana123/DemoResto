@@ -571,7 +571,10 @@ class FoodBillPdfService {
     final baseSize = isNarrow ? 7.0 : 8.0;
     final headerSize = isNarrow ? 10.0 : 12.0;
     final totalSize = isNarrow ? 10.0 : 11.0;
-    final logoWidth = isNarrow ? 48.0 : 68.0;
+    // Logo bounding box: scale with contain (no stretch). Fixed height keeps
+    // bill content starting at the same Y regardless of logo aspect ratio.
+    final logoMaxWidth = isNarrow ? 48.0 * PdfPageFormat.mm : 68.0 * PdfPageFormat.mm;
+    const logoMaxHeight = 120.0;
 
     pw.TextStyle labelStyle({double? size, bool isBold = false}) =>
         pw.TextStyle(
@@ -589,10 +592,18 @@ class FoodBillPdfService {
             children: [
               if (includeLogos && _cachedRestaurantLogo != null) ...[
                 pw.Center(
-                  child: pw.Image(
-                    _cachedRestaurantLogo!,
-                    width: logoWidth * PdfPageFormat.mm,
-                    fit: pw.BoxFit.contain,
+                  child: pw.SizedBox(
+                    width: logoMaxWidth,
+                    height: logoMaxHeight,
+                    child: pw.Center(
+                      child: pw.Image(
+                        _cachedRestaurantLogo!,
+                        width: logoMaxWidth,
+                        height: logoMaxHeight,
+                        fit: pw.BoxFit.contain,
+                        alignment: pw.Alignment.center,
+                      ),
+                    ),
                   ),
                 ),
                 pw.SizedBox(height: 6),
