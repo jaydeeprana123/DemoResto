@@ -77,7 +77,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 SettingsHubRow(
                   icon: Icons.navigation_outlined,
                   title: 'Navigation',
-                  subtitle: 'App tab layout',
+                  subtitle: 'App tab layout & dashboard notifications',
                   onTap: () =>
                       Get.to(() => const SettingsNavigationSectionPage()),
                 ),

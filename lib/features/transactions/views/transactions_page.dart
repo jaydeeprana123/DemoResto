@@ -26,10 +26,10 @@ class _TransactionsPageState extends State<TransactionsPage> {
   final TextEditingController searchController = TextEditingController();
   String _searchQuery = '';
 
-  bool isFilterApplied = false;
   double grandTotal = 0.0;
   double grandTotalOnline = 0.0;
   double grandTotalCash = 0.0;
+  double grandTotalDiscount = 0.0;
   int totalTransactionsData = 0;
 
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> transactions = [];
@@ -43,9 +43,18 @@ class _TransactionsPageState extends State<TransactionsPage> {
   @override
   void initState() {
     super.initState();
-    getTotalRevenue(); // total revenue initially
-    fetchTransactions(); // load first page
+    _setDefaultTodayRange();
+    _applyFilter(); // today's range: Firestore query + totals from that range only
     _scrollController.addListener(_scrollListener);
+  }
+
+  /// Default From/To to start and end of today so the page never loads all-time data.
+  void _setDefaultTodayRange() {
+    final now = DateTime.now();
+    fromDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
+    toDate = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+    fromController.text = _dateTimeLabelFormat.format(fromDate!);
+    toController.text = _dateTimeLabelFormat.format(toDate!);
   }
 
   @override
@@ -178,10 +187,10 @@ class _TransactionsPageState extends State<TransactionsPage> {
       final result = await getRevenueBetweenDates(effectiveFrom, effectiveTo);
 
       setState(() {
-        isFilterApplied = true;
         grandTotal = result["totalRevenue"];
         grandTotalOnline = result["totalOnline"];
         grandTotalCash = result["totalCash"];
+        grandTotalDiscount = result["totalDiscount"];
         totalTransactionsData = result["totalTransactions"];
         // reset pagination
         transactions.clear();
@@ -214,6 +223,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
     double totalRevenue = 0;
     double totalCash = 0;
     double totalOnline = 0;
+    double totalDiscount = 0;
     int totalTransactions = 0;
 
     for (var doc in snapshot.docs) {
@@ -221,6 +231,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
       totalRevenue += (data["total"] as num?)?.toDouble() ?? 0.0;
       totalCash += (data["cashAmount"] as num?)?.toDouble() ?? 0.0;
       totalOnline += (data["onlineAmount"] as num?)?.toDouble() ?? 0.0;
+      totalDiscount += (data["discount"] as num?)?.toDouble() ?? 0.0;
       totalTransactions += 1;
     }
 
@@ -228,34 +239,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
       "totalRevenue": totalRevenue,
       "totalCash": totalCash,
       "totalOnline": totalOnline,
+      "totalDiscount": totalDiscount,
       "totalTransactions": totalTransactions,
     };
-  }
-
-  Future<void> getTotalRevenue() async {
-    final snapshot = await FirestorePaths
-        .scoped('daily_stats')
-        .get();
-
-    double totalRevenue = 0;
-    double totalCash = 0;
-    double totalOnline = 0;
-    int totalTransactions = 0;
-
-    for (var doc in snapshot.docs) {
-      totalRevenue += (doc["revenue"] as num?)?.toDouble() ?? 0.0;
-      totalOnline += (doc["totalOnline"] as num?)?.toDouble() ?? 0.0;
-      totalCash += (doc["totalCash"] as num?)?.toDouble() ?? 0.0;
-      totalTransactions += (doc["transactions"] as int?) ?? 0;
-    }
-
-    setState(() {
-      isFilterApplied = false;
-      grandTotal = totalRevenue;
-      grandTotalOnline = totalOnline;
-      grandTotalCash = totalCash;
-      totalTransactionsData = totalTransactions;
-    });
   }
 
   Future<void> _reloadAfterTransactionEdit() async {
@@ -264,7 +250,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
       lastDoc = null;
       hasMore = true;
     });
-    if (isFilterApplied && fromDate != null) {
+    // Always reload totals from the selected date range (never all-time).
+    if (fromDate != null) {
       final now = DateTime.now();
       final effectiveFrom = fromDate!;
       final effectiveTo =
@@ -276,50 +263,42 @@ class _TransactionsPageState extends State<TransactionsPage> {
         grandTotal = result['totalRevenue'];
         grandTotalOnline = result['totalOnline'];
         grandTotalCash = result['totalCash'];
+        grandTotalDiscount = result['totalDiscount'];
         totalTransactionsData = result['totalTransactions'];
       });
-    } else {
-      await getTotalRevenue();
     }
     await fetchTransactions();
   }
 
   Future<void> fetchTransactions() async {
     if (isLoading || !hasMore) return;
+    // Date range is required; never load the full collection.
+    if (fromDate == null) return;
 
     setState(() => isLoading = true);
 
+    final now = DateTime.now();
+    final effectiveFrom = fromDate!;
+    final effectiveTo =
+        toDate ?? DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+
     Query<Map<String, dynamic>> query = FirestorePaths
         .scoped('transactions')
+        .where(
+          "createdAt",
+          isGreaterThanOrEqualTo: Timestamp.fromDate(effectiveFrom),
+        )
+        .where(
+          "createdAt",
+          isLessThanOrEqualTo: Timestamp.fromDate(effectiveTo),
+        )
         .orderBy("createdAt", descending: true);
 
-    if (isFilterApplied && fromDate != null) {
-      final now = DateTime.now();
-      // Honor the exact date & time the user selected.
-      final effectiveFrom = fromDate!;
-      final effectiveTo =
-          toDate ?? DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
-
-      query =
-          FirestorePaths
-                  .scoped('transactions')
-                  .where(
-                    "createdAt",
-                    isGreaterThanOrEqualTo: Timestamp.fromDate(effectiveFrom),
-                  )
-                  .where(
-                    "createdAt",
-                    isLessThanOrEqualTo: Timestamp.fromDate(effectiveTo),
-                  )
-                  .orderBy("createdAt", descending: true)
-              as Query<Map<String, dynamic>>;
-    }
-
     if (lastDoc != null) {
-      query = query.startAfterDocument(lastDoc!) as Query<Map<String, dynamic>>;
+      query = query.startAfterDocument(lastDoc!);
     }
 
-    query = query.limit(pageSize) as Query<Map<String, dynamic>>;
+    query = query.limit(pageSize);
 
     final snapshot = await query.get();
 
@@ -558,8 +537,12 @@ class _TransactionsPageState extends State<TransactionsPage> {
                             (data["onlineAmount"] as int?) ?? 0;
                         final total =
                             (data["total"] as num?)?.toDouble() ?? 0.0;
+                        final discount =
+                            (data["discount"] as num?)?.toDouble() ?? 0.0;
                         final dateTime = (data["createdAt"] as Timestamp?)
                             ?.toDate();
+                        final completedBy =
+                            (data['completedBy']?.toString() ?? '').trim();
                         final dateKey = dateTime != null
                             ? DateFormat("dd-MM-yyyy").format(dateTime)
                             : "Unknown Date";
@@ -714,13 +697,25 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                               fontFamily: fontMulishRegular,
                                             ),
                                           ),
+                                          if (completedBy.isNotEmpty) ...[
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              'Completed By: $completedBy',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                                fontFamily: fontMulishSemiBold,
+                                              ),
+                                            ),
+                                          ],
                                           // Payment pills
                                           const SizedBox(height: 6),
-                                          Row(
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 4,
                                             children: [
                                               if (onlineAmount > 0)
                                                 Container(
-                                                  margin: const EdgeInsets.only(right: 6),
                                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                                   decoration: BoxDecoration(
                                                     color: Colors.blue.shade50,
@@ -753,19 +748,52 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                                     ),
                                                   ),
                                                 ),
+                                              if (discount > 0)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.red.shade50,
+                                                    borderRadius: BorderRadius.circular(20),
+                                                    border: Border.all(color: Colors.red.shade200),
+                                                  ),
+                                                  child: Text(
+                                                    "Discount ₹${discount.toStringAsFixed(0)}",
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontFamily: fontMulishSemiBold,
+                                                      color: Colors.red.shade700,
+                                                    ),
+                                                  ),
+                                                ),
                                             ],
                                           ),
                                         ],
                                       ),
                                     ),
-                                    // Total amount
-                                    Text(
-                                      "₹${total.toStringAsFixed(0)}",
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontFamily: fontMulishBold,
-                                        color: Colors.green,
-                                      ),
+                                    // Total amount + discount
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          "₹${total.toStringAsFixed(0)}",
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontFamily: fontMulishBold,
+                                            color: Colors.green,
+                                          ),
+                                        ),
+                                        if (discount > 0) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            "-₹${discount.toStringAsFixed(0)}",
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontFamily: fontMulishSemiBold,
+                                              color: Colors.red.shade600,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -788,7 +816,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   ),
           ),
 
-          // Grand Total bar
+          // Grand Total + Total Discount bar
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: const BoxDecoration(
@@ -802,24 +830,54 @@ class _TransactionsPageState extends State<TransactionsPage> {
               ],
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  "Grand Total",
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontFamily: fontMulishSemiBold,
-                    color: Colors.white70,
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Total Discount",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontFamily: fontMulishSemiBold,
+                          color: Colors.white70,
+                        ),
+                      ),
+                      Text(
+                        "₹${grandTotalDiscount.toStringAsFixed(0)}",
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontFamily: fontMulishBold,
+                          color: Color(0xFFFF8A80),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                Text(
-                  "₹${grandTotal.toStringAsFixed(0)}",
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontFamily: fontMulishBold,
-                    color: Color(0xFFf57c35),
-                  ),
+
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      "Grand Total",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontFamily: fontMulishSemiBold,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    Text(
+                      "₹${grandTotal.toStringAsFixed(0)}",
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontFamily: fontMulishBold,
+                        color: Color(0xFFf57c35),
+                      ),
+                    ),
+                  ],
                 ),
+
               ],
             ),
           ),

@@ -32,6 +32,7 @@ class SettingsController extends GetxController {
   final kitchenPreparationViewEnabled = false.obs;
   final kitchenBackgroundOrderRingtoneEnabled = true.obs;
   final dashboardServeRingtoneEnabled = true.obs;
+  final orderCompletionNotificationEnabled = false.obs;
   final printPdfEnabled = false.obs;
   final printerType = PosPrinterType.rugtek80.obs;
   final billPdfIncludeLogos = false.obs;
@@ -56,11 +57,18 @@ class SettingsController extends GetxController {
   Future<void> loadDashboardSettings() async {
     dashboardServeRingtoneEnabled.value =
         await DashboardSettings.getServeRingtoneEnabled();
+    orderCompletionNotificationEnabled.value =
+        await DashboardSettings.getOrderCompletionNotificationEnabled();
   }
 
   Future<void> setDashboardServeRingtoneEnabled(bool value) async {
     await DashboardSettings.setServeRingtoneEnabled(value);
     dashboardServeRingtoneEnabled.value = value;
+  }
+
+  Future<void> setOrderCompletionNotificationEnabled(bool value) async {
+    await DashboardSettings.setOrderCompletionNotificationEnabled(value);
+    orderCompletionNotificationEnabled.value = value;
   }
 
   Future<void> loadKitchenSettings() async {

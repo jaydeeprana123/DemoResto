@@ -20,6 +20,7 @@ export 'views/AddExpensePage.dart';
 export 'views/AdminDashboardPage.dart';
 export 'views/ExpensesPage.dart';
 export 'views/ExportPage.dart';
+export 'views/item_sales_report_page.dart';
 export 'views/create_staff_view.dart';
 export 'views/staff_list_view.dart';
 export 'views/profile_view.dart';

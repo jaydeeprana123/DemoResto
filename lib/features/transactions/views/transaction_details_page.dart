@@ -161,6 +161,8 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
       documentId: widget.transactionId,
     );
     final dateTime = (_transaction['createdAt'] as Timestamp?)?.toDate();
+    final completedBy =
+        (_transaction['completedBy']?.toString() ?? '').trim();
 
     return PopScope(
       canPop: false,
@@ -242,6 +244,17 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
                           color: Colors.white70,
                         ),
                       ),
+                      if (completedBy.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Completed By: $completedBy',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontFamily: fontMulishRegular,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

@@ -1,5 +1,6 @@
 import 'package:demo/core/constants/auth_constants.dart';
 import 'package:demo/features/authentication/repositories/auth_repository.dart';
+import 'package:demo/features/authentication/services/device_session_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -30,13 +31,20 @@ class LoginController extends GetxController {
 
     isLoading.value = true;
     try {
-      await _authRepository.signInWithEmailAndPassword(
+      final credential = await _authRepository.signInWithEmailAndPassword(
         email: email.trim(),
         password: password.trim(),
       );
+      final uid = credential.user?.uid;
+      if (uid == null || uid.isEmpty) {
+        return 'Login failed';
+      }
+      await Get.find<DeviceSessionService>().claimNewSession(uid);
       return null;
     } on FirebaseAuthException catch (e) {
       return e.message ?? 'Login failed';
+    } catch (e) {
+      return e.toString().replaceFirst('Exception: ', '');
     } finally {
       isLoading.value = false;
     }
@@ -59,13 +67,20 @@ class LoginController extends GetxController {
 
     isLoading.value = true;
     try {
-      await _authRepository.createUserWithEmailAndPassword(
+      final credential = await _authRepository.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
+      final uid = credential.user?.uid;
+      if (uid == null || uid.isEmpty) {
+        return 'Account setup failed';
+      }
+      await Get.find<DeviceSessionService>().claimNewSession(uid);
       return null;
     } on FirebaseAuthException catch (e) {
       return e.message ?? 'Account setup failed';
+    } catch (e) {
+      return e.toString().replaceFirst('Exception: ', '');
     } finally {
       isLoading.value = false;
     }
