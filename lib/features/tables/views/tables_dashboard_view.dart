@@ -25,6 +25,7 @@ import 'package:demo/features/tables/services/shared_tables_snapshot_service.dar
 import 'package:demo/features/tables/utils/table_serve_change_utils.dart';
 import 'package:demo/features/tables/services/dashboard_table_filter_settings.dart';
 import 'package:demo/features/tables/views/AddTablePage.dart';
+import 'package:demo/features/tables/widgets/order_completion_notification_dialog.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
 import 'package:demo/features/zomato/widgets/add_zomato_order_sheet.dart';
 import 'package:demo/features/zomato/services/zomato_clipboard_paste_service.dart';
@@ -82,6 +83,10 @@ class _TableDashboardViewState extends State<TableDashboardView>
   final Map<String, String> tableSources = {};
   final Map<String, String> tableScreenshotUrls = {};
   final Map<String, String> tableZomatoStatuses = {};
+  /// Millis since epoch for last staff→admin completion notify per table.
+  final Map<String, int> tableOrderCompletionNotifiedAtMs = {};
+  final Map<String, String> tableOrderCompletionNotifiedBy = {};
+  final Set<String> _locallySuppressedCompletionDocIds = {};
   final ScrollController _gridScrollController = ScrollController();
   bool _zomatoPasteInProgress = false;
   bool _mobileGridLayout = true;
@@ -296,6 +301,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
     required Map<String, String> updatedSources,
     required Map<String, String> updatedScreenshotUrls,
     required Map<String, String> updatedZomatoStatuses,
+    required Map<String, int> updatedOrderCompletionNotifiedAtMs,
+    required Map<String, String> updatedOrderCompletionNotifiedBy,
   }) {
     return _sameTablesData(tables, updatedTables) &&
         _sameIntListMap(_firestoreGroupIndices, updatedFirestoreGroupIndices) &&
@@ -306,7 +313,23 @@ class _TableDashboardViewState extends State<TableDashboardView>
         _sameStringListMap(tableAddedByUserNames, updatedAddedByUserNames) &&
         _sameStringMap(tableSources, updatedSources) &&
         _sameStringMap(tableScreenshotUrls, updatedScreenshotUrls) &&
-        _sameStringMap(tableZomatoStatuses, updatedZomatoStatuses);
+        _sameStringMap(tableZomatoStatuses, updatedZomatoStatuses) &&
+        _sameIntMap(
+          tableOrderCompletionNotifiedAtMs,
+          updatedOrderCompletionNotifiedAtMs,
+        ) &&
+        _sameStringMap(
+          tableOrderCompletionNotifiedBy,
+          updatedOrderCompletionNotifiedBy,
+        );
+  }
+
+  bool _sameIntMap(Map<String, int> a, Map<String, int> b) {
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      if (b[entry.key] != entry.value) return false;
+    }
+    return true;
   }
 
   void _restoreGridScroll(double offset) {
@@ -427,6 +450,67 @@ class _TableDashboardViewState extends State<TableDashboardView>
     }
   }
 
+  void _handleOrderCompletionNotifications({
+    required Map<String, int> updatedNotifiedAtMs,
+    required Map<String, String> updatedNotifiedBy,
+    required Map<String, String> updatedDocIds,
+  }) {
+    if (!_isAdmin || !widget.isTabActive || !mounted) return;
+
+    String? latestTable;
+    var latestMs = -1;
+    String latestStaff = 'Staff';
+
+    for (final entry in updatedNotifiedAtMs.entries) {
+      final tableName = entry.key;
+      // Skip first hydrate for unknown tables (same idea as serve alerts).
+      if (!tables.containsKey(tableName)) continue;
+      if (_tableFilterSelection.isNotEmpty &&
+          !_tableFilterSelection.contains(tableName)) {
+        continue;
+      }
+
+      final prevMs = tableOrderCompletionNotifiedAtMs[tableName];
+      final nextMs = entry.value;
+      if (prevMs != null && prevMs == nextMs) continue;
+
+      final docId = updatedDocIds[tableName] ?? tableDocIds[tableName] ?? '';
+      if (docId.isNotEmpty &&
+          _locallySuppressedCompletionDocIds.remove(docId)) {
+        continue;
+      }
+
+      if (nextMs >= latestMs) {
+        latestMs = nextMs;
+        latestTable = tableName;
+        final name = updatedNotifiedBy[tableName]?.trim();
+        latestStaff = (name != null && name.isNotEmpty) ? name : 'Staff';
+      }
+    }
+
+    if (latestTable == null) return;
+
+    final tableName = latestTable;
+    final staffName = latestStaff;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        OrderCompletionNotificationDialog.show(
+          context,
+          tableName: tableName,
+          staffName: staffName,
+        ),
+      );
+    });
+  }
+
+  int? _timestampToMillis(dynamic value) {
+    if (value is Timestamp) return value.millisecondsSinceEpoch;
+    if (value is DateTime) return value.millisecondsSinceEpoch;
+    if (value is int) return value;
+    return null;
+  }
+
   List<Map<String, dynamic>> _flattenDashboardItems(
     List<List<Map<String, dynamic>>> groups,
   ) {
@@ -466,6 +550,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
     final Map<String, String> updatedSources = {};
     final Map<String, String> updatedScreenshotUrls = {};
     final Map<String, String> updatedZomatoStatuses = {};
+    final Map<String, int> updatedOrderCompletionNotifiedAtMs = {};
+    final Map<String, String> updatedOrderCompletionNotifiedBy = {};
 
     for (var doc in querySnapshot.docs) {
       final tableName = doc['name'] as String;
@@ -473,6 +559,14 @@ class _TableDashboardViewState extends State<TableDashboardView>
       updatedCreatedAt[tableName] = data['createdAt'] as Timestamp?;
       updatedIsPaid[tableName] = data['isPaid'] == true;
       updatedDocIds[tableName] = doc.id;
+      final notifiedAtMs = _timestampToMillis(data['orderCompletionNotifiedAt']);
+      if (notifiedAtMs != null) {
+        updatedOrderCompletionNotifiedAtMs[tableName] = notifiedAtMs;
+        final by = data['orderCompletionNotifiedBy']?.toString().trim() ?? '';
+        if (by.isNotEmpty) {
+          updatedOrderCompletionNotifiedBy[tableName] = by;
+        }
+      }
       final addedBy = TablesRepository.parseAddedByFromData(data);
       final addedByIds = addedBy['ids'] ?? const <String>[];
       final addedByNames = addedBy['names'] ?? const <String>[];
@@ -601,6 +695,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
       updatedSources: updatedSources,
       updatedScreenshotUrls: updatedScreenshotUrls,
       updatedZomatoStatuses: updatedZomatoStatuses,
+      updatedOrderCompletionNotifiedAtMs: updatedOrderCompletionNotifiedAtMs,
+      updatedOrderCompletionNotifiedBy: updatedOrderCompletionNotifiedBy,
     );
 
     if (unchanged) {
@@ -612,6 +708,11 @@ class _TableDashboardViewState extends State<TableDashboardView>
 
     _handleDashboardServeAlerts(
       updatedTables: updatedTables,
+      updatedDocIds: updatedDocIds,
+    );
+    _handleOrderCompletionNotifications(
+      updatedNotifiedAtMs: updatedOrderCompletionNotifiedAtMs,
+      updatedNotifiedBy: updatedOrderCompletionNotifiedBy,
       updatedDocIds: updatedDocIds,
     );
 
@@ -649,6 +750,12 @@ class _TableDashboardViewState extends State<TableDashboardView>
       tableZomatoStatuses
         ..clear()
         ..addAll(updatedZomatoStatuses);
+      tableOrderCompletionNotifiedAtMs
+        ..clear()
+        ..addAll(updatedOrderCompletionNotifiedAtMs);
+      tableOrderCompletionNotifiedBy
+        ..clear()
+        ..addAll(updatedOrderCompletionNotifiedBy);
       if (_tableFilterSelection.isNotEmpty) {
         final before = _tableFilterSelection.length;
         _tableFilterSelection.removeWhere(
@@ -896,6 +1003,60 @@ class _TableDashboardViewState extends State<TableDashboardView>
     }
   }
 
+  Future<void> _confirmAndNotifyAdmin({
+    required String tableName,
+    required String docId,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Notify Admin'),
+        content: const Text(
+          'Are you sure you want to notify the admin that this order is completed?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Notify'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final staff = _currentAddedByUser();
+    final staffName = staff?.userName ?? 'Staff';
+    final staffId = staff?.userId;
+
+    if (docId.isNotEmpty) {
+      _locallySuppressedCompletionDocIds.add(docId);
+    }
+
+    try {
+      await Get.find<TablesRepository>().notifyOrderCompletion(
+        docId: docId,
+        notifiedByName: staffName,
+        notifiedByUserId: staffId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Admin notified for $tableName')),
+      );
+    } catch (e) {
+      if (docId.isNotEmpty) {
+        _locallySuppressedCompletionDocIds.remove(docId);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not notify admin: $e')),
+      );
+    }
+  }
+
   /// FinalBillingView billing on dine-in tables: clear items, not paid.
   Future<void> _clearTableAfterFinalBilling(
     String tableName, {
@@ -977,6 +1138,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
       tableIsPaid.remove(tableName);
       tableDocIds.remove(tableName);
       tableCreatedAt.remove(tableName);
+      tableOrderCompletionNotifiedAtMs.remove(tableName);
+      tableOrderCompletionNotifiedBy.remove(tableName);
     });
   }
 
@@ -2745,6 +2908,25 @@ class _TableDashboardViewState extends State<TableDashboardView>
                         );
                         await _reloadMenuFromCache();
                       }),
+                    // Notify Admin — when Order Completion Notification is enabled
+                    if (hasItems && !paid)
+                      ValueListenableBuilder<bool>(
+                        valueListenable: DashboardSettings
+                            .orderCompletionNotificationEnabled,
+                        builder: (context, enabled, _) {
+                          if (!enabled) return const SizedBox.shrink();
+                          return Tooltip(
+                            message: 'Notify Admin',
+                            child: _cardIconBtn(
+                              Icons.campaign_outlined,
+                              () => _confirmAndNotifyAdmin(
+                                tableName: tableName,
+                                docId: docId,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     // Billing icon — admin only, when items exist and not paid
                     if (hasItems && !paid && _isAdmin)
                       _cardIconBtn(Icons.receipt_long_outlined, () {

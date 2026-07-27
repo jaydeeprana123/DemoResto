@@ -821,6 +821,19 @@ class _SettingsNavigationSectionPageState
                     await _settings.setDashboardServeRingtoneEnabled(value);
                   },
                 ),
+                SettingsSwitchRow(
+                  icon: Icons.campaign_outlined,
+                  title: 'Order Completion Notification',
+                  subtitle:
+                      'Show a Notify Admin button on the Dashboard so staff can alert admin when an order is ready for billing',
+                  value: _settings.orderCompletionNotificationEnabled.value,
+                  onChanged: (value) async {
+                    if (value == null) return;
+                    await _settings.setOrderCompletionNotificationEnabled(
+                      value,
+                    );
+                  },
+                ),
               ],
             ),
           ],

@@ -289,7 +289,42 @@ class TablesRepository {
       updateData['addedByUserName'] = FieldValue.delete();
     }
 
+    // Billing / clear resets any pending staff→admin completion ping.
+    if (isBillPaid || flattenedItems.isEmpty) {
+      updateData['orderCompletionNotifiedAt'] = FieldValue.delete();
+      updateData['orderCompletionNotifiedBy'] = FieldValue.delete();
+      updateData['orderCompletionNotifiedByUserId'] = FieldValue.delete();
+    }
+
     await FirestorePaths.scopedDoc('tables', resolvedDocId).update(updateData);
+  }
+
+  /// Single write: staff signals admin that this order is ready for billing.
+  Future<void> notifyOrderCompletion({
+    required String docId,
+    required String notifiedByName,
+    String? notifiedByUserId,
+  }) {
+    final name = notifiedByName.trim();
+    final data = <String, dynamic>{
+      'orderCompletionNotifiedAt': FieldValue.serverTimestamp(),
+      'orderCompletionNotifiedBy': name.isEmpty ? 'Staff' : name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    final uid = notifiedByUserId?.trim();
+    if (uid != null && uid.isNotEmpty) {
+      data['orderCompletionNotifiedByUserId'] = uid;
+    }
+    return FirestorePaths.scopedDoc('tables', docId).update(data);
+  }
+
+  Future<void> clearOrderCompletionNotification(String docId) {
+    return FirestorePaths.scopedDoc('tables', docId).update({
+      'orderCompletionNotifiedAt': FieldValue.delete(),
+      'orderCompletionNotifiedBy': FieldValue.delete(),
+      'orderCompletionNotifiedByUserId': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> markTableUnpaid(String docId) {
