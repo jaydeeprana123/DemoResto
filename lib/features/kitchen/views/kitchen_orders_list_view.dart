@@ -32,6 +32,8 @@ import 'package:demo/features/kitchen/services/kitchen_web_bell_service.dart';
 import 'package:demo/features/kitchen/services/kitchen_bell_sound.dart';
 import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
+import 'package:demo/features/transactions/repositories/transactions_repository.dart';
+import 'package:demo/features/settings/utils/mark_as_delivered_permission.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/services/serve_notification_service.dart';
 import 'package:demo/features/tables/utils/table_serve_change_utils.dart';
@@ -2670,12 +2672,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }) {
     final time = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
     final isBlinking = blinkingGroupKey == group.key.hashCode;
-    final isDelayed = _isOrderDelayed(time);
     final isDelayedBlinking = _isDelayedGroupBlinking(group);
-
-    if (group.tableName.contains("Take Away") && isDelayed && group.isPaid) {
-      deleteTable(group.docId);
-    }
 
     return _wrapWithPriorityGestures(
       docId: group.docId,
@@ -2716,8 +2713,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                     isZomato: group.isZomato,
                     isNext: isNext,
                     isPriority: group.isPriority,
-                    onPaidHeaderTap: group.isZomato
-                        ? () => _markTableServed(group.tableName, group.docId)
+                    onPaidHeaderTap: group.isZomato &&
+                            MarkAsDeliveredPermission.canMarkAsDelivered
+                        ? () => _markTableServed(
+                              group.tableName,
+                              group.docId,
+                              lastTransactionId: group.lastTransactionId,
+                            )
                         : null,
                     compact: _isMobileGridLayout,
                   ),
@@ -2811,17 +2813,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       (g) => blinkingGroupKey == g.key.hashCode,
     );
 
-    for (final batch in tableCard.batches) {
-      final time = DateTime.fromMillisecondsSinceEpoch(batch.groupTime);
-      final isDelayed = _isOrderDelayed(time);
-      if (tableCard.tableName.contains("Take Away") &&
-          isDelayed &&
-          tableCard.isPaid) {
-        deleteTable(tableCard.docId);
-        break;
-      }
-    }
-
     return _wrapWithPriorityGestures(
       docId: tableCard.docId,
       tableName: tableCard.tableName,
@@ -2862,11 +2853,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                     isZomato: isZomato,
                     isNext: isNext,
                     isPriority: tableCard.isPriority,
-                    onPaidHeaderTap: isZomato
+                    onPaidHeaderTap: isZomato &&
+                            MarkAsDeliveredPermission.canMarkAsDelivered
                         ? () => _markTableServed(
-                            tableCard.tableName,
-                            tableCard.docId,
-                          )
+                              tableCard.tableName,
+                              tableCard.docId,
+                              lastTransactionId: tableCard.lastTransactionId,
+                            )
                         : null,
                     compact: _isMobileGridLayout,
                   ),
@@ -3011,14 +3004,54 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     );
   }
 
-  void _markTableServed(String tableName, String docId) {
+
+  String? _currentCompletedByName() {
+    if (!Get.isRegistered<RestaurantSession>()) return null;
+    final profile = Get.find<RestaurantSession>().profile.value;
+    if (profile == null) return null;
+    final name = profile.name?.trim();
+    final displayName = (name != null && name.isNotEmpty)
+        ? name
+        : profile.email.trim();
+    if (displayName.isEmpty) return null;
+    return displayName;
+  }
+
+  Future<void> _recordCompletedBy({
+    String? lastTransactionId,
+    String? completedBy,
+  }) async {
+    final name = completedBy?.trim();
+    if (name == null || name.isEmpty) return;
+    final txId = lastTransactionId?.trim();
+    if (txId == null || txId.isEmpty) return;
+    try {
+      await Get.find<TransactionsRepository>().setCompletedBy(
+        transactionId: txId,
+        completedBy: name,
+      );
+    } catch (_) {
+      // Best-effort - do not block serve/clear flow.
+    }
+  }
+
+  void _markTableServed(
+    String tableName,
+    String docId, {
+    String? lastTransactionId,
+  }) {
     if (selectedCategories.isNotEmpty && !showAllCategories) return;
+    if (!MarkAsDeliveredPermission.canMarkAsDelivered) return;
     showServedDialog(context, tableName, () async {
       _playDeleteSound();
       await _clearKitchenPriority(docId);
+      final completedBy = _currentCompletedByName();
       if (ZomatoOrderUtils.isZomatoOrderName(tableName)) {
         try {
-          await Get.find<ZomatoOrderServeService>().serveOrder(docId: docId);
+          await Get.find<ZomatoOrderServeService>().serveOrder(
+            docId: docId,
+            completedBy: completedBy,
+          );
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Zomato order served.')),
@@ -3032,13 +3065,20 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           }
         }
       } else if (isDiningTableName(tableName)) {
+        await _recordCompletedBy(
+          lastTransactionId: lastTransactionId,
+          completedBy: completedBy,
+        );
         await _updateTableItemsInFirestore(tableName, [], false);
       } else {
+        await _recordCompletedBy(
+          lastTransactionId: lastTransactionId,
+          completedBy: completedBy,
+        );
         await FirestorePaths.scoped('tables').doc(docId).delete();
       }
     });
   }
-
   BoxDecoration _orderCardDecoration(
     bool isBlinking,
     Color headerColor, {
@@ -3539,10 +3579,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     updateAudioPlayer.dispose();
     deleteAudioPlayer.dispose();
     super.dispose();
-  }
-
-  void deleteTable(String docId) async {
-    await FirestorePaths.scoped('tables').doc(docId).delete();
   }
 
   void showServedDialog(

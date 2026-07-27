@@ -11,6 +11,24 @@ class StaffController extends GetxController {
 
   Stream<List<StaffMember>> watchStaff() => _repository.watchStaff();
 
+  Stream<List<StaffMember>> watchRestaurantUsers() =>
+      _repository.watchRestaurantUsers();
+
+  Future<String?> setAllowMarkAsDelivered({
+    required StaffMember member,
+    required bool allow,
+  }) async {
+    try {
+      await _repository.setAllowMarkAsDelivered(
+        uid: member.uid,
+        allow: allow,
+      );
+      return null;
+    } catch (e) {
+      return e.toString().replaceFirst('Exception: ', '');
+    }
+  }
+
   Future<String?> createStaff({
     required String name,
     required String email,

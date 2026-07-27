@@ -15,6 +15,8 @@ import 'package:demo/features/menu_setup/menu_setup.dart';
 import 'package:demo/features/ordering/views/menu_page.dart';
 import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
 import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
+import 'package:demo/features/settings/utils/staff_order_edit_permission.dart';
+import 'package:demo/features/settings/utils/mark_as_delivered_permission.dart';
 import 'package:demo/features/tables/repositories/table_item_served.dart';
 import 'package:demo/features/tables/repositories/tables_repository.dart';
 import 'package:demo/features/tables/services/dashboard_settings.dart';
@@ -23,6 +25,7 @@ import 'package:demo/features/tables/services/shared_tables_snapshot_service.dar
 import 'package:demo/features/tables/utils/table_serve_change_utils.dart';
 import 'package:demo/features/tables/services/dashboard_table_filter_settings.dart';
 import 'package:demo/features/tables/views/AddTablePage.dart';
+import 'package:demo/features/tables/widgets/order_completion_notification_dialog.dart';
 import 'package:demo/features/tables/widgets/order_item_row.dart';
 import 'package:demo/features/zomato/widgets/add_zomato_order_sheet.dart';
 import 'package:demo/features/zomato/services/zomato_clipboard_paste_service.dart';
@@ -31,7 +34,9 @@ import 'package:demo/features/zomato/widgets/import_shared_zomato_sheet.dart';
 import 'package:demo/features/zomato/services/zomato_order_serve_service.dart';
 import 'package:demo/features/zomato/widgets/zomato_order_card_body.dart';
 import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
+import 'package:demo/features/activity_log/services/activity_log_service.dart';
 import 'package:demo/features/transactions/services/reverse_billing_service.dart';
+import 'package:demo/features/transactions/repositories/transactions_repository.dart';
 import 'package:demo/Styles/my_icons.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -63,8 +68,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
   final Map<String, bool> tableIsPaid = {};
   final Map<String, String> tableDocIds = {};
   final Map<String, String> tableTransactionIds = {};
-  final Map<String, String> tableAddedByUserIds = {};
-  final Map<String, String> tableAddedByUserNames = {};
+  final Map<String, List<String>> tableAddedByUserIds = {};
+  final Map<String, List<String>> tableAddedByUserNames = {};
   final Map<String, List<int>> _firestoreGroupIndices = {};
   final TableItemSelectionController _itemSelection =
       TableItemSelectionController();
@@ -78,6 +83,10 @@ class _TableDashboardViewState extends State<TableDashboardView>
   final Map<String, String> tableSources = {};
   final Map<String, String> tableScreenshotUrls = {};
   final Map<String, String> tableZomatoStatuses = {};
+  /// Millis since epoch for last staff→admin completion notify per table.
+  final Map<String, int> tableOrderCompletionNotifiedAtMs = {};
+  final Map<String, String> tableOrderCompletionNotifiedBy = {};
+  final Set<String> _locallySuppressedCompletionDocIds = {};
   final ScrollController _gridScrollController = ScrollController();
   bool _zomatoPasteInProgress = false;
   bool _mobileGridLayout = true;
@@ -87,6 +96,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
     TableServeChangeUtils.serveBlinkColor,
   );
   Timer? _dashboardServeBlinkTimer;
+  Timer? _staffPermissionRefreshTimer;
 
   @override
   void initState() {
@@ -105,6 +115,21 @@ class _TableDashboardViewState extends State<TableDashboardView>
       );
     }
     unawaited(DashboardSettings.load());
+    _startStaffPermissionRefreshTimer();
+  }
+
+  /// Rebuilds periodically so Edit/Delete icons hide as soon as the Staff
+  /// time limit expires without requiring a manual refresh.
+  void _startStaffPermissionRefreshTimer() {
+    _staffPermissionRefreshTimer?.cancel();
+    if (StaffOrderEditPermission.isAdmin) return;
+    if (StaffOrderEditPermission.limitMinutes <= 0) return;
+    _staffPermissionRefreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) {
+        if (mounted) setState(() {});
+      },
+    );
   }
 
   Future<void> _loadTableFilter() async {
@@ -145,6 +170,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
     }
     WidgetsBinding.instance.removeObserver(this);
     _dashboardServeBlinkTimer?.cancel();
+    _staffPermissionRefreshTimer?.cancel();
     _gridScrollController.dispose();
     if (Get.isRegistered<SharedTablesSnapshotService>()) {
       Get.find<SharedTablesSnapshotService>().unsubscribe(this);
@@ -235,6 +261,18 @@ class _TableDashboardViewState extends State<TableDashboardView>
     return true;
   }
 
+  bool _sameStringListMap(
+    Map<String, List<String>> a,
+    Map<String, List<String>> b,
+  ) {
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      final other = b[entry.key];
+      if (other == null || !listEquals(entry.value, other)) return false;
+    }
+    return true;
+  }
+
   bool _sameBoolMap(Map<String, bool> a, Map<String, bool> b) {
     if (a.length != b.length) return false;
     for (final entry in a.entries) {
@@ -258,22 +296,40 @@ class _TableDashboardViewState extends State<TableDashboardView>
     required Map<String, bool> updatedIsPaid,
     required Map<String, String> updatedDocIds,
     required Map<String, String> updatedTransactionIds,
-    required Map<String, String> updatedAddedByUserIds,
-    required Map<String, String> updatedAddedByUserNames,
+    required Map<String, List<String>> updatedAddedByUserIds,
+    required Map<String, List<String>> updatedAddedByUserNames,
     required Map<String, String> updatedSources,
     required Map<String, String> updatedScreenshotUrls,
     required Map<String, String> updatedZomatoStatuses,
+    required Map<String, int> updatedOrderCompletionNotifiedAtMs,
+    required Map<String, String> updatedOrderCompletionNotifiedBy,
   }) {
     return _sameTablesData(tables, updatedTables) &&
         _sameIntListMap(_firestoreGroupIndices, updatedFirestoreGroupIndices) &&
         _sameBoolMap(tableIsPaid, updatedIsPaid) &&
         _sameStringMap(tableDocIds, updatedDocIds) &&
         _sameStringMap(tableTransactionIds, updatedTransactionIds) &&
-        _sameStringMap(tableAddedByUserIds, updatedAddedByUserIds) &&
-        _sameStringMap(tableAddedByUserNames, updatedAddedByUserNames) &&
+        _sameStringListMap(tableAddedByUserIds, updatedAddedByUserIds) &&
+        _sameStringListMap(tableAddedByUserNames, updatedAddedByUserNames) &&
         _sameStringMap(tableSources, updatedSources) &&
         _sameStringMap(tableScreenshotUrls, updatedScreenshotUrls) &&
-        _sameStringMap(tableZomatoStatuses, updatedZomatoStatuses);
+        _sameStringMap(tableZomatoStatuses, updatedZomatoStatuses) &&
+        _sameIntMap(
+          tableOrderCompletionNotifiedAtMs,
+          updatedOrderCompletionNotifiedAtMs,
+        ) &&
+        _sameStringMap(
+          tableOrderCompletionNotifiedBy,
+          updatedOrderCompletionNotifiedBy,
+        );
+  }
+
+  bool _sameIntMap(Map<String, int> a, Map<String, int> b) {
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      if (b[entry.key] != entry.value) return false;
+    }
+    return true;
   }
 
   void _restoreGridScroll(double offset) {
@@ -394,6 +450,67 @@ class _TableDashboardViewState extends State<TableDashboardView>
     }
   }
 
+  void _handleOrderCompletionNotifications({
+    required Map<String, int> updatedNotifiedAtMs,
+    required Map<String, String> updatedNotifiedBy,
+    required Map<String, String> updatedDocIds,
+  }) {
+    if (!_isAdmin || !widget.isTabActive || !mounted) return;
+
+    String? latestTable;
+    var latestMs = -1;
+    String latestStaff = 'Staff';
+
+    for (final entry in updatedNotifiedAtMs.entries) {
+      final tableName = entry.key;
+      // Skip first hydrate for unknown tables (same idea as serve alerts).
+      if (!tables.containsKey(tableName)) continue;
+      if (_tableFilterSelection.isNotEmpty &&
+          !_tableFilterSelection.contains(tableName)) {
+        continue;
+      }
+
+      final prevMs = tableOrderCompletionNotifiedAtMs[tableName];
+      final nextMs = entry.value;
+      if (prevMs != null && prevMs == nextMs) continue;
+
+      final docId = updatedDocIds[tableName] ?? tableDocIds[tableName] ?? '';
+      if (docId.isNotEmpty &&
+          _locallySuppressedCompletionDocIds.remove(docId)) {
+        continue;
+      }
+
+      if (nextMs >= latestMs) {
+        latestMs = nextMs;
+        latestTable = tableName;
+        final name = updatedNotifiedBy[tableName]?.trim();
+        latestStaff = (name != null && name.isNotEmpty) ? name : 'Staff';
+      }
+    }
+
+    if (latestTable == null) return;
+
+    final tableName = latestTable;
+    final staffName = latestStaff;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        OrderCompletionNotificationDialog.show(
+          context,
+          tableName: tableName,
+          staffName: staffName,
+        ),
+      );
+    });
+  }
+
+  int? _timestampToMillis(dynamic value) {
+    if (value is Timestamp) return value.millisecondsSinceEpoch;
+    if (value is DateTime) return value.millisecondsSinceEpoch;
+    if (value is int) return value;
+    return null;
+  }
+
   List<Map<String, dynamic>> _flattenDashboardItems(
     List<List<Map<String, dynamic>>> groups,
   ) {
@@ -428,11 +545,13 @@ class _TableDashboardViewState extends State<TableDashboardView>
     final Map<String, bool> updatedIsPaid = {};
     final Map<String, String> updatedDocIds = {};
     final Map<String, String> updatedTransactionIds = {};
-    final Map<String, String> updatedAddedByUserIds = {};
-    final Map<String, String> updatedAddedByUserNames = {};
+    final Map<String, List<String>> updatedAddedByUserIds = {};
+    final Map<String, List<String>> updatedAddedByUserNames = {};
     final Map<String, String> updatedSources = {};
     final Map<String, String> updatedScreenshotUrls = {};
     final Map<String, String> updatedZomatoStatuses = {};
+    final Map<String, int> updatedOrderCompletionNotifiedAtMs = {};
+    final Map<String, String> updatedOrderCompletionNotifiedBy = {};
 
     for (var doc in querySnapshot.docs) {
       final tableName = doc['name'] as String;
@@ -440,13 +559,22 @@ class _TableDashboardViewState extends State<TableDashboardView>
       updatedCreatedAt[tableName] = data['createdAt'] as Timestamp?;
       updatedIsPaid[tableName] = data['isPaid'] == true;
       updatedDocIds[tableName] = doc.id;
-      final addedByUserId = data['addedByUserId']?.toString().trim();
-      final addedByUserName = data['addedByUserName']?.toString().trim();
-      if (addedByUserId != null && addedByUserId.isNotEmpty) {
-        updatedAddedByUserIds[tableName] = addedByUserId;
+      final notifiedAtMs = _timestampToMillis(data['orderCompletionNotifiedAt']);
+      if (notifiedAtMs != null) {
+        updatedOrderCompletionNotifiedAtMs[tableName] = notifiedAtMs;
+        final by = data['orderCompletionNotifiedBy']?.toString().trim() ?? '';
+        if (by.isNotEmpty) {
+          updatedOrderCompletionNotifiedBy[tableName] = by;
+        }
       }
-      if (addedByUserName != null && addedByUserName.isNotEmpty) {
-        updatedAddedByUserNames[tableName] = addedByUserName;
+      final addedBy = TablesRepository.parseAddedByFromData(data);
+      final addedByIds = addedBy['ids'] ?? const <String>[];
+      final addedByNames = addedBy['names'] ?? const <String>[];
+      if (addedByIds.isNotEmpty) {
+        updatedAddedByUserIds[tableName] = addedByIds;
+      }
+      if (addedByNames.isNotEmpty) {
+        updatedAddedByUserNames[tableName] = addedByNames;
       }
       if (ZomatoOrderUtils.isZomatoDoc(data)) {
         updatedSources[tableName] = ZomatoOrderUtils.sourceZomato;
@@ -567,6 +695,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
       updatedSources: updatedSources,
       updatedScreenshotUrls: updatedScreenshotUrls,
       updatedZomatoStatuses: updatedZomatoStatuses,
+      updatedOrderCompletionNotifiedAtMs: updatedOrderCompletionNotifiedAtMs,
+      updatedOrderCompletionNotifiedBy: updatedOrderCompletionNotifiedBy,
     );
 
     if (unchanged) {
@@ -578,6 +708,11 @@ class _TableDashboardViewState extends State<TableDashboardView>
 
     _handleDashboardServeAlerts(
       updatedTables: updatedTables,
+      updatedDocIds: updatedDocIds,
+    );
+    _handleOrderCompletionNotifications(
+      updatedNotifiedAtMs: updatedOrderCompletionNotifiedAtMs,
+      updatedNotifiedBy: updatedOrderCompletionNotifiedBy,
       updatedDocIds: updatedDocIds,
     );
 
@@ -615,6 +750,12 @@ class _TableDashboardViewState extends State<TableDashboardView>
       tableZomatoStatuses
         ..clear()
         ..addAll(updatedZomatoStatuses);
+      tableOrderCompletionNotifiedAtMs
+        ..clear()
+        ..addAll(updatedOrderCompletionNotifiedAtMs);
+      tableOrderCompletionNotifiedBy
+        ..clear()
+        ..addAll(updatedOrderCompletionNotifiedBy);
       if (_tableFilterSelection.isNotEmpty) {
         final before = _tableFilterSelection.length;
         _tableFilterSelection.removeWhere(
@@ -702,11 +843,21 @@ class _TableDashboardViewState extends State<TableDashboardView>
     bool clearLastTransactionId = false,
   ]) async {
     try {
-      final hasExistingAddedBy =
-          (tableAddedByUserIds[tableName]?.trim().isNotEmpty ?? false) &&
-          (tableAddedByUserNames[tableName]?.trim().isNotEmpty ?? false);
-      final shouldSetAddedBy = groups.isNotEmpty && !hasExistingAddedBy;
-      final addedBy = shouldSetAddedBy ? _currentAddedByUser() : null;
+      List<String>? nextIds;
+      List<String>? nextNames;
+      if (groups.isNotEmpty) {
+        final addedBy = _currentAddedByUser();
+        if (addedBy != null) {
+          final merged = TablesRepository.appendAddedByUser(
+            existingIds: tableAddedByUserIds[tableName] ?? const [],
+            existingNames: tableAddedByUserNames[tableName] ?? const [],
+            userId: addedBy.userId,
+            userName: addedBy.userName,
+          );
+          nextIds = merged.ids;
+          nextNames = merged.names;
+        }
+      }
 
       await Get.find<TablesRepository>().updateTableItems(
         tableName: tableName,
@@ -716,8 +867,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
         docId: tableDocIds[tableName],
         lastTransactionId: lastTransactionId,
         clearLastTransactionId: clearLastTransactionId,
-        addedByUserId: addedBy?.userId,
-        addedByUserName: addedBy?.userName,
+        addedByUserIds: nextIds,
+        addedByUserNames: nextNames,
         clearAddedBy: groups.isEmpty,
       );
       if (clearLastTransactionId) {
@@ -728,9 +879,9 @@ class _TableDashboardViewState extends State<TableDashboardView>
       if (groups.isEmpty) {
         tableAddedByUserIds.remove(tableName);
         tableAddedByUserNames.remove(tableName);
-      } else if (addedBy != null) {
-        tableAddedByUserIds[tableName] = addedBy.userId;
-        tableAddedByUserNames[tableName] = addedBy.userName;
+      } else if (nextIds != null && nextNames != null) {
+        tableAddedByUserIds[tableName] = nextIds;
+        tableAddedByUserNames[tableName] = nextNames;
       }
     } catch (e) {
       print("ERROR: Failed to update Firestore: $e");
@@ -751,6 +902,39 @@ class _TableDashboardViewState extends State<TableDashboardView>
         : profile.email.trim();
     if (displayName.isEmpty) return null;
     return (userId: profile.uid, userName: displayName);
+  }
+
+  String? _addedByDisplayName(String tableName) {
+    final names = tableAddedByUserNames[tableName];
+    if (names == null || names.isEmpty) return null;
+    final cleaned = names
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    if (cleaned.isEmpty) return null;
+    return cleaned.join(', ');
+  }
+
+  Future<void> _recordCompletedBy({
+    required String tableName,
+    String? completedBy,
+  }) async {
+    final name = completedBy?.trim();
+    if (name == null || name.isEmpty) return;
+    final txId = tableTransactionIds[tableName]?.trim();
+    if (txId == null || txId.isEmpty) return;
+    try {
+      await Get.find<TransactionsRepository>().setCompletedBy(
+        transactionId: txId,
+        completedBy: name,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save completed by: $e')),
+        );
+      }
+    }
   }
 
   /// Cart billing: keep items visible and mark table paid.
@@ -794,7 +978,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
       context,
       tableName: tableName,
       items: merged,
-      addedByUserName: tableAddedByUserNames[tableName],
+      addedByUserName: _addedByDisplayName(tableName),
       onSubmit: (submission) async {
         switch (submission.mode) {
           case TableBillingMode.paid:
@@ -816,6 +1000,60 @@ class _TableDashboardViewState extends State<TableDashboardView>
 
     if (result != null) {
       TableBillingSheet.deliverReceiptInBackground(result);
+    }
+  }
+
+  Future<void> _confirmAndNotifyAdmin({
+    required String tableName,
+    required String docId,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Notify Admin'),
+        content: const Text(
+          'Are you sure you want to notify the admin that this order is completed?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Notify'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final staff = _currentAddedByUser();
+    final staffName = staff?.userName ?? 'Staff';
+    final staffId = staff?.userId;
+
+    if (docId.isNotEmpty) {
+      _locallySuppressedCompletionDocIds.add(docId);
+    }
+
+    try {
+      await Get.find<TablesRepository>().notifyOrderCompletion(
+        docId: docId,
+        notifiedByName: staffName,
+        notifiedByUserId: staffId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Admin notified for $tableName')),
+      );
+    } catch (e) {
+      if (docId.isNotEmpty) {
+        _locallySuppressedCompletionDocIds.remove(docId);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not notify admin: $e')),
+      );
     }
   }
 
@@ -900,6 +1138,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
       tableIsPaid.remove(tableName);
       tableDocIds.remove(tableName);
       tableCreatedAt.remove(tableName);
+      tableOrderCompletionNotifiedAtMs.remove(tableName);
+      tableOrderCompletionNotifiedBy.remove(tableName);
     });
   }
 
@@ -907,10 +1147,25 @@ class _TableDashboardViewState extends State<TableDashboardView>
     String tableName, {
     String docId = '',
   }) async {
+    final resolvedDocId =
+        docId.isNotEmpty ? docId : (tableDocIds[tableName] ?? '');
+    final groups = tables[tableName] ?? const <List<Map<String, dynamic>>>[];
+    final items = groups
+        .expand((group) => group)
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+
+    ActivityLogService.instance.logDeleteMenuItems(
+      tableName: tableName,
+      tableDocId: resolvedDocId.isEmpty ? null : resolvedDocId,
+      items: items,
+      isTakeAway: _isTakeAway(tableName),
+    );
+
     if (_isTakeAway(tableName)) {
       await _deleteTakeAwayAfterFinalBilling(
         tableName,
-        docId.isNotEmpty ? docId : (tableDocIds[tableName] ?? ''),
+        resolvedDocId,
       );
       return;
     }
@@ -1014,14 +1269,14 @@ class _TableDashboardViewState extends State<TableDashboardView>
     }
     final addedBy = _currentAddedByUser();
     if (addedBy != null) {
-      tableData['addedByUserId'] = addedBy.userId;
-      tableData['addedByUserName'] = addedBy.userName;
+      tableData['addedByUserIds'] = [addedBy.userId];
+      tableData['addedByUserNames'] = [addedBy.userName];
     }
 
     final docRef = await FirestorePaths.scoped('tables').add(tableData);
     if (addedBy != null) {
-      tableAddedByUserIds[orderName] = addedBy.userId;
-      tableAddedByUserNames[orderName] = addedBy.userName;
+      tableAddedByUserIds[orderName] = [addedBy.userId];
+      tableAddedByUserNames[orderName] = [addedBy.userName];
     }
     return docRef.id;
   }
@@ -1291,15 +1546,15 @@ class _TableDashboardViewState extends State<TableDashboardView>
       }
       final addedBy = _currentAddedByUser();
       if (addedBy != null) {
-        tableData['addedByUserId'] = addedBy.userId;
-        tableData['addedByUserName'] = addedBy.userName;
+        tableData['addedByUserIds'] = [addedBy.userId];
+        tableData['addedByUserNames'] = [addedBy.userName];
       }
 
       // Step 2: Add the document to Firestore
       final docRef = await FirestorePaths.scoped('tables').add(tableData);
       if (addedBy != null) {
-        tableAddedByUserIds[tableName] = addedBy.userId;
-        tableAddedByUserNames[tableName] = addedBy.userName;
+        tableAddedByUserIds[tableName] = [addedBy.userId];
+        tableAddedByUserNames[tableName] = [addedBy.userName];
       }
 
       print(
@@ -2108,30 +2363,18 @@ class _TableDashboardViewState extends State<TableDashboardView>
     }
   }
 
-  bool get _isAdmin =>
-      Get.find<RestaurantSession>().profile.value?.isAdmin ?? false;
-
-  /// Minutes a Staff user may edit/delete the latest order after it was placed.
-  /// `0` means no restriction. Admins are never restricted by this.
-  int get _staffEditDeleteLimitMinutes =>
-      Get.find<RestaurantSession>()
-          .activeRestaurant
-          .value
-          ?.staffEditDeleteLimitMinutes ??
-      0;
+  bool get _isAdmin => StaffOrderEditPermission.isAdmin;
 
   /// Whether the current user may still edit/delete the latest order group.
   /// Admins always can; staff only within the admin-configured time limit.
   /// Existing "latest group only" rules are unchanged — this only gates whether
   /// the edit/delete icons are offered.
-  bool _staffCanModifyLatestGroup(List<List<Map<String, dynamic>>> groups) {
-    if (_isAdmin) return true;
-    final limit = _staffEditDeleteLimitMinutes;
-    if (limit <= 0) return true;
-    if (groups.isEmpty || groups.last.isEmpty) return true;
-    final addedAt = _parseAddedAt(groups.last.first['addedAt']);
-    if (addedAt == null) return true;
-    return DateTime.now().difference(addedAt) <= Duration(minutes: limit);
+  bool _staffCanModifyLatestGroup(List<List<Map<String, dynamic>>> groups) =>
+      StaffOrderEditPermission.canModifyLatestGroup(groups);
+
+  DateTime? _latestGroupAddedAt(List<List<Map<String, dynamic>>> groups) {
+    if (groups.isEmpty || groups.last.isEmpty) return null;
+    return _parseAddedAt(groups.last.first['addedAt']);
   }
 
   String _shortDisplayName(String tableName) {
@@ -2437,11 +2680,14 @@ class _TableDashboardViewState extends State<TableDashboardView>
             InkWell(
               onTap: () async {
                 if (paid) {
+                  if (!MarkAsDeliveredPermission.canMarkAsDelivered) return;
                   showServedDialog(context, tableName, () async {
+                    final completedBy = _currentAddedByUser()?.userName;
                     if (isZomato) {
                       try {
                         await Get.find<ZomatoOrderServeService>().serveOrder(
                           docId: docId,
+                          completedBy: completedBy,
                         );
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -2460,11 +2706,17 @@ class _TableDashboardViewState extends State<TableDashboardView>
                           );
                         }
                       }
-                    } else if (isTakeAway) {
-                      await FirestorePaths.scopedDoc('tables', docId).delete();
-                      setState(() {});
                     } else {
-                      await _updateTableItemsInFirestore(tableName, [], false);
+                      await _recordCompletedBy(
+                        tableName: tableName,
+                        completedBy: completedBy,
+                      );
+                      if (isTakeAway) {
+                        await FirestorePaths.scopedDoc('tables', docId).delete();
+                        setState(() {});
+                      } else {
+                        await _updateTableItemsInFirestore(tableName, [], false);
+                      }
                     }
                   });
                   return;
@@ -2485,6 +2737,9 @@ class _TableDashboardViewState extends State<TableDashboardView>
                       existingOrderNames: tables.keys.toSet(),
                       initialItems: [],
                       pastItems: pastItems,
+                      editDeletePermissionAnchorAt: hasItems
+                          ? _latestGroupAddedAt(groups)
+                          : null,
                       showBilling: !hasItems,
                       isFromFinalBilling: false,
                       onMenuCacheUpdated: _reloadMenuFromCache,
@@ -2619,6 +2874,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
                                 lastGroup,
                               ),
                               pastItems: pastForEdit,
+                              editDeletePermissionAnchorAt:
+                                  _latestGroupAddedAt(groups),
                               showBilling: groups.length == 1,
                               isFromFinalBilling: false,
                               onMenuCacheUpdated: _reloadMenuFromCache,
@@ -2651,6 +2908,25 @@ class _TableDashboardViewState extends State<TableDashboardView>
                         );
                         await _reloadMenuFromCache();
                       }),
+                    // Notify Admin — when Order Completion Notification is enabled
+                    if (hasItems && !paid)
+                      ValueListenableBuilder<bool>(
+                        valueListenable: DashboardSettings
+                            .orderCompletionNotificationEnabled,
+                        builder: (context, enabled, _) {
+                          if (!enabled) return const SizedBox.shrink();
+                          return Tooltip(
+                            message: 'Notify Admin',
+                            child: _cardIconBtn(
+                              Icons.campaign_outlined,
+                              () => _confirmAndNotifyAdmin(
+                                tableName: tableName,
+                                docId: docId,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     // Billing icon — admin only, when items exist and not paid
                     if (hasItems && !paid && _isAdmin)
                       _cardIconBtn(Icons.receipt_long_outlined, () {

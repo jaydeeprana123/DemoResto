@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/features/activity_log/services/activity_log_service.dart';
 import 'package:flutter/material.dart';
 
 import 'package:demo/features/tables/widgets/portion_indicator.dart';
@@ -242,6 +243,11 @@ class TableItemServed {
 
       if (indicesToRemove.isEmpty) continue;
 
+      final removedItems = [
+        for (final i in indicesToRemove) Map<String, dynamic>.from(items[i]),
+      ];
+      final tableName = snap.data()?['name']?.toString();
+
       final remaining = [
         for (var i = 0; i < items.length; i++)
           if (!indicesToRemove.contains(i)) items[i],
@@ -252,6 +258,12 @@ class TableItemServed {
         'updatedAt': FieldValue.serverTimestamp(),
       });
       anyUpdated = true;
+
+      ActivityLogService.instance.logDeleteItems(
+        tableName: tableName,
+        tableDocId: entry.key,
+        items: removedItems,
+      );
     }
 
     return anyUpdated;

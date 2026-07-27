@@ -50,22 +50,91 @@ class RestaurantAdminsView extends StatelessWidget {
         }
 
         return ListView.separated(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
           itemCount: admins.length,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
-            return _AdminDetailCard(admin: admins[index]);
+            return _AdminDetailCard(
+              admin: admins[index],
+              onDelete: admins[index].active
+                  ? () => _showDeleteAdminDialog(
+                        context,
+                        controller,
+                        restaurant,
+                        admins[index],
+                      )
+                  : null,
+            );
           },
         );
       }),
     );
   }
+
+  Future<void> _showDeleteAdminDialog(
+    BuildContext context,
+    SuperAdminController controller,
+    Restaurant restaurant,
+    UserProfile admin,
+  ) async {
+    final displayName = (admin.name?.trim().isNotEmpty ?? false)
+        ? admin.name!.trim()
+        : admin.email;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete admin?', style: MyFont.bold(16, color: _navy)),
+        content: Text(
+          'Remove $displayName from ${restaurant.name}?\n\n'
+          'They will lose access to the app immediately. '
+          'Their login email is not deleted from Firebase Auth, '
+          'but they cannot sign in while deactivated.',
+          style: MyFont.regular(14, color: Colors.grey.shade800),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final error = await controller.deleteRestaurantAdmin(
+      admin: admin,
+      restaurantId: restaurant.id,
+    );
+    if (!context.mounted) return;
+
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red.shade700),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$displayName has been removed.')),
+    );
+  }
 }
 
 class _AdminDetailCard extends StatelessWidget {
-  const _AdminDetailCard({required this.admin});
+  const _AdminDetailCard({
+    required this.admin,
+    this.onDelete,
+  });
 
   final UserProfile admin;
+  final VoidCallback? onDelete;
 
   String get _displayName {
     final name = admin.name?.trim();
@@ -124,6 +193,17 @@ class _AdminDetailCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (onDelete != null) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: 'Delete admin',
+                    onPressed: onDelete,
+                    icon: Icon(
+                      Icons.delete_outline_rounded,
+                      color: Colors.red.shade700,
+                    ),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 12),

@@ -9,4 +9,15 @@ class ExportRepository {
   Future<String> exportExpenses(ExportDateRange range) {
     return ExportExcelService.exportExpenses(range);
   }
+
+  Future<ItemSalesReportData> loadItemSales(ExportDateRange range) {
+    return ExportExcelService.loadItemSales(range);
+  }
+
+  Future<String> exportItemSales(
+    ExportDateRange range, {
+    ItemSalesReportData? report,
+  }) {
+    return ExportExcelService.exportItemSales(range, report: report);
+  }
 }

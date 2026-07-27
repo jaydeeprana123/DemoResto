@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:demo/features/activity_log/services/activity_log_service.dart';
+import 'package:demo/features/settings/utils/staff_order_edit_permission.dart';
 import 'package:flutter/material.dart';
 
 import 'package:demo/Styles/my_font.dart';
@@ -63,6 +65,8 @@ class _AddTablePageState extends State<AddTablePage>
   }
 
   Future<void> _deleteTable(String docId, String name) async {
+    if (!StaffOrderEditPermission.isAdmin) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -107,6 +111,11 @@ class _AddTablePageState extends State<AddTablePage>
     );
 
     if (confirmed != true || !mounted) return;
+
+    ActivityLogService.instance.logDeleteTable(
+      tableName: name,
+      tableDocId: docId,
+    );
 
     await FirestorePaths.scoped('tables').doc(docId).delete();
     if (mounted) {
@@ -478,14 +487,16 @@ class _AddTablePageState extends State<AddTablePage>
                     color: Colors.grey.shade500,
                   ),
                 ),
-                trailing: IconButton(
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    color: Colors.red,
-                  ),
-                  tooltip: 'Delete table',
-                  onPressed: () => _deleteTable(doc.id, name),
-                ),
+                trailing: StaffOrderEditPermission.isAdmin
+                    ? IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          color: Colors.red,
+                        ),
+                        tooltip: 'Delete table',
+                        onPressed: () => _deleteTable(doc.id, name),
+                      )
+                    : null,
               ),
             );
           },

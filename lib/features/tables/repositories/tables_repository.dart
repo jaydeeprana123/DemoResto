@@ -7,18 +7,103 @@ class TableOrderSnapshot {
     required this.docId,
     required this.items,
     required this.isPaid,
-    this.addedByUserId,
-    this.addedByUserName,
+    this.addedByUserIds = const [],
+    this.addedByUserNames = const [],
   });
 
   final String docId;
   final List<Map<String, dynamic>> items;
   final bool isPaid;
-  final String? addedByUserId;
-  final String? addedByUserName;
+  final List<String> addedByUserIds;
+  final List<String> addedByUserNames;
+
+  /// Comma-separated unique display names for billing UI.
+  String? get addedByUserName {
+    final names = addedByUserNames
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    if (names.isEmpty) return null;
+    return names.join(', ');
+  }
 }
 
 class TablesRepository {
+  /// Parses list or legacy single-string Added By fields from a table doc.
+  static List<String> parseAddedByList(dynamic listValue, dynamic legacyValue) {
+    final result = <String>[];
+    final seen = <String>{};
+
+    void add(String? raw) {
+      final value = raw?.trim() ?? '';
+      if (value.isEmpty) return;
+      if (!seen.add(value)) return;
+      result.add(value);
+    }
+
+    if (listValue is List) {
+      for (final entry in listValue) {
+        add(entry?.toString());
+      }
+    } else if (listValue is String) {
+      add(listValue);
+    }
+
+    if (result.isEmpty) {
+      add(legacyValue?.toString());
+    }
+
+    return result;
+  }
+
+  static Map<String, List<String>> parseAddedByFromData(
+    Map<String, dynamic> data,
+  ) {
+    return {
+      'ids': parseAddedByList(data['addedByUserIds'], data['addedByUserId']),
+      'names': parseAddedByList(
+        data['addedByUserNames'],
+        data['addedByUserName'],
+      ),
+    };
+  }
+
+  /// Appends [userId]/[userName] if the id is not already present.
+  /// Returns updated parallel lists (may be unchanged).
+  static ({List<String> ids, List<String> names}) appendAddedByUser({
+    required List<String> existingIds,
+    required List<String> existingNames,
+    required String userId,
+    required String userName,
+  }) {
+    final id = userId.trim();
+    final name = userName.trim();
+    if (id.isEmpty || name.isEmpty) {
+      return (ids: List<String>.from(existingIds), names: List<String>.from(existingNames));
+    }
+
+    final ids = List<String>.from(existingIds);
+    final names = List<String>.from(existingNames);
+
+    // Align lengths if data was corrupted/legacy-mismatched.
+    while (names.length < ids.length) {
+      names.add('');
+    }
+    while (ids.length < names.length) {
+      ids.add('');
+    }
+
+    final existingIndex = ids.indexOf(id);
+    if (existingIndex >= 0) {
+      // Same user again — keep first occurrence, no duplicate.
+      return (ids: ids, names: names);
+    }
+
+    ids.add(id);
+    names.add(name);
+    return (ids: ids, names: names);
+  }
+
   Stream<QuerySnapshot<Map<String, dynamic>>> watchTables() {
     return FirestorePaths
         .scoped('tables')
@@ -70,20 +155,13 @@ class TablesRepository {
     final doc = query.docs.first;
     final data = doc.data();
     final items = mergeTableItemsForBilling(data['items']);
-    final addedByUserId = data['addedByUserId']?.toString().trim();
-    final addedByUserName = data['addedByUserName']?.toString().trim();
+    final addedBy = parseAddedByFromData(data);
     return TableOrderSnapshot(
       docId: doc.id,
       items: items,
       isPaid: data['isPaid'] == true,
-      addedByUserId:
-          addedByUserId != null && addedByUserId.isNotEmpty
-              ? addedByUserId
-              : null,
-      addedByUserName:
-          addedByUserName != null && addedByUserName.isNotEmpty
-              ? addedByUserName
-              : null,
+      addedByUserIds: addedBy['ids'] ?? const [],
+      addedByUserNames: addedBy['names'] ?? const [],
     );
   }
 
@@ -130,8 +208,8 @@ class TablesRepository {
     String? docId,
     String? lastTransactionId,
     bool clearLastTransactionId = false,
-    String? addedByUserId,
-    String? addedByUserName,
+    List<String>? addedByUserIds,
+    List<String>? addedByUserNames,
     bool clearAddedBy = false,
   }) async {
     var resolvedDocId = docId?.trim();
@@ -179,21 +257,74 @@ class TablesRepository {
       updateData['lastTransactionId'] = FieldValue.delete();
     }
 
-    // First creator only — caller must omit these when already set.
-    final trimmedAddedById = addedByUserId?.trim();
-    final trimmedAddedByName = addedByUserName?.trim();
-    if (trimmedAddedById != null &&
-        trimmedAddedById.isNotEmpty &&
-        trimmedAddedByName != null &&
-        trimmedAddedByName.isNotEmpty) {
-      updateData['addedByUserId'] = trimmedAddedById;
-      updateData['addedByUserName'] = trimmedAddedByName;
+    final rawIds = addedByUserIds ?? const <String>[];
+    final rawNames = addedByUserNames ?? const <String>[];
+    if (rawIds.isNotEmpty && rawNames.isNotEmpty) {
+      var syncedIds = <String>[];
+      var syncedNames = <String>[];
+      final limit =
+          rawIds.length < rawNames.length ? rawIds.length : rawNames.length;
+      for (var i = 0; i < limit; i++) {
+        final next = appendAddedByUser(
+          existingIds: syncedIds,
+          existingNames: syncedNames,
+          userId: rawIds[i],
+          userName: rawNames[i],
+        );
+        syncedIds = next.ids;
+        syncedNames = next.names;
+      }
+
+      if (syncedIds.isNotEmpty && syncedNames.isNotEmpty) {
+        updateData['addedByUserIds'] = syncedIds;
+        updateData['addedByUserNames'] = syncedNames;
+        // Drop legacy single-value fields after migrating to lists.
+        updateData['addedByUserId'] = FieldValue.delete();
+        updateData['addedByUserName'] = FieldValue.delete();
+      }
     } else if (clearAddedBy || flattenedItems.isEmpty) {
+      updateData['addedByUserIds'] = FieldValue.delete();
+      updateData['addedByUserNames'] = FieldValue.delete();
       updateData['addedByUserId'] = FieldValue.delete();
       updateData['addedByUserName'] = FieldValue.delete();
     }
 
+    // Billing / clear resets any pending staff→admin completion ping.
+    if (isBillPaid || flattenedItems.isEmpty) {
+      updateData['orderCompletionNotifiedAt'] = FieldValue.delete();
+      updateData['orderCompletionNotifiedBy'] = FieldValue.delete();
+      updateData['orderCompletionNotifiedByUserId'] = FieldValue.delete();
+    }
+
     await FirestorePaths.scopedDoc('tables', resolvedDocId).update(updateData);
+  }
+
+  /// Single write: staff signals admin that this order is ready for billing.
+  Future<void> notifyOrderCompletion({
+    required String docId,
+    required String notifiedByName,
+    String? notifiedByUserId,
+  }) {
+    final name = notifiedByName.trim();
+    final data = <String, dynamic>{
+      'orderCompletionNotifiedAt': FieldValue.serverTimestamp(),
+      'orderCompletionNotifiedBy': name.isEmpty ? 'Staff' : name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    final uid = notifiedByUserId?.trim();
+    if (uid != null && uid.isNotEmpty) {
+      data['orderCompletionNotifiedByUserId'] = uid;
+    }
+    return FirestorePaths.scopedDoc('tables', docId).update(data);
+  }
+
+  Future<void> clearOrderCompletionNotification(String docId) {
+    return FirestorePaths.scopedDoc('tables', docId).update({
+      'orderCompletionNotifiedAt': FieldValue.delete(),
+      'orderCompletionNotifiedBy': FieldValue.delete(),
+      'orderCompletionNotifiedByUserId': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> markTableUnpaid(String docId) {
