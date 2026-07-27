@@ -4,7 +4,7 @@ import 'package:demo/core/services/restaurant_session.dart';
 import 'package:get/get.dart';
 
 /// Reads/writes the Staff edit/delete time limit (in minutes) on the
-/// restaurant document. `0` means Staff have no time restriction.
+/// restaurant document. `0` means Staff cannot edit or delete orders.
 class StaffPermissionSettingsService {
   const StaffPermissionSettingsService._();
 

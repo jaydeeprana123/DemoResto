@@ -577,10 +577,6 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
               final isBlinking = blinkingGroupKey == group.key.hashCode;
               final isOld = DateTime.now().difference(time).inMinutes > 5;
 
-              if (group.tableName.contains("Take Away") && isOld && group.isPaid) {
-                deleteTable(group.docId);
-              }
-
               return GestureDetector(
                 onDoubleTap: () {
                   if (group.isPaid && selectedCategories.isEmpty) {
@@ -739,11 +735,6 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   void dispose() {
     _timer?.cancel();
     super.dispose();
-  }
-
-  void deleteTable(String docId) async {
-    await FirebaseFirestore.instance.collection('tables').doc(docId).delete();
-    setState(() {});
   }
 
   void showServedDialog(

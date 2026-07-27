@@ -182,6 +182,8 @@ class SuperAdminRepository {
       'email': email.trim(),
       'role': 'Admin',
       'restaurantId': restaurantId,
+      'active': true,
+      'allowMarkAsDelivered': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
 
@@ -191,5 +193,47 @@ class SuperAdminRepository {
     });
   }
 
+  /// Soft-deactivates a restaurant Admin so they cannot use the app.
+  /// Firebase Auth login is not deleted (same pattern as Staff delete).
+  Future<void> deleteRestaurantAdmin({
+    required UserProfile admin,
+    required String restaurantId,
+  }) async {
+    if (admin.uid.isEmpty) {
+      throw Exception('Admin account id is missing.');
+    }
 
+    final adminDoc = await FirestorePaths.user(admin.uid).get();
+    if (!adminDoc.exists) throw Exception('Admin account not found.');
+
+    final data = adminDoc.data()!;
+    if (data['role']?.toString() != 'Admin') {
+      throw Exception('Only restaurant Admin accounts can be deleted here.');
+    }
+    if (data['restaurantId']?.toString() != restaurantId) {
+      throw Exception('This admin does not belong to the selected restaurant.');
+    }
+    if (data['active'] == false) {
+      throw Exception('This admin account is already deactivated.');
+    }
+
+    await FirestorePaths.user(admin.uid).update({
+      'active': false,
+      'deactivatedAt': FieldValue.serverTimestamp(),
+      'deactivatedByRole': 'SuperAdmin',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final restaurantDoc = await FirestorePaths.restaurant(restaurantId).get();
+    final restaurantEmail = restaurantDoc.data()?['adminEmail']?.toString().trim();
+    final adminEmail = (data['email']?.toString() ?? admin.email).trim();
+    if (restaurantEmail != null &&
+        restaurantEmail.isNotEmpty &&
+        restaurantEmail.toLowerCase() == adminEmail.toLowerCase()) {
+      await FirestorePaths.restaurant(restaurantId).update({
+        'adminEmail': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+  }
 }

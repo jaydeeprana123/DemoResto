@@ -103,63 +103,63 @@ class ZomatoOrderCardBody extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
             'Tap screenshot to view full order details',
             textAlign: TextAlign.center,
             style: MyFont.regular(11, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            value: normalized,
-            decoration: InputDecoration(
-              labelText: 'Order status',
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 10,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            items: ZomatoOrderUtils.statuses
-                .map(
-                  (value) => DropdownMenuItem(
-                    value: value,
-                    child: Text(value, style: MyFont.semiBold(14)),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) async {
-              if (value == null || value == normalized) return;
-              try {
-                if (ZomatoOrderUtils.isCompletedStatus(value)) {
-                  await Get.find<ZomatoOrderServeService>().updateStatus(
-                    docId: docId,
-                    status: value,
-                  );
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Zomato order served.')),
-                    );
-                  }
-                } else {
-                  await Get.find<ZomatoOrderServeService>().updateStatus(
-                    docId: docId,
-                    status: value,
-                  );
-                }
-                onStatusChanged?.call(value);
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Could not update status: $e')),
-                  );
-                }
-              }
-            },
-          ),
+          // DropdownButtonFormField<String>(
+          //   value: normalized,
+          //   decoration: InputDecoration(
+          //     labelText: 'Order status',
+          //     isDense: true,
+          //     contentPadding: const EdgeInsets.symmetric(
+          //       horizontal: 12,
+          //       vertical: 10,
+          //     ),
+          //     border: OutlineInputBorder(
+          //       borderRadius: BorderRadius.circular(10),
+          //     ),
+          //   ),
+          //   items: ZomatoOrderUtils.statuses
+          //       .map(
+          //         (value) => DropdownMenuItem(
+          //           value: value,
+          //           child: Text(value, style: MyFont.semiBold(14)),
+          //         ),
+          //       )
+          //       .toList(),
+          //   onChanged: (value) async {
+          //     if (value == null || value == normalized) return;
+          //     try {
+          //       if (ZomatoOrderUtils.isCompletedStatus(value)) {
+          //         await Get.find<ZomatoOrderServeService>().updateStatus(
+          //           docId: docId,
+          //           status: value,
+          //         );
+          //         if (context.mounted) {
+          //           ScaffoldMessenger.of(context).showSnackBar(
+          //             const SnackBar(content: Text('Zomato order served.')),
+          //           );
+          //         }
+          //       } else {
+          //         await Get.find<ZomatoOrderServeService>().updateStatus(
+          //           docId: docId,
+          //           status: value,
+          //         );
+          //       }
+          //       onStatusChanged?.call(value);
+          //     } catch (e) {
+          //       if (context.mounted) {
+          //         ScaffoldMessenger.of(context).showSnackBar(
+          //           SnackBar(content: Text('Could not update status: $e')),
+          //         );
+          //       }
+          //     }
+          //   },
+          // ),
         ],
       ),
     );
