@@ -123,6 +123,64 @@ class FoodBillPdfService {
     }
   }
 
+  /// Display size for a receipt logo inside [maxWidth]×[maxHeight].
+  ///
+  /// Preserves aspect ratio (no stretch). Landscape fills nearly the full bill
+  /// width; square stays compact (not full-width); portrait is height-capped
+  /// so it does not dominate the receipt. The returned size hugs the scaled
+  /// image so unused blank space is not reserved in the layout.
+  static ({double width, double height}) _receiptLogoDisplaySize({
+    required double imageWidth,
+    required double imageHeight,
+    required double maxWidth,
+    required double maxHeight,
+  }) {
+    if (imageWidth <= 0 || imageHeight <= 0) {
+      return (width: maxWidth * 0.5, height: maxHeight * 0.5);
+    }
+
+    final aspect = imageWidth / imageHeight;
+
+    // Shape-aware bounds still inside the global maximum container.
+    late final double boxW;
+    late final double boxH;
+    if (aspect >= 1.5) {
+      // Landscape / wide: nearly full bill width; height follows aspect.
+      boxW = maxWidth;
+      boxH = maxHeight;
+    } else if (aspect <= 0.8) {
+      // Portrait / tall: reduce height so the logo does not dominate.
+      boxW = maxWidth * 0.5;
+      boxH = maxHeight * 0.7;
+    } else {
+      // Square / near-square: balanced size, never stretch to full width.
+      final side = maxHeight * 0.65;
+      final halfWidth = maxWidth * 0.5;
+      boxW = side < halfWidth ? side : halfWidth;
+      boxH = side;
+    }
+
+    // Contain-fit within the shape-aware box.
+    var width = boxW;
+    var height = width / aspect;
+    if (height > boxH) {
+      height = boxH;
+      width = height * aspect;
+    }
+
+    // Hard clamp to the global maximum container.
+    if (width > maxWidth) {
+      width = maxWidth;
+      height = width / aspect;
+    }
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height * aspect;
+    }
+
+    return (width: width, height: height);
+  }
+
   static Future<void> generateAndPrintIfEnabled({
     required BuildContext context,
     required FoodBillPdfData data,
@@ -571,10 +629,20 @@ class FoodBillPdfService {
     final baseSize = isNarrow ? 7.0 : 8.0;
     final headerSize = isNarrow ? 10.0 : 12.0;
     final totalSize = isNarrow ? 10.0 : 11.0;
-    // Logo bounding box: scale with contain (no stretch). Fixed height keeps
-    // bill content starting at the same Y regardless of logo aspect ratio.
-    final logoMaxWidth = isNarrow ? 48.0 * PdfPageFormat.mm : 68.0 * PdfPageFormat.mm;
+    // Max logo container: bill content width × 120pt. Actual display size is
+    // derived from the image aspect ratio so unused blank space is not reserved.
+    final logoMaxWidth =
+        isNarrow ? 48.0 * PdfPageFormat.mm : 68.0 * PdfPageFormat.mm;
     const logoMaxHeight = 120.0;
+    final restaurantLogo = includeLogos ? _cachedRestaurantLogo : null;
+    final logoDisplaySize = restaurantLogo == null
+        ? null
+        : _receiptLogoDisplaySize(
+            imageWidth: (restaurantLogo.width ?? 0).toDouble(),
+            imageHeight: (restaurantLogo.height ?? 0).toDouble(),
+            maxWidth: logoMaxWidth,
+            maxHeight: logoMaxHeight,
+          );
 
     pw.TextStyle labelStyle({double? size, bool isBold = false}) =>
         pw.TextStyle(
@@ -590,31 +658,27 @@ class FoodBillPdfService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
-              if (includeLogos && _cachedRestaurantLogo != null) ...[
+              if (restaurantLogo != null && logoDisplaySize != null) ...[
                 pw.Center(
-                  child: pw.SizedBox(
-                    width: logoMaxWidth,
-                    height: logoMaxHeight,
-                    child: pw.Center(
-                      child: pw.Image(
-                        _cachedRestaurantLogo!,
-                        width: logoMaxWidth,
-                        height: logoMaxHeight,
-                        fit: pw.BoxFit.contain,
-                        alignment: pw.Alignment.center,
-                      ),
-                    ),
+                  child: pw.Image(
+                    restaurantLogo,
+                    width: logoDisplaySize.width,
+                    height: logoDisplaySize.height,
+                    fit: pw.BoxFit.contain,
+                    alignment: pw.Alignment.center,
                   ),
                 ),
-                pw.SizedBox(height: 6),
-              ] else
+                // Consistent 8–12px gap between logo and address (no dead space).
+                pw.SizedBox(height: 10),
+              ] else ...[
                 pw.Center(
                   child: pw.Text(
                     _headerRestaurantName,
                     style: labelStyle(size: headerSize, isBold: true),
                   ),
                 ),
-              pw.SizedBox(height: 4),
+                pw.SizedBox(height: 4),
+              ],
               pw.Center(
                 child: pw.Text(
                   _headerRestaurantAddress,
