@@ -169,9 +169,9 @@ class _ItemSalesReportPageState extends State<ItemSalesReportPage> {
 
   String _exportSuccessMessage(String savedPath) {
     if (isDesktopPlatform) {
-      return 'Excel saved to:\n$savedPath\n\nUse the share window to send the file.';
+      return 'CSV saved to:\n$savedPath\n\nUse the share window to send the file.';
     }
-    return 'Excel file saved and ready to share.';
+    return 'CSV file saved and ready to share.';
   }
 
   Future<void> _exportExcel() async {
@@ -264,7 +264,7 @@ class _ItemSalesReportPageState extends State<ItemSalesReportPage> {
         actions: [
           if (report != null)
             IconButton(
-              tooltip: 'Export to Excel',
+              tooltip: 'Export to CSV',
               onPressed: busy ? null : _exportExcel,
               icon: _exporting
                   ? const SizedBox(
@@ -573,7 +573,7 @@ class _ItemSalesReportPageState extends State<ItemSalesReportPage> {
                         )
                       : const Icon(Icons.file_download_outlined),
                   label: Text(
-                    _exporting ? 'Exporting…' : 'Export to Excel',
+                    _exporting ? 'Exporting…' : 'Export to CSV',
                     style: const TextStyle(
                       fontFamily: fontMulishSemiBold,
                       fontSize: 15,

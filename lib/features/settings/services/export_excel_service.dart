@@ -96,47 +96,38 @@ class ExportExcelService {
   }) async {
     final data = report ?? await loadItemSales(range);
 
-    final excel = Excel.createExcel();
-    final defaultName = excel.sheets.keys.first;
-    excel.rename(defaultName, 'Item Sales');
-    final sheet = excel['Item Sales']!;
-
-    sheet.appendRow([
-      TextCellValue('Item Sales Report'),
-      TextCellValue(''),
-      TextCellValue(''),
-    ]);
-    sheet.appendRow([
-      TextCellValue('Date range'),
-      TextCellValue(data.range.label),
-      TextCellValue(''),
-    ]);
-    sheet.appendRow([
-      TextCellValue('Transactions'),
-      IntCellValue(data.transactionCount),
-      TextCellValue(''),
-    ]);
-    sheet.appendRow([]);
-    _appendHeaderRow(sheet, ['Item Name', 'Quantity Sold']);
+    final buf = StringBuffer();
+    _csvRow(buf, ['Item Sales Report', '', '']);
+    _csvRow(buf, ['Date range', data.range.label, '']);
+    _csvRow(buf, ['Transactions', '${data.transactionCount}', '']);
+    _csvRow(buf, []);
+    _csvRow(buf, ['Item Name', 'Quantity Sold']);
 
     for (final row in data.rows) {
-      sheet.appendRow([
-        TextCellValue(row.itemName),
-        IntCellValue(row.quantitySold),
-      ]);
+      _csvRow(buf, [row.itemName, '${row.quantitySold}']);
     }
 
-    sheet.appendRow([]);
-    sheet.appendRow([
-      TextCellValue('TOTAL'),
-      IntCellValue(data.totalQuantitySold),
-    ]);
+    _csvRow(buf, []);
+    _csvRow(buf, ['TOTAL', '${data.totalQuantitySold}']);
 
-    return _deliverWorkbook(
-      excel,
-      fileName: 'item_sales_${_fileSuffix(range)}.xlsx',
+    final bytes = Uint8List.fromList(buf.toString().codeUnits);
+
+    return _deliverCsv(
+      bytes,
+      fileName: 'item_sales_${_fileSuffix(range)}.csv',
       subject: 'Item Sales ${range.label}',
     );
+  }
+
+  static void _csvRow(StringBuffer buf, [List<String> fields = const []]) {
+    buf.writeln(fields.map(_csvEscape).join(','));
+  }
+
+  static String _csvEscape(String value) {
+    if (value.contains(RegExp(r'[,"\r\n]'))) {
+      return '"${value.replaceAll('"', '""')}"';
+    }
+    return value;
   }
 
   static Future<String> exportTransactions(ExportDateRange range) async {
@@ -412,6 +403,33 @@ class ExportExcelService {
     );
 
     return savedName;
+  }
+
+  static const _csvMime = 'text/csv';
+
+  static Future<String> _deliverCsv(
+    Uint8List bytes, {
+    required String fileName,
+    required String subject,
+  }) async {
+    if (kIsWeb) {
+      return _deliverWorkbookWeb(bytes, fileName: fileName, subject: subject);
+    }
+    if (isDesktopPlatform) {
+      final savedPath = await saveExportCsvWithDialog(bytes, fileName);
+      if (savedPath == null) throw ExportException('Export cancelled.');
+      await _shareSavedFile(
+        XFile(savedPath, mimeType: _csvMime, name: fileName),
+        subject: subject,
+      );
+      return savedPath;
+    }
+    final path = await writeExportExcelTempFile(bytes, fileName);
+    await _shareSavedFile(
+      XFile(path, mimeType: _csvMime, name: fileName),
+      subject: subject,
+    );
+    return path;
   }
 
   static Future<void> _shareSavedFile(
