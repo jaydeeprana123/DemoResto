@@ -9,6 +9,7 @@ class KitchenSettings {
   static const _keySelectedCategories = 'kitchen_filter_selected_categories';
   static const _keySelectedMenuItems = 'kitchen_filter_selected_menu_items';
   static const _keyOrderTypeFilterIndex = 'kitchen_filter_order_type_index';
+  static const _keyShowZomatoOrdersInAll = 'kitchen_filter_show_zomato_in_all';
   static const _keyBackgroundOrderRingtone = 'kitchen_background_order_ringtone';
   static const _keyPreparationView = 'kitchen_preparation_view';
 
@@ -29,6 +30,8 @@ class KitchenSettings {
   static Set<String> selectedMenuItems = {};
   /// 0 = All, 1 = Table (dine-in), 2 = Take Away, 3 = Zomato
   static int orderTypeFilterIndex = 0;
+  /// When false, Zomato orders are hidden from the All order-type tab only.
+  static bool showZomatoOrdersInAll = true;
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -52,6 +55,8 @@ class KitchenSettings {
     if (orderTypeFilterIndex < 0 || orderTypeFilterIndex > 3) {
       orderTypeFilterIndex = 0;
     }
+    showZomatoOrdersInAll =
+        prefs.getBool(_keyShowZomatoOrdersInAll) ?? true;
   }
 
   static Future<bool> getShowTableAllOrders() async {
@@ -135,5 +140,11 @@ class KitchenSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyOrderTypeFilterIndex, safeIndex);
     orderTypeFilterIndex = safeIndex;
+  }
+
+  static Future<void> saveShowZomatoOrdersInAll(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyShowZomatoOrdersInAll, value);
+    showZomatoOrdersInAll = value;
   }
 }
