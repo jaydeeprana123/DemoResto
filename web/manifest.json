@@ -1,6 +1,6 @@
 {
-    "name": "Flavor Flow",
-    "short_name": "Flavor Flow",
+    "name": "Smart Kitchen",
+    "short_name": "Smart Kitchen",
     "id": "/",
     "start_url": "/",
     "scope": "/",
@@ -10,8 +10,8 @@
         "window-controls-overlay"
     ],
     "background_color": "#FFFFFF",
-    "theme_color": "#2B5494",
-    "description": "Flavor Flow restaurant POS.",
+    "theme_color": "#1A3A5C",
+    "description": "Smart Kitchen POS System for Restaurant Management.",
     "orientation": "any",
     "prefer_related_applications": false,
     "icons": [

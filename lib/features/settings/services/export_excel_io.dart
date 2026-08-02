@@ -59,7 +59,7 @@ Future<String> writeExportExcelToDocuments(
 ) async {
   final base = await getApplicationDocumentsDirectory();
   final dir = Directory(
-    '${base.path}${Platform.pathSeparator}Flavor Flow Exports',
+    '${base.path}${Platform.pathSeparator}Smart Kitchen Exports',
   );
   if (!await dir.exists()) {
     await dir.create(recursive: true);

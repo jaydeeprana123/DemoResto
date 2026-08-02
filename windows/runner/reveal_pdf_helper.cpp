@@ -117,7 +117,7 @@ std::wstring FindReceiptPdfPath(const std::wstring& file_name) {
   const std::wstring safe_name = SanitizeFileName(file_name);
   const std::wstring downloads = GetKnownFolderPath(FOLDERID_Downloads);
   const std::wstring documents = GetKnownFolderPath(FOLDERID_Documents);
-  const std::wstring receipts_dir = CombinePath(documents, L"Flavor Flow Receipts");
+  const std::wstring receipts_dir = CombinePath(documents, L"Smart Kitchen Receipts");
 
   const std::wstring candidates[] = {
       CombinePath(downloads, safe_name),
@@ -166,10 +166,10 @@ void WriteRegString(HKEY root, const std::wstring& sub_key, const std::wstring& 
 
 }  // namespace
 
-bool IsFlavorFlowDeepLink(const std::vector<std::string>& args) {
+bool IsSmartKitchenDeepLink(const std::vector<std::string>& args) {
   for (const auto& arg : args) {
     const auto lower = ToLowerAscii(arg);
-    if (lower.rfind("flavorflow://", 0) == 0) {
+    if (lower.rfind("smartkitchen://", 0) == 0) {
       return true;
     }
   }
@@ -179,7 +179,7 @@ bool IsFlavorFlowDeepLink(const std::vector<std::string>& args) {
 bool TryHandleRevealPdfDeepLink(const std::vector<std::string>& args) {
   for (const auto& arg : args) {
     const auto lower = ToLowerAscii(arg);
-    if (lower.rfind("flavorflow://", 0) != 0) {
+    if (lower.rfind("smartkitchen://", 0) != 0) {
       continue;
     }
     if (lower.find("reveal-pdf") == std::string::npos) {
@@ -207,9 +207,9 @@ bool TryHandleRevealPdfDeepLink(const std::vector<std::string>& args) {
   return false;
 }
 
-void EnsureFlavorFlowProtocolRegistered() {
+void EnsureSmartKitchenProtocolRegistered() {
   HKEY existing = nullptr;
-  if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Classes\\flavorflow", 0, KEY_READ,
+  if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Classes\\smartkitchen", 0, KEY_READ,
                     &existing) == ERROR_SUCCESS) {
     RegCloseKey(existing);
     return;
@@ -221,8 +221,8 @@ void EnsureFlavorFlowProtocolRegistered() {
   }
 
   const std::wstring command = L"\"" + exe_path + L"\" \"%1\"";
-  WriteRegString(HKEY_CURRENT_USER, L"Software\\Classes\\flavorflow", L"", L"URL:Flavor Flow Protocol");
-  WriteRegString(HKEY_CURRENT_USER, L"Software\\Classes\\flavorflow", L"URL Protocol", L"");
-  WriteRegString(HKEY_CURRENT_USER, L"Software\\Classes\\flavorflow\\shell\\open\\command", L"",
+  WriteRegString(HKEY_CURRENT_USER, L"Software\\Classes\\smartkitchen", L"", L"URL:Smart Kitchen Protocol");
+  WriteRegString(HKEY_CURRENT_USER, L"Software\\Classes\\smartkitchen", L"URL Protocol", L"");
+  WriteRegString(HKEY_CURRENT_USER, L"Software\\Classes\\smartkitchen\\shell\\open\\command", L"",
                  command);
 }

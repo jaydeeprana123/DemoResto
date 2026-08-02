@@ -428,7 +428,7 @@ class FoodBillPdfService {
       AppMessenger.show(
         'Receipt saved',
         isDesktopPlatform
-            ? 'Documents/Flavor Flow Receipts/$fileName'
+            ? 'Documents/Smart Kitchen Receipts/$fileName'
             : fileName,
         duration: const Duration(seconds: 3),
       );
@@ -450,7 +450,7 @@ class FoodBillPdfService {
         await writeReceiptPdfFile(pdfBytes, fileName);
         AppMessenger.show(
           'Printer not connected',
-          'Bill saved. Connect your Rugtek RP326 USB printer, then use Print again or open:\nDocuments/Flavor Flow Receipts/$fileName',
+          'Bill saved. Connect your Rugtek RP326 USB printer, then use Print again or open:\nDocuments/Smart Kitchen Receipts/$fileName',
           duration: const Duration(seconds: 8),
         );
         return;
@@ -797,7 +797,7 @@ class FoodBillPdfService {
                     ],
                     pw.SizedBox(height: 2),
                     pw.Text(
-                      'Flavor Flow',
+                      'Smart Kitchen',
                       style: labelStyle(size: baseSize, isBold: true),
                     ),
                   ],

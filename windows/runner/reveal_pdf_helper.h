@@ -4,14 +4,14 @@
 #include <string>
 #include <vector>
 
-// Returns true when [args] contain a flavorflow:// deep link.
-bool IsFlavorFlowDeepLink(const std::vector<std::string>& args);
+// Returns true when [args] contain a smartkitchen:// deep link.
+bool IsSmartKitchenDeepLink(const std::vector<std::string>& args);
 
-// Handles flavorflow://reveal-pdf?name=<file.pdf> by selecting the file in Explorer.
+// Handles smartkitchen://reveal-pdf?name=<file.pdf> by selecting the file in Explorer.
 // Returns true when the file was found and Explorer opened.
 bool TryHandleRevealPdfDeepLink(const std::vector<std::string>& args);
 
-// Registers flavorflow:// in HKCU so the web app can reveal downloaded PDFs.
-void EnsureFlavorFlowProtocolRegistered();
+// Registers smartkitchen:// in HKCU so the web app can reveal downloaded PDFs.
+void EnsureSmartKitchenProtocolRegistered();
 
 #endif  // RUNNER_REVEAL_PDF_HELPER_H_

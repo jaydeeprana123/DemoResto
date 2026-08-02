@@ -111,7 +111,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
 
   Widget _topBanner() => Container(
         width: double.infinity,
-        height: 200,
+        height: 210,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -131,30 +131,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
   Widget _brandHeader({required bool compact}) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: compact ? 24 : 40),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _logoWidget(size: compact ? 72 : 100),
-          SizedBox(height: compact ? 14 : 20),
-          Text(
-            'Flavor Flow',
-            style: TextStyle(
-              fontSize: compact ? 26 : 32,
-              fontFamily: fontMulishBold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Restaurant Dashboard',
-            style: TextStyle(
-              fontSize: compact ? 13 : 14,
-              fontFamily: fontMulishRegular,
-              color: Colors.white.withValues(alpha: 0.75),
-            ),
-          ),
-        ],
-      ),
+      child: _logoWidget(height: compact ? 150 : 300),
     );
   }
 
@@ -311,7 +288,7 @@ class _SignupScreenViewState extends State<SignupScreenView>
 
                   Center(
                     child: Text(
-                      'Flavor Flow © ${DateTime.now().year}',
+                      'Smart Kitchen © ${DateTime.now().year}',
                       style: TextStyle(
                         fontSize: 11,
                         color: Colors.grey.shade400,
@@ -469,29 +446,14 @@ class _SignupScreenViewState extends State<SignupScreenView>
   }
 
   // ── Logo widget ───────────────────────────────────────────────────────
-  Widget _logoWidget({double size = 80}) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withOpacity(0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ClipOval(
-        child: Image.asset(
-          'assets/images/logo.png',
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) =>
-              Icon(Icons.restaurant, size: size * 0.5, color: _orange),
-        ),
-      ),
+  Widget _logoWidget({double height = 200}) {
+    return Image.asset(
+      'assets/images/logo.png',
+      height: height,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+      errorBuilder: (_, __, ___) =>
+          Icon(Icons.restaurant, size: height * 0.4, color: _orange),
     );
   }
 
