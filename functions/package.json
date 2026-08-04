@@ -1,6 +1,6 @@
 {
   "name": "demo-resto-functions",
-  "description": "Flavor Flow Cloud Functions",
+  "description": "Smart Kitchen Cloud Functions",
   "engines": {
     "node": "20"
   },

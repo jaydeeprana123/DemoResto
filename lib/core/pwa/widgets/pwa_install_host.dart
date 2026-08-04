@@ -87,7 +87,7 @@ class _PwaInstallHostState extends State<PwaInstallHost> {
                 borderRadius: BorderRadius.circular(16),
               ),
               title: Text(
-                isIosManual ? 'Add to Home Screen' : 'Install Flavor Flow',
+                isIosManual ? 'Add to Home Screen' : 'Install Smart Kitchen',
                 style: const TextStyle(
                   fontFamily: fontMulishSemiBold,
                   fontSize: 18,
@@ -100,7 +100,7 @@ class _PwaInstallHostState extends State<PwaInstallHost> {
                   Text(
                     isIosManual
                         ? 'iPhone and iPad do not support one-tap install in Safari. '
-                            'Add Flavor Flow to your Home Screen to open it like a native app.'
+                            'Add Smart Kitchen to your Home Screen to open it like a native app.'
                         : 'Install this app on your device for quick access. '
                             'It opens in its own window without browser controls, '
                             'just like a native app.',
@@ -123,7 +123,7 @@ class _PwaInstallHostState extends State<PwaInstallHost> {
                     const SizedBox(height: 8),
                     _iosInstallStep(
                       icon: Icons.check_circle_outline,
-                      text: 'Tap Add, then open Flavor Flow from your Home Screen',
+                      text: 'Tap Add, then open Smart Kitchen from your Home Screen',
                     ),
                   ],
                 ],
@@ -179,7 +179,7 @@ class _PwaInstallHostState extends State<PwaInstallHost> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: const Color(0xFF2B5494)),
+        Icon(icon, size: 20, color: const Color(0xFF1A3A5C)),
         const SizedBox(width: 10),
         Expanded(
           child: Text(

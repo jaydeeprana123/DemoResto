@@ -7,11 +7,11 @@ import 'package:demo/core/constants/auth_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-// Brand colours extracted from the Flavor Flow logo
-const _navy   = Color(0xFF1A3A5C);
+// Brand colours extracted from the Smart Kitchen logo
+const _navy = Color(0xFF1A3A5C);
 const _navyDk = Color(0xFF0D2137);
-const _orange = Color(0xFFf57c35);  // matches existing primary_color
-const _green  = Color(0xFF4CAF50);
+const _orange = Color(0xFFf57c35); // matches existing primary_color
+const _green = Color(0xFF4CAF50);
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -22,8 +22,8 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage>
     with SingleTickerProviderStateMixin {
   late final LoginController _loginController;
-  bool _obscurePass   = true;
-  bool _rememberMe    = false;
+  bool _obscurePass = true;
+  bool _rememberMe = false;
   late AnimationController _animCtrl;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
@@ -38,7 +38,7 @@ class _LoginPageState extends State<LoginPage>
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _fadeAnim  = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
+    _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
     _slideAnim = Tween<Offset>(
       begin: const Offset(0, 0.12),
       end: Offset.zero,
@@ -116,8 +116,7 @@ class _LoginPageState extends State<LoginPage>
       AuthConstants.superAdminEmail.toLowerCase();
 
   void _snack(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
@@ -180,7 +179,7 @@ class _LoginPageState extends State<LoginPage>
   Widget _topBanner() {
     return Container(
       width: double.infinity,
-      height: 150,
+      height: 210,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -199,32 +198,13 @@ class _LoginPageState extends State<LoginPage>
   }
 
   Widget _brandHeader({required bool compact}) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 24 : 40),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _logoWidget(size: compact ? 72 : 100),
-          SizedBox(height: compact ? 10 : 20),
-          Text(
-            'Flavor Flow',
-            style: TextStyle(
-              fontSize: compact ? 22 : 32,
-              fontFamily: fontMulishBold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-         if(!compact) Text(
-            'Restaurant Dashboard',
-            style: TextStyle(
-              fontSize: compact ? 13 : 14,
-              fontFamily: fontMulishRegular,
-              color: Colors.white.withValues(alpha: 0.75),
-            ),
-          ),
-        ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
       ),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 24 : 6, vertical: 6),
+      child: _logoWidget(height: compact ? 150 : 230),
     );
   }
 
@@ -238,173 +218,172 @@ class _LoginPageState extends State<LoginPage>
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-                  // Logo + brand
-                  // Center(child: _logoWidget()),
-                  // const SizedBox(height: 28),
+            // Logo + brand
+            // Center(child: _logoWidget()),
+            // const SizedBox(height: 28),
 
-                  // Welcome text
-                  Text(
-                    'Welcome Back 👋',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontFamily: fontMulishBold,
-                      color: _navy,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Sign in to your restaurant dashboard',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontFamily: fontMulishRegular,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
+            // Welcome text
+            Text(
+              'Welcome Back 👋',
+              style: TextStyle(
+                fontSize: 24,
+                fontFamily: fontMulishBold,
+                color: _navy,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Sign in to your restaurant dashboard',
+              style: TextStyle(
+                fontSize: 13,
+                fontFamily: fontMulishRegular,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 32),
 
-                  // Email field
-                  _label('Email Address'),
-                  const SizedBox(height: 8),
-                  _inputField(
-                    controller: _loginController.emailController,
-                    hint: 'your@email.com',
-                    icon: Icons.mail_outline_rounded,
-                    keyboardType: TextInputType.emailAddress,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 18),
+            // Email field
+            _label('Email Address'),
+            const SizedBox(height: 8),
+            _inputField(
+              controller: _loginController.emailController,
+              hint: 'your@email.com',
+              icon: Icons.mail_outline_rounded,
+              keyboardType: TextInputType.emailAddress,
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 18),
 
-                  // Password field
-                  _label('Password'),
-                  const SizedBox(height: 8),
-                  _inputField(
-                    controller: _loginController.passwordController,
-                    hint: '••••••••',
-                    icon: Icons.lock_outline_rounded,
-                    obscure: _obscurePass,
-                    suffix: IconButton(
-                      icon: Icon(
-                        _obscurePass
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        size: 20,
-                        color: Colors.grey.shade500,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscurePass = !_obscurePass),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
+            // Password field
+            _label('Password'),
+            const SizedBox(height: 8),
+            _inputField(
+              controller: _loginController.passwordController,
+              hint: '••••••••',
+              icon: Icons.lock_outline_rounded,
+              obscure: _obscurePass,
+              suffix: IconButton(
+                icon: Icon(
+                  _obscurePass
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  size: 20,
+                  color: Colors.grey.shade500,
+                ),
+                onPressed: () => setState(() => _obscurePass = !_obscurePass),
+              ),
+            ),
+            const SizedBox(height: 14),
 
-                  // Remember me + Forgot
-                  Row(
+            // Remember me + Forgot
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: () => setState(() => _rememberMe = !_rememberMe),
+                  child: Row(
                     children: [
-                      GestureDetector(
-                        onTap: () =>
-                            setState(() => _rememberMe = !_rememberMe),
-                        child: Row(
-                          children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: 20, height: 20,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(5),
-                                border: Border.all(
-                                  color: _rememberMe
-                                      ? _orange
-                                      : Colors.grey.shade400,
-                                  width: 1.5,
-                                ),
-                                color: _rememberMe
-                                    ? _orange
-                                    : Colors.transparent,
-                              ),
-                              child: _rememberMe
-                                  ? const Icon(Icons.check,
-                                      size: 13, color: Colors.white)
-                                  : null,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Remember me',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontFamily: fontMulishRegular,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: () => _snack('Reset email sent (if exists).'),
-                        child: Text(
-                          'Forgot Password?',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontFamily: fontMulishSemiBold,
-                            color: _orange,
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(
+                            color: _rememberMe ? _orange : Colors.grey.shade400,
+                            width: 1.5,
                           ),
+                          color: _rememberMe ? _orange : Colors.transparent,
+                        ),
+                        child: _rememberMe
+                            ? const Icon(
+                                Icons.check,
+                                size: 13,
+                                color: Colors.white,
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Remember me',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontFamily: fontMulishRegular,
+                          color: Colors.grey.shade700,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 28),
-
-                  // Sign In button
-                  Obx(
-                    () => _loginController.isLoading.value
-                        ? const Center(
-                            child: CircularProgressIndicator(color: _orange),
-                          )
-                        : _primaryButton(
-                            label: 'Sign In',
-                            icon: Icons.login_rounded,
-                            onTap: _login,
-                          ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Divider
-                  const SizedBox(height: 8),
-                  Center(
-                    child: Text(
-                      'Restaurant staff and admins are created by Super Admin '
-                      'or Restaurant Admin.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                        fontFamily: fontMulishRegular,
-                      ),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () => _snack('Reset email sent (if exists).'),
+                  child: Text(
+                    'Forgot Password?',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontFamily: fontMulishSemiBold,
+                      color: _orange,
                     ),
                   ),
-                  if (_isSuperAdminEmail) ...[
-                    const SizedBox(height: 16),
-                    _outlineButton(
-                      label: 'First-time Super Admin setup',
-                      onTap: _createSuperAdminAccount,
-                    ),
-                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 28),
 
-                  const SizedBox(height: 32),
-
-                  // Footer
-                  Center(
-                    child: Text(
-                      'Flavor Flow © ${DateTime.now().year}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade400,
-                        fontFamily: fontMulishRegular,
-                      ),
+            // Sign In button
+            Obx(
+              () => _loginController.isLoading.value
+                  ? const Center(
+                      child: CircularProgressIndicator(color: _orange),
+                    )
+                  : _primaryButton(
+                      label: 'Sign In',
+                      icon: Icons.login_rounded,
+                      onTap: _login,
                     ),
-                  ),
-                ],
+            ),
+            const SizedBox(height: 16),
+
+            // Divider
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                'Restaurant staff and admins are created by Super Admin '
+                'or Restaurant Admin.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                  fontFamily: fontMulishRegular,
+                ),
               ),
             ),
-          );
+
+            /// Hide Super admin set up
+            // if (_isSuperAdminEmail) ...[
+            //   const SizedBox(height: 16),
+            //   _outlineButton(
+            //     label: 'First-time Super Admin setup',
+            //     onTap: _createSuperAdminAccount,
+            //   ),
+            // ],
+            const SizedBox(height: 32),
+
+            // Footer
+            Center(
+              child: Text(
+                'Smart Kitchen © ${DateTime.now().year}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade400,
+                  fontFamily: fontMulishRegular,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
 
     return FadeTransition(
       opacity: _fadeAnim,
@@ -423,74 +402,67 @@ class _LoginPageState extends State<LoginPage>
   }
 
   // ─────────────────────────── Logo widget ────────────────────────────────
-  Widget _logoWidget({double size = 80}) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: _navy.withOpacity(0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ClipOval(
-        child: Image.asset(
-          'assets/images/logo.png',
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => Icon(
-            Icons.restaurant,
-            size: size * 0.5,
-            color: _orange,
-          ),
-        ),
-      ),
+  Widget _logoWidget({double height = 200}) {
+    return Image.asset(
+      'assets/images/logo.png',
+      height: height,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+      errorBuilder: (_, __, ___) =>
+          Icon(Icons.restaurant, size: height * 0.4, color: _orange),
     );
   }
 
   // ─────────────────────────── Decorative circles ─────────────────────────
   List<Widget> _decorCircles() {
     return [
-      _circle(top: -30, right: -30, size: 140,
-          color: Colors.white.withOpacity(0.04)),
-      _circle(top: 80, left: -20, size: 80,
-          color: _orange.withOpacity(0.12)),
-      _circle(bottom: 60, right: 20, size: 60,
-          color: _green.withOpacity(0.12)),
-      _circle(bottom: -20, left: 40, size: 100,
-          color: Colors.white.withOpacity(0.04)),
+      _circle(
+        top: -30,
+        right: -30,
+        size: 140,
+        color: Colors.white.withOpacity(0.04),
+      ),
+      _circle(top: 80, left: -20, size: 80, color: _orange.withOpacity(0.12)),
+      _circle(bottom: 60, right: 20, size: 60, color: _green.withOpacity(0.12)),
+      _circle(
+        bottom: -20,
+        left: 40,
+        size: 100,
+        color: Colors.white.withOpacity(0.04),
+      ),
     ];
   }
 
   Widget _circle({
-    double? top, double? bottom, double? left, double? right,
-    required double size, required Color color,
+    double? top,
+    double? bottom,
+    double? left,
+    double? right,
+    required double size,
+    required Color color,
   }) {
     return Positioned(
-      top: top, bottom: bottom, left: left, right: right,
+      top: top,
+      bottom: bottom,
+      left: left,
+      right: right,
       child: Container(
-        width: size, height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-        ),
+        width: size,
+        height: size,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
       ),
     );
   }
 
   // ─────────────────────────── Form helpers ────────────────────────────────
   Widget _label(String text) => Text(
-        text,
-        style: TextStyle(
-          fontSize: 13,
-          fontFamily: fontMulishSemiBold,
-          color: _navy,
-        ),
-      );
+    text,
+    style: TextStyle(
+      fontSize: 13,
+      fontFamily: fontMulishSemiBold,
+      color: _navy,
+    ),
+  );
 
   Widget _inputField({
     required TextEditingController controller,
@@ -522,8 +494,10 @@ class _LoginPageState extends State<LoginPage>
         suffixIcon: suffix,
         filled: true,
         fillColor: Colors.white,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade200),
@@ -552,10 +526,7 @@ class _LoginPageState extends State<LoginPage>
         icon: Icon(icon, size: 18),
         label: Text(
           label,
-          style: TextStyle(
-            fontSize: 15,
-            fontFamily: fontMulishSemiBold,
-          ),
+          style: TextStyle(fontSize: 15, fontFamily: fontMulishSemiBold),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: _orange,
@@ -571,10 +542,7 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  Widget _outlineButton({
-    required String label,
-    required VoidCallback onTap,
-  }) {
+  Widget _outlineButton({required String label, required VoidCallback onTap}) {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton(

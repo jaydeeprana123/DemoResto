@@ -26,7 +26,7 @@ class KitchenBackgroundAlertService {
         channelId: 'kitchen_monitor_service',
         channelName: 'Kitchen monitoring',
         channelDescription:
-            'Keeps Flavor Flow listening for kitchen orders while the screen is off',
+            'Keeps Smart Kitchen listening for kitchen orders while the screen is off',
         channelImportance: NotificationChannelImportance.LOW,
         priority: NotificationPriority.LOW,
         onlyAlertOnce: true,
