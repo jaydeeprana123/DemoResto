@@ -716,7 +716,7 @@ class _SettingsBillingSectionPageState extends State<SettingsBillingSectionPage>
                   icon: Icons.image_outlined,
                   title: 'Logos on bill PDF',
                   subtitle:
-                      'Show restaurant and Flavor Flow logos on printed receipts',
+                      'Show restaurant and Smart Kitchen logos on printed receipts',
                   value: _settings.billPdfIncludeLogos.value,
                   onChanged: (value) async {
                     if (value == null) return;

@@ -7,6 +7,29 @@ import 'package:path_provider/path_provider.dart';
 const exportXlsxMime =
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
+/// Opens a save dialog for a CSV file.
+/// Returns the saved file path, or null if the user cancelled.
+Future<String?> saveExportCsvWithDialog(
+  Uint8List bytes,
+  String fileName,
+) async {
+  const csvType = XTypeGroup(
+    label: 'CSV',
+    extensions: ['csv'],
+    mimeTypes: ['text/csv'],
+  );
+
+  final location = await getSaveLocation(
+    suggestedName: _safeFileName(fileName),
+    acceptedTypeGroups: [csvType],
+  );
+  if (location == null) return null;
+
+  final file = File(location.path);
+  await file.writeAsBytes(bytes, flush: true);
+  return file.path;
+}
+
 /// Opens a save dialog and writes the Excel bytes to the chosen path.
 /// Returns the saved file path, or null if the user cancelled.
 Future<String?> saveExportExcelWithDialog(
@@ -36,7 +59,7 @@ Future<String> writeExportExcelToDocuments(
 ) async {
   final base = await getApplicationDocumentsDirectory();
   final dir = Directory(
-    '${base.path}${Platform.pathSeparator}Flavor Flow Exports',
+    '${base.path}${Platform.pathSeparator}Smart Kitchen Exports',
   );
   if (!await dir.exists()) {
     await dir.create(recursive: true);

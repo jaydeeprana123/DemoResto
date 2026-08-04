@@ -2,7 +2,7 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-/// Firebase config for Flavor Flow (project: resto-a0d9a).
+/// Firebase config for Smart Kitchen (project: resto-a0d9a).
 ///
 /// For production Windows builds, add a **Windows** app in Firebase Console
 /// and replace [windows].appId with the Windows app id from that registration.

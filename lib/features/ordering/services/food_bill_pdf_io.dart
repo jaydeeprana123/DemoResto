@@ -6,7 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 Future<String> writeReceiptPdfFile(Uint8List bytes, String fileName) async {
   final base = await getApplicationDocumentsDirectory();
-  final dir = Directory('${base.path}${Platform.pathSeparator}Flavor Flow Receipts');
+  final dir = Directory('${base.path}${Platform.pathSeparator}Smart Kitchen Receipts');
   if (!await dir.exists()) {
     await dir.create(recursive: true);
   }

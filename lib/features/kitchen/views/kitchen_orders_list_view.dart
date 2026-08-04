@@ -529,6 +529,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   /// 0 = All, 1 = Table (dine-in), 2 = Take Away, 3 = Zomato
   int _orderTypeFilterIndex = 0;
+  /// When false, Zomato orders are hidden from the All tab only.
+  bool _showZomatoOrdersInAll = true;
   bool _mobileLayoutIsGrid = false;
 
   void _onBackgroundRingtoneSettingChanged() {
@@ -870,6 +872,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             KitchenSettings.selectedMenuItems,
           );
           _orderTypeFilterIndex = KitchenSettings.orderTypeFilterIndex;
+          _showZomatoOrdersInAll = KitchenSettings.showZomatoOrdersInAll;
           _rebuildDisplayFromCache();
         });
       }
@@ -932,7 +935,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }
 
   bool get _hasActiveDisplayFilter =>
-      _hasActiveCategoryFilter || _orderTypeFilterIndex != 0;
+      _hasActiveCategoryFilter ||
+      _orderTypeFilterIndex != 0 ||
+      (!_showZomatoOrdersInAll && _orderTypeFilterIndex == 0);
 
   bool _ordersHiddenByDisplayFilter() {
     if (_lastUpdatedGroups.isEmpty) return false;
@@ -948,6 +953,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       selectedCategories.clear();
       selectedMenuItems.clear();
       _orderTypeFilterIndex = 0;
+      _showZomatoOrdersInAll = true;
       _rebuildDisplayFromCache();
     });
     await KitchenSettings.saveCategoryFilter(
@@ -956,6 +962,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       menuItems: const {},
     );
     await KitchenSettings.saveOrderTypeFilterIndex(0);
+    await KitchenSettings.saveShowZomatoOrdersInAll(true);
   }
 
   Widget _buildFilterHintBanner() {
@@ -1318,7 +1325,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }
 
   List<TableGroup> _filterByOrderType(List<TableGroup> groups) {
-    if (_orderTypeFilterIndex == 0) return groups;
+    if (_orderTypeFilterIndex == 0) {
+      if (_showZomatoOrdersInAll) return groups;
+      return groups.where((group) => !group.isZomato).toList();
+    }
     if (_orderTypeFilterIndex == 3) {
       return groups.where((group) => group.isZomato).toList();
     }
@@ -1735,6 +1745,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     if (_hasActiveCategoryFilter) {
       return 'No orders in selected categories$typeSuffix';
     }
+    if (!_showZomatoOrdersInAll && _orderTypeFilterIndex == 0) {
+      return 'No table or take away orders found';
+    }
     return 'No orders found$typeSuffix';
   }
 
@@ -1764,6 +1777,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             Text(
               selectedCategories.isNotEmpty
                   ? "Selected: ${selectedCategories.join(', ')}"
+                  : !_showZomatoOrdersInAll &&
+                        _orderTypeFilterIndex == 0 &&
+                        !_hasActiveCategoryFilter
+                  ? 'Zomato orders are hidden from All'
                   : 'Selected menu items filter is active',
               style: const TextStyle(
                 fontFamily: fontMulishRegular,
@@ -2073,32 +2090,72 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
-        if (categoryNames.isEmpty) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text(
-              "Filter by Category",
-              style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
-            ),
-            content: const Text(
-              'No menu categories in cache. Open Menu and tap Refresh to load the menu.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text("Close"),
-              ),
-            ],
-          );
-        }
-
         return StatefulBuilder(
           builder: (context, setDialogState) {
             void applyFilterChanges() {
               setDialogState(() {});
               _applyCategoryFilterChanges();
+            }
+
+            void applyZomatoFilterChange(bool value) {
+              setDialogState(() => _showZomatoOrdersInAll = value);
+              _setStatePreservingScroll(_rebuildDisplayFromCache);
+              unawaited(KitchenSettings.saveShowZomatoOrdersInAll(value));
+            }
+
+            Widget zomatoFilterTile() {
+              return CheckboxListTile(
+                title: const Text(
+                  'Show Zomato Orders',
+                  style: TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 15,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Applies to the All tab only',
+                  style: TextStyle(
+                    fontFamily: fontMulishRegular,
+                    fontSize: 12,
+                  ),
+                ),
+                value: _showZomatoOrdersInAll,
+                activeColor: Colors.green,
+                onChanged: (bool? value) {
+                  applyZomatoFilterChange(value ?? true);
+                },
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              );
+            }
+
+            if (categoryNames.isEmpty) {
+              return AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                title: const Text(
+                  "Filter by Category",
+                  style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    zomatoFilterTile(),
+                    const Divider(),
+                    const Text(
+                      'No menu categories in cache. Open Menu and tap Refresh to load the menu.',
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text("Close"),
+                  ),
+                ],
+              );
             }
 
             return AlertDialog(
@@ -2115,6 +2172,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    zomatoFilterTile(),
+                    const Divider(),
                     CheckboxListTile(
                       title: const Text(
                         "All Categories",
@@ -2407,51 +2466,18 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }
 
   Widget _buildMobileLayoutToggle() {
-    Widget option({
-      required IconData icon,
-      required String tooltip,
-      required bool selected,
-      required bool isGrid,
-    }) {
-      return IconButton(
-        icon: Icon(icon, size: 22),
-        tooltip: tooltip,
-        color: selected ? KitchenTheme.accent : KitchenTheme.textOnDarkMuted,
-        style: IconButton.styleFrom(
-          backgroundColor: selected
-              ? KitchenTheme.accent.withValues(alpha: 0.18)
-              : Colors.transparent,
-        ),
-        onPressed: () => _setMobileLayoutIsGrid(isGrid),
-      );
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(right: 4),
-      decoration: BoxDecoration(
-        color: KitchenTheme.surfaceElevated,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: KitchenTheme.surfaceBorder),
+    final showingGrid = _mobileLayoutIsGrid;
+    return IconButton(
+      icon: Icon(
+        showingGrid ? Icons.view_list_rounded : Icons.grid_view_rounded,
+        size: 22,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          option(
-            icon: Icons.view_list_rounded,
-            tooltip: 'List view',
-            selected: !_mobileLayoutIsGrid,
-            isGrid: false,
-          ),
-          option(
-            icon: Icons.grid_view_rounded,
-            tooltip: _isTabletKitchenScreen
-                ? 'Grid view (responsive columns)'
-                : 'Grid view (2 columns)',
-            selected: _mobileLayoutIsGrid,
-            isGrid: true,
-          ),
-        ],
-      ),
+      tooltip: showingGrid
+          ? 'Switch to list view'
+          : _isTabletKitchenScreen
+          ? 'Switch to grid view (responsive columns)'
+          : 'Switch to grid view (2 columns)',
+      onPressed: () => _setMobileLayoutIsGrid(!showingGrid),
     );
   }
 
@@ -2607,7 +2633,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                 onPressed: () => _showCategoryFilterDialog(context),
                 tooltip: "Filter by Category",
               ),
-              if (!showAllCategories && selectedCategories.isNotEmpty)
+              if ((!showAllCategories && selectedCategories.isNotEmpty) ||
+                  !_showZomatoOrdersInAll)
                 Positioned(
                   right: 8,
                   top: 8,
@@ -2623,7 +2650,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                     ),
                     child: Center(
                       child: Text(
-                        '${selectedCategories.length}',
+                        selectedCategories.isNotEmpty
+                            ? '${selectedCategories.length}'
+                            : '!',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,

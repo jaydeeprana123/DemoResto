@@ -73,15 +73,15 @@ Future<bool> _launchCustomProtocol(String link) async {
   return true;
 }
 
-/// Uses the installed Flavor Flow desktop app (flavorflow://) to select the
+/// Uses the installed Smart Kitchen desktop app (smartkitchen://) to select the
 /// downloaded PDF in Explorer. Retries while the browser finishes downloading.
-Future<bool> _revealViaFlavorFlowDesktop(String fileName) async {
+Future<bool> _revealViaSmartKitchenDesktop(String fileName) async {
   final encodedName = Uri.encodeComponent(fileName);
-  final link = 'flavorflow://reveal-pdf?name=$encodedName';
+  final link = 'smartkitchen://reveal-pdf?name=$encodedName';
   return _launchCustomProtocol(link);
 }
 
-/// Uses the installed Flavor Flow desktop app (flavorflow://) to select the
+/// Uses the installed Smart Kitchen desktop app (smartkitchen://) to select the
 /// downloaded PDF in Explorer. Retries while the browser finishes downloading.
 Future<bool> printPdfToNamedPrinterWindows({
   required String pdfPath,
@@ -95,6 +95,6 @@ Future<void> revealReceiptPdfInFolder(String fileName) async {
   const retryDelaysMs = [500, 1500, 3000];
   for (final delayMs in retryDelaysMs) {
     await Future<void>.delayed(Duration(milliseconds: delayMs));
-    await _revealViaFlavorFlowDesktop(fileName);
+    await _revealViaSmartKitchenDesktop(fileName);
   }
 }
