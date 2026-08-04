@@ -3,7 +3,6 @@ import 'package:demo/features/authentication/auth_navigation.dart';
 import 'package:demo/features/authentication/controllers/login_controller.dart';
 import 'package:demo/features/authentication/services/device_session_settings.dart';
 import 'package:demo/features/authentication/services/login_remember_me_settings.dart';
-import 'package:demo/core/constants/auth_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -100,20 +99,6 @@ class _LoginPageState extends State<LoginPage>
     await _persistRememberMeChoice();
     openAuthenticatedApp();
   }
-
-  Future<void> _createSuperAdminAccount() async {
-    final error = await _loginController.createSuperAdminAccount();
-    if (error != null) {
-      _snack(error);
-      return;
-    }
-    await _persistRememberMeChoice();
-    openAuthenticatedApp();
-  }
-
-  bool get _isSuperAdminEmail =>
-      _loginController.emailController.text.trim().toLowerCase() ==
-      AuthConstants.superAdminEmail.toLowerCase();
 
   void _snack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
@@ -359,14 +344,6 @@ class _LoginPageState extends State<LoginPage>
               ),
             ),
 
-            /// Hide Super admin set up
-            // if (_isSuperAdminEmail) ...[
-            //   const SizedBox(height: 16),
-            //   _outlineButton(
-            //     label: 'First-time Super Admin setup',
-            //     onTap: _createSuperAdminAccount,
-            //   ),
-            // ],
             const SizedBox(height: 32),
 
             // Footer
@@ -536,31 +513,6 @@ class _LoginPageState extends State<LoginPage>
           shadowColor: _orange.withOpacity(0.4),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _outlineButton({required String label, required VoidCallback onTap}) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          side: const BorderSide(color: _orange, width: 1.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          foregroundColor: _orange,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontFamily: fontMulishSemiBold,
-            color: _orange,
           ),
         ),
       ),

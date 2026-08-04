@@ -4,7 +4,6 @@ import 'package:demo/core/models/restaurant.dart';
 import 'package:demo/core/models/user_profile.dart';
 import 'package:demo/core/services/restaurant_print_profile_service.dart';
 import 'package:demo/core/repositories/user_repository.dart';
-import 'package:demo/core/services/auth_bootstrap_service.dart';
 import 'package:get/get.dart';
 
 class RestaurantAccessInfo {
@@ -47,15 +46,10 @@ class RestaurantSession extends GetxService {
       return;
     }
 
-    var doc = await FirestorePaths.user(user.uid).get();
+    final doc = await FirestorePaths.user(user.uid).get();
     if (!doc.exists) {
-      final bootstrapped =
-          await AuthBootstrapService.tryBootstrapSuperAdmin(user);
-      if (!bootstrapped) {
-        clear();
-        return;
-      }
-      doc = await FirestorePaths.user(user.uid).get();
+      clear();
+      return;
     }
 
     profile.value = UserProfile.fromFirestore(user.uid, doc.data()!);

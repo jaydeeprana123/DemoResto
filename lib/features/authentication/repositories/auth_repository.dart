@@ -1,8 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-/// Data layer for Firebase authentication and user profile documents.
+/// Data layer for Firebase authentication (sign-in only).
+///
+/// New Staff/Admin accounts are provisioned by Admin/SuperAdmin flows via
+/// [SecondaryAuthService], not through this repository.
 class AuthRepository {
   Future<UserCredential> signInWithEmailAndPassword({
     required String email,
@@ -12,40 +13,5 @@ class AuthRepository {
       email: email,
       password: password,
     );
-  }
-
-  Future<UserCredential> createUserWithEmailAndPassword({
-    required String email,
-    required String password,
-  }) {
-    return FirebaseAuth.instance.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-  }
-
-  /// Login screen legacy register path (Staff role, no display name).
-  Future<void> createStaffUserDocument(User user) {
-    return FirestorePaths.user(user.uid).set({
-      'email': user.email,
-      'role': 'Staff',
-      'allowMarkAsDelivered': false,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-  }
-
-  /// Sign-up screen user document with name and selected role.
-  Future<void> createUserDocument({
-    required User user,
-    required String name,
-    required String role,
-  }) {
-    return FirestorePaths.user(user.uid).set({
-      'name': name,
-      'email': user.email,
-      'role': role,
-      'allowMarkAsDelivered': false,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
   }
 }

@@ -1,5 +1,4 @@
 import 'package:demo/features/authentication/controllers/login_controller.dart';
-import 'package:demo/features/authentication/controllers/signup_controller.dart';
 import 'package:demo/features/authentication/repositories/auth_repository.dart';
 import 'package:get/get.dart';
 
@@ -9,10 +8,6 @@ class AuthBinding extends Bindings {
     Get.lazyPut<AuthRepository>(() => AuthRepository(), fenix: true);
     Get.lazyPut<LoginController>(
       () => LoginController(Get.find<AuthRepository>()),
-      fenix: true,
-    );
-    Get.lazyPut<SignupController>(
-      () => SignupController(Get.find<AuthRepository>()),
       fenix: true,
     );
   }
