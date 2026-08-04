@@ -7,19 +7,30 @@ $CanvasSize = 1024
 $FillRatio = 0.78
 $BgR = 255; $BgG = 255; $BgB = 255
 
+function Test-IsContentPixel([System.Drawing.Color]$p) {
+  if ($p.A -le 20) { return $false }
+  # Treat near-white / off-white logo canvas as empty
+  if ($p.R -ge 245 -and $p.G -ge 245 -and $p.B -ge 245) { return $false }
+  return $true
+}
+
 $src = [System.Drawing.Bitmap]::FromFile($SourcePath)
 $w = $src.Width
 $h = $src.Height
-$maxScanY = [int]($h * 0.72)
+
+# Prefer the pictorial mark (chef hat + POS monitor), not wordmark/tagline.
+$maxScanY = [int]($h * 0.55)
 $minX = $w
 $minY = $h
 $maxX = 0
 $maxYFound = 0
+$found = $false
 
 for ($y = 0; $y -lt $maxScanY; $y++) {
   for ($x = 0; $x -lt $w; $x++) {
     $p = $src.GetPixel($x, $y)
-    if ($p.A -gt 20) {
+    if (Test-IsContentPixel $p) {
+      $found = $true
       if ($x -lt $minX) { $minX = $x }
       if ($y -lt $minY) { $minY = $y }
       if ($x -gt $maxX) { $maxX = $x }
@@ -27,6 +38,17 @@ for ($y = 0; $y -lt $maxScanY; $y++) {
     }
   }
 }
+
+if (-not $found) {
+  throw "No emblem content found in logo.png"
+}
+
+# Small padding so the hat/card-reader edges are not clipped.
+$pad = [Math]::Max(4, [int](($maxX - $minX + 1) * 0.04))
+$minX = [Math]::Max(0, $minX - $pad)
+$minY = [Math]::Max(0, $minY - $pad)
+$maxX = [Math]::Min($w - 1, $maxX + $pad)
+$maxYFound = [Math]::Min($h - 1, $maxYFound + $pad)
 
 $cropW = $maxX - $minX + 1
 $cropH = $maxYFound - $minY + 1

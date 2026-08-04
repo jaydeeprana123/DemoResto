@@ -45,7 +45,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: 'Flavor Flow',
+      title: 'Smart Kitchen',
       debugShowCheckedModeBanner: false,
       initialBinding: AppBinding(),
       theme: ThemeData(

@@ -1760,8 +1760,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
     final restaurantName =
         Get.find<RestaurantSession>().activeRestaurant.value?.name;
     final titleText = restaurantName != null && restaurantName.isNotEmpty
-        ? 'Flavor Flow ($restaurantName)'
-        : 'Flavor Flow';
+        ? 'Smart Kitchen ($restaurantName)'
+        : 'Smart Kitchen';
 
     return AppBar(
       backgroundColor: _navy,
@@ -1769,15 +1769,14 @@ class _TableDashboardViewState extends State<TableDashboardView>
       titleSpacing: 16,
       title: Row(
         children: [
-          ClipOval(
-            child: Image.asset(
-              'assets/images/logo.png',
-              width: 36,
-              height: 36,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) =>
-                  const Icon(Icons.restaurant, color: Colors.white, size: 28),
-            ),
+          Image.asset(
+            'assets/images/app_icon_foreground.png',
+            width: 42,
+            height: 42,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            errorBuilder: (_, __, ___) =>
+                const Icon(Icons.restaurant, color: Colors.white, size: 28),
           ),
           const SizedBox(width: 10),
           Flexible(
