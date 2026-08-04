@@ -53,7 +53,6 @@ class _LoginPageState extends State<LoginPage>
       _rememberMe = saved.rememberMe;
       if (saved.rememberMe) {
         _loginController.emailController.text = saved.email ?? '';
-        _loginController.passwordController.text = saved.password ?? '';
       } else {
         _loginController.emailController.clear();
         _loginController.passwordController.clear();
@@ -80,7 +79,6 @@ class _LoginPageState extends State<LoginPage>
     return LoginRememberMeSettings.save(
       rememberMe: _rememberMe,
       email: _loginController.emailController.text,
-      password: _loginController.passwordController.text,
     );
   }
 

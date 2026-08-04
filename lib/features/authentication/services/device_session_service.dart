@@ -70,7 +70,7 @@ class DeviceSessionService extends GetxService {
         if (remote == local) {
           await FirestorePaths.user(uid).set(
             {
-              'activeSessionId': FieldValue.delete(),
+              'activeSessionId': '',
               'activeSessionUpdatedAt': FieldValue.serverTimestamp(),
             },
             SetOptions(merge: true),
