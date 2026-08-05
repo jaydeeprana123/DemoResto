@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/repositories/user_repository.dart';
-import 'package:demo/features/authentication/services/device_session_settings.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/repositories/user_repository.dart';
+import 'package:smartKitchen/features/authentication/services/device_session_settings.dart';
 import 'package:get/get.dart';
 
 /// Enforces one active device per user via `users/{uid}.activeSessionId`.

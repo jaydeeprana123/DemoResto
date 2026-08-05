@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 
 class EditableTextField extends StatefulWidget {
   final TextEditingController controller;

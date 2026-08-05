@@ -1,7 +1,7 @@
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/core/utils/zomato_order_utils.dart';
-import 'package:demo/features/zomato/services/zomato_order_serve_service.dart';
-import 'package:demo/features/zomato/widgets/zomato_screenshot_viewer.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/core/utils/zomato_order_utils.dart';
+import 'package:smartKitchen/features/zomato/services/zomato_order_serve_service.dart';
+import 'package:smartKitchen/features/zomato/widgets/zomato_screenshot_viewer.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

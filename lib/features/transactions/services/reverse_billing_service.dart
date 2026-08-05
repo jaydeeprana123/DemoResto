@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/services/restaurant_session.dart';
-import 'package:demo/features/tables/repositories/tables_repository.dart';
-import 'package:demo/features/transactions/repositories/transactions_repository.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/services/restaurant_session.dart';
+import 'package:smartKitchen/features/tables/repositories/tables_repository.dart';
+import 'package:smartKitchen/features/transactions/repositories/transactions_repository.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

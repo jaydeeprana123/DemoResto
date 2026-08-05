@@ -1,8 +1,8 @@
-import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
-import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
-import 'package:demo/features/menu_setup/widgets/setup_page_layout.dart';
-import 'package:demo/features/transactions/repositories/transactions_repository.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/features/menu_setup/services/menu_cache_service.dart';
+import 'package:smartKitchen/features/menu_setup/utils/menu_stock_utils.dart';
+import 'package:smartKitchen/features/menu_setup/widgets/setup_page_layout.dart';
+import 'package:smartKitchen/features/transactions/repositories/transactions_repository.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

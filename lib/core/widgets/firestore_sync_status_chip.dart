@@ -1,6 +1,6 @@
-import 'package:demo/core/firestore/firestore_sync_channel.dart';
-import 'package:demo/core/services/firestore_sync_status_service.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/core/firestore/firestore_sync_channel.dart';
+import 'package:smartKitchen/core/services/firestore_sync_status_service.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

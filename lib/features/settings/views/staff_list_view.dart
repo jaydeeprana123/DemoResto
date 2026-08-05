@@ -1,7 +1,7 @@
-import 'package:demo/core/models/staff_member.dart';
-import 'package:demo/features/settings/controllers/staff_controller.dart';
-import 'package:demo/features/settings/views/create_staff_view.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/core/models/staff_member.dart';
+import 'package:smartKitchen/features/settings/controllers/staff_controller.dart';
+import 'package:smartKitchen/features/settings/views/create_staff_view.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/models/menu_stock_entry.dart';
-import 'package:demo/features/menu_setup/services/menu_revision.dart';
-import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
-import 'package:demo/features/menu_setup/utils/menu_stock_scope.dart';
-import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
-import 'package:demo/features/ordering/utils/menu_item_variants.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/models/menu_stock_entry.dart';
+import 'package:smartKitchen/features/menu_setup/services/menu_revision.dart';
+import 'package:smartKitchen/features/menu_setup/utils/menu_sort_utils.dart';
+import 'package:smartKitchen/features/menu_setup/utils/menu_stock_scope.dart';
+import 'package:smartKitchen/features/menu_setup/utils/menu_stock_utils.dart';
+import 'package:smartKitchen/features/ordering/utils/menu_item_variants.dart';
 
 class StockRepository {
   String get _restaurantId => MenuStockScope.restaurantIdForItems();

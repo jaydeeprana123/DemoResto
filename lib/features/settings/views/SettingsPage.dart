@@ -1,7 +1,7 @@
-import 'package:demo/features/settings/controllers/settings_controller.dart';
-import 'package:demo/features/settings/views/settings_section_pages.dart';
-import 'package:demo/features/settings/views/settings_ui.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/features/settings/controllers/settings_controller.dart';
+import 'package:smartKitchen/features/settings/views/settings_section_pages.dart';
+import 'package:smartKitchen/features/settings/views/settings_ui.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

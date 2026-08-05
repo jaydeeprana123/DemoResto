@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/services/restaurant_session.dart';
+import 'package:smartKitchen/core/services/restaurant_session.dart';
 import 'package:get/get.dart';
 
 /// Resolves Firestore paths under `restaurants/{id}/…` with legacy root fallback.

@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:demo/core/utils/platform_utils.dart';
-import 'package:demo/features/zomato/widgets/import_shared_zomato_sheet.dart';
+import 'package:smartKitchen/core/utils/platform_utils.dart';
+import 'package:smartKitchen/features/zomato/widgets/import_shared_zomato_sheet.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';

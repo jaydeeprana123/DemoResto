@@ -1,10 +1,10 @@
-import 'package:demo/core/models/restaurant.dart';
-import 'package:demo/features/super_admin/controllers/super_admin_controller.dart';
-import 'package:demo/features/super_admin/views/create_restaurant_admin_view.dart';
-import 'package:demo/features/super_admin/views/create_restaurant_view.dart';
-import 'package:demo/features/super_admin/views/edit_restaurant_view.dart';
-import 'package:demo/features/super_admin/views/restaurant_admins_view.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/core/models/restaurant.dart';
+import 'package:smartKitchen/features/super_admin/controllers/super_admin_controller.dart';
+import 'package:smartKitchen/features/super_admin/views/create_restaurant_admin_view.dart';
+import 'package:smartKitchen/features/super_admin/views/create_restaurant_view.dart';
+import 'package:smartKitchen/features/super_admin/views/edit_restaurant_view.dart';
+import 'package:smartKitchen/features/super_admin/views/restaurant_admins_view.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';

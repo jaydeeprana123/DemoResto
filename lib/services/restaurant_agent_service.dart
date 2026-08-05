@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:demo/models/agent_response.dart';
-import 'package:demo/models/user_data.dart';
-import 'package:demo/services/ai_order_service.dart';
-import 'package:demo/services/user_data_service.dart';
+import 'package:smartKitchen/models/agent_response.dart';
+import 'package:smartKitchen/models/user_data.dart';
+import 'package:smartKitchen/services/ai_order_service.dart';
+import 'package:smartKitchen/services/user_data_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RestaurantAgentService

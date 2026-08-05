@@ -1,32 +1,32 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/utils/tax_calculator.dart';
-import 'package:demo/core/utils/table_name_utils.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/utils/tax_calculator.dart';
+import 'package:smartKitchen/core/utils/table_name_utils.dart';
 import 'dart:async';
-import 'package:demo/Styles/my_icons.dart';
-import 'package:demo/features/ordering/widgets/editable_total_row.dart';
-import 'package:demo/features/ordering/widgets/tax_summary_rows.dart';
-import 'package:demo/features/settings/services/tax_settings_service.dart';
+import 'package:smartKitchen/Styles/my_icons.dart';
+import 'package:smartKitchen/features/ordering/widgets/editable_total_row.dart';
+import 'package:smartKitchen/features/ordering/widgets/tax_summary_rows.dart';
+import 'package:smartKitchen/features/settings/services/tax_settings_service.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:demo/services/sarvam_stt_service.dart';
+import 'package:smartKitchen/services/sarvam_stt_service.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'package:demo/features/ordering/widgets/billing_progress_dialog.dart';
-import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
-import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
-import 'package:demo/features/ordering/widgets/take_away_name_dialog.dart';
-import 'package:demo/features/transactions/repositories/transactions_repository.dart';
-import 'package:demo/features/ordering/services/food_bill_pdf_service.dart';
+import 'package:smartKitchen/features/ordering/widgets/billing_progress_dialog.dart';
+import 'package:smartKitchen/features/ordering/widgets/table_billing_mode_dialog.dart';
+import 'package:smartKitchen/features/ordering/widgets/table_billing_sheet.dart';
+import 'package:smartKitchen/features/ordering/widgets/take_away_name_dialog.dart';
+import 'package:smartKitchen/features/transactions/repositories/transactions_repository.dart';
+import 'package:smartKitchen/features/ordering/services/food_bill_pdf_service.dart';
 
-import 'package:demo/MyWidgets/EditableTextField.dart';
-import 'package:demo/Styles/my_colors.dart';
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/services/ai_order_service.dart';
-import 'package:demo/services/restaurant_agent_service.dart';
-import 'package:demo/models/agent_response.dart';
+import 'package:smartKitchen/MyWidgets/EditableTextField.dart';
+import 'package:smartKitchen/Styles/my_colors.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/services/ai_order_service.dart';
+import 'package:smartKitchen/services/restaurant_agent_service.dart';
+import 'package:smartKitchen/models/agent_response.dart';
 
 /// Cart Page
 class CartPage extends StatefulWidget {

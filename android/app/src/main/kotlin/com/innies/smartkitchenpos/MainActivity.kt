@@ -1,4 +1,4 @@
-package com.innies.demo
+package com.innies.smartkitchenpos
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -10,7 +10,7 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "com.innies.demo/kitchen_alerts",
+            "com.innies.smartkitchenpos/kitchen_alerts",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "ensureChannels" -> {

@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firebase/secondary_auth_service.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/models/staff_member.dart';
-import 'package:demo/core/services/restaurant_session.dart';
+import 'package:smartKitchen/core/firebase/secondary_auth_service.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/models/staff_member.dart';
+import 'package:smartKitchen/core/services/restaurant_session.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 

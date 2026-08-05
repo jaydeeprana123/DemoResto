@@ -1,8 +1,8 @@
-import 'package:demo/core/models/menu_stock_entry.dart';
-import 'package:demo/features/menu_setup/services/auto_stock_restock_service.dart';
-import 'package:demo/features/settings/controllers/stock_controller.dart';
-import 'package:demo/features/settings/widgets/stock_out_mode_sheet.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/core/models/menu_stock_entry.dart';
+import 'package:smartKitchen/features/menu_setup/services/auto_stock_restock_service.dart';
+import 'package:smartKitchen/features/settings/controllers/stock_controller.dart';
+import 'package:smartKitchen/features/settings/widgets/stock_out_mode_sheet.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';

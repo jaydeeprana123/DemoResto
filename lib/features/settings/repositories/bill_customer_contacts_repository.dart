@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
 
 class BillCustomerContact {
   const BillCustomerContact({

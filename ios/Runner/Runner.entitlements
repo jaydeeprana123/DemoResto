@@ -4,7 +4,7 @@
 <dict>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.innies.demo.share</string>
+		<string>group.com.innies.smartkitchenpos.share</string>
 	</array>
 </dict>
 </plist>

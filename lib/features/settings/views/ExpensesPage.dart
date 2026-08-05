@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/features/settings/repositories/expenses_repository.dart';
-import 'package:demo/features/settings/views/AddExpensePage.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/features/settings/repositories/expenses_repository.dart';
+import 'package:smartKitchen/features/settings/views/AddExpensePage.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';

@@ -1,5 +1,5 @@
-import 'package:demo/core/repositories/user_repository.dart';
-import 'package:demo/features/shell/services/app_tab_settings.dart';
+import 'package:smartKitchen/core/repositories/user_repository.dart';
+import 'package:smartKitchen/features/shell/services/app_tab_settings.dart';
 import 'package:get/get.dart';
 
 enum ShellTab { dashboard, kitchen, settings }

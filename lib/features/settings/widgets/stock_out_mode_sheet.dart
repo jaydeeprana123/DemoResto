@@ -1,5 +1,5 @@
-import 'package:demo/features/menu_setup/utils/auto_stock_schedule.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/features/menu_setup/utils/auto_stock_schedule.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 

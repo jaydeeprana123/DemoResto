@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_sync_channel.dart';
-import 'package:demo/core/firestore/resilient_firestore_listener.dart';
-import 'package:demo/core/services/firestore_sync_status_service.dart';
-import 'package:demo/features/tables/repositories/tables_repository.dart';
+import 'package:smartKitchen/core/firestore/firestore_sync_channel.dart';
+import 'package:smartKitchen/core/firestore/resilient_firestore_listener.dart';
+import 'package:smartKitchen/core/services/firestore_sync_status_service.dart';
+import 'package:smartKitchen/features/tables/repositories/tables_repository.dart';
 import 'package:get/get.dart';
 
 typedef TablesSnapshotHandler =

@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/features/tables/repositories/table_item_served.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/features/tables/repositories/table_item_served.dart';
 
 class TableOrderSnapshot {
   const TableOrderSnapshot({

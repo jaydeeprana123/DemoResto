@@ -1,5 +1,5 @@
-import 'package:demo/features/settings/controllers/staff_controller.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/features/settings/controllers/staff_controller.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

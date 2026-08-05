@@ -3,13 +3,13 @@ import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import 'package:demo/core/utils/tax_calculator.dart';
-import 'package:demo/features/ordering/services/food_bill_pdf_service.dart';
-import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
-import 'package:demo/features/transactions/services/transaction_bill_service.dart';
-import 'package:demo/features/transactions/services/transaction_delete_service.dart';
-import 'package:demo/features/transactions/views/EditTransactionDetailsPage.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/core/utils/tax_calculator.dart';
+import 'package:smartKitchen/features/ordering/services/food_bill_pdf_service.dart';
+import 'package:smartKitchen/features/ordering/widgets/table_billing_mode_dialog.dart';
+import 'package:smartKitchen/features/transactions/services/transaction_bill_service.dart';
+import 'package:smartKitchen/features/transactions/services/transaction_delete_service.dart';
+import 'package:smartKitchen/features/transactions/views/EditTransactionDetailsPage.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 
 class TransactionDetailsPage extends StatefulWidget {
   final String transactionId;

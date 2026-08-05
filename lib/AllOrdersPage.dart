@@ -1,10 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/features/menu_setup/menu_setup.dart';
-import 'package:demo/features/ordering/ordering.dart';
-import 'package:demo/models/GroupOrder.dart';
-import 'package:demo/Styles/my_colors.dart';
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/Styles/my_icons.dart';
+import 'package:smartKitchen/features/menu_setup/menu_setup.dart';
+import 'package:smartKitchen/features/ordering/ordering.dart';
+import 'package:smartKitchen/models/GroupOrder.dart';
+import 'package:smartKitchen/Styles/my_colors.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/Styles/my_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
@@ -82,11 +82,11 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   }
 
   List<TableGroup> _reconstructGroups(
-      String tableName,
-      List<dynamic>? itemsFromDb, {
-        required bool isPaid,
-        required String docId,
-      }) {
+    String tableName,
+    List<dynamic>? itemsFromDb, {
+    required bool isPaid,
+    required String docId,
+  }) {
     List<TableGroup> groups = [];
     if (itemsFromDb == null) return groups;
 
@@ -146,26 +146,29 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
       return groups;
     }
 
-    return groups.map((group) {
-      // Filter items in this group by selected categories
-      final filteredItems = group.items.where((item) {
-        final itemCategory = item['category']?.toString() ?? '';
-        return selectedCategories.contains(itemCategory);
-      }).toList();
+    return groups
+        .map((group) {
+          // Filter items in this group by selected categories
+          final filteredItems = group.items.where((item) {
+            final itemCategory = item['category']?.toString() ?? '';
+            return selectedCategories.contains(itemCategory);
+          }).toList();
 
-      // If no items match, return null (will be filtered out)
-      if (filteredItems.isEmpty) return null;
+          // If no items match, return null (will be filtered out)
+          if (filteredItems.isEmpty) return null;
 
-      // Return new group with filtered items
-      return TableGroup(
-        group.tableName,
-        filteredItems,
-        group.groupTime,
-        key: group.key,
-        docId: group.docId,
-        isPaid: group.isPaid,
-      );
-    }).whereType<TableGroup>().toList(); // Remove nulls
+          // Return new group with filtered items
+          return TableGroup(
+            group.tableName,
+            filteredItems,
+            group.groupTime,
+            key: group.key,
+            docId: group.docId,
+            isPaid: group.isPaid,
+          );
+        })
+        .whereType<TableGroup>()
+        .toList(); // Remove nulls
   }
 
   // Check if the group contains items from selected categories
@@ -198,9 +201,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const AlertDialog(
-                content: Center(
-                  child: CircularProgressIndicator(),
-                ),
+                content: Center(child: CircularProgressIndicator()),
               );
             }
 
@@ -277,7 +278,9 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                             itemBuilder: (context, index) {
                               final category = categories[index];
                               final categoryName = category['name'] as String;
-                              final isSelected = selectedCategories.contains(categoryName);
+                              final isSelected = selectedCategories.contains(
+                                categoryName,
+                              );
 
                               return CheckboxListTile(
                                 title: Text(
@@ -293,14 +296,18 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                                 onChanged: showAllCategories
                                     ? null
                                     : (bool? value) {
-                                  setDialogState(() {
-                                    if (value == true) {
-                                      selectedCategories.add(categoryName);
-                                    } else {
-                                      selectedCategories.remove(categoryName);
-                                    }
-                                  });
-                                },
+                                        setDialogState(() {
+                                          if (value == true) {
+                                            selectedCategories.add(
+                                              categoryName,
+                                            );
+                                          } else {
+                                            selectedCategories.remove(
+                                              categoryName,
+                                            );
+                                          }
+                                        });
+                                      },
                                 contentPadding: EdgeInsets.zero,
                                 dense: true,
                               );
@@ -363,10 +370,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
       appBar: AppBar(
         title: const Text(
           "All Orders",
-          style: TextStyle(
-            fontFamily: fontMulishSemiBold,
-            fontSize: 16,
-          ),
+          style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 16),
         ),
         actions: [
           // Filter button with badge showing count
@@ -436,12 +440,14 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
             final itemsFromDb = (data.containsKey('items'))
                 ? (data['items'] as List<dynamic>?)
                 : null;
-            updatedGroups.addAll(_reconstructGroups(
-              tableName,
-              itemsFromDb,
-              isPaid: isPaid,
-              docId: doc.id,
-            ));
+            updatedGroups.addAll(
+              _reconstructGroups(
+                tableName,
+                itemsFromDb,
+                isPaid: isPaid,
+                docId: doc.id,
+              ),
+            );
           }
 
           // Sort by time
@@ -462,7 +468,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
 
               // Check if the new order contains items from selected categories
               final newGroup = updatedGroups.firstWhere(
-                    (g) => g.key == firstKey,
+                (g) => g.key == firstKey,
                 orElse: () => updatedGroups.last,
               );
               final shouldPlaySound = _shouldPlaySoundForGroup(newGroup);
@@ -494,7 +500,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
 
                 // Check if the new order contains items from selected categories
                 final newGroup = updatedGroups.firstWhere(
-                      (g) => g.key == newKey,
+                  (g) => g.key == newKey,
                   orElse: () => updatedGroups.last,
                 );
                 final shouldPlaySound = _shouldPlaySoundForGroup(newGroup);
@@ -530,7 +536,11 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.filter_list_off, size: 64, color: Colors.grey),
+                  const Icon(
+                    Icons.filter_list_off,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     showAllCategories
@@ -589,7 +599,10 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                         setState(() {});
                       } else {
                         await _updateTableItemsInFirestore(
-                            group.tableName, [], false);
+                          group.tableName,
+                          [],
+                          false,
+                        );
                       }
                     });
                   }
@@ -602,7 +615,10 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                       : isOld
                       ? Colors.red.shade100
                       : Colors.transparent,
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 6,
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -613,7 +629,9 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                               ? icon_packing
                               : icon_table,
                           color: Colors.black87,
-                          width: (group.tableName).contains("Take Away") ? 18 : 24,
+                          width: (group.tableName).contains("Take Away")
+                              ? 18
+                              : 24,
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -630,8 +648,10 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                                       Text(
                                         "${group.tableName} ",
                                         style: TextStyle(
-                                          fontFamily: (group.tableName)
-                                              .contains("Take Away")
+                                          fontFamily:
+                                              (group.tableName).contains(
+                                                "Take Away",
+                                              )
                                               ? fontMulishBold
                                               : fontMulishSemiBold,
                                           fontSize: 15,
@@ -642,7 +662,9 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                                         Container(
                                           color: Colors.red,
                                           margin: const EdgeInsets.symmetric(
-                                              vertical: 3, horizontal: 8),
+                                            vertical: 3,
+                                            horizontal: 8,
+                                          ),
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 14,
                                             vertical: 3,
@@ -655,7 +677,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                                               fontFamily: fontMulishBold,
                                             ),
                                           ),
-                                        )
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -700,7 +722,7 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                             }),
                           ],
                         ),
-                      )
+                      ),
                     ],
                   ),
                 ),
@@ -738,10 +760,10 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   }
 
   void showServedDialog(
-      BuildContext context,
-      String tableName,
-      VoidCallback onServed,
-      ) {
+    BuildContext context,
+    String tableName,
+    VoidCallback onServed,
+  ) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -751,11 +773,15 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
-           tableName.contains("Take Away")?"Mark as Delivered?": "Mark as Served?",
+            tableName.contains("Take Away")
+                ? "Mark as Delivered?"
+                : "Mark as Served?",
             style: TextStyle(fontFamily: fontMulishSemiBold, fontSize: 18),
           ),
           content: Text(
-            tableName.contains("Take Away")? "Are you sure you want to mark table '$tableName' as delivered?":"Are you sure you want to mark table '$tableName' as served?",
+            tableName.contains("Take Away")
+                ? "Are you sure you want to mark table '$tableName' as delivered?"
+                : "Are you sure you want to mark table '$tableName' as served?",
             style: const TextStyle(fontFamily: fontMulishRegular, fontSize: 15),
           ),
           actions: [
@@ -780,8 +806,8 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
                 Navigator.pop(context);
                 onServed();
               },
-              child:  Text(
-                tableName.contains("Take Away")? "Delivered":"Served",
+              child: Text(
+                tableName.contains("Take Away") ? "Delivered" : "Served",
                 style: TextStyle(
                   fontFamily: fontMulishSemiBold,
                   color: Colors.white,
@@ -795,10 +821,10 @@ class _OrdersGroupedListPageState extends State<OrdersGroupedListPage> {
   }
 
   Future<void> _updateTableItemsInFirestore(
-      String tableName,
-      List<List<Map<String, dynamic>>> groups,
-      bool isBillPaid,
-      ) async {
+    String tableName,
+    List<List<Map<String, dynamic>>> groups,
+    bool isBillPaid,
+  ) async {
     try {
       print("=== UPDATING FIREBASE ===");
       print("Table name: $tableName");
@@ -872,14 +898,11 @@ class TableGroup {
   final bool isPaid;
 
   TableGroup(
-      this.tableName,
-      this.items,
-      this.groupTime, {
-        required this.key,
-        required this.docId,
-        required this.isPaid,
-      });
+    this.tableName,
+    this.items,
+    this.groupTime, {
+    required this.key,
+    required this.docId,
+    required this.isPaid,
+  });
 }
-
-
-

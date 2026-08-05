@@ -1,11 +1,11 @@
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/utils/platform_utils.dart';
-import 'package:demo/features/settings/services/export_excel_io.dart'
-    if (dart.library.html) 'package:demo/features/settings/services/export_excel_io_web.dart';
-import 'package:demo/features/settings/utils/export_date_range.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/utils/platform_utils.dart';
+import 'package:smartKitchen/features/settings/services/export_excel_io.dart'
+    if (dart.library.html) 'package:smartKitchen/features/settings/services/export_excel_io_web.dart';
+import 'package:smartKitchen/features/settings/utils/export_date_range.dart';
 import 'package:excel/excel.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';

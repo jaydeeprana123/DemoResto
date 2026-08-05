@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:demo/core/utils/zomato_order_utils.dart';
-import 'package:demo/features/transactions/repositories/transactions_repository.dart';
-import 'package:demo/features/zomato/models/zomato_imagekit_cleanup_job.dart';
-import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
-import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
-import 'package:demo/features/zomato/services/zomato_imagekit_cleanup_queue.dart';
+import 'package:smartKitchen/core/utils/zomato_order_utils.dart';
+import 'package:smartKitchen/features/transactions/repositories/transactions_repository.dart';
+import 'package:smartKitchen/features/zomato/models/zomato_imagekit_cleanup_job.dart';
+import 'package:smartKitchen/features/zomato/repositories/zomato_orders_repository.dart';
+import 'package:smartKitchen/features/zomato/services/imagekit_upload_service.dart';
+import 'package:smartKitchen/features/zomato/services/zomato_imagekit_cleanup_queue.dart';
 import 'package:get/get.dart';
 
 /// Serves Zomato orders: remove from Firestore immediately, then create a ₹0

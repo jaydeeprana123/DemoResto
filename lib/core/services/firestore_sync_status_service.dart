@@ -1,4 +1,4 @@
-import 'package:demo/core/firestore/firestore_sync_channel.dart';
+import 'package:smartKitchen/core/firestore/firestore_sync_channel.dart';
 import 'package:get/get.dart';
 
 /// Tracks live Firestore listener health per screen (display only).

@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/services/restaurant_session.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/services/restaurant_session.dart';
 import 'package:get/get.dart';
 
 /// Reads/writes the Staff edit/delete time limit (in minutes) on the

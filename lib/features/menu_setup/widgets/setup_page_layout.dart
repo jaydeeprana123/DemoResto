@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 
 class SetupPageColors {
   static const navy = Color(0xFF1A3A5C);

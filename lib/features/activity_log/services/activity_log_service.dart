@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:demo/core/services/restaurant_session.dart';
-import 'package:demo/features/activity_log/models/activity_log_entry.dart';
-import 'package:demo/features/activity_log/repositories/activity_log_repository.dart';
+import 'package:smartKitchen/core/services/restaurant_session.dart';
+import 'package:smartKitchen/features/activity_log/models/activity_log_entry.dart';
+import 'package:smartKitchen/features/activity_log/repositories/activity_log_repository.dart';
 import 'package:get/get.dart';
 
 /// Fire-and-forget activity log writes (one write per action; no reads).

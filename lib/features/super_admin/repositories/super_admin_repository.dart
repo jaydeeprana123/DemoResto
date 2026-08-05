@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firebase/secondary_auth_service.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/models/restaurant.dart';
-import 'package:demo/core/models/user_profile.dart';
+import 'package:smartKitchen/core/firebase/secondary_auth_service.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/models/restaurant.dart';
+import 'package:smartKitchen/core/models/user_profile.dart';
 
 class SuperAdminRepository {
   Stream<List<Restaurant>> watchRestaurants() {

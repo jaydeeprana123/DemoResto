@@ -1,6 +1,6 @@
-import 'package:demo/features/settings/repositories/bill_customer_contacts_repository.dart';
-import 'package:demo/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/features/settings/repositories/bill_customer_contacts_repository.dart';
+import 'package:smartKitchen/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';

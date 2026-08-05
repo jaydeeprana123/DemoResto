@@ -1,6 +1,6 @@
-import 'package:demo/Styles/my_colors.dart';
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/core/utils/tax_calculator.dart';
+import 'package:smartKitchen/Styles/my_colors.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/core/utils/tax_calculator.dart';
 import 'package:flutter/material.dart';
 
 class TaxSummaryRows extends StatelessWidget {

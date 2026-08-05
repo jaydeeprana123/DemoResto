@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:audioplayers/audioplayers.dart';
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/core/utils/table_name_utils.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/core/utils/table_name_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 

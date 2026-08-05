@@ -1,4 +1,4 @@
-import 'package:demo/services/ai_order_service.dart';
+import 'package:smartKitchen/services/ai_order_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Enums

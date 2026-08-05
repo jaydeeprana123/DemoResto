@@ -1,8 +1,8 @@
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 
-import 'package:demo/features/kitchen/services/kitchen_bell_sound.dart';
-import 'package:demo/features/kitchen/services/kitchen_web_bell_service.dart';
+import 'package:smartKitchen/features/kitchen/services/kitchen_bell_sound.dart';
+import 'package:smartKitchen/features/kitchen/services/kitchen_web_bell_service.dart';
 
 /// Web/PWA kitchen alerts: HTML Audio bells + optional notifications when hidden.
 class KitchenBackgroundAlertService {

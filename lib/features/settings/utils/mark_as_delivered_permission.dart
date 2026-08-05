@@ -1,4 +1,4 @@
-import 'package:demo/core/services/restaurant_session.dart';
+import 'package:smartKitchen/core/services/restaurant_session.dart';
 import 'package:get/get.dart';
 
 /// Whether the logged-in user may open "Mark as Delivered?" / served dialogs.

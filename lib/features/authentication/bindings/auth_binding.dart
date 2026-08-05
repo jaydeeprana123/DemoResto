@@ -1,5 +1,5 @@
-import 'package:demo/features/authentication/controllers/login_controller.dart';
-import 'package:demo/features/authentication/repositories/auth_repository.dart';
+import 'package:smartKitchen/features/authentication/controllers/login_controller.dart';
+import 'package:smartKitchen/features/authentication/repositories/auth_repository.dart';
 import 'package:get/get.dart';
 
 class AuthBinding extends Bindings {

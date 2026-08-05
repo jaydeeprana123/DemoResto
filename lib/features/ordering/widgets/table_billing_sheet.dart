@@ -1,16 +1,16 @@
 import 'dart:async';
 
-import 'package:demo/features/ordering/services/food_bill_pdf_service.dart';
-import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
-import 'package:demo/features/ordering/widgets/unified_billing_dialog.dart';
-import 'package:demo/features/settings/repositories/bill_customer_contacts_repository.dart';
-import 'package:demo/features/shell/controllers/shell_controller.dart';
+import 'package:smartKitchen/features/ordering/services/food_bill_pdf_service.dart';
+import 'package:smartKitchen/features/ordering/widgets/table_billing_mode_dialog.dart';
+import 'package:smartKitchen/features/ordering/widgets/unified_billing_dialog.dart';
+import 'package:smartKitchen/features/settings/repositories/bill_customer_contacts_repository.dart';
+import 'package:smartKitchen/features/shell/controllers/shell_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-export 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart'
+export 'package:smartKitchen/features/ordering/widgets/table_billing_mode_dialog.dart'
     show BillReceiptAction, TableBillingMode, TableBillingSubmission;
-export 'package:demo/features/ordering/widgets/unified_billing_dialog.dart'
+export 'package:smartKitchen/features/ordering/widgets/unified_billing_dialog.dart'
     show BillingFlowResult;
 
 class TableBillingSheet {

@@ -1,5 +1,5 @@
-import 'package:demo/core/models/staff_member.dart';
-import 'package:demo/features/settings/repositories/staff_repository.dart';
+import 'package:smartKitchen/core/models/staff_member.dart';
+import 'package:smartKitchen/features/settings/repositories/staff_repository.dart';
 import 'package:get/get.dart';
 
 class StaffController extends GetxController {

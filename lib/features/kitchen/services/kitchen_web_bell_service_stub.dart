@@ -1,4 +1,4 @@
-import 'package:demo/features/kitchen/services/kitchen_bell_sound.dart';
+import 'package:smartKitchen/features/kitchen/services/kitchen_bell_sound.dart';
 
 /// No-op outside Flutter web.
 class KitchenWebBellService {

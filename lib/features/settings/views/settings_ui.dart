@@ -1,4 +1,4 @@
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 
 class SettingsColors {

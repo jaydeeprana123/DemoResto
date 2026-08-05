@@ -1,4 +1,4 @@
-package com.innies.demo
+package com.innies.smartkitchenpos
 
 import android.app.NotificationChannel
 import android.app.NotificationManager

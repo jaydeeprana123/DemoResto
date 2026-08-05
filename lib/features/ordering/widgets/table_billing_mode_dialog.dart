@@ -1,7 +1,7 @@
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/core/utils/tax_calculator.dart';
-import 'package:demo/features/settings/services/tax_settings_service.dart';
-import 'package:demo/features/tables/repositories/tables_repository.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/core/utils/tax_calculator.dart';
+import 'package:smartKitchen/features/settings/services/tax_settings_service.dart';
+import 'package:smartKitchen/features/tables/repositories/tables_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

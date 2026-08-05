@@ -1,5 +1,5 @@
-import 'package:demo/features/authentication/views/auth_gate_view.dart';
-import 'package:demo/features/authentication/views/login_screen_view.dart';
+import 'package:smartKitchen/features/authentication/views/auth_gate_view.dart';
+import 'package:smartKitchen/features/authentication/views/login_screen_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';

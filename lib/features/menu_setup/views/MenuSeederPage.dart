@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/features/menu_setup/data/preset_menus.dart';
-import 'package:demo/features/menu_setup/services/menu_revision.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/features/menu_setup/data/preset_menus.dart';
+import 'package:smartKitchen/features/menu_setup/services/menu_revision.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 
 Future<PresetMenu?> showPresetMenuPicker(BuildContext context) {
   return showDialog<PresetMenu>(

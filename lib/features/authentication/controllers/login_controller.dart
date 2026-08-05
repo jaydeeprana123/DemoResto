@@ -1,5 +1,5 @@
-import 'package:demo/features/authentication/repositories/auth_repository.dart';
-import 'package:demo/features/authentication/services/device_session_service.dart';
+import 'package:smartKitchen/features/authentication/repositories/auth_repository.dart';
+import 'package:smartKitchen/features/authentication/services/device_session_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';

@@ -1,10 +1,10 @@
-import 'package:demo/features/tables/controllers/tables_controller.dart';
-import 'package:demo/features/tables/repositories/tables_repository.dart';
-import 'package:demo/features/tables/services/shared_tables_snapshot_service.dart';
-import 'package:demo/features/tables/services/serve_notification_service.dart';
-import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
-import 'package:demo/features/zomato/services/zomato_order_serve_service.dart';
-import 'package:demo/features/zomato/services/zomato_share_intent_service.dart';
+import 'package:smartKitchen/features/tables/controllers/tables_controller.dart';
+import 'package:smartKitchen/features/tables/repositories/tables_repository.dart';
+import 'package:smartKitchen/features/tables/services/shared_tables_snapshot_service.dart';
+import 'package:smartKitchen/features/tables/services/serve_notification_service.dart';
+import 'package:smartKitchen/features/zomato/repositories/zomato_orders_repository.dart';
+import 'package:smartKitchen/features/zomato/services/zomato_order_serve_service.dart';
+import 'package:smartKitchen/features/zomato/services/zomato_share_intent_service.dart';
 import 'package:get/get.dart';
 
 class TablesBinding extends Bindings {

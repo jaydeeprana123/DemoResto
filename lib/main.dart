@@ -1,21 +1,22 @@
 import 'dart:async';
 
-import 'package:demo/core/network/app_http_overrides.dart';
-import 'package:demo/bindings/app_binding.dart';
-import 'package:demo/core/firebase/firebase_options.dart';
-import 'package:demo/core/firestore/firestore_desktop_config.dart';
-import 'package:demo/core/pwa/widgets/pwa_install_host.dart';
-import 'package:demo/features/authentication/authentication.dart';
-import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
-import 'package:demo/features/kitchen/services/kitchen_settings.dart';
-import 'package:demo/features/settings/services/print_settings.dart';
-import 'package:demo/features/shell/services/app_tab_settings.dart';
+import 'package:smartKitchen/core/network/app_http_overrides.dart';
+import 'package:smartKitchen/bindings/app_binding.dart';
+import 'package:smartKitchen/core/firebase/firebase_options.dart';
+import 'package:smartKitchen/core/firestore/firestore_desktop_config.dart';
+import 'package:smartKitchen/core/pwa/widgets/pwa_install_host.dart';
+import 'package:smartKitchen/core/widgets/app_update_gate.dart';
+import 'package:smartKitchen/features/authentication/authentication.dart';
+import 'package:smartKitchen/features/kitchen/services/kitchen_background_alert_service.dart';
+import 'package:smartKitchen/features/kitchen/services/kitchen_settings.dart';
+import 'package:smartKitchen/features/settings/services/print_settings.dart';
+import 'package:smartKitchen/features/shell/services/app_tab_settings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:get/get.dart';
-import 'package:demo/features/kitchen/services/kitchen_web_bell_service.dart';
+import 'package:smartKitchen/features/kitchen/services/kitchen_web_bell_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,7 +54,10 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       builder: (context, child) {
-        return PwaInstallHost(child: child ?? const SizedBox.shrink());
+        final content = child ?? const SizedBox.shrink();
+        return AppUpdateGate(
+          child: PwaInstallHost(child: content),
+        );
       },
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),

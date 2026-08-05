@@ -4,7 +4,7 @@ import 'dart:js' as js;
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 
-import 'package:demo/features/kitchen/services/kitchen_bell_sound.dart';
+import 'package:smartKitchen/features/kitchen/services/kitchen_bell_sound.dart';
 
 /// Reliable kitchen bells on mobile Safari / installed PWAs via HTML Audio.
 class KitchenWebBellService {

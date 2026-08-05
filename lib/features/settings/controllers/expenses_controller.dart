@@ -1,4 +1,4 @@
-import 'package:demo/features/settings/repositories/expenses_repository.dart';
+import 'package:smartKitchen/features/settings/repositories/expenses_repository.dart';
 import 'package:get/get.dart';
 
 class ExpensesController extends GetxController {

@@ -1,6 +1,6 @@
-import 'package:demo/core/repositories/user_repository.dart';
-import 'package:demo/core/widgets/logout_confirmation_dialog.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/core/repositories/user_repository.dart';
+import 'package:smartKitchen/core/widgets/logout_confirmation_dialog.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

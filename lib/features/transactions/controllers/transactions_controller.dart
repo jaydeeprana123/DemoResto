@@ -1,4 +1,4 @@
-import 'package:demo/features/transactions/repositories/transactions_repository.dart';
+import 'package:smartKitchen/features/transactions/repositories/transactions_repository.dart';
 import 'package:get/get.dart';
 
 class TransactionsController extends GetxController {

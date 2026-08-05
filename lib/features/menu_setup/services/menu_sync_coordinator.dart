@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:demo/features/menu_setup/services/auto_stock_restock_service.dart';
-import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
+import 'package:smartKitchen/features/menu_setup/services/auto_stock_restock_service.dart';
+import 'package:smartKitchen/features/menu_setup/services/menu_cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

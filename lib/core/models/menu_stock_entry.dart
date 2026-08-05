@@ -1,4 +1,4 @@
-import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
+import 'package:smartKitchen/features/menu_setup/utils/menu_stock_utils.dart';
 
 class MenuStockEntry {
   const MenuStockEntry({

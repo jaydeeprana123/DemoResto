@@ -3,8 +3,8 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
-import 'package:demo/core/network/ssl_error_utils.dart';
-import 'package:demo/features/zomato/services/imagekit_settings.dart';
+import 'package:smartKitchen/core/network/ssl_error_utils.dart';
+import 'package:smartKitchen/features/zomato/services/imagekit_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';

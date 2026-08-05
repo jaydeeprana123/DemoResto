@@ -1,5 +1,5 @@
-import 'package:demo/core/repositories/user_repository.dart';
-import 'package:demo/features/shell/controllers/shell_controller.dart';
+import 'package:smartKitchen/core/repositories/user_repository.dart';
+import 'package:smartKitchen/features/shell/controllers/shell_controller.dart';
 import 'package:get/get.dart';
 
 class ShellBinding extends Bindings {

@@ -1,13 +1,13 @@
 import 'dart:async';
 
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/features/kitchen/kitchen.dart';
-import 'package:demo/features/menu_setup/services/menu_sync_coordinator.dart';
-import 'package:demo/features/settings/settings.dart';
-import 'package:demo/features/shell/controllers/shell_controller.dart';
-import 'package:demo/features/tables/tables.dart';
-import 'package:demo/features/zomato/services/zomato_order_serve_service.dart';
-import 'package:demo/features/zomato/services/zomato_share_intent_service.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/features/kitchen/kitchen.dart';
+import 'package:smartKitchen/features/menu_setup/services/menu_sync_coordinator.dart';
+import 'package:smartKitchen/features/settings/settings.dart';
+import 'package:smartKitchen/features/shell/controllers/shell_controller.dart';
+import 'package:smartKitchen/features/tables/tables.dart';
+import 'package:smartKitchen/features/zomato/services/zomato_order_serve_service.dart';
+import 'package:smartKitchen/features/zomato/services/zomato_share_intent_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 

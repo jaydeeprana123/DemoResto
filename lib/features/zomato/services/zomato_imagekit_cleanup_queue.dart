@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:demo/features/zomato/models/zomato_imagekit_cleanup_job.dart';
+import 'package:smartKitchen/features/zomato/models/zomato_imagekit_cleanup_job.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Device-local retry list for ImageKit screenshot deletes after serve.

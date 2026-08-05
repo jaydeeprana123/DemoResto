@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/features/activity_log/services/activity_log_service.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/features/activity_log/services/activity_log_service.dart';
 import 'package:flutter/material.dart';
 
-import 'package:demo/features/tables/widgets/portion_indicator.dart';
+import 'package:smartKitchen/features/tables/widgets/portion_indicator.dart';
 
 /// Identifies one line item within a table document.
 class TableItemKey {

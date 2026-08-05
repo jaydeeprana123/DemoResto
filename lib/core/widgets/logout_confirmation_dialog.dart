@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 
 const _navy = Color(0xFF1A3A5C);
 

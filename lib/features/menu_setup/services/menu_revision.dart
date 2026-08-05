@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
 
 /// Firestore metadata used to detect menu changes without full reads.
 class MenuRevision {

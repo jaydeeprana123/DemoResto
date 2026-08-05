@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/features/menu_setup/services/menu_revision.dart';
+import 'package:smartKitchen/features/menu_setup/services/menu_revision.dart';
 
 /// Sorts menu category/item Firestore docs by [sortOrder], then [createdAt], then id.
 List<QueryDocumentSnapshot<Map<String, dynamic>>> sortMenuDocs(

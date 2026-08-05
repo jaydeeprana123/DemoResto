@@ -1,4 +1,4 @@
-import 'package:demo/features/settings/repositories/admin_dashboard_repository.dart';
+import 'package:smartKitchen/features/settings/repositories/admin_dashboard_repository.dart';
 import 'package:get/get.dart';
 
 class AdminDashboardController extends GetxController {

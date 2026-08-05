@@ -1,5 +1,5 @@
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/features/zomato/services/imagekit_settings.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/features/zomato/services/imagekit_settings.dart';
 import 'package:flutter/material.dart';
 
 const _navy = Color(0xFF1A3A5C);

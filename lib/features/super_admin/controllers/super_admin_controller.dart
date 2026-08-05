@@ -1,11 +1,11 @@
 import 'dart:typed_data';
 
-import 'package:demo/core/models/restaurant.dart';
-import 'package:demo/core/models/user_profile.dart';
-import 'package:demo/core/repositories/user_repository.dart';
-import 'package:demo/core/widgets/logout_confirmation_dialog.dart';
-import 'package:demo/features/super_admin/repositories/super_admin_repository.dart';
-import 'package:demo/features/super_admin/widgets/restaurant_profile_fields.dart';
+import 'package:smartKitchen/core/models/restaurant.dart';
+import 'package:smartKitchen/core/models/user_profile.dart';
+import 'package:smartKitchen/core/repositories/user_repository.dart';
+import 'package:smartKitchen/core/widgets/logout_confirmation_dialog.dart';
+import 'package:smartKitchen/features/super_admin/repositories/super_admin_repository.dart';
+import 'package:smartKitchen/features/super_admin/widgets/restaurant_profile_fields.dart';
 import 'package:get/get.dart';
 
 class SuperAdminController extends GetxController {

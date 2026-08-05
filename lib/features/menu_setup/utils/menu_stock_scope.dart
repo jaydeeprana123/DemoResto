@@ -1,5 +1,5 @@
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/services/restaurant_session.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/services/restaurant_session.dart';
 import 'package:get/get.dart';
 
 /// Restaurant key stored on menu item docs for collection-group stock queries.

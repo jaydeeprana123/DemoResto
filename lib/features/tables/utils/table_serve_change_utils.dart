@@ -1,4 +1,4 @@
-import 'package:demo/features/tables/repositories/table_item_served.dart';
+import 'package:smartKitchen/features/tables/repositories/table_item_served.dart';
 
 /// Detects Firestore table updates that only mark items as served.
 class TableServeChangeUtils {

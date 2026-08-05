@@ -1,10 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/features/activity_log/services/activity_log_service.dart';
-import 'package:demo/features/settings/utils/staff_order_edit_permission.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/features/activity_log/services/activity_log_service.dart';
+import 'package:smartKitchen/features/settings/utils/staff_order_edit_permission.dart';
 import 'package:flutter/material.dart';
 
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 
 const _navy = Color(0xFF1A3A5C);
 const _navyDk = Color(0xFF0D2137);

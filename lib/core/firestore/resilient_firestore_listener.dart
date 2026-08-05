@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:demo/core/firestore/firestore_sync_channel.dart';
+import 'package:smartKitchen/core/firestore/firestore_sync_channel.dart';
 import 'package:flutter/foundation.dart';
 
 /// Reconnects a Firestore snapshot stream after errors without changing data handling.

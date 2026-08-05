@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/services/restaurant_session.dart';
+import 'package:smartKitchen/core/services/restaurant_session.dart';
 import 'package:get/get.dart';
 
 /// Shared Staff edit/delete time-limit checks for Table Dashboard and Menu Page.

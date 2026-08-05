@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
-import 'package:demo/features/zomato/repositories/zomato_orders_repository.dart';
-import 'package:demo/features/zomato/services/imagekit_settings.dart';
-import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
+import 'package:smartKitchen/features/zomato/repositories/zomato_orders_repository.dart';
+import 'package:smartKitchen/features/zomato/services/imagekit_settings.dart';
+import 'package:smartKitchen/features/zomato/services/imagekit_upload_service.dart';
 
 class ZomatoScreenshotImportResult {
   const ZomatoScreenshotImportResult({

@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/models/restaurant.dart';
-import 'package:demo/core/models/user_profile.dart';
-import 'package:demo/core/services/restaurant_print_profile_service.dart';
-import 'package:demo/core/repositories/user_repository.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/models/restaurant.dart';
+import 'package:smartKitchen/core/models/user_profile.dart';
+import 'package:smartKitchen/core/services/restaurant_print_profile_service.dart';
+import 'package:smartKitchen/core/repositories/user_repository.dart';
 import 'package:get/get.dart';
 
 class RestaurantAccessInfo {

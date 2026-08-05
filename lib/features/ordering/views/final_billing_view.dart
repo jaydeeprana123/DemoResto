@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/utils/tax_calculator.dart';
-import 'package:demo/features/ordering/widgets/editable_total_row.dart';
-import 'package:demo/features/ordering/widgets/tax_summary_rows.dart';
-import 'package:demo/features/settings/services/tax_settings_service.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/utils/tax_calculator.dart';
+import 'package:smartKitchen/features/ordering/widgets/editable_total_row.dart';
+import 'package:smartKitchen/features/ordering/widgets/tax_summary_rows.dart';
+import 'package:smartKitchen/features/settings/services/tax_settings_service.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
@@ -12,13 +12,13 @@ import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
-import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
-import 'package:demo/features/ordering/widgets/table_billing_sheet.dart';
-import 'package:demo/features/shell/shell.dart';
-import 'package:demo/features/ordering/views/menu_page.dart';
-import 'package:demo/Styles/my_colors.dart';
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/Styles/my_icons.dart';
+import 'package:smartKitchen/features/ordering/widgets/table_billing_mode_dialog.dart';
+import 'package:smartKitchen/features/ordering/widgets/table_billing_sheet.dart';
+import 'package:smartKitchen/features/shell/shell.dart';
+import 'package:smartKitchen/features/ordering/views/menu_page.dart';
+import 'package:smartKitchen/Styles/my_colors.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/Styles/my_icons.dart';
 
 /// Cart Page
 class FinalBillingView extends StatefulWidget {

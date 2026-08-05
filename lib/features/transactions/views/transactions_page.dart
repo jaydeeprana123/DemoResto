@@ -1,10 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/features/transactions/services/transaction_bill_service.dart';
-import 'package:demo/features/transactions/views/transaction_details_page.dart';
-import 'package:demo/Styles/my_colors.dart';
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/Styles/my_icons.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/features/transactions/services/transaction_bill_service.dart';
+import 'package:smartKitchen/features/transactions/views/transaction_details_page.dart';
+import 'package:smartKitchen/Styles/my_colors.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/Styles/my_icons.dart';
 import 'package:dotted_line/dotted_line.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';

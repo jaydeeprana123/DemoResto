@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/features/tables/repositories/table_item_served.dart';
-import 'package:demo/features/tables/services/serve_notification_service.dart';
-import 'package:demo/features/kitchen/widgets/kitchen_cross_table_pending_sheet.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/features/tables/repositories/table_item_served.dart';
+import 'package:smartKitchen/features/tables/services/serve_notification_service.dart';
+import 'package:smartKitchen/features/kitchen/widgets/kitchen_cross_table_pending_sheet.dart';
 
 /// Per-screen controller for tap-to-select on one order card at a time.
 /// Uses per-document listenables so only the active card rebuilds on tap.

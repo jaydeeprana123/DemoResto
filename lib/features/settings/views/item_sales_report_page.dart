@@ -1,8 +1,8 @@
-import 'package:demo/core/utils/platform_utils.dart';
-import 'package:demo/features/settings/repositories/export_repository.dart';
-import 'package:demo/features/settings/services/export_excel_service.dart';
-import 'package:demo/features/settings/utils/export_date_range.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/core/utils/platform_utils.dart';
+import 'package:smartKitchen/features/settings/repositories/export_repository.dart';
+import 'package:smartKitchen/features/settings/services/export_excel_service.dart';
+import 'package:smartKitchen/features/settings/utils/export_date_range.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';

@@ -1,5 +1,5 @@
-import 'package:demo/core/utils/table_name_utils.dart';
-import 'package:demo/features/tables/repositories/table_item_served.dart';
+import 'package:smartKitchen/core/utils/table_name_utils.dart';
+import 'package:smartKitchen/features/tables/repositories/table_item_served.dart';
 
 class KitchenCrossTablePendingEntry {
   const KitchenCrossTablePendingEntry({

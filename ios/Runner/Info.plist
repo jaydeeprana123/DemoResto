@@ -50,7 +50,7 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>AppGroupId</key>
-	<string>group.com.innies.demo.share</string>
+	<string>group.com.innies.smartkitchenpos.share</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

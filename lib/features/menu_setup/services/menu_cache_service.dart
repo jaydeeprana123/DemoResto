@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/services/restaurant_session.dart';
-import 'package:demo/features/menu_setup/services/menu_revision.dart';
-import 'package:demo/features/menu_setup/utils/menu_sort_utils.dart';
-import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/services/restaurant_session.dart';
+import 'package:smartKitchen/features/menu_setup/services/menu_revision.dart';
+import 'package:smartKitchen/features/menu_setup/utils/menu_sort_utils.dart';
+import 'package:smartKitchen/features/menu_setup/utils/menu_stock_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';

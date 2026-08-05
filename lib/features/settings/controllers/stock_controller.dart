@@ -1,5 +1,5 @@
-import 'package:demo/core/models/menu_stock_entry.dart';
-import 'package:demo/features/settings/repositories/stock_repository.dart';
+import 'package:smartKitchen/core/models/menu_stock_entry.dart';
+import 'package:smartKitchen/features/settings/repositories/stock_repository.dart';
 import 'package:get/get.dart';
 
 class StockController extends GetxController {

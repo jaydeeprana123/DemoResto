@@ -1,6 +1,6 @@
-import 'package:demo/core/repositories/user_repository.dart';
-import 'package:demo/features/super_admin/controllers/super_admin_controller.dart';
-import 'package:demo/features/super_admin/repositories/super_admin_repository.dart';
+import 'package:smartKitchen/core/repositories/user_repository.dart';
+import 'package:smartKitchen/features/super_admin/controllers/super_admin_controller.dart';
+import 'package:smartKitchen/features/super_admin/repositories/super_admin_repository.dart';
 import 'package:get/get.dart';
 
 class SuperAdminBinding extends Bindings {

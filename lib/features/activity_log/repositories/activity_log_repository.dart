@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/features/activity_log/models/activity_log_entry.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/features/activity_log/models/activity_log_entry.dart';
 
 class ActivityLogPageResult {
   const ActivityLogPageResult({

@@ -1,4 +1,4 @@
-import 'package:demo/features/tables/repositories/tables_repository.dart';
+import 'package:smartKitchen/features/tables/repositories/tables_repository.dart';
 import 'package:get/get.dart';
 
 class TablesController extends GetxController {

@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:demo/core/utils/platform_utils.dart';
+import 'package:smartKitchen/core/utils/platform_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pasteboard/pasteboard.dart';
 

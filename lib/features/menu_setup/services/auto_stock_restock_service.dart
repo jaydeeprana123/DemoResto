@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/services/restaurant_session.dart';
-import 'package:demo/features/menu_setup/services/menu_revision.dart';
-import 'package:demo/features/menu_setup/utils/menu_stock_scope.dart';
-import 'package:demo/features/menu_setup/utils/menu_stock_utils.dart';
+import 'package:smartKitchen/core/services/restaurant_session.dart';
+import 'package:smartKitchen/features/menu_setup/services/menu_revision.dart';
+import 'package:smartKitchen/features/menu_setup/utils/menu_stock_scope.dart';
+import 'package:smartKitchen/features/menu_setup/utils/menu_stock_utils.dart';
 import 'package:get/get.dart';
 
 /// Client-side auto restock using a targeted collection-group query (Option A).

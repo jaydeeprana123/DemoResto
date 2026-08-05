@@ -1,13 +1,13 @@
-import 'package:demo/core/repositories/user_repository.dart';
-import 'package:demo/core/widgets/logout_confirmation_dialog.dart';
-import 'package:demo/features/kitchen/services/kitchen_settings.dart';
-import 'package:demo/features/kitchen/services/kitchen_background_alert_service.dart';
-import 'package:demo/features/settings/services/print_settings.dart';
-import 'package:demo/features/settings/services/staff_permission_settings_service.dart';
-import 'package:demo/features/settings/services/tax_settings_service.dart';
-import 'package:demo/features/shell/controllers/shell_controller.dart';
-import 'package:demo/features/shell/services/app_tab_settings.dart';
-import 'package:demo/features/tables/services/dashboard_settings.dart';
+import 'package:smartKitchen/core/repositories/user_repository.dart';
+import 'package:smartKitchen/core/widgets/logout_confirmation_dialog.dart';
+import 'package:smartKitchen/features/kitchen/services/kitchen_settings.dart';
+import 'package:smartKitchen/features/kitchen/services/kitchen_background_alert_service.dart';
+import 'package:smartKitchen/features/settings/services/print_settings.dart';
+import 'package:smartKitchen/features/settings/services/staff_permission_settings_service.dart';
+import 'package:smartKitchen/features/settings/services/tax_settings_service.dart';
+import 'package:smartKitchen/features/shell/controllers/shell_controller.dart';
+import 'package:smartKitchen/features/shell/services/app_tab_settings.dart';
+import 'package:smartKitchen/features/tables/services/dashboard_settings.dart';
 import 'package:get/get.dart';
 
 class SettingsController extends GetxController {

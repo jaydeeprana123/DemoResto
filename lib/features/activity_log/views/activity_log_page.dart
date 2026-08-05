@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/features/activity_log/models/activity_log_entry.dart';
-import 'package:demo/features/activity_log/repositories/activity_log_repository.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/features/activity_log/models/activity_log_entry.dart';
+import 'package:smartKitchen/features/activity_log/repositories/activity_log_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 

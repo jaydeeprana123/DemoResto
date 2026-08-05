@@ -1,6 +1,6 @@
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/core/pwa/pwa_install_service.dart';
-import 'package:demo/core/pwa/services/pwa_install_prompt_settings.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/core/pwa/pwa_install_service.dart';
+import 'package:smartKitchen/core/pwa/services/pwa_install_prompt_settings.dart';
 import 'package:flutter/material.dart';
 
 /// Shows a web install dialog when the browser reports the app is installable.

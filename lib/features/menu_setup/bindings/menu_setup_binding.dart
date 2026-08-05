@@ -1,8 +1,8 @@
-import 'package:demo/features/menu_setup/controllers/menu_setup_controller.dart';
-import 'package:demo/features/menu_setup/repositories/menu_setup_repository.dart';
-import 'package:demo/features/menu_setup/services/auto_stock_restock_service.dart';
-import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
-import 'package:demo/features/menu_setup/services/menu_sync_coordinator.dart';
+import 'package:smartKitchen/features/menu_setup/controllers/menu_setup_controller.dart';
+import 'package:smartKitchen/features/menu_setup/repositories/menu_setup_repository.dart';
+import 'package:smartKitchen/features/menu_setup/services/auto_stock_restock_service.dart';
+import 'package:smartKitchen/features/menu_setup/services/menu_cache_service.dart';
+import 'package:smartKitchen/features/menu_setup/services/menu_sync_coordinator.dart';
 import 'package:get/get.dart';
 
 class MenuSetupBinding extends Bindings {

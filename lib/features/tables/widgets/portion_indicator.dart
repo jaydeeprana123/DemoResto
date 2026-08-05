@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 
 /// Portion size detected from an item name (e.g. "Noodles (Half)").
 enum PortionType { half, full }

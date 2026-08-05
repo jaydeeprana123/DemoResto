@@ -1,16 +1,16 @@
-import 'package:demo/core/repositories/user_repository.dart';
-import 'package:demo/features/settings/controllers/admin_dashboard_controller.dart';
-import 'package:demo/features/settings/controllers/expenses_controller.dart';
-import 'package:demo/features/settings/controllers/profile_controller.dart';
-import 'package:demo/features/settings/controllers/settings_controller.dart';
-import 'package:demo/features/settings/controllers/staff_controller.dart';
-import 'package:demo/features/settings/controllers/stock_controller.dart';
-import 'package:demo/features/settings/repositories/admin_dashboard_repository.dart';
-import 'package:demo/features/settings/repositories/bill_customer_contacts_repository.dart';
-import 'package:demo/features/settings/repositories/expenses_repository.dart';
-import 'package:demo/features/settings/repositories/export_repository.dart';
-import 'package:demo/features/settings/repositories/staff_repository.dart';
-import 'package:demo/features/settings/repositories/stock_repository.dart';
+import 'package:smartKitchen/core/repositories/user_repository.dart';
+import 'package:smartKitchen/features/settings/controllers/admin_dashboard_controller.dart';
+import 'package:smartKitchen/features/settings/controllers/expenses_controller.dart';
+import 'package:smartKitchen/features/settings/controllers/profile_controller.dart';
+import 'package:smartKitchen/features/settings/controllers/settings_controller.dart';
+import 'package:smartKitchen/features/settings/controllers/staff_controller.dart';
+import 'package:smartKitchen/features/settings/controllers/stock_controller.dart';
+import 'package:smartKitchen/features/settings/repositories/admin_dashboard_repository.dart';
+import 'package:smartKitchen/features/settings/repositories/bill_customer_contacts_repository.dart';
+import 'package:smartKitchen/features/settings/repositories/expenses_repository.dart';
+import 'package:smartKitchen/features/settings/repositories/export_repository.dart';
+import 'package:smartKitchen/features/settings/repositories/staff_repository.dart';
+import 'package:smartKitchen/features/settings/repositories/stock_repository.dart';
 import 'package:get/get.dart';
 
 class SettingsBinding extends Bindings {

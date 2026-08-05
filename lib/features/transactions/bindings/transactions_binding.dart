@@ -1,5 +1,5 @@
-import 'package:demo/features/transactions/controllers/transactions_controller.dart';
-import 'package:demo/features/transactions/repositories/transactions_repository.dart';
+import 'package:smartKitchen/features/transactions/controllers/transactions_controller.dart';
+import 'package:smartKitchen/features/transactions/repositories/transactions_repository.dart';
 import 'package:get/get.dart';
 
 class TransactionsBinding extends Bindings {

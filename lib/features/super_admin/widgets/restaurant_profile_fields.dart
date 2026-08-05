@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 
-import 'package:demo/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
-import 'package:demo/features/super_admin/controllers/super_admin_controller.dart';
-import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
-import 'package:demo/Styles/my_font.dart';
+import 'package:smartKitchen/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
+import 'package:smartKitchen/features/super_admin/controllers/super_admin_controller.dart';
+import 'package:smartKitchen/features/zomato/services/imagekit_upload_service.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';

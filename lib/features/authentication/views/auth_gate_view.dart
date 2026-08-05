@@ -1,8 +1,8 @@
-import 'package:demo/core/services/restaurant_session.dart';
-import 'package:demo/features/authentication/services/device_session_service.dart';
-import 'package:demo/features/authentication/views/blocked_access_view.dart';
-import 'package:demo/features/shell/shell.dart';
-import 'package:demo/features/super_admin/super_admin.dart';
+import 'package:smartKitchen/core/services/restaurant_session.dart';
+import 'package:smartKitchen/features/authentication/services/device_session_service.dart';
+import 'package:smartKitchen/features/authentication/views/blocked_access_view.dart';
+import 'package:smartKitchen/features/shell/shell.dart';
+import 'package:smartKitchen/features/super_admin/super_admin.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';

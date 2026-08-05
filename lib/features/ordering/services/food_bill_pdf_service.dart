@@ -8,19 +8,19 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-import 'package:demo/core/services/restaurant_print_profile_service.dart';
-import 'package:demo/core/utils/platform_utils.dart';
-import 'package:demo/core/utils/app_messenger.dart';
-import 'package:demo/features/ordering/services/food_bill_pdf_io.dart'
-    if (dart.library.html) 'package:demo/features/ordering/services/food_bill_pdf_io_web.dart';
-import 'package:demo/features/ordering/widgets/billing_progress_dialog.dart';
-import 'package:demo/features/ordering/widgets/table_billing_mode_dialog.dart';
-import 'package:demo/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
-import 'package:demo/features/settings/services/print_settings.dart';
-import 'package:demo/core/network/ssl_error_utils.dart';
-import 'package:demo/features/zomato/services/imagekit_settings.dart';
-import 'package:demo/features/zomato/services/imagekit_upload_service.dart';
-import 'package:demo/core/utils/tax_calculator.dart';
+import 'package:smartKitchen/core/services/restaurant_print_profile_service.dart';
+import 'package:smartKitchen/core/utils/platform_utils.dart';
+import 'package:smartKitchen/core/utils/app_messenger.dart';
+import 'package:smartKitchen/features/ordering/services/food_bill_pdf_io.dart'
+    if (dart.library.html) 'package:smartKitchen/features/ordering/services/food_bill_pdf_io_web.dart';
+import 'package:smartKitchen/features/ordering/widgets/billing_progress_dialog.dart';
+import 'package:smartKitchen/features/ordering/widgets/table_billing_mode_dialog.dart';
+import 'package:smartKitchen/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
+import 'package:smartKitchen/features/settings/services/print_settings.dart';
+import 'package:smartKitchen/core/network/ssl_error_utils.dart';
+import 'package:smartKitchen/features/zomato/services/imagekit_settings.dart';
+import 'package:smartKitchen/features/zomato/services/imagekit_upload_service.dart';
+import 'package:smartKitchen/core/utils/tax_calculator.dart';
 import 'package:get/get.dart';
 
 class FoodBillPdfData {

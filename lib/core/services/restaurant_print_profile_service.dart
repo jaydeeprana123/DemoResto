@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
-import 'package:demo/core/models/restaurant.dart';
-import 'package:demo/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
+import 'package:smartKitchen/core/models/restaurant.dart';
+import 'package:smartKitchen/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:pdf/widgets.dart' as pw;

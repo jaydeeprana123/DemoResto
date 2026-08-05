@@ -1,4 +1,4 @@
-import 'package:demo/features/menu_setup/repositories/menu_setup_repository.dart';
+import 'package:smartKitchen/features/menu_setup/repositories/menu_setup_repository.dart';
 import 'package:get/get.dart';
 
 class MenuSetupController extends GetxController {

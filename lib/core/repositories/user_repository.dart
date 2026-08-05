@@ -1,9 +1,9 @@
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/models/user_profile.dart';
-import 'package:demo/core/services/restaurant_session.dart';
-import 'package:demo/features/authentication/auth_navigation.dart';
-import 'package:demo/features/authentication/services/device_session_service.dart';
-import 'package:demo/features/menu_setup/services/menu_cache_service.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/models/user_profile.dart';
+import 'package:smartKitchen/core/services/restaurant_session.dart';
+import 'package:smartKitchen/features/authentication/auth_navigation.dart';
+import 'package:smartKitchen/features/authentication/services/device_session_service.dart';
+import 'package:smartKitchen/features/menu_setup/services/menu_cache_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 

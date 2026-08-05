@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:demo/core/firestore/firestore_paths.dart';
-import 'package:demo/core/utils/zomato_order_utils.dart';
-import 'package:demo/features/zomato/models/zomato_imagekit_cleanup_job.dart';
-import 'package:demo/features/zomato/models/zomato_order_ref.dart';
+import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/utils/zomato_order_utils.dart';
+import 'package:smartKitchen/features/zomato/models/zomato_imagekit_cleanup_job.dart';
+import 'package:smartKitchen/features/zomato/models/zomato_order_ref.dart';
 
 class ZomatoOrdersRepository {
   Future<String> createFromScreenshot({

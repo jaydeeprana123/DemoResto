@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:demo/Styles/my_font.dart';
-import 'package:demo/core/utils/table_name_utils.dart';
-import 'package:demo/features/kitchen/widgets/kitchen_theme.dart';
-import 'package:demo/features/tables/repositories/table_item_served.dart';
+import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/core/utils/table_name_utils.dart';
+import 'package:smartKitchen/features/kitchen/widgets/kitchen_theme.dart';
+import 'package:smartKitchen/features/tables/repositories/table_item_served.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
