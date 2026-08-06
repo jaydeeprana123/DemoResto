@@ -10,6 +10,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   firebase_core
   firebase_remote_config
   pasteboard
+  print_bluetooth_thermal
   printing
   record_windows
   share_plus

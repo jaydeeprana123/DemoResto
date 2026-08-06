@@ -36,6 +36,8 @@ class SettingsController extends GetxController {
   final printPdfEnabled = false.obs;
   final printerType = PosPrinterType.rugtek80.obs;
   final billPdfIncludeLogos = false.obs;
+  final connectionMode = ReceiptConnectionMode.systemPrinter.obs;
+  final bluetoothPrinterName = RxnString();
   final cgstPercentage = 0.0.obs;
   final sgstPercentage = 0.0.obs;
   final isSavingTaxSettings = false.obs;
@@ -119,6 +121,8 @@ class SettingsController extends GetxController {
     printPdfEnabled.value = await PrintSettings.getPrintPdfEnabled();
     printerType.value = await PrintSettings.getPrinterType();
     billPdfIncludeLogos.value = await PrintSettings.getBillPdfIncludeLogos();
+    connectionMode.value = await PrintSettings.getConnectionMode();
+    bluetoothPrinterName.value = PrintSettings.bluetoothPrinterName.value;
   }
 
   Future<void> setPrintPdfEnabled(bool value) async {
@@ -134,6 +138,11 @@ class SettingsController extends GetxController {
   Future<void> setPrinterType(PosPrinterType value) async {
     await PrintSettings.setPrinterType(value);
     printerType.value = value;
+  }
+
+  Future<void> setConnectionMode(ReceiptConnectionMode value) async {
+    await PrintSettings.setConnectionMode(value);
+    connectionMode.value = value;
   }
 
   Future<void> loadTaxSettings() async {

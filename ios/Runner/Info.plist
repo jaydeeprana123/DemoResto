@@ -64,6 +64,10 @@
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>To import Zomato order screenshots shared from your photo library.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Bluetooth access to connect to your receipt printer for billing.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Bluetooth access to print billing receipts on your thermal printer.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

@@ -3,6 +3,8 @@ import 'package:smartKitchen/features/menu_setup/menu_setup.dart';
 import 'package:smartKitchen/features/settings/controllers/settings_controller.dart';
 import 'package:smartKitchen/features/settings/controllers/staff_controller.dart';
 import 'package:smartKitchen/features/settings/services/print_settings.dart';
+import 'package:smartKitchen/features/settings/services/bluetooth_receipt_printer_service.dart';
+import 'package:smartKitchen/features/settings/widgets/bluetooth_printer_picker_sheet.dart';
 import 'package:smartKitchen/features/settings/views/AdminDashboardPage.dart';
 import 'package:smartKitchen/features/settings/views/ExpensesPage.dart';
 import 'package:smartKitchen/features/settings/views/ExportPage.dart';
@@ -648,6 +650,8 @@ class _SettingsBillingSectionPageState extends State<SettingsBillingSectionPage>
   }
 
   Widget _buildPrinterSection() {
+    final bluetoothSupported = BluetoothReceiptPrinterService.isSupported;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
       child: Column(
@@ -667,17 +671,119 @@ class _SettingsBillingSectionPageState extends State<SettingsBillingSectionPage>
               ),
             ),
             subtitle: Text(
-              'Paper width for billing receipts (USB thermal)',
+              bluetoothSupported
+                  ? 'USB thermal on Windows, or Bluetooth on phone/tablet'
+                  : 'Paper width for billing receipts (USB thermal)',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ),
-          ...PosPrinterType.values.map((type) {
-            return RadioListTile<PosPrinterType>(
-              value: type,
-              groupValue: _settings.printerType.value,
-              activeColor: SettingsColors.orange,
+          if (bluetoothSupported) ...[
+            ...ReceiptConnectionMode.values.map((mode) {
+              return RadioListTile<ReceiptConnectionMode>(
+                value: mode,
+                groupValue: _settings.connectionMode.value,
+                activeColor: SettingsColors.orange,
+                title: Text(
+                  mode.label,
+                  style: const TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 14,
+                    color: SettingsColors.navy,
+                  ),
+                ),
+                subtitle: Text(
+                  mode.subtitle,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                onChanged: (value) async {
+                  if (value == null) return;
+                  await _settings.setConnectionMode(value);
+                  if (value == ReceiptConnectionMode.bluetooth &&
+                      _settings.printerType.value != PosPrinterType.narrow58) {
+                    await _settings.setPrinterType(PosPrinterType.narrow58);
+                  }
+                },
+              );
+            }),
+            if (_settings.connectionMode.value ==
+                ReceiptConnectionMode.bluetooth) ...[
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                title: Text(
+                  _settings.bluetoothPrinterName.value?.isNotEmpty == true
+                      ? _settings.bluetoothPrinterName.value!
+                      : 'No printer selected',
+                  style: const TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 14,
+                    color: SettingsColors.navy,
+                  ),
+                ),
+                subtitle: Text(
+                  PrintSettings.bluetoothMacAddress ?? 'Choose a paired printer',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                trailing: TextButton(
+                  onPressed: () async {
+                    final selected = await BluetoothPrinterPickerSheet.show(
+                      context,
+                    );
+                    if (!mounted) return;
+                    if (selected) {
+                      await _settings.loadPrintSettings();
+                      setState(() {});
+                    }
+                  },
+                  child: const Text(
+                    'Choose',
+                    style: TextStyle(fontFamily: fontMulishSemiBold),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: OutlinedButton.icon(
+                  onPressed: () => _testBluetoothPrinter(context),
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: const Text(
+                    'Test print',
+                    style: TextStyle(fontFamily: fontMulishSemiBold),
+                  ),
+                ),
+              ),
+            ],
+          ],
+          if (_settings.connectionMode.value ==
+                  ReceiptConnectionMode.systemPrinter ||
+              !bluetoothSupported) ...[
+            ...PosPrinterType.values.map((type) {
+              return RadioListTile<PosPrinterType>(
+                value: type,
+                groupValue: _settings.printerType.value,
+                activeColor: SettingsColors.orange,
+                title: Text(
+                  type.label,
+                  style: const TextStyle(
+                    fontFamily: fontMulishSemiBold,
+                    fontSize: 14,
+                    color: SettingsColors.navy,
+                  ),
+                ),
+                subtitle: Text(
+                  type.subtitle,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                onChanged: (value) async {
+                  if (value == null) return;
+                  await _settings.setPrinterType(value);
+                },
+              );
+            }),
+          ] else ...[
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
               title: Text(
-                type.label,
+                _settings.printerType.value.label,
                 style: const TextStyle(
                   fontFamily: fontMulishSemiBold,
                   fontSize: 14,
@@ -685,16 +791,38 @@ class _SettingsBillingSectionPageState extends State<SettingsBillingSectionPage>
                 ),
               ),
               subtitle: Text(
-                type.subtitle,
+                _settings.printerType.value.subtitle,
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
               ),
-              onChanged: (value) async {
-                if (value == null) return;
-                await _settings.setPrinterType(value);
-              },
-            );
-          }),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Future<void> _testBluetoothPrinter(BuildContext context) async {
+    if (PrintSettings.bluetoothMacAddress == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Choose a Bluetooth printer first.'),
+        ),
+      );
+      return;
+    }
+
+    final ok = await BluetoothReceiptPrinterService.printTestReceipt(
+      printerType: _settings.printerType.value,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Test receipt sent to printer.'
+              : 'Could not print. Check Bluetooth pairing and try again.',
+        ),
+        backgroundColor: ok ? const Color(0xFF2E7D32) : Colors.red.shade700,
       ),
     );
   }

@@ -17,6 +17,7 @@ import 'package:smartKitchen/features/ordering/widgets/billing_progress_dialog.d
 import 'package:smartKitchen/features/ordering/widgets/table_billing_mode_dialog.dart';
 import 'package:smartKitchen/features/ordering/widgets/whatsapp_share_phone_dialog.dart';
 import 'package:smartKitchen/features/settings/services/print_settings.dart';
+import 'package:smartKitchen/features/settings/services/bluetooth_receipt_printer_service.dart';
 import 'package:smartKitchen/core/network/ssl_error_utils.dart';
 import 'package:smartKitchen/features/zomato/services/imagekit_settings.dart';
 import 'package:smartKitchen/features/zomato/services/imagekit_upload_service.dart';
@@ -412,6 +413,25 @@ class FoodBillPdfService {
     required bool includeLogos,
     bool toPrinter = false,
   }) async {
+    if (toPrinter) {
+      final connectionMode = await PrintSettings.getConnectionMode();
+      if (connectionMode == ReceiptConnectionMode.bluetooth &&
+          BluetoothReceiptPrinterService.isSupported) {
+        final sent = await BluetoothReceiptPrinterService.printReceipt(
+          data,
+          printerType: printerType,
+        );
+        if (sent) return;
+
+        AppMessenger.show(
+          'Bluetooth printer',
+          'Could not print. Open Settings > Billing, choose your Bluetooth printer, and tap Test print.',
+          duration: const Duration(seconds: 7),
+        );
+        return;
+      }
+    }
+
     final pdfBytes = await _buildPdf(
       data,
       printerType,

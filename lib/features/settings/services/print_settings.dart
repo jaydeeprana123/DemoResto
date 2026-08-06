@@ -3,6 +3,25 @@ import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+enum ReceiptConnectionMode {
+  systemPrinter,
+  bluetooth,
+}
+
+extension ReceiptConnectionModeLabel on ReceiptConnectionMode {
+  String get label => switch (this) {
+        ReceiptConnectionMode.systemPrinter => 'System / USB printer',
+        ReceiptConnectionMode.bluetooth => 'Bluetooth thermal',
+      };
+
+  String get subtitle => switch (this) {
+        ReceiptConnectionMode.systemPrinter =>
+          'Windows USB printers (Rugtek, TVS, etc.)',
+        ReceiptConnectionMode.bluetooth =>
+          '58mm / 80mm Bluetooth receipt printers on Android / iOS',
+      };
+}
+
 enum PosPrinterType {
   tvs80,
   rugtek80,
@@ -34,12 +53,20 @@ class PrintSettings {
   static const _keyPrinterType = 'pos_printer_type';
   static const _keyBillPdfIncludeLogos = 'bill_pdf_include_logos';
   static const _keyPreferredPrinterName = 'pos_preferred_printer_name';
+  static const _keyConnectionMode = 'receipt_connection_mode';
+  static const _keyBluetoothMac = 'bluetooth_printer_mac';
+  static const _keyBluetoothName = 'bluetooth_printer_name';
 
   static final ValueNotifier<bool> printPdfEnabled = ValueNotifier(false);
   static final ValueNotifier<PosPrinterType> printerType =
       ValueNotifier(PosPrinterType.rugtek80);
   static final ValueNotifier<bool> billPdfIncludeLogos = ValueNotifier(false);
+  static final ValueNotifier<ReceiptConnectionMode> connectionMode =
+      ValueNotifier(ReceiptConnectionMode.systemPrinter);
+  static final ValueNotifier<String?> bluetoothPrinterName =
+      ValueNotifier<String?>(null);
   static String? preferredPrinterName;
+  static String? bluetoothMacAddress;
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -50,6 +77,11 @@ class PrintSettings {
     billPdfIncludeLogos.value =
         prefs.getBool(_keyBillPdfIncludeLogos) ?? false;
     preferredPrinterName = prefs.getString(_keyPreferredPrinterName);
+    connectionMode.value = _parseConnectionMode(
+      prefs.getString(_keyConnectionMode),
+    );
+    bluetoothMacAddress = prefs.getString(_keyBluetoothMac);
+    bluetoothPrinterName.value = prefs.getString(_keyBluetoothName);
   }
 
   static Future<void> setPreferredPrinterName(String? name) async {
@@ -84,6 +116,43 @@ class PrintSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyPrinterType, value.name);
     printerType.value = value;
+  }
+
+  static Future<ReceiptConnectionMode> getConnectionMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return _parseConnectionMode(prefs.getString(_keyConnectionMode));
+  }
+
+  static Future<void> setConnectionMode(ReceiptConnectionMode value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyConnectionMode, value.name);
+    connectionMode.value = value;
+  }
+
+  static Future<void> setBluetoothPrinter({
+    required String name,
+    required String macAddress,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyBluetoothMac, macAddress);
+    await prefs.setString(_keyBluetoothName, name);
+    bluetoothMacAddress = macAddress;
+    bluetoothPrinterName.value = name;
+  }
+
+  static Future<void> clearBluetoothPrinter() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyBluetoothMac);
+    await prefs.remove(_keyBluetoothName);
+    bluetoothMacAddress = null;
+    bluetoothPrinterName.value = null;
+  }
+
+  static ReceiptConnectionMode _parseConnectionMode(String? raw) {
+    return ReceiptConnectionMode.values.firstWhere(
+      (mode) => mode.name == raw,
+      orElse: () => ReceiptConnectionMode.systemPrinter,
+    );
   }
 
   static Future<bool> getBillPdfIncludeLogos() async {
