@@ -47,7 +47,10 @@ class AppUpdateService {
       await remoteConfig.setConfigSettings(
         RemoteConfigSettings(
           fetchTimeout: const Duration(seconds: 10),
-          minimumFetchInterval: const Duration(hours: 1),
+          // Shorter interval in debug so Remote Config changes are testable.
+          minimumFetchInterval: kDebugMode
+              ? Duration.zero
+              : const Duration(hours: 1),
         ),
       );
       await remoteConfig.setDefaults(const {

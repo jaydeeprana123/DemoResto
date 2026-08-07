@@ -128,19 +128,18 @@ class SettingsRestaurantSectionPage extends StatelessWidget {
                   SettingsNavRow(
                     icon: Icons.lock_clock_rounded,
                     title: 'Permissions',
-                    subtitle:
-                        'Staff edit limits & mark-as-delivered per user',
+                    subtitle: 'Staff edit limits & mark-as-delivered per user',
                     onTap: () =>
                         Get.to(() => const SettingsPermissionsSectionPage()),
                   ),
-                if (isAdmin)
-                  SettingsNavRow(
-                    icon: Icons.delivery_dining_rounded,
-                    title: 'Zomato / ImageKit',
-                    subtitle:
-                        'ImageKit keys for Zomato orders and WhatsApp bills',
-                    onTap: () => Get.to(() => const ImageKitSettingsPage()),
-                  ),
+                // if (isAdmin)
+                //   SettingsNavRow(
+                //     icon: Icons.delivery_dining_rounded,
+                //     title: 'Zomato / ImageKit',
+                //     subtitle:
+                //         'ImageKit keys for Zomato orders and WhatsApp bills',
+                //     onTap: () => Get.to(() => const ImageKitSettingsPage()),
+                //   ),
                 SettingsNavRow(
                   icon: Icons.inventory_2_outlined,
                   title: 'Stock Management',
@@ -180,8 +179,8 @@ class _SettingsPermissionsSectionPageState
   Future<void> _loadFields() async {
     await _settings.loadStaffPermissionSettings();
     if (!mounted) return;
-    _limitController.text =
-        _settings.staffEditDeleteLimitMinutes.value.toString();
+    _limitController.text = _settings.staffEditDeleteLimitMinutes.value
+        .toString();
     setState(() {});
   }
 
@@ -234,8 +233,9 @@ class _SettingsPermissionsSectionPageState
                     Row(
                       children: [
                         CircleAvatar(
-                          backgroundColor:
-                              SettingsColors.orange.withValues(alpha: 0.12),
+                          backgroundColor: SettingsColors.orange.withValues(
+                            alpha: 0.12,
+                          ),
                           child: const Icon(
                             Icons.lock_clock_rounded,
                             color: SettingsColors.orange,
@@ -318,8 +318,9 @@ class _SettingsPermissionsSectionPageState
                 child: Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor:
-                          SettingsColors.orange.withValues(alpha: 0.12),
+                      backgroundColor: SettingsColors.orange.withValues(
+                        alpha: 0.12,
+                      ),
                       child: const Icon(
                         Icons.delivery_dining_rounded,
                         color: SettingsColors.orange,
@@ -403,11 +404,11 @@ class _SettingsPermissionsSectionPageState
                         _AllowMarkAsDeliveredUserRow(
                           member: users[i],
                           onChanged: (value) async {
-                            final error =
-                                await staffController.setAllowMarkAsDelivered(
-                              member: users[i],
-                              allow: value,
-                            );
+                            final error = await staffController
+                                .setAllowMarkAsDelivered(
+                                  member: users[i],
+                                  allow: value,
+                                );
                             if (!context.mounted) return;
                             if (error != null) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -482,7 +483,8 @@ class SettingsBillingSectionPage extends StatefulWidget {
       _SettingsBillingSectionPageState();
 }
 
-class _SettingsBillingSectionPageState extends State<SettingsBillingSectionPage> {
+class _SettingsBillingSectionPageState
+    extends State<SettingsBillingSectionPage> {
   late final SettingsController _settings;
   late final TextEditingController _cgstController;
   late final TextEditingController _sgstController;
@@ -552,8 +554,7 @@ class _SettingsBillingSectionPageState extends State<SettingsBillingSectionPage>
           Row(
             children: [
               CircleAvatar(
-                backgroundColor:
-                    SettingsColors.orange.withValues(alpha: 0.12),
+                backgroundColor: SettingsColors.orange.withValues(alpha: 0.12),
                 child: const Icon(
                   Icons.percent_rounded,
                   color: SettingsColors.orange,
@@ -574,10 +575,7 @@ class _SettingsBillingSectionPageState extends State<SettingsBillingSectionPage>
                     ),
                     Text(
                       'Applied on final billing (0 = hidden)',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF6B7280),
-                      ),
+                      style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                     ),
                   ],
                 ),
@@ -660,7 +658,10 @@ class _SettingsBillingSectionPageState extends State<SettingsBillingSectionPage>
           ListTile(
             leading: CircleAvatar(
               backgroundColor: SettingsColors.orange.withValues(alpha: 0.12),
-              child: const Icon(Icons.print_rounded, color: SettingsColors.orange),
+              child: const Icon(
+                Icons.print_rounded,
+                color: SettingsColors.orange,
+              ),
             ),
             title: const Text(
               'Receipt printer',
@@ -720,7 +721,8 @@ class _SettingsBillingSectionPageState extends State<SettingsBillingSectionPage>
                   ),
                 ),
                 subtitle: Text(
-                  PrintSettings.bluetoothMacAddress ?? 'Choose a paired printer',
+                  PrintSettings.bluetoothMacAddress ??
+                      'Choose a paired printer',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
                 trailing: TextButton(
@@ -804,9 +806,7 @@ class _SettingsBillingSectionPageState extends State<SettingsBillingSectionPage>
   Future<void> _testBluetoothPrinter(BuildContext context) async {
     if (PrintSettings.bluetoothMacAddress == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Choose a Bluetooth printer first.'),
-        ),
+        const SnackBar(content: Text('Choose a Bluetooth printer first.')),
       );
       return;
     }
@@ -979,7 +979,8 @@ class SettingsKitchenSectionPage extends StatefulWidget {
       _SettingsKitchenSectionPageState();
 }
 
-class _SettingsKitchenSectionPageState extends State<SettingsKitchenSectionPage> {
+class _SettingsKitchenSectionPageState
+    extends State<SettingsKitchenSectionPage> {
   late final SettingsController _settings;
 
   @override

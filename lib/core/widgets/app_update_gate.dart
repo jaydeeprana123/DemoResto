@@ -3,7 +3,10 @@ import 'package:smartKitchen/core/widgets/app_update_dialog.dart';
 import 'package:flutter/material.dart';
 
 /// Runs a version check on startup and blocks the app when a force update
-/// is required. Optional updates show a dismissible dialog over the app.
+/// is required. Optional updates show a dismissible prompt over the app.
+///
+/// Placed in [MaterialApp.builder] (above Navigator), so the prompt is drawn
+/// as a Stack overlay — never via [showDialog].
 class AppUpdateGate extends StatefulWidget {
   const AppUpdateGate({super.key, required this.child});
 
@@ -17,7 +20,6 @@ class _AppUpdateGateState extends State<AppUpdateGate> {
   bool _checking = true;
   AppUpdateInfo? _updateInfo;
   bool _optionalDismissed = false;
-  bool _dialogVisible = false;
 
   @override
   void initState() {
@@ -33,64 +35,38 @@ class _AppUpdateGateState extends State<AppUpdateGate> {
       _checking = false;
       _updateInfo = updateInfo;
     });
-
-    if (updateInfo != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showUpdateDialogIfNeeded();
-      });
-    }
   }
 
-  Future<void> _showUpdateDialogIfNeeded() async {
-    if (!mounted || _dialogVisible) return;
-
-    final updateInfo = _updateInfo;
-    if (updateInfo == null) return;
-    if (!updateInfo.isForceUpdate && _optionalDismissed) return;
-
-    _dialogVisible = true;
-    await showAppUpdateDialog(context, updateInfo: updateInfo);
-
-    if (!mounted) return;
-    setState(() {
-      _dialogVisible = false;
-      if (!updateInfo.isForceUpdate) {
-        _optionalDismissed = true;
-      }
-    });
-
-    if (updateInfo.isForceUpdate && mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showUpdateDialogIfNeeded();
-      });
-    }
+  void _dismissOptionalUpdate() {
+    setState(() => _optionalDismissed = true);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_checking) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     final updateInfo = _updateInfo;
-    final isForceUpdate =
-        updateInfo != null && updateInfo.isForceUpdate;
+    final isForceUpdate = updateInfo?.isForceUpdate == true;
+    final showPrompt = !_checking &&
+        updateInfo != null &&
+        (isForceUpdate || !_optionalDismissed);
 
-    if (isForceUpdate) {
-      return PopScope(
-        canPop: false,
-        child: Scaffold(
-          body: Center(
-            child: _dialogVisible
-                ? const SizedBox.shrink()
-                : const CircularProgressIndicator(),
-          ),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        IgnorePointer(
+          ignoring: _checking || isForceUpdate || showPrompt,
+          child: widget.child,
         ),
-      );
-    }
-
-    return widget.child;
+        if (_checking)
+          const ColoredBox(
+            color: Colors.white,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        if (updateInfo != null && showPrompt)
+          AppUpdatePrompt(
+            updateInfo: updateInfo,
+            onLater: isForceUpdate ? null : _dismissOptionalUpdate,
+          ),
+      ],
+    );
   }
 }
