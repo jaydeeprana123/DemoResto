@@ -230,7 +230,9 @@ class _AddQuantityStockPageState extends State<AddQuantityStockPage> {
                         padding: const EdgeInsets.all(24),
                         child: Text(
                           _catalog.isEmpty
-                              ? 'No menu items found. Add items under Menu first.'
+                              ? 'No saved menu items found.\n\n'
+                                  'Add them under:\n'
+                                  'Settings → Restaurant setup → Menu'
                               : 'No items match your search.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.grey.shade600),

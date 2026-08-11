@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/get.dart';
 import 'package:smartKitchen/core/firestore/firestore_paths.dart';
 import 'package:smartKitchen/features/activity_log/services/activity_log_service.dart';
 import 'package:smartKitchen/features/inventory_reports/models/inventory_models.dart';
 import 'package:smartKitchen/features/inventory_reports/utils/inventory_date_utils.dart';
+import 'package:smartKitchen/features/menu_setup/services/menu_cache_service.dart';
 import 'package:smartKitchen/features/menu_setup/services/menu_revision.dart';
 import 'package:smartKitchen/features/menu_setup/utils/menu_sort_utils.dart';
 import 'package:smartKitchen/features/ordering/utils/menu_item_variants.dart';
@@ -13,13 +15,88 @@ class InventoryReportsRepository {
   static const _transactionBatchSize = 200;
 
   Future<List<InventoryCatalogItem>> loadCatalog() async {
+    final overlay = await _loadInventoryOverlaySafe();
+    final fromCache = await _loadCatalogFromMenuCache(overlay);
+    if (fromCache.isNotEmpty) return fromCache;
+    return _loadCatalogFromFirestore(overlay);
+  }
+
+  Future<Map<String, Map<String, dynamic>>> _loadInventoryOverlaySafe() async {
+    try {
+      return await _loadInventoryOverlay();
+    } catch (_) {
+      // Quantity inventory may not exist yet; menu catalog must still load.
+      return {};
+    }
+  }
+
+  Future<List<InventoryCatalogItem>> _loadCatalogFromMenuCache(
+    Map<String, Map<String, dynamic>> overlay,
+  ) async {
+    try {
+      final MenuCacheService cache;
+      if (Get.isRegistered<MenuCacheService>()) {
+        cache = Get.find<MenuCacheService>();
+      } else {
+        cache = Get.put(MenuCacheService(), permanent: true);
+      }
+
+      var source = await cache.loadFromCacheOnly();
+      if (source.isEmpty) {
+        source = await cache.ensureLoaded();
+      }
+      if (source.isEmpty) return const [];
+
+      final catalog = <InventoryCatalogItem>[];
+      final seen = <String>{};
+
+      for (final raw in source) {
+        final categoryId = raw['categoryId']?.toString() ?? '';
+        final itemId = raw['itemId']?.toString() ?? '';
+        if (categoryId.isEmpty || itemId.isEmpty) continue;
+
+        final categoryName =
+            raw['category']?.toString() ??
+            raw['categoryName']?.toString() ??
+            'Menu';
+        final key = '$categoryId|$itemId';
+        if (!seen.add(key)) continue;
+
+        final overlayData = overlay[key];
+        catalog.add(
+          InventoryCatalogItem(
+            menuItemKey: key,
+            categoryId: categoryId,
+            categoryName: categoryName,
+            itemId: itemId,
+            name: MenuItemVariants.displayName(raw),
+            unit: overlayData?['unit']?.toString() ?? 'pcs',
+            sellingPrice: _itemSellingPrice(raw),
+            costPerUnit: _asDouble(overlayData?['costPerUnit']),
+            currentStock: _asDouble(overlayData?['currentStock']),
+            minimumStock: _asDouble(overlayData?['minimumStock']),
+          ),
+        );
+      }
+
+      catalog.sort(
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      );
+      return catalog;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<InventoryCatalogItem>> _loadCatalogFromFirestore(
+    Map<String, Map<String, dynamic>> overlay,
+  ) async {
     final catSnap = await FirestorePaths.scoped('menus').get();
     final categories = sortMenuDocs(
       catSnap.docs.where((doc) => !MenuRevision.isMetaDoc(doc.id)).toList(),
     );
 
     final catalog = <InventoryCatalogItem>[];
-    final overlay = await _loadInventoryOverlay();
 
     for (final catDoc in categories) {
       final categoryId = catDoc.id;
