@@ -1,4 +1,5 @@
 import 'package:smartKitchen/core/repositories/user_repository.dart';
+import 'package:smartKitchen/features/inventory_reports/bindings/inventory_reports_binding.dart';
 import 'package:smartKitchen/features/settings/controllers/admin_dashboard_controller.dart';
 import 'package:smartKitchen/features/settings/controllers/expenses_controller.dart';
 import 'package:smartKitchen/features/settings/controllers/profile_controller.dart';
@@ -52,5 +53,6 @@ class SettingsBinding extends Bindings {
       () => StockController(Get.find<StockRepository>()),
       fenix: true,
     );
+    InventoryReportsBinding().dependencies();
   }
 }

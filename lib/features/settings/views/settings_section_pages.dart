@@ -9,6 +9,8 @@ import 'package:smartKitchen/features/settings/views/AdminDashboardPage.dart';
 import 'package:smartKitchen/features/settings/views/ExpensesPage.dart';
 import 'package:smartKitchen/features/settings/views/ExportPage.dart';
 import 'package:smartKitchen/features/settings/views/bill_customer_contacts_page.dart';
+import 'package:smartKitchen/features/inventory_reports/views/add_quantity_stock_page.dart';
+import 'package:smartKitchen/features/inventory_reports/views/inventory_reports_hub_page.dart';
 import 'package:smartKitchen/features/settings/views/item_sales_report_page.dart';
 import 'package:smartKitchen/features/settings/views/profile_view.dart';
 import 'package:smartKitchen/features/settings/views/settings_ui.dart';
@@ -80,6 +82,14 @@ class SettingsBusinessSectionPage extends StatelessWidget {
                     subtitle: 'Quantity sold per menu item by date range',
                     onTap: () => Get.to(() => const ItemSalesReportPage()),
                   ),
+                if (isAdmin)
+                  SettingsNavRow(
+                    icon: Icons.assessment_outlined,
+                    title: 'Inventory Reports',
+                    subtitle:
+                        'Stock, movements, wastage, valuation & consumption',
+                    onTap: () => Get.to(() => const InventoryReportsHubPage()),
+                  ),
               ],
             ),
           ],
@@ -146,6 +156,14 @@ class SettingsRestaurantSectionPage extends StatelessWidget {
                   subtitle: 'Mark menu items in stock or out of stock',
                   onTap: () => Get.to(() => const StockManagementPage()),
                 ),
+                if (isAdmin)
+                  SettingsNavRow(
+                    icon: Icons.add_box_rounded,
+                    title: 'Add Quantity Stock',
+                    subtitle:
+                        'Add purchase qty for inventory reports (not menu availability)',
+                    onTap: () => Get.to(() => const AddQuantityStockPage()),
+                  ),
               ],
             ),
           ],
