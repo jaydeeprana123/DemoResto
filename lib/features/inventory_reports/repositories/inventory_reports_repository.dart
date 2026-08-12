@@ -695,15 +695,7 @@ class InventoryReportsRepository {
   Future<DocumentReference<Map<String, dynamic>>> _inventoryItemRef(
     String menuItemKey,
   ) async {
-    final existing = await FirestorePaths.scoped('inventory_items')
-        .where('menuItemKey', isEqualTo: menuItemKey)
-        .limit(1)
-        .get();
-    if (existing.docs.isNotEmpty) {
-      return existing.docs.first.reference;
-    }
-
-    // Stable doc id so re-adds merge cleanly without duplicate masters.
+    // Stable doc id avoids a query (and duplicate masters).
     final docId = menuItemKey.replaceAll('|', '__');
     return FirestorePaths.scoped('inventory_items').doc(docId);
   }

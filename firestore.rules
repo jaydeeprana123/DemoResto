@@ -1,0 +1,320 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function userExists() {
+      return isSignedIn() && exists(userPath());
+    }
+
+    function userDoc() {
+      return get(userPath()).data;
+    }
+
+    function isActiveUser() {
+      return userExists() && userDoc().get('active', true) != false;
+    }
+
+    function isSuperAdmin() {
+      return isActiveUser() && userDoc().get('role', '') == 'SuperAdmin';
+    }
+
+    function isAdmin() {
+      return isActiveUser() && userDoc().get('role', '') == 'Admin';
+    }
+
+    function isStaff() {
+      return isActiveUser() && userDoc().get('role', '') == 'Staff';
+    }
+
+    function isRestaurantMember() {
+      return isAdmin() || isStaff();
+    }
+
+    function belongsToRestaurant(restaurantId) {
+      return isRestaurantMember()
+        && userDoc().get('restaurantId', '') == restaurantId;
+    }
+
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function selfWritableUserKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly([
+          'activeSessionId',
+          'activeSessionUpdatedAt',
+          'preferences',
+          'lastOrders',
+          'favoriteItems',
+          'name',
+          'updatedAt'
+        ]);
+    }
+
+    function privilegedUserKeysUnchanged() {
+      return request.resource.data.get('role', '') == resource.data.get('role', '')
+        && request.resource.data.get('restaurantId', '')
+             == resource.data.get('restaurantId', '')
+        && request.resource.data.get('active', true)
+             == resource.data.get('active', true)
+        && request.resource.data.get('allowMarkAsDelivered', false)
+             == resource.data.get('allowMarkAsDelivered', false)
+        && request.resource.data.get('email', '')
+             == resource.data.get('email', '');
+    }
+
+    function isSelfSessionUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['activeSessionId', 'activeSessionUpdatedAt']);
+    }
+
+    function isBootstrapSuperAdminCreate() {
+      return isSelf(userId)
+        && !exists(/databases/$(database)/documents/users/$(userId))
+        && request.resource.data.role == 'SuperAdmin'
+        && request.resource.data.email is string
+        && request.resource.data.email.lower() == 'jaideep1210@gmail.com'
+        && request.auth.token.email.lower() == 'jaideep1210@gmail.com'
+        && request.resource.data.keys().hasOnly([
+          'email', 'name', 'role', 'createdAt'
+        ]);
+    }
+
+    function isAdminCreatingStaff() {
+      return isAdmin()
+        && request.resource.data.role == 'Staff'
+        && request.resource.data.restaurantId == userDoc().restaurantId
+        && request.resource.data.active == true;
+    }
+
+    function isSuperAdminCreatingAdmin() {
+      return isSuperAdmin()
+        && request.resource.data.role == 'Admin'
+        && request.resource.data.restaurantId is string
+        && request.resource.data.active == true;
+    }
+
+    function adminStaffUpdateKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly([
+          'allowMarkAsDelivered',
+          'active',
+          'deactivatedAt',
+          'deactivatedBy',
+          'deactivatedByRole',
+          'name',
+          'updatedAt'
+        ]);
+    }
+
+    function adminPermissionOnlyKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['allowMarkAsDelivered', 'updatedAt']);
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId)
+        || isSuperAdmin()
+        || (isAdmin()
+            && resource.data.get('restaurantId', '')
+                 == userDoc().get('restaurantId', ''));
+
+      allow create: if isBootstrapSuperAdminCreate()
+        || isAdminCreatingStaff()
+        || isSuperAdminCreatingAdmin();
+
+      allow update: if (
+          isSelf(userId) && isSelfSessionUpdate()
+        )
+        || (
+          isSelf(userId)
+          && privilegedUserKeysUnchanged()
+          && selfWritableUserKeys()
+        )
+        || (
+          isAdmin()
+          && resource.data.get('role', '') == 'Staff'
+          && resource.data.get('restaurantId', '')
+               == userDoc().get('restaurantId', '')
+          && request.resource.data.get('role', '') == 'Staff'
+          && request.resource.data.get('restaurantId', '')
+               == resource.data.get('restaurantId', '')
+          && request.resource.data.get('email', '')
+               == resource.data.get('email', '')
+          && adminStaffUpdateKeys()
+        )
+        || (
+          isAdmin()
+          && resource.data.get('role', '') == 'Admin'
+          && resource.data.get('restaurantId', '')
+               == userDoc().get('restaurantId', '')
+          && request.resource.data.get('role', '') == 'Admin'
+          && request.resource.data.get('restaurantId', '')
+               == resource.data.get('restaurantId', '')
+          && request.resource.data.get('email', '')
+               == resource.data.get('email', '')
+          && adminPermissionOnlyKeys()
+        )
+        || (
+          isSuperAdmin()
+          && resource.data.get('role', '') == 'Admin'
+          && request.resource.data.get('role', '') == 'Admin'
+          && request.resource.data.get('restaurantId', '')
+               == resource.data.get('restaurantId', '')
+          && request.resource.data.get('email', '')
+               == resource.data.get('email', '')
+          && adminStaffUpdateKeys()
+        );
+
+      allow delete: if false;
+    }
+
+    match /restaurants/{restaurantId} {
+      allow read: if isSuperAdmin() || belongsToRestaurant(restaurantId);
+      allow create: if isSuperAdmin();
+      allow update: if isSuperAdmin()
+        || (isAdmin() && belongsToRestaurant(restaurantId))
+        || (
+          belongsToRestaurant(restaurantId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'updatedAt'])
+          && request.resource.data.status == 'expired'
+        );
+      allow delete: if false;
+
+      match /tables/{docId} {
+        allow read, write: if belongsToRestaurant(restaurantId);
+      }
+
+      match /menus/{menuId} {
+        allow read: if belongsToRestaurant(restaurantId);
+        allow write: if isAdmin() && belongsToRestaurant(restaurantId);
+
+        match /items/{itemId} {
+          allow read, write: if belongsToRestaurant(restaurantId);
+        }
+      }
+
+      match /transactions/{docId} {
+        allow read, create: if belongsToRestaurant(restaurantId);
+        allow update, delete: if isAdmin() && belongsToRestaurant(restaurantId);
+      }
+
+      match /bill_counters/{docId} {
+        allow read, write: if belongsToRestaurant(restaurantId);
+      }
+
+      match /daily_stats/{docId} {
+        allow read, write: if belongsToRestaurant(restaurantId);
+      }
+
+      match /stats/{docId} {
+        allow read, write: if belongsToRestaurant(restaurantId);
+      }
+
+      match /activity_logs/{docId} {
+        allow create: if belongsToRestaurant(restaurantId);
+        allow read: if isAdmin() && belongsToRestaurant(restaurantId);
+        allow update, delete: if false;
+      }
+
+      match /expenses/{docId} {
+        allow read, write: if isAdmin() && belongsToRestaurant(restaurantId);
+      }
+
+      match /bill_customer_contacts/{docId} {
+        allow read, write: if isAdmin() && belongsToRestaurant(restaurantId);
+      }
+
+      match /settings/{docId} {
+        allow read, write: if isAdmin() && belongsToRestaurant(restaurantId);
+      }
+
+      // Quantity inventory for Inventory Reports (does not affect menu inStock).
+      match /inventory_items/{docId} {
+        allow read, write: if isAdmin() && belongsToRestaurant(restaurantId);
+      }
+
+      match /inventory_movements/{docId} {
+        allow read, write: if isAdmin() && belongsToRestaurant(restaurantId);
+      }
+    }
+
+    match /{path=**}/items/{itemId} {
+      allow read, update: if isRestaurantMember()
+        && resource.data.get('restaurantId', '')
+             == userDoc().get('restaurantId', '');
+    }
+
+    match /tables/{docId} {
+      allow read, write: if isRestaurantMember();
+    }
+
+    match /menus/{menuId} {
+      allow read: if isRestaurantMember();
+      allow write: if isAdmin();
+
+      match /items/{itemId} {
+        allow read, write: if isRestaurantMember();
+      }
+    }
+
+    match /transactions/{docId} {
+      allow read, create: if isRestaurantMember();
+      allow update, delete: if isAdmin();
+    }
+
+    match /bill_counters/{docId} {
+      allow read, write: if isRestaurantMember();
+    }
+
+    match /daily_stats/{docId} {
+      allow read, write: if isRestaurantMember();
+    }
+
+    match /stats/{docId} {
+      allow read, write: if isRestaurantMember();
+    }
+
+    match /activity_logs/{docId} {
+      allow create: if isRestaurantMember();
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    match /expenses/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /bill_customer_contacts/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /settings/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Legacy root inventory collections (if useLegacyCollections).
+    match /inventory_items/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /inventory_movements/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

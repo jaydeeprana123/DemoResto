@@ -34,11 +34,13 @@ import 'package:smartKitchen/features/kitchen/services/kitchen_background_alert_
 import 'package:smartKitchen/features/transactions/services/reverse_billing_service.dart';
 import 'package:smartKitchen/features/transactions/repositories/transactions_repository.dart';
 import 'package:smartKitchen/features/settings/utils/mark_as_delivered_permission.dart';
+import 'package:smartKitchen/features/settings/utils/staff_order_edit_permission.dart';
 import 'package:smartKitchen/features/tables/repositories/table_item_served.dart';
 import 'package:smartKitchen/features/tables/services/serve_notification_service.dart';
 import 'package:smartKitchen/features/tables/utils/table_serve_change_utils.dart';
 import 'package:smartKitchen/features/tables/repositories/tables_repository.dart';
 import 'package:smartKitchen/features/tables/services/shared_tables_snapshot_service.dart';
+import 'package:smartKitchen/features/tables/widgets/order_completion_notification_dialog.dart';
 import 'package:smartKitchen/features/tables/widgets/order_item_row.dart';
 import 'package:smartKitchen/features/zomato/widgets/zomato_order_card_body.dart';
 import 'package:smartKitchen/features/zomato/services/zomato_order_serve_service.dart';
@@ -115,6 +117,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   bool _delayedBlinkHighlight = false;
   Timer? _delayedBlinkTimer;
   AppLifecycleState _appLifecycleState = AppLifecycleState.resumed;
+
+  /// Tables seen on a prior snapshot — used to skip first-hydrate completion alerts.
+  final Set<String> _orderCompletionKnownTables = {};
+  final Map<String, int> _orderCompletionNotifiedAtMs = {};
+  final Map<String, String> _orderCompletionNotifiedBy = {};
 
   bool _isOrderDelayed(DateTime time) =>
       DateTime.now().difference(time).inMinutes > _delayThresholdMinutes;
@@ -1502,11 +1509,67 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     return true;
   }
 
+  int? _timestampToMillis(dynamic value) {
+    if (value is Timestamp) return value.millisecondsSinceEpoch;
+    if (value is DateTime) return value.millisecondsSinceEpoch;
+    if (value is int) return value;
+    return null;
+  }
+
+  /// Same admin alert as the Dashboard, shown only while this kitchen tab is open.
+  void _handleOrderCompletionNotifications({
+    required Map<String, int> updatedNotifiedAtMs,
+    required Map<String, String> updatedNotifiedBy,
+  }) {
+    if (!StaffOrderEditPermission.isAdmin || !widget.isTabActive || !mounted) {
+      return;
+    }
+
+    String? latestTable;
+    var latestMs = -1;
+    String latestStaff = 'Staff';
+
+    for (final entry in updatedNotifiedAtMs.entries) {
+      final tableName = entry.key;
+      // Skip first hydrate for unknown tables (same idea as Dashboard).
+      if (!_orderCompletionKnownTables.contains(tableName)) continue;
+
+      final prevMs = _orderCompletionNotifiedAtMs[tableName];
+      final nextMs = entry.value;
+      if (prevMs != null && prevMs == nextMs) continue;
+
+      if (nextMs >= latestMs) {
+        latestMs = nextMs;
+        latestTable = tableName;
+        final name = updatedNotifiedBy[tableName]?.trim();
+        latestStaff = (name != null && name.isNotEmpty) ? name : 'Staff';
+      }
+    }
+
+    if (latestTable == null) return;
+
+    final tableName = latestTable;
+    final staffName = latestStaff;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.isTabActive) return;
+      unawaited(
+        OrderCompletionNotificationDialog.show(
+          context,
+          tableName: tableName,
+          staffName: staffName,
+        ),
+      );
+    });
+  }
+
   void _handleTablesSnapshot(QuerySnapshot<Map<String, dynamic>> snapshot) {
     if (!mounted) return;
 
     if (snapshot.docs.isEmpty) {
       _wasKitchenEmpty = true;
+      _orderCompletionKnownTables.clear();
+      _orderCompletionNotifiedAtMs.clear();
+      _orderCompletionNotifiedBy.clear();
       if (previousKeys.isNotEmpty || _previousSignatures.isNotEmpty) {
         previousKeys = {};
         _previousSignatures = {};
@@ -1532,9 +1595,21 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     }
 
     final updatedGroups = <TableGroup>[];
+    final updatedOrderCompletionNotifiedAtMs = <String, int>{};
+    final updatedOrderCompletionNotifiedBy = <String, String>{};
+    final snapshotTableNames = <String>{};
     for (var doc in snapshot.docs) {
       final data = doc.data();
       final tableName = (data['name'] ?? 'Unknown Table') as String;
+      snapshotTableNames.add(tableName);
+      final notifiedAtMs = _timestampToMillis(data['orderCompletionNotifiedAt']);
+      if (notifiedAtMs != null) {
+        updatedOrderCompletionNotifiedAtMs[tableName] = notifiedAtMs;
+        final by = data['orderCompletionNotifiedBy']?.toString().trim() ?? '';
+        if (by.isNotEmpty) {
+          updatedOrderCompletionNotifiedBy[tableName] = by;
+        }
+      }
       final isPaid = data['isPaid'] == true;
       final isPriority = data['kitchenPriority'] == true;
       final lastTransactionId = data['lastTransactionId']?.toString();
@@ -1560,6 +1635,20 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         ),
       );
     }
+
+    _handleOrderCompletionNotifications(
+      updatedNotifiedAtMs: updatedOrderCompletionNotifiedAtMs,
+      updatedNotifiedBy: updatedOrderCompletionNotifiedBy,
+    );
+    _orderCompletionKnownTables
+      ..clear()
+      ..addAll(snapshotTableNames);
+    _orderCompletionNotifiedAtMs
+      ..clear()
+      ..addAll(updatedOrderCompletionNotifiedAtMs);
+    _orderCompletionNotifiedBy
+      ..clear()
+      ..addAll(updatedOrderCompletionNotifiedBy);
 
     updatedGroups.sort(_compareKitchenOrdersByPriorityAndTime);
     _lastUpdatedGroups = updatedGroups;

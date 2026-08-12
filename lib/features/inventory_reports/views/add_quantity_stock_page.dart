@@ -166,23 +166,28 @@ class _AddQuantityStockPageState extends State<AddQuantityStockPage> {
       );
 
       if (!mounted) return;
-      Get.snackbar(
-        'Stock added',
-        '${item.name}: +${formatInventoryQuantity(qty)} '
-        '(now ${formatInventoryQuantity(newStock)} ${_unitController.text.trim()})',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFF2E7D32),
-        colorText: Colors.white,
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '${item.name}: +${formatInventoryQuantity(qty)} '
+            '(now ${formatInventoryQuantity(newStock)} ${_unitController.text.trim()})',
+          ),
+          backgroundColor: const Color(0xFF2E7D32),
+        ),
       );
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
-      Get.snackbar(
-        'Could not add stock',
-        e.toString(),
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.shade700,
-        colorText: Colors.white,
+      final message = e.toString().contains('PERMISSION_DENIED')
+          ? 'Permission denied. Deploy Firestore rules for inventory_items '
+              'and inventory_movements, then try again.'
+          : e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red.shade700,
+        ),
       );
     } finally {
       if (mounted) setState(() => _saving = false);

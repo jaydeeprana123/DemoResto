@@ -7,7 +7,7 @@ import 'package:smartKitchen/core/utils/table_name_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// Popup shown on the Admin Dashboard when staff notifies order completion.
+/// Popup shown to Admin (Dashboard or Kitchen) when staff notifies order completion.
 class OrderCompletionNotificationDialog {
   OrderCompletionNotificationDialog._();
 
