@@ -18,18 +18,30 @@ class KitchenBackgroundAlertService {
     }
   }
 
-  static Future<void> playAlert(KitchenBellSound sound) async {
+  static Future<void> playAlert(
+    KitchenBellSound sound, {
+    String? title,
+    String? body,
+  }) async {
     await KitchenWebBellService.ensureInitialized();
 
     if (html.document.hidden == true) {
-      await KitchenWebBellService.showAlertNotification(sound);
+      await KitchenWebBellService.showAlertNotification(
+        sound,
+        title: title,
+        body: body,
+      );
       await KitchenWebBellService.play(sound);
       return;
     }
 
     final played = await KitchenWebBellService.play(sound);
     if (!played) {
-      await KitchenWebBellService.showAlertNotification(sound);
+      await KitchenWebBellService.showAlertNotification(
+        sound,
+        title: title,
+        body: body,
+      );
     }
   }
 }

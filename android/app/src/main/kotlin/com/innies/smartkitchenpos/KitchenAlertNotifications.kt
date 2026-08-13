@@ -12,6 +12,7 @@ object KitchenAlertNotifications {
     private const val CHANNEL_NEW = "kitchen_new_order"
     private const val CHANNEL_UPDATE = "kitchen_update_order"
     private const val CHANNEL_DELETE = "kitchen_delete_order"
+    private const val CHANNEL_COMPLETE = "order_completion_alert"
 
     private var nextNotificationId = 2000
 
@@ -27,6 +28,9 @@ object KitchenAlertNotifications {
         manager.createNotificationChannel(
             buildChannel(context, CHANNEL_DELETE, "Kitchen order removed"),
         )
+        manager.createNotificationChannel(
+            buildChannel(context, CHANNEL_COMPLETE, "Order completion alerts"),
+        )
     }
 
     fun showAlert(context: Context, soundKey: String, title: String, body: String) {
@@ -35,11 +39,13 @@ object KitchenAlertNotifications {
         val channelId = when (soundKey) {
             "update_bell" -> CHANNEL_UPDATE
             "delete_bell" -> CHANNEL_DELETE
+            "complete_bell" -> CHANNEL_COMPLETE
             else -> CHANNEL_NEW
         }
         val rawSound = when (soundKey) {
             "update_bell" -> R.raw.update_bell
             "delete_bell" -> R.raw.delete_bell
+            "complete_bell" -> R.raw.complete_bell
             else -> R.raw.phone_bell
         }
 
@@ -72,6 +78,7 @@ object KitchenAlertNotifications {
         val rawSound = when (channelId) {
             CHANNEL_UPDATE -> R.raw.update_bell
             CHANNEL_DELETE -> R.raw.delete_bell
+            CHANNEL_COMPLETE -> R.raw.complete_bell
             else -> R.raw.phone_bell
         }
 

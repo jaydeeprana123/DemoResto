@@ -34,12 +34,16 @@ class KitchenWebBellService {
     }
   }
 
-  static Future<void> showAlertNotification(KitchenBellSound sound) async {
+  static Future<void> showAlertNotification(
+    KitchenBellSound sound, {
+    String? title,
+    String? body,
+  }) async {
     await ensureInitialized();
     final config = _notificationCopy(sound);
     js.context.callMethod('kitchenBellsNotify', [
-      config.$1,
-      config.$2,
+      title ?? config.$1,
+      body ?? config.$2,
       _soundKey(sound),
     ]);
   }
@@ -54,6 +58,8 @@ class KitchenWebBellService {
         return 'delete_bell';
       case KitchenBellSound.serve:
         return 'serve_bell';
+      case KitchenBellSound.orderCompletion:
+        return 'complete_bell';
     }
   }
 
@@ -67,6 +73,11 @@ class KitchenWebBellService {
         return ('Kitchen order removed', 'An order was removed from the kitchen');
       case KitchenBellSound.serve:
         return ('Items served', 'Kitchen items were marked as served');
+      case KitchenBellSound.orderCompletion:
+        return (
+          'Order completed',
+          'Staff notified that an order is ready for billing',
+        );
     }
   }
 }

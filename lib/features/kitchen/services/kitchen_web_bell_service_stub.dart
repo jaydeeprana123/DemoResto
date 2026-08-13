@@ -10,5 +10,9 @@ class KitchenWebBellService {
 
   static Future<bool> play(KitchenBellSound sound) async => false;
 
-  static Future<void> showAlertNotification(KitchenBellSound sound) async {}
+  static Future<void> showAlertNotification(
+    KitchenBellSound sound, {
+    String? title,
+    String? body,
+  }) async {}
 }

@@ -1,1 +1,1 @@
-enum KitchenBellSound { newOrder, update, delete, serve }
+enum KitchenBellSound { newOrder, update, delete, serve, orderCompletion }

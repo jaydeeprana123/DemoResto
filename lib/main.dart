@@ -11,6 +11,7 @@ import 'package:smartKitchen/features/kitchen/services/kitchen_background_alert_
 import 'package:smartKitchen/features/kitchen/services/kitchen_settings.dart';
 import 'package:smartKitchen/features/settings/services/print_settings.dart';
 import 'package:smartKitchen/features/shell/services/app_tab_settings.dart';
+import 'package:smartKitchen/features/tables/services/dashboard_settings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -26,9 +27,11 @@ void main() async {
   );
   await configureFirestoreForPlatform();
   await KitchenSettings.load();
+  await DashboardSettings.load();
   await KitchenBackgroundAlertService.initialize();
   await KitchenBackgroundAlertService.syncMonitoringEnabled(
-    KitchenSettings.backgroundOrderRingtoneEnabled.value,
+    KitchenSettings.backgroundOrderRingtoneEnabled.value ||
+        DashboardSettings.orderCompletionNotificationEnabled.value,
   );
   await AppTabSettings.load();
   await PrintSettings.load();

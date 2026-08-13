@@ -71,6 +71,9 @@ class SettingsController extends GetxController {
   Future<void> setOrderCompletionNotificationEnabled(bool value) async {
     await DashboardSettings.setOrderCompletionNotificationEnabled(value);
     orderCompletionNotificationEnabled.value = value;
+    await KitchenBackgroundAlertService.syncMonitoringEnabled(
+      KitchenSettings.backgroundOrderRingtoneEnabled.value || value,
+    );
   }
 
   Future<void> loadKitchenSettings() async {
@@ -114,7 +117,9 @@ class SettingsController extends GetxController {
   Future<void> setKitchenBackgroundOrderRingtoneEnabled(bool value) async {
     await KitchenSettings.setBackgroundOrderRingtoneEnabled(value);
     kitchenBackgroundOrderRingtoneEnabled.value = value;
-    await KitchenBackgroundAlertService.syncMonitoringEnabled(value);
+    await KitchenBackgroundAlertService.syncMonitoringEnabled(
+      value || DashboardSettings.orderCompletionNotificationEnabled.value,
+    );
   }
 
   Future<void> loadPrintSettings() async {

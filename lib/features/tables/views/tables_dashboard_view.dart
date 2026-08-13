@@ -20,6 +20,7 @@ import 'package:smartKitchen/features/settings/utils/mark_as_delivered_permissio
 import 'package:smartKitchen/features/tables/repositories/table_item_served.dart';
 import 'package:smartKitchen/features/tables/repositories/tables_repository.dart';
 import 'package:smartKitchen/features/tables/services/dashboard_settings.dart';
+import 'package:smartKitchen/features/tables/services/order_completion_alert_service.dart';
 import 'package:smartKitchen/features/tables/services/serve_notification_service.dart';
 import 'package:smartKitchen/features/tables/services/shared_tables_snapshot_service.dart';
 import 'package:smartKitchen/features/tables/utils/table_serve_change_utils.dart';
@@ -455,7 +456,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
     required Map<String, String> updatedNotifiedBy,
     required Map<String, String> updatedDocIds,
   }) {
-    if (!_isAdmin || !widget.isTabActive || !mounted) return;
+    if (!_isAdmin || !mounted) return;
 
     String? latestTable;
     var latestMs = -1;
@@ -492,8 +493,19 @@ class _TableDashboardViewState extends State<TableDashboardView>
 
     final tableName = latestTable;
     final staffName = latestStaff;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    final eventKey = '$tableName|$latestMs';
+    final dialogEligible = widget.isTabActive;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      if (!Get.isRegistered<OrderCompletionAlertService>()) return;
+      final showDialog = await Get.find<OrderCompletionAlertService>()
+          .handleNotify(
+            eventKey: eventKey,
+            tableName: tableName,
+            staffName: staffName,
+            dialogEligible: dialogEligible,
+          );
+      if (!showDialog || !mounted || !widget.isTabActive) return;
       unawaited(
         OrderCompletionNotificationDialog.show(
           context,

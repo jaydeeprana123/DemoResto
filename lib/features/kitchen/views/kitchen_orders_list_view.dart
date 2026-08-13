@@ -39,6 +39,8 @@ import 'package:smartKitchen/features/tables/repositories/table_item_served.dart
 import 'package:smartKitchen/features/tables/services/serve_notification_service.dart';
 import 'package:smartKitchen/features/tables/utils/table_serve_change_utils.dart';
 import 'package:smartKitchen/features/tables/repositories/tables_repository.dart';
+import 'package:smartKitchen/features/tables/services/dashboard_settings.dart';
+import 'package:smartKitchen/features/tables/services/order_completion_alert_service.dart';
 import 'package:smartKitchen/features/tables/services/shared_tables_snapshot_service.dart';
 import 'package:smartKitchen/features/tables/widgets/order_completion_notification_dialog.dart';
 import 'package:smartKitchen/features/tables/widgets/order_item_row.dart';
@@ -544,7 +546,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     _configureAudioPlayers();
     unawaited(
       KitchenBackgroundAlertService.syncMonitoringEnabled(
-        KitchenSettings.backgroundOrderRingtoneEnabled.value,
+        KitchenSettings.backgroundOrderRingtoneEnabled.value ||
+            DashboardSettings.orderCompletionNotificationEnabled.value,
       ),
     );
     if (!_canRingBell) {
@@ -1517,11 +1520,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   }
 
   /// Same admin alert as the Dashboard, shown only while this kitchen tab is open.
+  /// When backgrounded / locked, plays the completion sound via the shared alert service.
   void _handleOrderCompletionNotifications({
     required Map<String, int> updatedNotifiedAtMs,
     required Map<String, String> updatedNotifiedBy,
   }) {
-    if (!StaffOrderEditPermission.isAdmin || !widget.isTabActive || !mounted) {
+    if (!StaffOrderEditPermission.isAdmin || !mounted) {
       return;
     }
 
@@ -1550,8 +1554,19 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
     final tableName = latestTable;
     final staffName = latestStaff;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !widget.isTabActive) return;
+    final eventKey = '$tableName|$latestMs';
+    final dialogEligible = widget.isTabActive;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      if (!Get.isRegistered<OrderCompletionAlertService>()) return;
+      final showDialog = await Get.find<OrderCompletionAlertService>()
+          .handleNotify(
+            eventKey: eventKey,
+            tableName: tableName,
+            staffName: staffName,
+            dialogEligible: dialogEligible,
+          );
+      if (!showDialog || !mounted || !widget.isTabActive) return;
       unawaited(
         OrderCompletionNotificationDialog.show(
           context,

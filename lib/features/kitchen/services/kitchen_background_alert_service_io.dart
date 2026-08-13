@@ -59,15 +59,19 @@ class KitchenBackgroundAlertService {
     }
   }
 
-  static Future<void> playAlert(KitchenBellSound sound) async {
+  static Future<void> playAlert(
+    KitchenBellSound sound, {
+    String? title,
+    String? body,
+  }) async {
     if (!_isAndroid) return;
     await initialize();
 
     final config = _alertConfig(sound);
     await _channel.invokeMethod<void>('showAlert', {
       'soundKey': config.rawSound,
-      'title': config.title,
-      'body': config.body,
+      'title': title ?? config.title,
+      'body': body ?? config.body,
     });
   }
 
@@ -132,6 +136,12 @@ class KitchenBackgroundAlertService {
           rawSound: 'serve_bell',
           title: 'Items served',
           body: 'Kitchen items were marked as served',
+        );
+      case KitchenBellSound.orderCompletion:
+        return const _AlertConfig(
+          rawSound: 'complete_bell',
+          title: 'Order completed',
+          body: 'Staff notified that an order is ready for billing',
         );
     }
   }

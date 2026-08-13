@@ -417,7 +417,7 @@
       },
 
       preload: function () {
-        ['phone_bell', 'update_bell', 'serve_bell', 'delete_bell'].forEach((name) => {
+        ['phone_bell', 'update_bell', 'serve_bell', 'delete_bell', 'complete_bell'].forEach((name) => {
           const audio = new Audio(this.soundUrl(name));
           audio.preload = 'auto';
           audio.playsInline = true;
