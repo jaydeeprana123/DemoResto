@@ -1325,6 +1325,15 @@ class _TableDashboardViewState extends State<TableDashboardView>
     return tables[newOrderName]!;
   }
 
+  /// Current rounds for [tableName] from the live listener, not the list
+  /// captured when MenuPage opened (which can restore kitchen-deleted items).
+  List<List<Map<String, dynamic>>> _liveTableGroups(
+    String tableName,
+    List<List<Map<String, dynamic>>> captured,
+  ) {
+    return tables[tableName] ?? captured;
+  }
+
   Future<({List<List<Map<String, dynamic>>> groups, String docId})>
   _prepareGroupsForConfirm(
     String originalName,
@@ -1365,18 +1374,22 @@ class _TableDashboardViewState extends State<TableDashboardView>
     bool editingLastGroup = false,
     String? transactionId,
   }) async {
-    var activeGroups = groups;
-    var activeDocId = docId;
+    final capturedGroups = groups;
+    var activeGroups = _liveTableGroups(originalName, capturedGroups);
+    var activeDocId = tableDocIds[originalName] ?? docId;
 
     if (tName != originalName) {
       final prepared = await _prepareGroupsForConfirm(
         originalName,
         tName,
-        groups,
-        docId: docId,
+        activeGroups,
+        docId: activeDocId,
       );
       activeGroups = prepared.groups;
       activeDocId = prepared.docId;
+    } else {
+      activeGroups = _liveTableGroups(tName, activeGroups);
+      activeDocId = tableDocIds[tName] ?? activeDocId;
     }
 
     if (fromFinalBilling) {
@@ -1407,15 +1420,26 @@ class _TableDashboardViewState extends State<TableDashboardView>
         return;
       }
 
-      final existingAddedAt = activeGroups.isNotEmpty
-          ? activeGroups.last.first['addedAt']
-          : null;
-      setState(
-        () => activeGroups[activeGroups.length - 1] = _stampGroupAddedAt(
-          items,
-          preserveAddedAt: existingAddedAt,
-        ),
-      );
+      final editedIndex =
+          capturedGroups.isEmpty ? 0 : capturedGroups.length - 1;
+      if (activeGroups.isEmpty || editedIndex >= activeGroups.length) {
+        setState(() {
+          activeGroups.add(_stampGroupAddedAt(items));
+          tables[tName] = activeGroups;
+          _syncFirestoreGroupIndices(tName, activeGroups.length);
+        });
+      } else {
+        final editedGroup = activeGroups[editedIndex];
+        final existingAddedAt =
+            editedGroup.isNotEmpty ? editedGroup.first['addedAt'] : null;
+        setState(() {
+          activeGroups[editedIndex] = _stampGroupAddedAt(
+            items,
+            preserveAddedAt: existingAddedAt,
+          );
+          tables[tName] = activeGroups;
+        });
+      }
       await _updateTableItemsInFirestore(
         tName,
         activeGroups,
@@ -1432,6 +1456,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
         _syncFirestoreGroupIndices(tName, 0);
       } else {
         activeGroups.add(_stampGroupAddedAt(items));
+        tables[tName] = activeGroups;
         _syncFirestoreGroupIndices(tName, activeGroups.length);
       }
     });
