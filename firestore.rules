@@ -1,0 +1,385 @@
+rules_version = '2';
+
+// DemoResto / Smart Kitchen — production Firestore rules
+// Deploy: firebase deploy --only firestore:rules
+//
+// Roles (users/{uid}.role): SuperAdmin | Admin | Staff
+// Primary data: restaurants/{restaurantId}/{collection}/…
+//
+// Cloud Functions (Admin SDK) bypass these rules.
+//
+// AFTER DEPLOY checklist:
+// 1. Rules Playground: Staff / Admin / SuperAdmin read+write paths
+// 2. Login as each role on a real device
+// 3. When ImageKit uploads move to uploadZomatoScreenshot CF, restrict
+//    settings/imagekit reads to Admin only
+// 4. Remove legacy /tables read once every restaurant uses nested data
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function userExists() {
+      return signedIn() && exists(userPath());
+    }
+
+    function userData() {
+      return get(userPath()).data;
+    }
+
+    function isActiveUser() {
+      return userExists() && userData().get('active', true) != false;
+    }
+
+    function role() {
+      return userData().role;
+    }
+
+    function restaurantId() {
+      return userData().restaurantId;
+    }
+
+    function isSuperAdmin() {
+      return isActiveUser() && role() == 'SuperAdmin';
+    }
+
+    function isAdmin() {
+      return isActiveUser() && role() == 'Admin';
+    }
+
+    function isStaff() {
+      return isActiveUser() && role() == 'Staff';
+    }
+
+    function isRestaurantMember() {
+      return isAdmin() || isStaff();
+    }
+
+    function belongsToRestaurant(rid) {
+      return isRestaurantMember()
+        && restaurantId() == rid
+        && rid is string
+        && rid.size() > 0;
+    }
+
+    function isAdminOf(rid) {
+      return isAdmin() && restaurantId() == rid;
+    }
+
+    function onlyChanging(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    function notChanging(keys) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
+    }
+
+    function selfSafeKeys() {
+      return [
+        'activeSessionId',
+        'activeSessionUpdatedAt',
+        'preferences',
+        'lastOrders',
+        'favoriteItems',
+        'updatedAt',
+        'name'
+      ];
+    }
+
+    function privilegedUserKeys() {
+      return [
+        'role',
+        'restaurantId',
+        'active',
+        'allowMarkAsDelivered',
+        'email',
+        'deactivatedAt',
+        'deactivatedBy',
+        'deactivatedByRole'
+      ];
+    }
+
+    function superAdminOnlyRestaurantKeys() {
+      return [
+        'status',
+        'subscriptionStart',
+        'subscriptionEnd',
+        'adminEmail',
+        'createdAt'
+      ];
+    }
+
+    function isValidStaffCreate() {
+      return request.resource.data.role == 'Staff'
+        && request.resource.data.restaurantId == restaurantId()
+        && request.resource.data.get('active', true) == true
+        && request.resource.data.keys().hasAll(['email', 'role', 'restaurantId']);
+    }
+
+    function isValidAdminCreate() {
+      return request.resource.data.role == 'Admin'
+        && request.resource.data.restaurantId is string
+        && request.resource.data.restaurantId.size() > 0
+        && request.resource.data.get('active', true) == true
+        && request.resource.data.keys().hasAll(['email', 'role', 'restaurantId']);
+    }
+
+    // Matches AuthConstants.superAdminEmail in the Flutter app.
+    function isValidSuperAdminBootstrap() {
+      return request.resource.data.role == 'SuperAdmin'
+        && request.auth.token.email != null
+        && request.auth.token.email.lower() == 'jaideep1210@gmail.com'
+        && !('restaurantId' in request.resource.data);
+    }
+
+    function isSessionOnlyCreate() {
+      return request.resource.data.keys()
+        .hasOnly(['activeSessionId', 'activeSessionUpdatedAt']);
+    }
+
+    function adminManagingSameRestaurantUser() {
+      return isAdmin()
+        && resource.data.restaurantId == restaurantId()
+        && (resource.data.role == 'Staff' || resource.data.role == 'Admin');
+    }
+
+    // ── users/{uid} ───────────────────────────────────────────────────────
+
+    match /users/{uid} {
+      // Own profile readable even when active == false (blocked screen).
+      allow get: if signedIn() && (
+        request.auth.uid == uid
+        || isSuperAdmin()
+        || (
+          isAdmin()
+          && resource.data.restaurantId == restaurantId()
+          && (resource.data.role == 'Staff' || resource.data.role == 'Admin')
+        )
+      );
+
+      allow list: if isSuperAdmin()
+        || (
+          isAdmin()
+          && resource.data.restaurantId == restaurantId()
+          && (resource.data.role == 'Staff' || resource.data.role == 'Admin')
+        );
+
+      // Create profile:
+      // 1) Session claim before SuperAdmin bootstrap (login order in app)
+      // 2) SuperAdmin bootstrap for configured email
+      // 3) Admin creates Staff
+      // 4) SuperAdmin creates restaurant Admin
+      allow create: if signedIn() && (
+        (request.auth.uid == uid && isSessionOnlyCreate())
+        || (request.auth.uid == uid && isValidSuperAdminBootstrap())
+        || (isAdmin() && isValidStaffCreate())
+        || (isSuperAdmin() && isValidAdminCreate())
+      );
+
+      // Own safe fields (device session, AI prefs, display name).
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && notChanging(privilegedUserKeys())
+        && onlyChanging(selfSafeKeys());
+
+      // Own doc → complete SuperAdmin bootstrap after session-only create.
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && isValidSuperAdminBootstrap()
+        && !('role' in resource.data);
+
+      // Admin soft-deactivates Staff / edits name.
+      allow update: if adminManagingSameRestaurantUser()
+        && resource.data.role == 'Staff'
+        && notChanging(['role', 'restaurantId', 'email'])
+        && onlyChanging([
+          'active',
+          'deactivatedAt',
+          'deactivatedBy',
+          'allowMarkAsDelivered',
+          'updatedAt',
+          'name'
+        ]);
+
+      // Admin toggles mark-as-delivered on Admin or Staff.
+      allow update: if adminManagingSameRestaurantUser()
+        && notChanging(['role', 'restaurantId', 'email', 'active'])
+        && onlyChanging(['allowMarkAsDelivered', 'updatedAt']);
+
+      // SuperAdmin soft-deactivates restaurant Admins.
+      allow update: if isSuperAdmin()
+        && resource.data.role == 'Admin'
+        && notChanging(['role', 'restaurantId', 'email'])
+        && onlyChanging([
+          'active',
+          'deactivatedAt',
+          'deactivatedByRole',
+          'updatedAt'
+        ]);
+
+      // Hard delete only via Cloud Function (Admin SDK).
+      allow delete: if false;
+    }
+
+    // ── restaurants/{restaurantId} ────────────────────────────────────────
+
+    match /restaurants/{restaurantId} {
+      allow read: if isSuperAdmin() || belongsToRestaurant(restaurantId);
+
+      allow create: if isSuperAdmin();
+
+      allow update: if isSuperAdmin();
+
+      // Admin may change tax, staff limits, ImageKit, contact fields — not subscription.
+      allow update: if isAdminOf(restaurantId)
+        && notChanging(superAdminOnlyRestaurantKeys());
+
+      allow delete: if false;
+
+      match /{collection}/{docId} {
+
+        // ImageKit — members still read (client-side upload today).
+        allow read: if collection == 'settings'
+          && docId == 'imagekit'
+          && (isSuperAdmin() || belongsToRestaurant(restaurantId));
+
+        allow write: if collection == 'settings'
+          && docId == 'imagekit'
+          && (isSuperAdmin() || isAdminOf(restaurantId));
+
+        // Other settings docs — Admin only.
+        allow read, write: if collection == 'settings'
+          && docId != 'imagekit'
+          && (isSuperAdmin() || isAdminOf(restaurantId));
+
+        // Expenses — Admin only.
+        allow read, write: if collection == 'expenses'
+          && (isSuperAdmin() || isAdminOf(restaurantId));
+
+        // Day-to-day ops (kitchen, billing, contacts, logs).
+        allow read: if collection in [
+            'tables',
+            'transactions',
+            'bill_counters',
+            'daily_stats',
+            'stats',
+            'activity_logs',
+            'bill_customer_contacts'
+          ]
+          && (isSuperAdmin() || belongsToRestaurant(restaurantId));
+
+        allow create, update: if collection in [
+            'tables',
+            'transactions',
+            'bill_counters',
+            'daily_stats',
+            'stats',
+            'activity_logs',
+            'bill_customer_contacts'
+          ]
+          && belongsToRestaurant(restaurantId);
+
+        allow delete: if collection == 'transactions'
+          && isAdminOf(restaurantId);
+
+        allow delete: if collection in [
+            'tables',
+            'bill_counters',
+            'daily_stats',
+            'stats',
+            'activity_logs',
+            'bill_customer_contacts'
+          ]
+          && belongsToRestaurant(restaurantId);
+
+        // Menus: Admin creates/deletes categories; members can update (_meta bump).
+        allow read: if collection == 'menus'
+          && (isSuperAdmin() || belongsToRestaurant(restaurantId));
+
+        allow create, delete: if collection == 'menus'
+          && isAdminOf(restaurantId);
+
+        allow update: if collection == 'menus'
+          && belongsToRestaurant(restaurantId);
+
+        // restaurants/{id}/menus/{categoryId}/items/{itemId}
+        // (+ collectionGroup('items') auto-restock)
+        match /{subcollection}/{subDocId} {
+          allow read: if collection == 'menus'
+            && subcollection == 'items'
+            && (isSuperAdmin() || belongsToRestaurant(restaurantId));
+
+          allow create, delete: if collection == 'menus'
+            && subcollection == 'items'
+            && isAdminOf(restaurantId);
+
+          allow update: if collection == 'menus'
+            && subcollection == 'items'
+            && belongsToRestaurant(restaurantId);
+        }
+      }
+    }
+
+    // ── Legacy root paths ─────────────────────────────────────────────────
+    // App always probes /tables on login (legacy detection). Allow read so
+    // login does not crash; deny all writes. Remove after full migration.
+
+    match /tables/{docId} {
+      allow read: if isRestaurantMember() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /menus/{docId} {
+      allow read, write: if false;
+      match /items/{itemId} {
+        allow read, write: if false;
+      }
+    }
+
+    match /transactions/{docId} {
+      allow read, write: if false;
+    }
+
+    match /expenses/{docId} {
+      allow read, write: if false;
+    }
+
+    match /daily_stats/{docId} {
+      allow read, write: if false;
+    }
+
+    match /stats/{docId} {
+      allow read, write: if false;
+    }
+
+    match /bill_counters/{docId} {
+      allow read, write: if false;
+    }
+
+    match /activity_logs/{docId} {
+      allow read, write: if false;
+    }
+
+    match /bill_customer_contacts/{docId} {
+      allow read, write: if false;
+    }
+
+    match /settings/{docId} {
+      allow read, write: if false;
+    }
+
+    // Default deny.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

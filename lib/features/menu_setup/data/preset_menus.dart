@@ -35,6 +35,14 @@ const List<PresetMenu> kPresetMenus = [
     subtitle: 'Arabian Grill full menu',
     categories: _arabianGrillMenu,
   ),
+
+  PresetMenu(
+    id: 'tawaazo',
+    title: 'Tawaazo Restaurant Menu',
+    subtitle: 'Tawaazo Restaurant full menu',
+    categories: _tawaazoMenu,
+  ),
+
 ];
 
 PresetMenu? presetMenuById(String id) {
@@ -883,6 +891,397 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
           {'label': 'L', 'price': 40.0},
         ],
       },
+    ],
+  },
+];
+
+
+const List<Map<String, dynamic>> _tawaazoMenu = [
+  {
+    'category': 'Tandoori',
+    'items': [
+      {'name': 'Chicken Tandoori', 'halfPrice': 240.0, 'fullPrice': 440.0},
+      {'name': 'Double Masala Tandoori', 'halfPrice': 260.0, 'fullPrice': 470.0},
+      {'name': 'Chicken Pathani Tandoori', 'halfPrice': 280.0, 'fullPrice': 500.0},
+      {'name': 'Chicken Schezwan Tandoori', 'halfPrice': 330.0, 'fullPrice': 550.0},
+      {'name': 'Chicken Arabian Tandoori', 'halfPrice': 330.0, 'fullPrice': 550.0},
+      {'name': 'Chicken Zafrani Tandoori', 'halfPrice': 330.0, 'fullPrice': 550.0},
+      {'name': 'Chicken Peri-Peri Tandoori', 'halfPrice': 380.0, 'fullPrice': 600.0},
+      {'name': 'Chicken Malai Tandoori', 'halfPrice': 380.0, 'fullPrice': 600.0},
+      {'name': 'Chicken Sizzling Tandoori', 'halfPrice': 380.0, 'fullPrice': 600.0},
+      {'name': 'Chicken Barra Tandoori', 'price': 650.0},
+      {'name': 'Zaika Tandoori', 'halfPrice': 400.0, 'fullPrice': 700.0},
+    ],
+  },
+
+  {
+    'category': 'Leg',
+    'items': [
+      {'name': 'Chicken Tandoori Leg', 'price': 140.0},
+      {'name': 'Chicken Pathani Leg', 'price': 150.0},
+      {'name': 'Double Masala Leg', 'price': 150.0},
+      {'name': 'Chicken Schezwan Leg', 'price': 170.0},
+      {'name': 'Chicken Arabian Leg', 'price': 170.0},
+      {'name': 'Chicken Winter Leg', 'price': 170.0},
+      {'name': 'Chicken Irani Leg', 'price': 170.0},
+      {'name': 'Chicken Zafrani Leg', 'price': 170.0},
+      {'name': 'Chicken Peri Peri Leg', 'price': 190.0},
+      {'name': 'Chicken Shikari Leg', 'price': 190.0},
+      {'name': 'Chicken Mari Maska Leg', 'price': 190.0},
+      {'name': 'Chicken Shahi Sp. Leg', 'price': 190.0},
+      {'name': 'Tawaazo Sp. Leg', 'price': 200.0},
+    ],
+  },
+
+  {
+    'category': 'Tikka',
+    'items': [
+      {'name': 'Chicken Seek Kebab', 'price': 100.0},
+      {'name': 'Mutton Seek Kebab (BEEF)', 'price': 100.0},
+      {'name': 'Malai Seek Kebab', 'price': 150.0},
+      {'name': 'Chicken Tikka', 'price': 220.0},
+      {'name': 'Pathani Tikka', 'price': 240.0},
+      {'name': 'Pahadi Tikka', 'price': 240.0},
+      {'name': 'Hyderabadi Tikka', 'price': 240.0},
+      {'name': 'Achari Tikka', 'price': 260.0},
+      {'name': 'Cheese Burst Tikka', 'price': 260.0},
+      {'name': 'Malai Tikka', 'price': 260.0},
+      {'name': 'Makhmali Gulabi Tikka', 'price': 260.0},
+      {'name': 'Peri-Peri Tikka', 'price': 260.0},
+      {'name': 'Fire Tikka', 'price': 280.0},
+      {'name': 'Irani Tikka', 'price': 280.0},
+      {'name': 'Sizzler Tikka', 'price': 300.0},
+      {'name': 'Pineapple Tikka', 'price': 350.0},
+      {'name': 'Fish Tikka', 'price': 350.0},
+      {'name': 'Fish Angara Tikka', 'price': 380.0},
+      {'name': 'Lazawab Tikka', 'price': 400.0},
+      {'name': 'Passa Tikka', 'price': 400.0},
+      {'name': 'Mutton Tikka', 'price': 400.0},
+      {
+        'name': 'Chicken Dana',
+        'variants': [
+          {'label': '250 gm', 'price': 100.0},
+          {'label': '500 gm', 'price': 200.0},
+          {'label': '750 gm', 'price': 300.0},
+          {'label': '1 kg', 'price': 400.0},
+        ],
+      },
+    ],
+  },
+
+  {
+    'category': 'Mutton Special',
+    'items': [
+      {'name': 'Mutton Burra (Check Availability)', 'price': 700.0},
+      {'name': 'Sukha Mutton (Check Availability)', 'price': 750.0},
+      {'name': 'Saudi Mutton (Check Availability)', 'price': 750.0},
+      {'name': 'Pathani Mutton (Check Availability)', 'price': 850.0},
+    ],
+  },
+
+  {
+    'category': 'Tawa Mutton',
+    'items': [
+      {'name': 'Bheja Masala', 'price': 270.0},
+      {'name': 'Surti Bheja', 'price': 270.0},
+      {'name': 'Kali Mari Bheja', 'price': 270.0},
+      {'name': 'Mutton Bhuna', 'price': 350.0},
+      {'name': 'Mutton Chap', 'price': 350.0},
+      {'name': 'Gurda & Kaleji', 'price': 380.0},
+      {'name': 'Bombay Chap', 'price': 380.0},
+      {'name': 'Bombay Bhuna', 'price': 380.0},
+      {'name': 'Darbari', 'price': 380.0},
+      {'name': 'Mutton D', 'price': 400.0},
+    ],
+  },
+
+  {
+    'category': 'Tawa Chicken',
+    'items': [
+      {'name': 'Tawa Dum Biryani', 'price': 160.0},
+      {'name': 'Tawa Chicken', 'price': 240.0},
+      {'name': 'Amrin Chicken', 'price': 300.0},
+      {'name': 'Chicken Hongkong', 'price': 350.0},
+      {'name': 'Luckhnawi Chicken', 'price': 350.0},
+      {'name': 'Chicken Tikka Masala (Boneless)', 'price': 280.0},
+      {'name': 'Golden Chicken (Boneless)', 'price': 280.0},
+      {'name': 'Lahori Chicken (Boneless)', 'price': 300.0},
+      {'name': 'Daimond Chicken (Boneless)', 'price': 330.0},
+      {'name': 'Chicken Titanic (Boneless)', 'price': 350.0},
+      {'name': 'Methi Malai Chicken (Boneless)', 'price': 350.0},
+      {'name': 'Chicken Sitara (Boneless)', 'price': 370.0},
+      {'name': 'Chicken Karishma (Boneless)', 'price': 400.0},
+    ],
+  },
+
+  {
+    'category': 'Tawa Sea Food',
+    'items': [
+      {'name': 'Fish Fry', 'price': 240.0},
+      {'name': 'Fish Masala', 'price': 240.0},
+      {'name': 'Boneless Fish', 'price': 270.0},
+      {'name': 'Crackle Fish', 'price': 350.0},
+      {'name': 'Prawns Fry', 'price': 380.0},
+      {'name': 'Prawns Masala', 'price': 380.0},
+      {'name': 'Tandoori Prawns', 'price': 380.0},
+    ],
+  },
+
+  {
+    'category': 'Tawa Khichdi',
+    'items': [
+      {'name': 'Masala Khichdi', 'price': 120.0},
+      {'name': 'Bhuna Khichdi', 'halfPrice': 160.0, 'fullPrice': 250.0},
+      {'name': 'Gurda Khichdi', 'price': 280.0},
+      {'name': 'Prawns Khichdi', 'price': 300.0},
+      {'name': 'Bheja Khichdi', 'price': 300.0},
+    ],
+  },
+
+  {
+    'category': 'Mughlai',
+    'items': [
+      {'name': 'Chicken Masala', 'halfPrice': 170.0, 'fullPrice': 270.0},
+      {'name': 'Chicken Pathani', 'halfPrice': 200.0, 'fullPrice': 300.0},
+      {'name': 'Chicken Kadhai', 'halfPrice': 200.0, 'fullPrice': 300.0},
+      {'name': 'Chicken Handi', 'halfPrice': 200.0, 'fullPrice': 300.0},
+      {'name': 'Chicken Tufani', 'halfPrice': 230.0, 'fullPrice': 330.0},
+      {'name': 'Phudina Chicken', 'halfPrice': 230.0, 'fullPrice': 330.0},
+      {'name': 'Chicken Mughlai', 'halfPrice': 230.0, 'fullPrice': 330.0},
+      {'name': 'Chicken Angara', 'halfPrice': 230.0, 'fullPrice': 330.0},
+      {'name': 'Chicken Khaibar (Boneless)', 'halfPrice': 230.0, 'fullPrice': 330.0},
+      {'name': 'Chicken Chatpata (Boneless)', 'halfPrice': 230.0, 'fullPrice': 330.0},
+      {'name': 'Nawabi Chicken (Boneless)', 'halfPrice': 250.0, 'fullPrice': 350.0},
+      {'name': 'Butter Chicken (Boneless)', 'halfPrice': 250.0, 'fullPrice': 350.0},
+      {'name': 'Chicken Patiala (Boneless)', 'halfPrice': 250.0, 'fullPrice': 350.0},
+      {'name': 'Chicken Afghani (Boneless)', 'halfPrice': 250.0, 'fullPrice': 350.0},
+      {'name': 'Cheese Tandoori Masala (Boneless)', 'price': 380.0},
+      {'name': 'Chicken Rashida (Boneless)', 'price': 400.0},
+      {'name': 'Rose Garden Chicken (Boneless)', 'price': 400.0},
+      {'name': 'Mumtaz Chicken (Boneless)', 'price': 450.0},
+      {'name': 'Tawaazo Special Chicken (Boneless)', 'price': 500.0},
+      {'name': 'Mutton Handi', 'price': 400.0},
+      {'name': 'Mutton Kadhai', 'price': 400.0},
+      {'name': 'Laal Maas', 'price': 450.0},
+      {'name': 'Arabian Mutton', 'price': 450.0},
+      {'name': 'Mutton Rogan Josh', 'price': 480.0},
+      {'name': 'Tawazo Special Mutton', 'price': 550.0},
+    ],
+  },
+
+  {
+    'category': 'Chinese Soup',
+    'items': [
+      {'name': 'Chicken Manchow Soup', 'price': 120.0},
+      {'name': 'Chicken Hot & Sour Soup', 'price': 130.0},
+      {'name': 'Chicken Lemon Corriender Soup', 'price': 140.0},
+      {'name': 'Chicken Garlic Soup', 'price': 150.0},
+      {'name': 'Tawazo Special Soup', 'price': 160.0},
+    ],
+  },
+
+  {
+    'category': 'Chinese Starter',
+    'items': [
+      {'name': 'Lolipop Dry/Fry', 'halfPrice': 160.0, 'fullPrice': 260.0},
+      {'name': 'Chicken Manchurian', 'halfPrice': 170.0, 'fullPrice': 280.0},
+      {'name': 'Chicken Chilli', 'halfPrice': 170.0, 'fullPrice': 280.0},
+      {'name': 'Chicken Interian', 'price': 300.0},
+      {'name': 'Lal Badshah Dry', 'price': 300.0},
+      {'name': 'Dargon Chilli', 'price': 300.0},
+      {'name': 'Chicken Crispy', 'price': 300.0},
+      {'name': 'Paris Crispy', 'price': 300.0},
+      {'name': 'Chatpata Lolipop', 'price': 320.0},
+      {'name': 'Bombay Lolipop', 'price': 320.0},
+      {'name': 'Chicken Hongkong Lolipop', 'price': 320.0},
+      {'name': 'Pepper Chilli', 'price': 340.0},
+      {'name': 'Malai Chilli', 'price': 340.0},
+      {'name': 'Hungama Chilli', 'price': 350.0},
+      {'name': 'Chicken Butter Garlic Dry', 'price': 350.0},
+      {'name': 'Shanghai Chicken', 'price': 360.0},
+      {'name': 'Mangolian Chicken', 'price': 360.0},
+      {'name': 'Fish Chilli', 'price': 360.0},
+      {'name': 'Fish Kurkure', 'price': 360.0},
+      {'name': 'Prawns Chilli', 'price': 370.0},
+      {'name': 'Makkah Fish', 'price': 380.0},
+      {'name': 'Butter Garlic Fish', 'price': 400.0},
+      {'name': 'Butter Garlic Prawns', 'price': 400.0},
+      {'name': 'Pineapple Chilli', 'price': 450.0},
+    ],
+  },
+
+  {
+    'category': 'Chicken Chinese Noodles',
+    'items': [
+      {'name': 'Hakka Noodles', 'halfPrice': 130.0, 'fullPrice': 180.0},
+      {'name': 'Schezwan Noodles', 'halfPrice': 140.0, 'fullPrice': 200.0},
+      {'name': 'Singapuri Noodles', 'halfPrice': 150.0, 'fullPrice': 200.0},
+      {'name': 'Manchurian Noodles', 'halfPrice': 160.0, 'fullPrice': 220.0},
+      {'name': 'Chilli Garlic Noodles', 'halfPrice': 160.0, 'fullPrice': 220.0},
+      {'name': 'Hongkong Noodles', 'price': 240.0},
+      {'name': 'Hungama Noodles', 'price': 240.0},
+      {'name': 'Hyderabadi Noodles', 'price': 250.0},
+    ],
+  },
+
+  {
+    'category': 'Chicken Chinese Rice',
+    'items': [
+      {'name': 'Fried Rice', 'halfPrice': 130.0, 'fullPrice': 180.0},
+      {'name': 'Schezwan Rice', 'halfPrice': 140.0, 'fullPrice': 200.0},
+      {'name': 'Singapuri Rice', 'halfPrice': 150.0, 'fullPrice': 200.0},
+      {'name': 'Chinese Bhel', 'halfPrice': 160.0, 'fullPrice': 200.0},
+      {'name': 'Chilli Garlic Rice', 'halfPrice': 160.0, 'fullPrice': 220.0},
+      {'name': 'Manchurian Rice', 'price': 220.0},
+      {'name': 'Hungama Rice', 'price': 240.0},
+      {'name': 'Hongkong Rice', 'price': 240.0},
+      {'name': 'Bombay Bhel', 'price': 250.0},
+      {'name': 'Hyderbadi Rice', 'price': 250.0},
+    ],
+  },
+
+  {
+    'category': 'Chicken Special Rice',
+    'items': [
+      {'name': 'Pack In Rice', 'price': 350.0},
+      {'name': 'Trafic Jam Rice', 'price': 350.0},
+      {'name': 'Hakka Wakka Rice', 'price': 380.0},
+      {'name': 'Khabsa Rice', 'price': 380.0},
+      {'name': 'Garden Rice', 'price': 400.0},
+      {'name': 'Pizza Rice', 'price': 400.0},
+      {'name': 'Box Rice', 'price': 400.0},
+      {'name': 'Chicken Ching Rice', 'price': 400.0},
+      {'name': 'Tawaazo Sp. Rice', 'price': 450.0},
+      {'name': 'Family Rice (3 to 4 Person)', 'price': 450.0},
+    ],
+  },
+
+  {
+    'category': 'Veg Soup',
+    'items': [
+      {'name': 'Veg Manchow Soup', 'price': 100.0},
+      {'name': 'Veg Hot & Sour Soup', 'price': 100.0},
+      {'name': 'Veg Garlic Soup', 'price': 120.0},
+      {'name': 'Veg Lemon Corriender Soup', 'price': 120.0},
+    ],
+  },
+
+  {
+    'category': 'Veg Starter',
+    'items': [
+      {'name': 'Veg Manchurian Dry', 'price': 160.0},
+      {'name': 'Veg Schezwan Dry', 'price': 180.0},
+      {'name': 'Veg Chilli Dry', 'price': 240.0},
+      {'name': 'Veg Garlic Dry', 'price': 260.0},
+    ],
+  },
+
+  {
+    'category': 'Veg Noodles',
+    'items': [
+      {'name': 'Veg Hakka Noodles', 'halfPrice': 100.0, 'fullPrice': 150.0},
+      {'name': 'Veg Schezwan Noodles', 'halfPrice': 110.0, 'fullPrice': 160.0},
+      {'name': 'Veg Singapuri Noodles', 'halfPrice': 120.0, 'fullPrice': 170.0},
+      {'name': 'Veg Hongkong Noodles', 'halfPrice': 130.0, 'fullPrice': 180.0},
+    ],
+  },
+
+  {
+    'category': 'Veg Rice',
+    'items': [
+      {'name': 'Steam Rice', 'price': 80.0},
+      {'name': 'Jeera Rice', 'price': 100.0},
+      {'name': 'Veg Fried Rice', 'halfPrice': 100.0, 'fullPrice': 150.0},
+      {'name': 'Veg Schezwan Rice', 'halfPrice': 110.0, 'fullPrice': 160.0},
+      {'name': 'Veg Singapuri Rice', 'halfPrice': 120.0, 'fullPrice': 170.0},
+      {'name': 'Veg Butter Garlic Rice', 'halfPrice': 130.0, 'fullPrice': 180.0},
+      {'name': 'Veg Triple Rice', 'price': 240.0},
+    ],
+  },
+
+  {
+    'category': 'Veg Gravy',
+    'items': [
+      {'name': 'Veg Manchurian Gravy', 'price': 150.0},
+      {'name': 'Veg Chilli Gravy', 'price': 250.0},
+    ],
+  },
+
+  {
+    'category': 'Meifoon, Noodles & Chopsuey',
+    'items': [
+      {'name': 'American Chopsuey', 'price': 280.0},
+      {'name': 'Hu-Nan Chopsuey', 'price': 300.0},
+    ],
+  },
+
+  {
+    'category': 'Roti / Naan',
+    'items': [
+      {
+        'name': 'Chapati Roti',
+        'variants': [
+          {'label': 'Plain', 'price': 10.0},
+          {'label': 'Butter', 'price': 15.0},
+        ],
+      },
+      {
+        'name': 'Tandoori Roti',
+        'variants': [
+          {'label': 'Plain', 'price': 20.0},
+          {'label': 'Butter', 'price': 25.0},
+        ],
+      },
+      {
+        'name': 'Rumali Roti (Check Availability)',
+        'variants': [
+          {'label': 'Plain', 'price': 40.0},
+          {'label': 'Butter', 'price': 50.0},
+        ],
+      },
+      {'name': 'Butter Naan', 'price': 50.0},
+      {
+        'name': 'Garlic Naan',
+        'variants': [
+          {'label': 'Plain', 'price': 50.0},
+          {'label': 'Butter', 'price': 60.0},
+        ],
+      },
+      {
+        'name': 'Lachha Paratha',
+        'variants': [
+          {'label': 'Plain', 'price': 50.0},
+          {'label': 'Butter', 'price': 60.0},
+        ],
+      },
+      {
+        'name': 'Cheese Naan',
+        'variants': [
+          {'label': 'Plain', 'price': 60.0},
+          {'label': 'Butter', 'price': 70.0},
+        ],
+      },
+    ],
+  },
+
+  {
+    'category': 'Extras',
+    'items': [
+      {'name': 'Rosted Papad', 'price': 20.0},
+      {'name': 'Fry Papad', 'price': 20.0},
+      {'name': 'Masala Papad', 'price': 30.0},
+      {'name': 'Raita (Check Availability)', 'price': 50.0},
+      {'name': 'Water Bottle', 'price': 20.0},
+
+      {
+        'name': 'Soft Drink',
+        'variants': [
+          {'label': 'Small', 'price': 10.0},
+          {'label': 'Large', 'price': 20.0},
+        ],
+      },
+
+      {'name': 'Butter Milk', 'price': 30.0},
     ],
   },
 ];
