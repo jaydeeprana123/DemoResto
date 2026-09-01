@@ -16,6 +16,7 @@ class KitchenCrossTablePendingSheet {
     BuildContext context, {
     required KitchenCrossTablePendingSummary summary,
     required String Function(DateTime) formatRelativeTime,
+    List<KitchenCrossTablePendingSummary> relatedVariantSummaries = const [],
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -26,19 +27,29 @@ class KitchenCrossTablePendingSheet {
       ),
       builder: (ctx) => _KitchenCrossTablePendingSheetBody(
         summary: summary,
+        relatedVariantSummaries: relatedVariantSummaries,
         formatRelativeTime: formatRelativeTime,
       ),
     );
   }
 }
 
+class _SheetEntry {
+  const _SheetEntry({required this.itemName, required this.entry});
+
+  final String itemName;
+  final KitchenCrossTablePendingEntry entry;
+}
+
 class _KitchenCrossTablePendingSheetBody extends StatefulWidget {
   const _KitchenCrossTablePendingSheetBody({
     required this.summary,
+    required this.relatedVariantSummaries,
     required this.formatRelativeTime,
   });
 
   final KitchenCrossTablePendingSummary summary;
+  final List<KitchenCrossTablePendingSummary> relatedVariantSummaries;
   final String Function(DateTime) formatRelativeTime;
 
   @override
@@ -48,7 +59,7 @@ class _KitchenCrossTablePendingSheetBody extends StatefulWidget {
 
 class _KitchenCrossTablePendingSheetBodyState
     extends State<_KitchenCrossTablePendingSheetBody> {
-  late List<KitchenCrossTablePendingEntry> _entries;
+  late List<_SheetEntry> _entries;
   final Set<int> _selectedIndices = {};
   bool _selectionMode = false;
   bool _submitting = false;
@@ -56,15 +67,29 @@ class _KitchenCrossTablePendingSheetBodyState
   @override
   void initState() {
     super.initState();
-    _entries = List<KitchenCrossTablePendingEntry>.from(widget.summary.entries);
+    final groups = widget.relatedVariantSummaries.isEmpty
+        ? [widget.summary]
+        : widget.relatedVariantSummaries;
+    _entries = [
+      for (final group in groups)
+        for (final entry in group.entries)
+          _SheetEntry(itemName: group.itemName, entry: entry),
+    ];
   }
 
-  int get _totalQty => _entries.fold<int>(0, (sum, entry) => sum + entry.qty);
+  bool get _hasMultipleVariantGroups {
+    if (_entries.length < 2) return false;
+    final first = _entries.first.itemName;
+    return _entries.any((row) => row.itemName != first);
+  }
+
+  int get _totalQty =>
+      _entries.fold<int>(0, (sum, row) => sum + row.entry.qty);
 
   int get _selectedQty {
     var total = 0;
     for (final index in _selectedIndices) {
-      total += _entries[index].qty;
+      total += _entries[index].entry.qty;
     }
     return total;
   }
@@ -102,7 +127,7 @@ class _KitchenCrossTablePendingSheetBodyState
 
     final keys = <TableItemKey>[];
     for (final index in _selectedIndices) {
-      keys.addAll(_entries[index].itemKeys);
+      keys.addAll(_entries[index].entry.itemKeys);
     }
     if (keys.isEmpty) return;
 
@@ -174,11 +199,14 @@ class _KitchenCrossTablePendingSheetBodyState
                       ),
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  Text(
-                    widget.summary.itemName,
-                    style: MyFont.bold(18, color: _navy),
-                  ),
+                  if (!_hasMultipleVariantGroups) ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      widget.summary.itemName,
+                      style: MyFont.bold(18, color: _navy),
+                    ),
+                  ] else
+                    const SizedBox(height: 14),
                   const SizedBox(height: 4),
                   Text(
                     _selectionMode
@@ -226,109 +254,140 @@ class _KitchenCrossTablePendingSheetBodyState
             ),
             const SizedBox(height: 8),
             Flexible(
-              child: ListView.separated(
+              child: ListView.builder(
                 shrinkWrap: true,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 itemCount: _entries.length,
-                separatorBuilder: (_, __) => Divider(
-                  height: 1,
-                  color: Colors.grey.shade200,
-                ),
                 itemBuilder: (context, index) {
-                  final entry = _entries[index];
+                  final row = _entries[index];
+                  final entry = row.entry;
                   final remarks = entry.remarksText;
                   final isSelected = _selectedIndices.contains(index);
+                  final showVariantHeader = _hasMultipleVariantGroups &&
+                      (index == 0 ||
+                          _entries[index - 1].itemName != row.itemName);
 
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _submitting ? null : () => _onRowTap(index),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? KitchenTheme.kdsGreen.withValues(alpha: 0.08)
-                            : null,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (_selectionMode) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(right: 6, top: 1),
-                              child: Icon(
-                                isSelected
-                                    ? Icons.check_box
-                                    : Icons.check_box_outline_blank,
-                                size: 20,
-                                color: isSelected
-                                    ? KitchenTheme.kdsGreen
-                                    : Colors.grey.shade500,
-                              ),
-                            ),
-                          ],
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (showVariantHeader) ...[
+                        if (index > 0) const SizedBox(height: 14),
+                        Padding(
+                          padding: EdgeInsets.only(
+                            top: index == 0 ? 4 : 0,
+                            bottom: 6,
+                          ),
+                          child: Text(
+                            row.itemName,
+                            style: MyFont.bold(16, color: _navy),
+                          ),
+                        ),
+                      ] else if (index > 0 &&
+                          _entries[index - 1].itemName == row.itemName)
+                        Divider(height: 1, color: Colors.grey.shade200),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _submitting ? null : () => _onRowTap(index),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? KitchenTheme.kdsGreen.withValues(alpha: 0.08)
+                                : null,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (_selectionMode) ...[
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.only(right: 6, top: 1),
+                                  child: Icon(
+                                    isSelected
+                                        ? Icons.check_box
+                                        : Icons.check_box_outline_blank,
+                                    size: 20,
+                                    color: isSelected
+                                        ? KitchenTheme.kdsGreen
+                                        : Colors.grey.shade500,
+                                  ),
+                                ),
+                              ],
+                              Expanded(
+                                child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    SizedBox(
-                                      width: 28,
-                                      child: Text(
-                                        '${entry.qty}',
-                                        style: MyFont.bold(15, color: _orange),
-                                      ),
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        SizedBox(
+                                          width: 28,
+                                          child: Text(
+                                            '${entry.qty}',
+                                            style: MyFont.bold(
+                                              15,
+                                              color: _orange,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          '×',
+                                          style: MyFont.regular(
+                                            14,
+                                            color: Colors.grey.shade500,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            entry.tableName,
+                                            style: MyFont.semiBold(
+                                              14,
+                                              color: _navy,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          _formatTimeLabel(
+                                            widget.formatRelativeTime(
+                                              entry.orderTime,
+                                            ),
+                                          ),
+                                          style: MyFont.regular(
+                                            12,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    Text(
-                                      '×',
-                                      style: MyFont.regular(
-                                        14,
-                                        color: Colors.grey.shade500,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        entry.tableName,
-                                        style: MyFont.semiBold(14, color: _navy),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      _formatTimeLabel(
-                                        widget.formatRelativeTime(
-                                          entry.orderTime,
+                                    if (remarks != null) ...[
+                                      const SizedBox(height: 4),
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(left: 36),
+                                        child: Text(
+                                          '* $remarks',
+                                          style: MyFont.regular(
+                                            12,
+                                            color: Colors.red.shade400,
+                                          ).copyWith(
+                                            fontStyle: FontStyle.italic,
+                                          ),
                                         ),
                                       ),
-                                      style: MyFont.regular(
-                                        12,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
+                                    ],
                                   ],
                                 ),
-                                if (remarks != null) ...[
-                                  const SizedBox(height: 4),
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 36),
-                                    child: Text(
-                                      '* $remarks',
-                                      style: MyFont.regular(
-                                        12,
-                                        color: Colors.red.shade400,
-                                      ).copyWith(fontStyle: FontStyle.italic),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   );
                 },
               ),
