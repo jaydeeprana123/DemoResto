@@ -42,7 +42,6 @@ const List<PresetMenu> kPresetMenus = [
     subtitle: 'Tawaazo Restaurant full menu',
     categories: _tawaazoMenu,
   ),
-
 ];
 
 PresetMenu? presetMenuById(String id) {
@@ -390,7 +389,6 @@ const List<Map<String, dynamic>> _alHaadiMenu = [
 ];
 
 const List<Map<String, dynamic>> _arabianGrillMenu = [
-
   {
     'category': 'Papad',
     'items': [
@@ -736,7 +734,6 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
       },
 
       {'name': 'Arabian Plain Noodles', 'price': 70.0},
-
     ],
   },
 
@@ -895,20 +892,51 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
   },
 ];
 
-
 const List<Map<String, dynamic>> _tawaazoMenu = [
   {
     'category': 'Tandoori',
     'items': [
       {'name': 'Chicken Tandoori', 'halfPrice': 240.0, 'fullPrice': 440.0},
-      {'name': 'Double Masala Tandoori', 'halfPrice': 260.0, 'fullPrice': 470.0},
-      {'name': 'Chicken Pathani Tandoori', 'halfPrice': 280.0, 'fullPrice': 500.0},
-      {'name': 'Chicken Schezwan Tandoori', 'halfPrice': 330.0, 'fullPrice': 550.0},
-      {'name': 'Chicken Arabian Tandoori', 'halfPrice': 330.0, 'fullPrice': 550.0},
-      {'name': 'Chicken Zafrani Tandoori', 'halfPrice': 330.0, 'fullPrice': 550.0},
-      {'name': 'Chicken Peri-Peri Tandoori', 'halfPrice': 380.0, 'fullPrice': 600.0},
-      {'name': 'Chicken Malai Tandoori', 'halfPrice': 380.0, 'fullPrice': 600.0},
-      {'name': 'Chicken Sizzling Tandoori', 'halfPrice': 380.0, 'fullPrice': 600.0},
+      {
+        'name': 'Double Masala Tandoori',
+        'halfPrice': 260.0,
+        'fullPrice': 470.0,
+      },
+      {
+        'name': 'Chicken Pathani Tandoori',
+        'halfPrice': 280.0,
+        'fullPrice': 500.0,
+      },
+      {
+        'name': 'Chicken Schezwan Tandoori',
+        'halfPrice': 330.0,
+        'fullPrice': 550.0,
+      },
+      {
+        'name': 'Chicken Arabian Tandoori',
+        'halfPrice': 330.0,
+        'fullPrice': 550.0,
+      },
+      {
+        'name': 'Chicken Zafrani Tandoori',
+        'halfPrice': 330.0,
+        'fullPrice': 550.0,
+      },
+      {
+        'name': 'Chicken Peri-Peri Tandoori',
+        'halfPrice': 380.0,
+        'fullPrice': 600.0,
+      },
+      {
+        'name': 'Chicken Malai Tandoori',
+        'halfPrice': 380.0,
+        'fullPrice': 600.0,
+      },
+      {
+        'name': 'Chicken Sizzling Tandoori',
+        'halfPrice': 380.0,
+        'fullPrice': 600.0,
+      },
       {'name': 'Chicken Barra Tandoori', 'price': 650.0},
       {'name': 'Zaika Tandoori', 'halfPrice': 400.0, 'fullPrice': 700.0},
     ],
@@ -956,14 +984,14 @@ const List<Map<String, dynamic>> _tawaazoMenu = [
       {'name': 'Fish Angara Tikka', 'price': 380.0},
       {'name': 'Lazawab Tikka', 'price': 400.0},
       {'name': 'Passa Tikka', 'price': 400.0},
-      {'name': 'Mutton Tikka', 'price': 400.0},
+      {'name': 'Mutton Tikka', 'price': 70.0},
       {
         'name': 'Chicken Dana',
         'variants': [
           {'label': '250 gm', 'price': 100.0},
           {'label': '500 gm', 'price': 200.0},
           {'label': '750 gm', 'price': 300.0},
-          {'label': '1 kg', 'price': 400.0},
+          {'label': '1 kg', 'price': 70.0},
         ],
       },
     ],
@@ -1049,12 +1077,36 @@ const List<Map<String, dynamic>> _tawaazoMenu = [
       {'name': 'Phudina Chicken', 'halfPrice': 230.0, 'fullPrice': 330.0},
       {'name': 'Chicken Mughlai', 'halfPrice': 230.0, 'fullPrice': 330.0},
       {'name': 'Chicken Angara', 'halfPrice': 230.0, 'fullPrice': 330.0},
-      {'name': 'Chicken Khaibar (Boneless)', 'halfPrice': 230.0, 'fullPrice': 330.0},
-      {'name': 'Chicken Chatpata (Boneless)', 'halfPrice': 230.0, 'fullPrice': 330.0},
-      {'name': 'Nawabi Chicken (Boneless)', 'halfPrice': 250.0, 'fullPrice': 350.0},
-      {'name': 'Butter Chicken (Boneless)', 'halfPrice': 250.0, 'fullPrice': 350.0},
-      {'name': 'Chicken Patiala (Boneless)', 'halfPrice': 250.0, 'fullPrice': 350.0},
-      {'name': 'Chicken Afghani (Boneless)', 'halfPrice': 250.0, 'fullPrice': 350.0},
+      {
+        'name': 'Chicken Khaibar (Boneless)',
+        'halfPrice': 230.0,
+        'fullPrice': 330.0,
+      },
+      {
+        'name': 'Chicken Chatpata (Boneless)',
+        'halfPrice': 230.0,
+        'fullPrice': 330.0,
+      },
+      {
+        'name': 'Nawabi Chicken (Boneless)',
+        'halfPrice': 250.0,
+        'fullPrice': 350.0,
+      },
+      {
+        'name': 'Butter Chicken (Boneless)',
+        'halfPrice': 250.0,
+        'fullPrice': 350.0,
+      },
+      {
+        'name': 'Chicken Patiala (Boneless)',
+        'halfPrice': 250.0,
+        'fullPrice': 350.0,
+      },
+      {
+        'name': 'Chicken Afghani (Boneless)',
+        'halfPrice': 250.0,
+        'fullPrice': 350.0,
+      },
       {'name': 'Cheese Tandoori Masala (Boneless)', 'price': 380.0},
       {'name': 'Chicken Rashida (Boneless)', 'price': 400.0},
       {'name': 'Rose Garden Chicken (Boneless)', 'price': 400.0},
@@ -1194,7 +1246,11 @@ const List<Map<String, dynamic>> _tawaazoMenu = [
       {'name': 'Veg Fried Rice', 'halfPrice': 100.0, 'fullPrice': 150.0},
       {'name': 'Veg Schezwan Rice', 'halfPrice': 110.0, 'fullPrice': 160.0},
       {'name': 'Veg Singapuri Rice', 'halfPrice': 120.0, 'fullPrice': 170.0},
-      {'name': 'Veg Butter Garlic Rice', 'halfPrice': 130.0, 'fullPrice': 180.0},
+      {
+        'name': 'Veg Butter Garlic Rice',
+        'halfPrice': 130.0,
+        'fullPrice': 180.0,
+      },
       {'name': 'Veg Triple Rice', 'price': 240.0},
     ],
   },
