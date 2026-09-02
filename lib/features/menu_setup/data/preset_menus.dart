@@ -35,6 +35,13 @@ const List<PresetMenu> kPresetMenus = [
     subtitle: 'Arabian Grill full menu',
     categories: _arabianGrillMenu,
   ),
+
+  PresetMenu(
+    id: 'tawaazo',
+    title: 'Tawaazo Restaurant Menu',
+    subtitle: 'Tawaazo Restaurant full menu',
+    categories: _tawaazoMenu,
+  ),
 ];
 
 PresetMenu? presetMenuById(String id) {
