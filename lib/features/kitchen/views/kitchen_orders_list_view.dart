@@ -3625,6 +3625,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           ? () => KitchenCrossTablePendingSheet.show(
               context,
               summary: pendingSummary!,
+              relatedVariantSummaries:
+                  _crossTablePendingIndex.variantGroupsForItemName(itemName),
               formatRelativeTime: formatRelativeTime,
             )
           : null,

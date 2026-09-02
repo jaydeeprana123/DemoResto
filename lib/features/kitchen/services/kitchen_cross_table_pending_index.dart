@@ -60,11 +60,17 @@ class KitchenCrossTablePendingLine {
 }
 
 class KitchenCrossTablePendingIndex {
-  KitchenCrossTablePendingIndex._(this._byNormalizedName);
+  KitchenCrossTablePendingIndex._(
+    this._byNormalizedName,
+    this._allByNormalizedName,
+  );
 
-  KitchenCrossTablePendingIndex.empty() : _byNormalizedName = const {};
+  KitchenCrossTablePendingIndex.empty()
+      : _byNormalizedName = const {},
+        _allByNormalizedName = const {};
 
   final Map<String, KitchenCrossTablePendingSummary> _byNormalizedName;
+  final Map<String, KitchenCrossTablePendingSummary> _allByNormalizedName;
 
   KitchenCrossTablePendingSummary? summaryForItemName(String name) {
     final key = normalizeItemName(name);
@@ -72,7 +78,49 @@ class KitchenCrossTablePendingIndex {
     return _byNormalizedName[key];
   }
 
+  /// Pending variants of the same dish for the quantity bottom sheet.
+  ///
+  /// Badge totals still use [summaryForItemName] (exact name only). This lookup
+  /// includes sibling Half/Full (and other parenthetical variants) even when
+  /// they are pending on a single table.
+  List<KitchenCrossTablePendingSummary> variantGroupsForItemName(String name) {
+    final tappedKey = normalizeItemName(name);
+    final base = normalizeItemName(variantBaseName(name));
+    if (base.isEmpty) return const [];
+
+    final matches = _allByNormalizedName.values
+        .where(
+          (summary) =>
+              normalizeItemName(variantBaseName(summary.itemName)) == base,
+        )
+        .toList();
+
+    matches.sort((a, b) {
+      final aKey = normalizeItemName(a.itemName);
+      final bKey = normalizeItemName(b.itemName);
+      if (aKey == tappedKey && bKey != tappedKey) return -1;
+      if (bKey == tappedKey && aKey != tappedKey) return 1;
+      return _variantSortKey(a.itemName).compareTo(_variantSortKey(b.itemName));
+    });
+    return matches;
+  }
+
   static String normalizeItemName(String name) => name.trim().toLowerCase();
+
+  /// "Noodles (Half)" → "Noodles"; names without a trailing label stay as-is.
+  static String variantBaseName(String name) {
+    final trimmed = name.trim();
+    final match = RegExp(r'^(.+)\s+\(([^)]+)\)$').firstMatch(trimmed);
+    return match?.group(1)?.trim() ?? trimmed;
+  }
+
+  static String _variantSortKey(String name) {
+    final match = RegExp(r'\(([^)]+)\)$').firstMatch(name.trim());
+    final label = match?.group(1)?.trim().toLowerCase() ?? '';
+    if (label == 'half') return '0-half';
+    if (label == 'full') return '1-full';
+    return '2-$label';
+  }
 
   static String tableShortLabel(String tableName) {
     final trimmed = tableName.trim();
@@ -134,10 +182,8 @@ class KitchenCrossTablePendingIndex {
       }
     }
 
-    final summaries = <String, KitchenCrossTablePendingSummary>{};
+    final allSummaries = <String, KitchenCrossTablePendingSummary>{};
     for (final entry in tableAggregates.entries) {
-      if (entry.value.length < 2) continue;
-
       final tableLines = entry.value.entries
           .map(
             (tableEntry) => KitchenCrossTablePendingEntry(
@@ -154,14 +200,19 @@ class KitchenCrossTablePendingIndex {
 
       final totalQty =
           tableLines.fold<int>(0, (sum, tableLine) => sum + tableLine.qty);
-      summaries[entry.key] = KitchenCrossTablePendingSummary(
+      allSummaries[entry.key] = KitchenCrossTablePendingSummary(
         itemName: displayNames[entry.key] ?? entry.key,
         totalQty: totalQty,
         entries: tableLines,
       );
     }
 
-    return KitchenCrossTablePendingIndex._(summaries);
+    final badgeSummaries = <String, KitchenCrossTablePendingSummary>{
+      for (final entry in allSummaries.entries)
+        if (entry.value.spansMultipleTables) entry.key: entry.value,
+    };
+
+    return KitchenCrossTablePendingIndex._(badgeSummaries, allSummaries);
   }
 
   static int itemQty(Map<String, dynamic> item) {
