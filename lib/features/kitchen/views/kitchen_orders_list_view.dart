@@ -204,18 +204,26 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     });
   }
 
-  bool get _canRingBell {
-    if (KitchenSettings.backgroundOrderRingtoneEnabled.value) {
-      return _appLifecycleState != AppLifecycleState.detached;
-    }
-    return _appLifecycleState == AppLifecycleState.resumed &&
-        widget.isTabActive;
-  }
+  bool get _isKitchenForeground =>
+      _appLifecycleState == AppLifecycleState.resumed && widget.isTabActive;
 
-  bool get _isAppInBackground =>
+  /// Screen locked, app minimized, or otherwise not interactively in the
+  /// foreground. `inactive` covers the lock-screen transition on mobile.
+  bool get _isAppLockedOrBackground =>
       _appLifecycleState == AppLifecycleState.paused ||
       _appLifecycleState == AppLifecycleState.inactive ||
       _appLifecycleState == AppLifecycleState.hidden;
+
+  /// Foreground kitchen tab always rings locally. Lock/background rings only
+  /// when "Enable Order Ringtone in Background" is on.
+  bool get _canRingBell {
+    if (_appLifecycleState == AppLifecycleState.detached) return false;
+    if (_isKitchenForeground) return true;
+    return KitchenSettings.backgroundOrderRingtoneEnabled.value &&
+        _isAppLockedOrBackground;
+  }
+
+  bool get _isAppInBackground => _isAppLockedOrBackground;
 
   Future<void> _preparePlayersForRing() async {
     if (KitchenSettings.backgroundOrderRingtoneEnabled.value &&
@@ -598,23 +606,36 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       KitchenSettings.backgroundOrderRingtoneEnabled.value &&
       _isAppInBackground;
 
-  void _playNotificationSound() async {
+  Future<void> _playKitchenBell({
+    required KitchenBellSound sound,
+    required Future<void> Function() playLocal,
+  }) async {
     if (!_canRingBell) return;
     if (kIsWeb) {
-      await _playWebKitchenBell(KitchenBellSound.newOrder);
+      await _playWebKitchenBell(sound);
       return;
     }
     if (_useAndroidLockedAlert) {
-      await KitchenBackgroundAlertService.playAlert(KitchenBellSound.newOrder);
-      return;
+      final posted = await KitchenBackgroundAlertService.playAlert(sound);
+      if (posted) return;
     }
     try {
       await _preparePlayersForRing();
-      await audioPlayer.stop();
-      await audioPlayer.play(AssetSource('sounds/phone_bell.mp3'));
+      await playLocal();
     } catch (e) {
       // ignore audio errors
     }
+  }
+
+  void _playNotificationSound() async {
+    if (!_canRingBell) return;
+    await _playKitchenBell(
+      sound: KitchenBellSound.newOrder,
+      playLocal: () async {
+        await audioPlayer.stop();
+        await audioPlayer.play(AssetSource('sounds/phone_bell.mp3'));
+      },
+    );
   }
 
   Future<bool> _hasDeleteBellAsset() async {
@@ -636,32 +657,23 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     }
     _lastDeleteSoundAt = now;
 
-    if (kIsWeb) {
-      await _playWebKitchenBell(KitchenBellSound.delete);
-      return;
-    }
-    if (_useAndroidLockedAlert) {
-      await KitchenBackgroundAlertService.playAlert(KitchenBellSound.delete);
-      return;
-    }
+    await _playKitchenBell(
+      sound: KitchenBellSound.delete,
+      playLocal: () async {
+        await deleteAudioPlayer.stop();
+        await deleteAudioPlayer.setReleaseMode(ReleaseMode.stop);
 
-    try {
-      await _preparePlayersForRing();
-      await deleteAudioPlayer.stop();
-      await deleteAudioPlayer.setReleaseMode(ReleaseMode.stop);
-
-      if (await _hasDeleteBellAsset()) {
-        await deleteAudioPlayer.setPlaybackRate(1.0);
-        await deleteAudioPlayer.play(AssetSource('sounds/delete_bell.mp3'));
-      } else {
-        // Slower update bell — clearly different tone without a separate file.
-        await deleteAudioPlayer.setPlaybackRate(0.52);
-        await deleteAudioPlayer.play(AssetSource('sounds/update_bell.mp3'));
-        await deleteAudioPlayer.setPlaybackRate(1.0);
-      }
-    } catch (e) {
-      // ignore audio errors
-    }
+        if (await _hasDeleteBellAsset()) {
+          await deleteAudioPlayer.setPlaybackRate(1.0);
+          await deleteAudioPlayer.play(AssetSource('sounds/delete_bell.mp3'));
+        } else {
+          // Slower update bell — clearly different tone without a separate file.
+          await deleteAudioPlayer.setPlaybackRate(0.52);
+          await deleteAudioPlayer.play(AssetSource('sounds/update_bell.mp3'));
+          await deleteAudioPlayer.setPlaybackRate(1.0);
+        }
+      },
+    );
   }
 
   bool _shouldPlaySoundForRemoval(
@@ -722,21 +734,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   // brand-new order's ring.
   void _playUpdateSound() async {
     if (!_canRingBell) return;
-    if (kIsWeb) {
-      await _playWebKitchenBell(KitchenBellSound.update);
-      return;
-    }
-    if (_useAndroidLockedAlert) {
-      await KitchenBackgroundAlertService.playAlert(KitchenBellSound.update);
-      return;
-    }
-    try {
-      await _preparePlayersForRing();
-      await updateAudioPlayer.stop();
-      await updateAudioPlayer.play(AssetSource('sounds/update_bell.mp3'));
-    } catch (e) {
-      // ignore audio errors
-    }
+    await _playKitchenBell(
+      sound: KitchenBellSound.update,
+      playLocal: () async {
+        await updateAudioPlayer.stop();
+        await updateAudioPlayer.play(AssetSource('sounds/update_bell.mp3'));
+      },
+    );
   }
 
   List<TableGroup> _reconstructGroups(

@@ -17,7 +17,8 @@ class KitchenSettings {
   static final ValueNotifier<bool> showServeOrderScreen = ValueNotifier(false);
   /// Groups kitchen orders by menu item (qty × table lines) instead of by table.
   static final ValueNotifier<bool> preparationViewEnabled = ValueNotifier(false);
-  /// When true, order bells play even if the app is backgrounded or the screen is locked.
+  /// When true, order bells also play if the app is backgrounded or the screen is locked.
+  /// Foreground kitchen bells do not depend on this setting.
   static final ValueNotifier<bool> backgroundOrderRingtoneEnabled =
       ValueNotifier(true);
   /// On mobile kitchen screen: true = 2-column grid, false = single-column list.

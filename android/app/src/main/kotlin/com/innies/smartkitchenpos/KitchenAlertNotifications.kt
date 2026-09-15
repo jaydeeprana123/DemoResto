@@ -9,10 +9,11 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 
 object KitchenAlertNotifications {
-    private const val CHANNEL_NEW = "kitchen_new_order"
-    private const val CHANNEL_UPDATE = "kitchen_update_order"
-    private const val CHANNEL_DELETE = "kitchen_delete_order"
-    private const val CHANNEL_COMPLETE = "order_completion_alert"
+    // v2: USAGE_NOTIFICATION_RINGTONE. Channel sound cannot be changed after create.
+    private const val CHANNEL_NEW = "kitchen_new_order_v2"
+    private const val CHANNEL_UPDATE = "kitchen_update_order_v2"
+    private const val CHANNEL_DELETE = "kitchen_delete_order_v2"
+    private const val CHANNEL_COMPLETE = "order_completion_alert_v2"
 
     private var nextNotificationId = 2000
 
@@ -33,8 +34,13 @@ object KitchenAlertNotifications {
         )
     }
 
-    fun showAlert(context: Context, soundKey: String, title: String, body: String) {
+    fun showAlert(context: Context, soundKey: String, title: String, body: String): Boolean {
         ensureChannels(context)
+
+        val manager = NotificationManagerCompat.from(context)
+        if (!manager.areNotificationsEnabled()) {
+            return false
+        }
 
         val channelId = when (soundKey) {
             "update_bell" -> CHANNEL_UPDATE
@@ -67,7 +73,12 @@ object KitchenAlertNotifications {
             )
             .build()
 
-        NotificationManagerCompat.from(context).notify(nextNotificationId, notification)
+        return try {
+            manager.notify(nextNotificationId, notification)
+            true
+        } catch (_: SecurityException) {
+            false
+        }
     }
 
     private fun buildChannel(
@@ -91,7 +102,7 @@ object KitchenAlertNotifications {
             setSound(
                 android.net.Uri.parse("android.resource://${context.packageName}/$rawSound"),
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build(),
             )

@@ -1054,7 +1054,7 @@ class _SettingsKitchenSectionPageState
                   icon: Icons.notifications_active_outlined,
                   title: 'Enable Order Ringtone in Background',
                   subtitle:
-                      'When on, new-order bells play while the screen is locked. Android will ask to allow notifications and disable battery optimization for reliable alerts.',
+                      'When on, new and updated order bells also play if the app is locked or in the background. When off, bells play only while the Kitchen screen is open.',
                   value: _settings.kitchenBackgroundOrderRingtoneEnabled.value,
                   onChanged: (value) async {
                     if (value == null) return;

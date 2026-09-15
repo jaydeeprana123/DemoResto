@@ -96,12 +96,12 @@ class OrderCompletionAlertService extends GetxService
     }
 
     if (defaultTargetPlatform == TargetPlatform.android) {
-      await KitchenBackgroundAlertService.playAlert(
+      final posted = await KitchenBackgroundAlertService.playAlert(
         KitchenBellSound.orderCompletion,
         title: 'Order completed',
         body: '$tableName order is completed. Notified by: $staff',
       );
-      return;
+      if (posted) return;
     }
 
     await _playFallbackCompleteBell();

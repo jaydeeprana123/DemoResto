@@ -12,13 +12,16 @@ class KitchenBackgroundAlertService {
     await KitchenWebBellService.ensureInitialized();
   }
 
-  static Future<void> syncMonitoringEnabled(bool enabled) async {
+  static Future<void> syncMonitoringEnabled(
+    bool enabled, {
+    bool promptIfNeeded = true,
+  }) async {
     if (enabled) {
       await KitchenWebBellService.ensureInitialized();
     }
   }
 
-  static Future<void> playAlert(
+  static Future<bool> playAlert(
     KitchenBellSound sound, {
     String? title,
     String? body,
@@ -32,7 +35,7 @@ class KitchenBackgroundAlertService {
         body: body,
       );
       await KitchenWebBellService.play(sound);
-      return;
+      return true;
     }
 
     final played = await KitchenWebBellService.play(sound);
@@ -43,5 +46,6 @@ class KitchenBackgroundAlertService {
         body: body,
       );
     }
+    return true;
   }
 }

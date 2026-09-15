@@ -11,6 +11,7 @@ class KitchenBackgroundAlertService {
   static const _channel = MethodChannel('com.innies.smartkitchenpos/kitchen_alerts');
 
   static bool _initialized = false;
+  static bool _startedThisProcess = false;
 
   static bool get _isAndroid =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -19,7 +20,11 @@ class KitchenBackgroundAlertService {
     if (_initialized || !_isAndroid) return;
 
     FlutterForegroundTask.initCommunicationPort();
-    await _channel.invokeMethod<void>('ensureChannels');
+    try {
+      await _channel.invokeMethod<void>('ensureChannels');
+    } catch (_) {
+      // Channel may not be ready until MainActivity binds.
+    }
 
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
@@ -47,61 +52,88 @@ class KitchenBackgroundAlertService {
     _initialized = true;
   }
 
-  static Future<void> syncMonitoringEnabled(bool enabled) async {
-    if (!_isAndroid) return;
-    await initialize();
-
-    if (enabled) {
-      await _ensureAndroidPermissions();
-      await _startMonitoringService();
-    } else {
-      await _stopMonitoringService();
-    }
-  }
-
-  static Future<void> playAlert(
-    KitchenBellSound sound, {
-    String? title,
-    String? body,
+  /// Starts or stops the keep-alive service.
+  ///
+  /// [promptIfNeeded] should be true after the first frame / a settings toggle
+  /// (an Activity exists). Pass false on resume so denied permissions are not
+  /// re-prompted every time the app returns to the foreground.
+  static Future<void> syncMonitoringEnabled(
+    bool enabled, {
+    bool promptIfNeeded = true,
   }) async {
     if (!_isAndroid) return;
     await initialize();
 
-    final config = _alertConfig(sound);
-    await _channel.invokeMethod<void>('showAlert', {
-      'soundKey': config.rawSound,
-      'title': title ?? config.title,
-      'body': body ?? config.body,
-    });
+    if (enabled) {
+      await _ensureAndroidPermissions(promptIfNeeded: promptIfNeeded);
+      await _startMonitoringService();
+    } else {
+      _startedThisProcess = false;
+      await _stopMonitoringService();
+    }
   }
 
-  static Future<void> _ensureAndroidPermissions() async {
+  /// Returns `true` when a system notification was posted (sound may play).
+  static Future<bool> playAlert(
+    KitchenBellSound sound, {
+    String? title,
+    String? body,
+  }) async {
+    if (!_isAndroid) return false;
+    await initialize();
+
+    final config = _alertConfig(sound);
+    try {
+      final posted = await _channel.invokeMethod<bool>('showAlert', {
+        'soundKey': config.rawSound,
+        'title': title ?? config.title,
+        'body': body ?? config.body,
+      });
+      return posted == true;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Kitchen background alert failed: $e');
+      }
+      return false;
+    }
+  }
+
+  static Future<void> _ensureAndroidPermissions({
+    required bool promptIfNeeded,
+  }) async {
     final notificationPermission =
         await FlutterForegroundTask.checkNotificationPermission();
-    if (notificationPermission != NotificationPermission.granted) {
+    if (notificationPermission != NotificationPermission.granted &&
+        promptIfNeeded) {
       await FlutterForegroundTask.requestNotificationPermission();
     }
 
-    if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
+    if (promptIfNeeded &&
+        !await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
       await FlutterForegroundTask.requestIgnoreBatteryOptimization();
     }
   }
 
   static Future<void> _startMonitoringService() async {
     if (await FlutterForegroundTask.isRunningService) {
-      return;
+      if (_startedThisProcess) return;
+      await FlutterForegroundTask.stopService();
     }
 
-    await FlutterForegroundTask.startService(
+    final result = await FlutterForegroundTask.startService(
       serviceId: 256,
       serviceTypes: const [
+        ForegroundServiceTypes.mediaPlayback,
         ForegroundServiceTypes.dataSync,
-        ForegroundServiceTypes.remoteMessaging,
       ],
       notificationTitle: 'Kitchen orders active',
       notificationText: 'Listening for new orders while the screen is locked',
       callback: kitchenMonitorStartCallback,
     );
+    _startedThisProcess = result is ServiceRequestSuccess;
+    if (result is ServiceRequestFailure && kDebugMode) {
+      debugPrint('Kitchen monitor service failed to start: ${result.error}');
+    }
   }
 
   static Future<void> _stopMonitoringService() async {

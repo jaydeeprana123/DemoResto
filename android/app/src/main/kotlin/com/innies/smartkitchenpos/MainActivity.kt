@@ -21,13 +21,13 @@ class MainActivity : FlutterActivity() {
                     val soundKey = call.argument<String>("soundKey") ?: "phone_bell"
                     val title = call.argument<String>("title") ?: "Kitchen alert"
                     val body = call.argument<String>("body") ?: ""
-                    KitchenAlertNotifications.showAlert(
+                    val posted = KitchenAlertNotifications.showAlert(
                         applicationContext,
                         soundKey,
                         title,
                         body,
                     )
-                    result.success(null)
+                    result.success(posted)
                 }
                 else -> result.notImplemented()
             }

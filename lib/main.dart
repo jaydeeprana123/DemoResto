@@ -29,10 +29,6 @@ void main() async {
   await KitchenSettings.load();
   await DashboardSettings.load();
   await KitchenBackgroundAlertService.initialize();
-  await KitchenBackgroundAlertService.syncMonitoringEnabled(
-    KitchenSettings.backgroundOrderRingtoneEnabled.value ||
-        DashboardSettings.orderCompletionNotificationEnabled.value,
-  );
   await AppTabSettings.load();
   await PrintSettings.load();
   if (kIsWeb) {
@@ -43,8 +39,43 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+Future<void> _syncKitchenMonitoring({bool promptIfNeeded = true}) {
+  return KitchenBackgroundAlertService.syncMonitoringEnabled(
+    KitchenSettings.backgroundOrderRingtoneEnabled.value ||
+        DashboardSettings.orderCompletionNotificationEnabled.value,
+    promptIfNeeded: promptIfNeeded,
+  );
+}
+
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_syncKitchenMonitoring());
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_syncKitchenMonitoring(promptIfNeeded: false));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
