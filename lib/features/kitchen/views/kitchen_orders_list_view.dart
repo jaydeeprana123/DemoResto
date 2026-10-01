@@ -31,6 +31,7 @@ import 'package:smartKitchen/features/kitchen/widgets/kitchen_theme.dart';
 import 'package:smartKitchen/features/kitchen/services/kitchen_web_bell_service.dart';
 import 'package:smartKitchen/features/kitchen/services/kitchen_bell_sound.dart';
 import 'package:smartKitchen/features/kitchen/services/kitchen_background_alert_service.dart';
+import 'package:smartKitchen/features/kitchen/services/kitchen_order_tts_service.dart';
 import 'package:smartKitchen/features/transactions/services/reverse_billing_service.dart';
 import 'package:smartKitchen/features/transactions/repositories/transactions_repository.dart';
 import 'package:smartKitchen/features/settings/utils/mark_as_delivered_permission.dart';
@@ -861,6 +862,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(_initAudioPlayers());
+    unawaited(KitchenOrderTtsService.instance.ensureInitialized());
     if (kIsWeb) {
       unawaited(KitchenWebBellService.ensureInitialized());
     }
@@ -2858,6 +2860,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                               lastTransactionId: group.lastTransactionId,
                             )
                         : null,
+                    onSpeakTap: group.items.isEmpty
+                        ? null
+                        : () => KitchenOrderTtsService.instance
+                            .speakOrder(group.items),
                     compact: _isMobileGridLayout,
                   ),
                   _buildTimeBar(
@@ -2998,6 +3004,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                               lastTransactionId: tableCard.lastTransactionId,
                             )
                         : null,
+                    onSpeakTap: () {
+                      final items = tableCard.batches
+                          .expand((batch) => batch.items)
+                          .toList();
+                      if (items.isEmpty) return;
+                      KitchenOrderTtsService.instance.speakOrder(items);
+                    },
                     compact: _isMobileGridLayout,
                   ),
                   if (isZomato &&
@@ -3377,82 +3390,93 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     bool isPriority = false,
     VoidCallback? onPaidHeaderTap,
     VoidCallback? onPaidDoubleTap,
+    VoidCallback? onSpeakTap,
     bool compact = false,
   }) {
     final paid = isPaid == true;
     final zomato = isZomato || ZomatoOrderUtils.isZomatoOrderName(tableName);
     final isTakeAway = isTakeAwayOrderName(tableName);
     final titleColor = KitchenTheme.headerTitleColor(headerColor);
-    final header = Container(
+    final topRadius = Radius.circular(compact ? 7 : 10);
+
+    Widget titleRow = Row(
+      children: [
+        if (zomato)
+          const SizedBox()
+        else
+          SvgPicture.asset(
+            isTakeAway ? icon_packing : icon_table,
+            colorFilter: ColorFilter.mode(titleColor, BlendMode.srcIn),
+            width: isTakeAway
+                ? (compact ? 15 : 18)
+                : (compact ? 18 : 22),
+          ),
+        SizedBox(width: compact ? 6 : 8),
+        Flexible(
+          child: Text(
+            tableName,
+            style: TextStyle(
+              fontFamily: zomato || isTakeAway
+                  ? fontMulishBold
+                  : fontMulishSemiBold,
+              fontSize: compact ? 13 : 16,
+              color: titleColor,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (isPriority) ...[
+          SizedBox(width: compact ? 4 : 6),
+          _priorityRibbonTag(compact: compact, isZomato: zomato),
+        ],
+      ],
+    );
+
+    if (paid && onPaidHeaderTap != null) {
+      titleRow = Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPaidHeaderTap,
+          borderRadius: BorderRadius.horizontal(left: topRadius),
+          child: titleRow,
+        ),
+      );
+    }
+
+    return Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 8 : 12,
         vertical: compact ? 8 : 10,
       ),
       decoration: BoxDecoration(
         color: headerColor,
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(compact ? 7 : 10),
-        ),
+        borderRadius: BorderRadius.vertical(top: topRadius),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(
-            child: Row(
-              children: [
-                if (zomato)
-                  SizedBox()
-                else
-                  SvgPicture.asset(
-                    isTakeAway ? icon_packing : icon_table,
-                    colorFilter: ColorFilter.mode(titleColor, BlendMode.srcIn),
-                    width: isTakeAway
-                        ? (compact ? 15 : 18)
-                        : (compact ? 18 : 22),
+          Expanded(child: titleRow),
+          if (onSpeakTap != null) ...[
+            Tooltip(
+              message: 'Speak order',
+              child: InkWell(
+                onTap: onSpeakTap,
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? 4 : 6,
+                    vertical: compact ? 2 : 4,
                   ),
-                SizedBox(width: compact ? 6 : 8),
-                Flexible(
-                  child: Text(
-                    tableName,
-                    style: TextStyle(
-                      fontFamily: zomato || isTakeAway
-                          ? fontMulishBold
-                          : fontMulishSemiBold,
-                      fontSize: compact ? 13 : 16,
-                      color: titleColor,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                  child: Icon(
+                    Icons.volume_up,
+                    size: compact ? 18 : 20,
+                    color: titleColor,
                   ),
                 ),
-                if (isPriority) ...[
-                  SizedBox(width: compact ? 4 : 6),
-                  _priorityRibbonTag(compact: compact, isZomato: zomato),
-                ],
-                // if (zomato) ...[
-                //   const SizedBox(width: 6),
-                //   Container(
-                //     padding: const EdgeInsets.symmetric(
-                //       horizontal: 6,
-                //       vertical: 2,
-                //     ),
-                //     decoration: BoxDecoration(
-                //       color: Colors.white.withValues(alpha: 0.18),
-                //       borderRadius: BorderRadius.circular(10),
-                //     ),
-                //     child: const Text(
-                //       'ZOMATO',
-                //       style: TextStyle(
-                //         color: Colors.white,
-                //         fontSize: 9,
-                //         fontFamily: fontMulishBold,
-                //       ),
-                //     ),
-                //   ),
-                // ],
-              ],
+              ),
             ),
-          ),
-
+            SizedBox(width: compact ? 2 : 4),
+          ],
           if (!isPriority)
             Container(
               margin: const EdgeInsets.only(right: 0),
@@ -3480,25 +3504,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                 ),
               ),
             ),
-
-          // if (isNext)
-          //   Container(
-          //     margin: const EdgeInsets.only(left: 8),
-          //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          //     decoration: BoxDecoration(
-          //       border: Border.all(color: Colors.black12, width: 1.2),
-          //       borderRadius: BorderRadius.circular(4),
-          //       color: Colors.white.withValues(alpha: 0.15),
-          //     ),
-          //     child: const Text(
-          //       "NEXT",
-          //       style: TextStyle(
-          //         color: Colors.black,
-          //         fontSize: 10,
-          //         fontFamily: fontMulishBold,
-          //       ),
-          //     ),
-          //   ),
           if (paid)
             GestureDetector(
               onDoubleTap: onPaidDoubleTap,
@@ -3522,21 +3527,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         ],
       ),
     );
-
-    if (paid && onPaidHeaderTap != null) {
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPaidHeaderTap,
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(compact ? 7 : 10),
-          ),
-          child: header,
-        ),
-      );
-    }
-
-    return header;
   }
 
   Widget _buildTimeBar(DateTime time, bool isDelayed, {bool compact = false}) {
@@ -3717,6 +3707,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     audioPlayer.dispose();
     updateAudioPlayer.dispose();
     deleteAudioPlayer.dispose();
+    unawaited(KitchenOrderTtsService.instance.dispose());
     super.dispose();
   }
 
