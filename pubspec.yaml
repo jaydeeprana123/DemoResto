@@ -1,7 +1,7 @@
 name: smartKitchen
 description: Every table. Every order. One kitchen screen.
 publish_to: none
-version: 1.0.6+7
+version: 1.0.7+8
 
 environment:
   sdk: ^3.8.1
@@ -10,7 +10,7 @@ dependencies:
   flutter:       # CRITICAL: Required for every Flutter project - DO NOT REMOVE
     sdk: flutter # CRITICAL: Required for every Flutter project - DO NOT REMOVE
 
-  # CRITICAL: Core UI and responsive design - DO NOT REMOVE OR MODIFY
+  # CRITICAL: Core UI and responsive design - DO NOT REMOVE OR +-
   flutter_staggered_grid_view: ^0.7.0
   pdf: ^3.11.0
   printing: ^5.12.0
@@ -40,10 +40,13 @@ dependencies:
   pasteboard: ^0.5.0
   flutter_foreground_task: ^9.2.2
   file_selector: ^1.1.0
+
+
   firebase_remote_config: ^6.5.6
   package_info_plus: ^9.0.1
   print_bluetooth_thermal: ^1.2.1
   esc_pos_utils_plus: ^2.0.4
+  image: ^4.3.0
 
 dev_dependencies:
   flutter_test:    # CRITICAL: Required for Flutter project testing - DO NOT REMOVE

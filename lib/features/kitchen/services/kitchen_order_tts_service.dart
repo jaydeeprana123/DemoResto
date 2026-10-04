@@ -17,7 +17,7 @@ class KitchenOrderTtsService {
 
   Future<void> _init() async {
     try {
-      await _tts.setLanguage('en-US');
+      await _applyIndianEnglishVoice();
       await _tts.setSpeechRate(0.45);
       await _tts.setVolume(1.0);
       await _tts.setPitch(1.0);
@@ -29,6 +29,65 @@ class KitchenOrderTtsService {
       debugPrint('[KitchenTTS] init failed: $e\n$st');
       _ready = false;
     }
+  }
+
+  /// Prefers an Indian English (en-IN) voice when the device provides one.
+  Future<void> _applyIndianEnglishVoice() async {
+    try {
+      final available = await _tts.isLanguageAvailable('en-IN');
+      final indianLanguageReady = available == true || available == 1;
+      if (indianLanguageReady) {
+        await _tts.setLanguage('en-IN');
+      } else {
+        await _tts.setLanguage('en-US');
+      }
+    } catch (e) {
+      debugPrint('[KitchenTTS] setLanguage failed: $e');
+      try {
+        await _tts.setLanguage('en-US');
+      } catch (_) {}
+    }
+
+    try {
+      final rawVoices = await _tts.getVoices;
+      if (rawVoices is! List) return;
+
+      final voices = <Map<String, String>>[];
+      for (final voice in rawVoices) {
+        if (voice is! Map) continue;
+        final name = '${voice['name'] ?? ''}'.trim();
+        final locale = '${voice['locale'] ?? ''}'.trim();
+        if (name.isEmpty && locale.isEmpty) continue;
+        voices.add({'name': name, 'locale': locale});
+      }
+      if (voices.isEmpty) return;
+
+      final indian = voices.where(_isIndianEnglishVoice).toList();
+      final chosen = indian.isNotEmpty ? indian.first : null;
+      if (chosen == null || chosen['name']!.isEmpty) return;
+
+      await _tts.setVoice({
+        'name': chosen['name']!,
+        'locale': chosen['locale']!.isEmpty ? 'en-IN' : chosen['locale']!,
+      });
+      debugPrint(
+        '[KitchenTTS] using voice "${chosen['name']}" '
+        '(${chosen['locale']})',
+      );
+    } catch (e) {
+      debugPrint('[KitchenTTS] setVoice failed: $e');
+    }
+  }
+
+  static bool _isIndianEnglishVoice(Map<String, String> voice) {
+    final locale = voice['locale']!.toLowerCase().replaceAll('_', '-');
+    if (locale == 'en-in' || locale.startsWith('en-in-')) return true;
+
+    final name = voice['name']!.toLowerCase();
+    return name.contains('en-in') ||
+        name.contains('en_in') ||
+        name.contains('india') ||
+        name.contains('indian');
   }
 
   /// Builds speech text like: "2 Chicken Burgers, 1 French Fries, 3 Cold Coffees."
@@ -45,12 +104,21 @@ class KitchenOrderTtsService {
     return '${phrases.join(', ')}.';
   }
 
+  Future<void> speakQtyAndName({required int qty, required String name}) {
+    return speakOrder([
+      {'qty': qty, 'name': name},
+    ]);
+  }
+
   Future<void> speakOrder(List<Map<String, dynamic>> items) async {
     final text = buildSpeechText(items);
     if (text.isEmpty) return;
 
     await ensureInitialized();
     if (!_ready) return;
+
+    // Voices are sometimes empty during first init (web / Windows).
+    await _applyIndianEnglishVoice();
 
     try {
       await _tts.stop();

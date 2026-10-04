@@ -1,4 +1,6 @@
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
+import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 import 'package:smartKitchen/core/services/restaurant_print_profile_service.dart';
 import 'package:smartKitchen/core/utils/tax_calculator.dart';
@@ -32,17 +34,32 @@ class EscPosReceiptBuilder {
     final timeText = DateFormat('hh:mm a').format(now);
 
     bytes.addAll(generator.reset());
-    bytes.addAll(
-      generator.text(
-        _headerRestaurantName,
-        styles: const PosStyles(
+
+    final includeLogo = await PrintSettings.getBillPdfIncludeLogos();
+    final thermalLogo = includeLogo
+        ? await _thermalLogoImage(printerType: printerType)
+        : null;
+    if (thermalLogo != null) {
+      bytes.addAll(
+        generator.imageRaster(
+          thermalLogo,
           align: PosAlign.center,
-          bold: true,
-          height: PosTextSize.size2,
-          width: PosTextSize.size1,
         ),
-      ),
-    );
+      );
+      bytes.addAll(generator.feed(1));
+    } else {
+      bytes.addAll(
+        generator.text(
+          _headerRestaurantName,
+          styles: const PosStyles(
+            align: PosAlign.center,
+            bold: true,
+            height: PosTextSize.size2,
+            width: PosTextSize.size1,
+          ),
+        ),
+      );
+    }
     bytes.addAll(
       generator.text(
         _headerRestaurantAddress,
@@ -273,6 +290,122 @@ class EscPosReceiptBuilder {
         styles: const PosStyles(align: PosAlign.right),
       ),
     ]);
+  }
+
+  /// Decodes the saved restaurant logo (or the same PDF fallback asset) into a
+  /// 1-bit-friendly raster sized for 58mm / 80mm thermal paper.
+  static Future<img.Image?> _thermalLogoImage({
+    required PosPrinterType printerType,
+  }) async {
+    final bytes = await _loadThermalLogoBytes();
+    if (bytes == null || bytes.isEmpty) return null;
+
+    try {
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null || decoded.width <= 0 || decoded.height <= 0) {
+        return null;
+      }
+
+      final paperDots = printerType == PosPrinterType.narrow58 ? 384 : 576;
+      // Leave side margins so cheap 58mm heads do not clip the logo.
+      final maxWidth = _alignToRasterWidth((paperDots * 0.72).round());
+      final maxHeight = printerType == PosPrinterType.narrow58 ? 140 : 180;
+      final target = _thermalLogoTargetSize(
+        imageWidth: decoded.width,
+        imageHeight: decoded.height,
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
+      );
+
+      var prepared = _flattenOnWhite(decoded);
+      prepared = img.copyResize(
+        prepared,
+        width: target.width,
+        height: target.height,
+        interpolation: img.Interpolation.linear,
+      );
+      prepared = img.grayscale(prepared);
+      return prepared;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<Uint8List?> _loadThermalLogoBytes() async {
+    if (Get.isRegistered<RestaurantPrintProfileService>()) {
+      final profile = Get.find<RestaurantPrintProfileService>();
+      await profile.ensureLogoReady();
+      final fromProfile = profile.logoBytes;
+      if (fromProfile != null && fromProfile.isNotEmpty) {
+        return fromProfile;
+      }
+    }
+
+    try {
+      final data = await rootBundle.load(
+        'assets/images/restaurant_bill_logo.png',
+      );
+      if (data.lengthInBytes <= 0) return null;
+      return data.buffer.asUint8List();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static img.Image _flattenOnWhite(img.Image source) {
+    final flattened = img.Image(
+      width: source.width,
+      height: source.height,
+      numChannels: 3,
+    );
+    img.fill(flattened, color: img.ColorRgb8(255, 255, 255));
+    img.compositeImage(flattened, source);
+    return flattened;
+  }
+
+  static ({int width, int height}) _thermalLogoTargetSize({
+    required int imageWidth,
+    required int imageHeight,
+    required int maxWidth,
+    required int maxHeight,
+  }) {
+    final aspect = imageWidth / imageHeight;
+    late final double boxW;
+    late final double boxH;
+    if (aspect >= 1.5) {
+      boxW = maxWidth.toDouble();
+      boxH = maxHeight.toDouble();
+    } else if (aspect <= 0.8) {
+      boxW = maxWidth * 0.55;
+      boxH = maxHeight * 0.85;
+    } else {
+      final side = maxHeight * 0.75;
+      final halfWidth = maxWidth * 0.55;
+      boxW = side < halfWidth ? side : halfWidth;
+      boxH = side;
+    }
+
+    var width = boxW;
+    var height = width / aspect;
+    if (height > boxH) {
+      height = boxH;
+      width = height * aspect;
+    }
+
+    var widthDots = _alignToRasterWidth(width.round().clamp(8, maxWidth));
+    var heightDots = height.round().clamp(8, maxHeight);
+    if (widthDots / aspect > maxHeight) {
+      heightDots = maxHeight;
+      widthDots = _alignToRasterWidth((heightDots * aspect).round().clamp(8, maxWidth));
+    } else {
+      heightDots = (widthDots / aspect).round().clamp(8, maxHeight);
+    }
+    return (width: widthDots, height: heightDots);
+  }
+
+  static int _alignToRasterWidth(int width) {
+    final aligned = (width ~/ 8) * 8;
+    return aligned < 8 ? 8 : aligned;
   }
 
   static String get _headerRestaurantName {

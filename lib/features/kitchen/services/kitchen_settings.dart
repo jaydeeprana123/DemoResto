@@ -12,6 +12,7 @@ class KitchenSettings {
   static const _keyShowZomatoOrdersInAll = 'kitchen_filter_show_zomato_in_all';
   static const _keyBackgroundOrderRingtone = 'kitchen_background_order_ringtone';
   static const _keyPreparationView = 'kitchen_preparation_view';
+  static const _keyVoiceAnnouncement = 'kitchen_voice_announcement';
 
   static final ValueNotifier<bool> showTableAllOrders = ValueNotifier(true);
   static final ValueNotifier<bool> showServeOrderScreen = ValueNotifier(false);
@@ -21,6 +22,9 @@ class KitchenSettings {
   /// Foreground kitchen bells do not depend on this setting.
   static final ValueNotifier<bool> backgroundOrderRingtoneEnabled =
       ValueNotifier(true);
+  /// When true, kitchen cards show a speaker icon that reads the order aloud.
+  static final ValueNotifier<bool> voiceAnnouncementEnabled =
+      ValueNotifier(false);
   /// On mobile kitchen screen: true = 2-column grid, false = single-column list.
   static final ValueNotifier<bool> mobileOrdersGridLayout = ValueNotifier(false);
 
@@ -44,6 +48,8 @@ class KitchenSettings {
         prefs.getBool(_keyBackgroundOrderRingtone) ?? true;
     preparationViewEnabled.value =
         prefs.getBool(_keyPreparationView) ?? false;
+    voiceAnnouncementEnabled.value =
+        prefs.getBool(_keyVoiceAnnouncement) ?? false;
     mobileOrdersGridLayout.value =
         prefs.getBool(_keyMobileOrdersGridLayout) ?? false;
 
@@ -102,6 +108,17 @@ class KitchenSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyPreparationView, value);
     preparationViewEnabled.value = value;
+  }
+
+  static Future<bool> getVoiceAnnouncementEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyVoiceAnnouncement) ?? false;
+  }
+
+  static Future<void> setVoiceAnnouncementEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyVoiceAnnouncement, value);
+    voiceAnnouncementEnabled.value = value;
   }
 
   static Future<void> setMobileOrdersGridLayout(bool value) async {

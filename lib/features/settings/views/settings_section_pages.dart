@@ -862,7 +862,7 @@ class _SettingsBillingSectionPageState
                   icon: Icons.image_outlined,
                   title: 'Logos on bill PDF',
                   subtitle:
-                      'Show restaurant and Smart Kitchen logos on printed receipts',
+                      'Show restaurant logo on PDF bills and Bluetooth thermal receipts',
                   value: _settings.billPdfIncludeLogos.value,
                   onChanged: (value) async {
                     if (value == null) return;
@@ -1048,6 +1048,17 @@ class _SettingsKitchenSectionPageState
                   onChanged: (value) async {
                     if (value == null) return;
                     await _settings.setKitchenShowServeOrderScreen(value);
+                  },
+                ),
+                SettingsSwitchRow(
+                  icon: Icons.volume_up_outlined,
+                  title: 'Speaker / Voice Announcement',
+                  subtitle:
+                      'When on, a speaker icon is shown on kitchen orders and preparation cards so staff can hear the items read aloud.',
+                  value: _settings.kitchenVoiceAnnouncementEnabled.value,
+                  onChanged: (value) async {
+                    if (value == null) return;
+                    await _settings.setKitchenVoiceAnnouncementEnabled(value);
                   },
                 ),
                 SettingsSwitchRow(

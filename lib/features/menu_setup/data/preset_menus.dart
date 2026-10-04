@@ -18,7 +18,7 @@ class PresetMenu {
 
   int get itemCount => categories.fold<int>(
     0,
-    (sum, category) => sum + ((category['items'] as List?)?.length ?? 0),
+        (sum, category) => sum + ((category['items'] as List?)?.length ?? 0),
   );
 }
 
@@ -756,19 +756,19 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
         'name': 'Thaal for 2 Person',
         'price': 699.0,
         'includes':
-            'Chicken Al Faham H + Shawarma Platter + Chicken Tikka + Chicken Lemon Rice + Salad',
+        'Chicken Al Faham H + Shawarma Platter + Chicken Tikka + Chicken Lemon Rice + Salad',
       },
       {
         'name': 'Thaal for 4 Person',
         'price': 1399.0,
         'includes':
-            'Afghani Chicken H + Chicken Chilly H + Chicken Tikka + Crispy Platter + Chicken Fried Rice + Crackle Fish H + Butter Chicken H + Chapatti Roti 4 + Cold Drink 1L',
+        'Afghani Chicken H + Chicken Chilly H + Chicken Tikka + Crispy Platter + Chicken Fried Rice + Crackle Fish H + Butter Chicken H + Chapatti Roti 4 + Cold Drink 1L',
       },
       {
         'name': 'Thaal for 6 Person',
         'price': 2299.0,
         'includes':
-            'Grilled Chicken H + Sizzling Tandoori H + Reshmi Malai Tikka + Chicken Chilly H + Chicken 65 H + Chicken Singapore Rice + Chicken Lemon Rice + Crackle Fish 6 Pcs + Tandoor Jhinga 12 Pcs + Butter Chicken H + Chicken Haandi H + Chapatti Roti 6 + Cold Drink 1',
+        'Grilled Chicken H + Sizzling Tandoori H + Reshmi Malai Tikka + Chicken Chilly H + Chicken 65 H + Chicken Singapore Rice + Chicken Lemon Rice + Crackle Fish 6 Pcs + Tandoor Jhinga 12 Pcs + Butter Chicken H + Chicken Haandi H + Chapatti Roti 6 + Cold Drink 1',
       },
     ],
   },
@@ -790,31 +790,31 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
         'name': 'Crispy Snacks',
         'price': 320.0,
         'includes':
-            'Crispy Chicken (1pc) + Al-Faham (1pc) + Soft Drink (250ml)',
+        'Crispy Chicken (1pc) + Al-Faham (1pc) + Soft Drink (250ml)',
       },
       {
         'name': 'Dinner Delite',
         'price': 630.0,
         'includes':
-            'Crispy Chicken (3pc) + Al-Faham (Half) + Fries + Soft Drink (250ml)',
+        'Crispy Chicken (3pc) + Al-Faham (Half) + Fries + Soft Drink (250ml)',
       },
       {
         'name': 'Mixed Pack',
         'price': 890.0,
         'includes':
-            'Crispy Chicken (4pc) + Grill Chicken (Half) + Shawarma Khaboos (2) + Fries + Soft Drink (500ml)',
+        'Crispy Chicken (4pc) + Grill Chicken (Half) + Shawarma Khaboos (2) + Fries + Soft Drink (500ml)',
       },
       {
         'name': 'Family Special',
         'price': 1700.0,
         'includes':
-            'Crispy Chicken (8pc) + Grill Chicken (Half) + Al Faham Chicken (Half) + Shawarma Khaboos (4) + Fries + Soft Drink (500ml)',
+        'Crispy Chicken (8pc) + Grill Chicken (Half) + Al Faham Chicken (Half) + Shawarma Khaboos (4) + Fries + Soft Drink (500ml)',
       },
       {
         'name': 'All In One Combo',
         'price': 1950.0,
         'includes':
-            'Shawarma Khaboos (4p) + Chicken Grill (H) + Chicken Al Faham (H) + Fish Tikka + Chicken Strips (6pc) + Chicken Popcorn (10p) + Crispy Chicken (4pc) + Soft Drink (1 Ltr)',
+        'Shawarma Khaboos (4p) + Chicken Grill (H) + Chicken Al Faham (H) + Fish Tikka + Chicken Strips (6pc) + Chicken Popcorn (10p) + Crispy Chicken (4pc) + Soft Drink (1 Ltr)',
       },
     ],
   },
@@ -825,25 +825,25 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
         'name': 'Combo 1',
         'price': 230.0,
         'includes':
-            'Fish Popcorn (6pc) + Samoli Shawarma (2) + Soft Drink (250ml)',
+        'Fish Popcorn (6pc) + Samoli Shawarma (2) + Soft Drink (250ml)',
       },
       {
         'name': 'Combo 2',
         'price': 320.0,
         'includes':
-            'Grilled Strips (6pcs) + Samoli Shawarma (2) + Soft Drink (250ml)',
+        'Grilled Strips (6pcs) + Samoli Shawarma (2) + Soft Drink (250ml)',
       },
       {
         'name': 'Combo 3',
         'price': 430.0,
         'includes':
-            'Fish Tikka Grilled (6pcs) + Samoli Shawarma (2) + Soft Drink (250ml)',
+        'Fish Tikka Grilled (6pcs) + Samoli Shawarma (2) + Soft Drink (250ml)',
       },
       {
         'name': 'Combo 4',
         'price': 520.0,
         'includes':
-            'Chicken Tikka (6pcs) + Samoli/Khaboos Shawarma + 1pc Al Faham + Soft Drink (500ml)',
+        'Chicken Tikka (6pcs) + Samoli/Khaboos Shawarma + 1pc Al Faham + Soft Drink (500ml)',
       },
     ],
   },

@@ -15,6 +15,7 @@ class RestaurantPrintProfileService extends GetxService {
   String? _mobile3;
   String? _logoUrl;
   String? _loadedLogoUrl;
+  Uint8List? _logoBytes;
   pw.MemoryImage? _cachedLogo;
 
   String get name => _name;
@@ -23,6 +24,7 @@ class RestaurantPrintProfileService extends GetxService {
   String? get mobile2 => _mobile2;
   String? get mobile3 => _mobile3;
   String? get logoUrl => _logoUrl;
+  Uint8List? get logoBytes => _logoBytes;
   pw.MemoryImage? get logoImage => _cachedLogo;
 
   String? get displayMobile1 {
@@ -63,6 +65,7 @@ class RestaurantPrintProfileService extends GetxService {
 
     if (_logoUrl != _loadedLogoUrl) {
       _cachedLogo = null;
+      _logoBytes = null;
       _loadedLogoUrl = null;
     }
 
@@ -79,7 +82,8 @@ class RestaurantPrintProfileService extends GetxService {
       if (response.statusCode != 200) return;
       final bytes = response.bodyBytes;
       if (bytes.isEmpty) return;
-      _cachedLogo = pw.MemoryImage(Uint8List.fromList(bytes));
+      _logoBytes = Uint8List.fromList(bytes);
+      _cachedLogo = pw.MemoryImage(_logoBytes!);
       _loadedLogoUrl = url;
     } catch (_) {
       // Receipt falls back to restaurant name when logo cannot be loaded.
@@ -94,6 +98,7 @@ class RestaurantPrintProfileService extends GetxService {
     _mobile3 = null;
     _logoUrl = null;
     _loadedLogoUrl = null;
+    _logoBytes = null;
     _cachedLogo = null;
   }
 }

@@ -31,6 +31,7 @@ class SettingsController extends GetxController {
   final kitchenShowServeOrderScreen = false.obs;
   final kitchenPreparationViewEnabled = false.obs;
   final kitchenBackgroundOrderRingtoneEnabled = true.obs;
+  final kitchenVoiceAnnouncementEnabled = false.obs;
   final dashboardServeRingtoneEnabled = true.obs;
   final orderCompletionNotificationEnabled = false.obs;
   final printPdfEnabled = false.obs;
@@ -85,6 +86,8 @@ class SettingsController extends GetxController {
         await KitchenSettings.getPreparationViewEnabled();
     kitchenBackgroundOrderRingtoneEnabled.value =
         await KitchenSettings.getBackgroundOrderRingtoneEnabled();
+    kitchenVoiceAnnouncementEnabled.value =
+        await KitchenSettings.getVoiceAnnouncementEnabled();
   }
 
   Future<void> loadAppTabSettings() async {
@@ -112,6 +115,11 @@ class SettingsController extends GetxController {
   Future<void> setKitchenPreparationViewEnabled(bool value) async {
     await KitchenSettings.setPreparationViewEnabled(value);
     kitchenPreparationViewEnabled.value = value;
+  }
+
+  Future<void> setKitchenVoiceAnnouncementEnabled(bool value) async {
+    await KitchenSettings.setVoiceAnnouncementEnabled(value);
+    kitchenVoiceAnnouncementEnabled.value = value;
   }
 
   Future<void> setKitchenBackgroundOrderRingtoneEnabled(bool value) async {

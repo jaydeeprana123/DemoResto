@@ -1,6 +1,8 @@
 import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:smartKitchen/features/kitchen/services/kitchen_preparation_view_index.dart';
 import 'package:smartKitchen/features/kitchen/services/kitchen_cross_table_pending_index.dart';
+import 'package:smartKitchen/features/kitchen/services/kitchen_order_tts_service.dart';
+import 'package:smartKitchen/features/kitchen/services/kitchen_settings.dart';
 import 'package:smartKitchen/features/kitchen/widgets/kitchen_theme.dart';
 import 'package:smartKitchen/features/tables/repositories/table_item_served.dart';
 import 'package:smartKitchen/features/tables/services/serve_notification_service.dart';
@@ -413,6 +415,40 @@ class _PreparationItemBlock extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
+          ),
+          ValueListenableBuilder<bool>(
+            valueListenable: KitchenSettings.voiceAnnouncementEnabled,
+            builder: (context, voiceEnabled, _) {
+              if (!voiceEnabled || group.itemName.trim().isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Tooltip(
+                  message: 'Speak order',
+                  child: InkWell(
+                    onTap: () {
+                      KitchenOrderTtsService.instance.speakQtyAndName(
+                        qty: group.totalQty,
+                        name: group.itemName,
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 4,
+                      ),
+                      child: Icon(
+                        Icons.volume_up,
+                        size: 20,
+                        color: titleColor,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(width: 8),
           Container(

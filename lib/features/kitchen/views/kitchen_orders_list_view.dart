@@ -541,6 +541,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   bool _showTableAllOrders = true;
   bool _showServeOrderScreen = false;
   bool _showPreparationView = false;
+  bool _voiceAnnouncementEnabled = false;
 
   /// 0 = active (unserved items), 1 = served items only
   int _kitchenOrderTabIndex = 0;
@@ -574,6 +575,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           KitchenSettings.showServeOrderScreen.value == true;
       _showPreparationView =
           KitchenSettings.preparationViewEnabled.value == true;
+      _voiceAnnouncementEnabled =
+          KitchenSettings.voiceAnnouncementEnabled.value == true;
       _mobileLayoutIsGrid = KitchenSettings.mobileOrdersGridLayout.value;
       if (!_showServeOrderScreen) {
         _kitchenOrderTabIndex = 0;
@@ -878,6 +881,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
               KitchenSettings.showServeOrderScreen.value == true;
           _showPreparationView =
               KitchenSettings.preparationViewEnabled.value == true;
+          _voiceAnnouncementEnabled =
+              KitchenSettings.voiceAnnouncementEnabled.value == true;
           _mobileLayoutIsGrid =
               KitchenSettings.mobileOrdersGridLayout.value == true;
           showAllCategories = KitchenSettings.showAllCategories;
@@ -896,6 +901,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     KitchenSettings.showTableAllOrders.addListener(_onKitchenSettingsChanged);
     KitchenSettings.showServeOrderScreen.addListener(_onKitchenSettingsChanged);
     KitchenSettings.preparationViewEnabled.addListener(
+      _onKitchenSettingsChanged,
+    );
+    KitchenSettings.voiceAnnouncementEnabled.addListener(
       _onKitchenSettingsChanged,
     );
     KitchenSettings.mobileOrdersGridLayout.addListener(
@@ -2860,7 +2868,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                               lastTransactionId: group.lastTransactionId,
                             )
                         : null,
-                    onSpeakTap: group.items.isEmpty
+                    onSpeakTap: !_voiceAnnouncementEnabled ||
+                            group.items.isEmpty
                         ? null
                         : () => KitchenOrderTtsService.instance
                             .speakOrder(group.items),
@@ -3004,13 +3013,15 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
                               lastTransactionId: tableCard.lastTransactionId,
                             )
                         : null,
-                    onSpeakTap: () {
-                      final items = tableCard.batches
-                          .expand((batch) => batch.items)
-                          .toList();
-                      if (items.isEmpty) return;
-                      KitchenOrderTtsService.instance.speakOrder(items);
-                    },
+                    onSpeakTap: !_voiceAnnouncementEnabled
+                        ? null
+                        : () {
+                            final items = tableCard.batches
+                                .expand((batch) => batch.items)
+                                .toList();
+                            if (items.isEmpty) return;
+                            KitchenOrderTtsService.instance.speakOrder(items);
+                          },
                     compact: _isMobileGridLayout,
                   ),
                   if (isZomato &&
@@ -3687,6 +3698,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       _onKitchenSettingsChanged,
     );
     KitchenSettings.preparationViewEnabled.removeListener(
+      _onKitchenSettingsChanged,
+    );
+    KitchenSettings.voiceAnnouncementEnabled.removeListener(
       _onKitchenSettingsChanged,
     );
     KitchenSettings.mobileOrdersGridLayout.removeListener(
