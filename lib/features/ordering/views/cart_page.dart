@@ -52,6 +52,8 @@ class CartPage extends StatefulWidget {
     bool fromBilling,
     bool fromFinalBilling,
     String? transactionId,
+    bool? isFutureOrder,
+    DateTime? scheduledAt,
   })
   onConfirm;
 
@@ -107,6 +109,8 @@ class _CartPageState extends State<CartPage> {
 
   bool isBilling = false;
   bool _takeAwayNameConfirmed = false;
+  bool _isFutureOrder = false;
+  DateTime? _scheduledAt;
   bool _pastItemsExpanded = false;
 
   double _cgstPercent = 0;
@@ -405,15 +409,17 @@ class _CartPageState extends State<CartPage> {
 
     final current = tableNameController.text.trim();
     final suggested = current.isNotEmpty ? current : widget.tableName.trim();
-    final name = await TakeAwayNameDialog.show(
+    final details = await TakeAwayNameDialog.show(
       context,
       suggestedName: suggested,
       existingNames: widget.existingOrderNames,
       currentName: suggested,
     );
-    if (name == null || !mounted) return false;
+    if (details == null || !mounted) return false;
 
-    tableNameController.text = name;
+    tableNameController.text = details.name;
+    _isFutureOrder = details.isFutureOrder;
+    _scheduledAt = details.scheduledAt;
     _takeAwayNameConfirmed = true;
     if (mounted) setState(() {});
     return true;
@@ -1965,6 +1971,8 @@ class _CartPageState extends State<CartPage> {
                         false,
                         tableNameController.text.trim(),
                         overallRemarksController.text.trim(),
+                        isFutureOrder: _isFutureOrder,
+                        scheduledAt: _scheduledAt,
                       );
                       _closeAfterOrder(routePops: 2);
                     },

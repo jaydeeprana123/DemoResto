@@ -14,6 +14,7 @@ import 'package:dotted_line/dotted_line.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
+import 'package:smartKitchen/core/utils/future_order_utils.dart';
 import 'package:smartKitchen/core/utils/table_name_utils.dart';
 import 'package:smartKitchen/core/utils/zomato_order_utils.dart';
 import 'package:smartKitchen/features/menu_setup/services/menu_cache_service.dart';
@@ -125,6 +126,19 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   final Set<String> _orderCompletionKnownTables = {};
   final Map<String, int> _orderCompletionNotifiedAtMs = {};
   final Map<String, String> _orderCompletionNotifiedBy = {};
+  final Set<String> _revealedFutureOrderKeys = {};
+
+  bool _isKitchenVisibleForGroup(TableGroup group) {
+    return FutureOrderUtils.isKitchenVisible(
+      isFutureOrder: group.isFutureOrder,
+      scheduledAt: group.scheduledAt,
+    );
+  }
+
+  bool _shouldSuppressNewOrderAlert(TableGroup? group) {
+    if (group == null) return false;
+    return group.isFutureOrder && !_isKitchenVisibleForGroup(group);
+  }
 
   bool _isOrderDelayed(DateTime time) =>
       DateTime.now().difference(time).inMinutes > _delayThresholdMinutes;
@@ -758,6 +772,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     String? screenshotUrl,
     String? zomatoStatus,
     Timestamp? createdAt,
+    bool isFutureOrder = false,
+    DateTime? scheduledAt,
   }) {
     List<TableGroup> groups = [];
     if (itemsFromDb == null) itemsFromDb = const [];
@@ -805,6 +821,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           source: source,
           screenshotUrl: screenshotUrl,
           zomatoStatus: zomatoStatus,
+          isFutureOrder: isFutureOrder,
+          scheduledAt: scheduledAt,
         ),
       );
     });
@@ -914,8 +932,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     );
     _listenToKitchenTables();
     _timer = Timer.periodic(const Duration(minutes: 1), (_) {
-      _minuteTick.value++;
-      _triggerDelayedBlinkIfNeeded();
+      _onKitchenMinuteTick();
     });
     _menuCacheListener = _onMenuCacheRevisionChanged;
     Get.find<MenuCacheService>().revisionListenable.addListener(
@@ -1026,6 +1043,51 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     );
   }
 
+  void _onKitchenMinuteTick() {
+    final previouslyVisible = _displayFilteredGroups.map((g) => g.key).toSet();
+    _rebuildDisplayFromCache();
+    final nowVisible = _displayFilteredGroups.map((g) => g.key).toSet();
+    final newlyVisible = nowVisible.difference(previouslyVisible);
+
+    _minuteTick.value++;
+    _triggerDelayedBlinkIfNeeded();
+
+    for (final key in newlyVisible) {
+      final group = _displayFilteredGroups.firstWhere((g) => g.key == key);
+      if (group.isFutureOrder) {
+        _notifyFutureOrderRevealed(group);
+      }
+    }
+
+    if (!setEquals(previouslyVisible, nowVisible) && mounted) {
+      setState(() {});
+    }
+  }
+
+  void _notifyFutureOrderRevealed(TableGroup group) {
+    if (!_revealedFutureOrderKeys.add(group.key)) return;
+
+    final keyToGroup = {for (final g in _lastUpdatedGroups) g.key: g};
+    final currentKeys = keyToGroup.keys.toSet();
+    final currentSignatures = {
+      for (final g in _lastUpdatedGroups) g.key: _groupSignature(g),
+    };
+    final currentDocIds = _lastUpdatedGroups.map((g) => g.docId).toSet();
+
+    _scheduleBlink(
+      key: group.key,
+      keyToGroup: keyToGroup,
+      currentKeys: currentKeys,
+      currentSignatures: currentSignatures,
+      currentDocIds: currentDocIds,
+      isUpdate: false,
+    );
+  }
+
+  List<TableGroup> _filterBySchedule(List<TableGroup> groups) {
+    return groups.where(_isKitchenVisibleForGroup).toList();
+  }
+
   void _rebuildDisplayFromCache() {
     final filtered = _applyKitchenDisplayFilters(_lastUpdatedGroups);
     _displayFilteredGroups = filtered;
@@ -1047,7 +1109,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     }
 
     final lines = <KitchenCrossTablePendingLine>[];
-    for (final group in _filterByOrderType(_lastUpdatedGroups)) {
+    for (final group in _filterBySchedule(_filterByOrderType(_lastUpdatedGroups))) {
       final batchTime = DateTime.fromMillisecondsSinceEpoch(group.groupTime);
       for (final entry in group.items.asMap().entries) {
         final item = TableItemServed.asItemMap(entry.value);
@@ -1339,11 +1401,12 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   List<TableGroup> _applyKitchenDisplayFilters(List<TableGroup> groups) {
     final byCategory = _filterByCategories(groups);
     final byOrderType = _filterByOrderType(byCategory);
+    final bySchedule = _filterBySchedule(byOrderType);
     if (!_showServeOrderScreen) {
-      return _filterAllItems(byOrderType);
+      return _filterAllItems(bySchedule);
     }
     return _filterByServedStatus(
-      byOrderType,
+      bySchedule,
       servedOnly: _kitchenOrderTabIndex == 1,
     );
   }
@@ -1646,6 +1709,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       final screenshotUrl = data['screenshotUrl']?.toString();
       final zomatoStatus = data['zomatoStatus']?.toString();
       final createdAt = data['createdAt'];
+      final isFutureOrder =
+          FutureOrderUtils.isFutureOrderFlag(data['isFutureOrder']);
+      final scheduledAt = isFutureOrder
+          ? FutureOrderUtils.parseScheduledAt(data['scheduledAt'])
+          : null;
       final itemsFromDb = data.containsKey('items')
           ? (data['items'] as List<dynamic>?)
           : null;
@@ -1661,6 +1729,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           screenshotUrl: screenshotUrl,
           zomatoStatus: zomatoStatus,
           createdAt: createdAt is Timestamp ? createdAt : null,
+          isFutureOrder: isFutureOrder,
+          scheduledAt: scheduledAt,
         ),
       );
     }
@@ -1708,14 +1778,16 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         final keyToBlink = newTableKeys.isNotEmpty
             ? newTableKeys.last
             : currentKeys.last;
-        _scheduleBlink(
-          key: keyToBlink,
-          keyToGroup: keyToGroup,
-          currentKeys: currentKeys,
-          currentSignatures: currentSignatures,
-          currentDocIds: currentDocIds,
-          isUpdate: false,
-        );
+        if (!_shouldSuppressNewOrderAlert(keyToGroup[keyToBlink])) {
+          _scheduleBlink(
+            key: keyToBlink,
+            keyToGroup: keyToGroup,
+            currentKeys: currentKeys,
+            currentSignatures: currentSignatures,
+            currentDocIds: currentDocIds,
+            isUpdate: false,
+          );
+        }
         _wasKitchenEmpty = false;
       } else {
         previousKeys = currentKeys;
@@ -1748,14 +1820,17 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       ];
 
       if (newTableKeys.isNotEmpty) {
-        _scheduleBlink(
-          key: newTableKeys.last,
-          keyToGroup: keyToGroup,
-          currentKeys: currentKeys,
-          currentSignatures: currentSignatures,
-          currentDocIds: currentDocIds,
-          isUpdate: false,
-        );
+        final revealKey = newTableKeys.last;
+        if (!_shouldSuppressNewOrderAlert(keyToGroup[revealKey])) {
+          _scheduleBlink(
+            key: revealKey,
+            keyToGroup: keyToGroup,
+            currentKeys: currentKeys,
+            currentSignatures: currentSignatures,
+            currentDocIds: currentDocIds,
+            isUpdate: false,
+          );
+        }
       } else if (updateKeys.isNotEmpty) {
         final serveKeys = <String>[];
         final editKeys = <String>[];
@@ -1829,6 +1904,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         : !_sameGroupList(_displayFilteredGroups, filteredGroups);
 
     if (displayChanged || !_kitchenStreamReady) {
+      final previouslyVisible =
+          _displayFilteredGroups.map((g) => g.key).toSet();
+      final nowVisible = filteredGroups.map((g) => g.key).toSet();
+      final newlyVisible = nowVisible.difference(previouslyVisible);
+
       _setStatePreservingScroll(() {
         _displayFilteredGroups = filteredGroups;
         _displayTableCards = tableCards;
@@ -1836,6 +1916,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         _kitchenStreamReady = true;
       });
       _triggerDelayedBlinkIfNeeded();
+
+      for (final key in newlyVisible) {
+        final group = filteredGroups.firstWhere((g) => g.key == key);
+        if (group.isFutureOrder) {
+          _notifyFutureOrderRevealed(group);
+        }
+      }
     }
 
     if (filteredGroups.isNotEmpty) {
@@ -3822,6 +3909,8 @@ class TableGroup {
   final String? source;
   final String? screenshotUrl;
   final String? zomatoStatus;
+  final bool isFutureOrder;
+  final DateTime? scheduledAt;
 
   bool get isZomato =>
       ZomatoOrderUtils.isZomatoSource(source) ||
@@ -3840,6 +3929,8 @@ class TableGroup {
     this.source,
     this.screenshotUrl,
     this.zomatoStatus,
+    this.isFutureOrder = false,
+    this.scheduledAt,
   });
 }
 

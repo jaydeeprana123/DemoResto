@@ -38,6 +38,8 @@ class MenuPage extends StatefulWidget {
     bool fromBilling,
     bool fromFinalBilling,
     String? transactionId,
+    bool? isFutureOrder,
+    DateTime? scheduledAt,
   })
   onConfirm;
   final List<Map<String, dynamic>> menuList; // Passed from previous page

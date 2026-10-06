@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:smartKitchen/core/firestore/firestore_sync_channel.dart';
 import 'package:smartKitchen/core/widgets/firestore_sync_status_chip.dart';
 import 'package:smartKitchen/core/utils/platform_utils.dart';
+import 'package:smartKitchen/core/utils/future_order_utils.dart';
 import 'package:smartKitchen/core/utils/table_name_utils.dart';
 import 'package:smartKitchen/core/utils/zomato_order_utils.dart';
 import 'package:smartKitchen/features/menu_setup/services/menu_cache_service.dart';
@@ -84,9 +85,12 @@ class _TableDashboardViewState extends State<TableDashboardView>
   final Map<String, String> tableSources = {};
   final Map<String, String> tableScreenshotUrls = {};
   final Map<String, String> tableZomatoStatuses = {};
+
   /// Millis since epoch for last staff→admin completion notify per table.
   final Map<String, int> tableOrderCompletionNotifiedAtMs = {};
   final Map<String, String> tableOrderCompletionNotifiedBy = {};
+  final Map<String, bool> tableIsFutureOrder = {};
+  final Map<String, DateTime?> tableScheduledAt = {};
   final Set<String> _locallySuppressedCompletionDocIds = {};
   final ScrollController _gridScrollController = ScrollController();
   bool _zomatoPasteInProgress = false;
@@ -125,12 +129,11 @@ class _TableDashboardViewState extends State<TableDashboardView>
     _staffPermissionRefreshTimer?.cancel();
     if (StaffOrderEditPermission.isAdmin) return;
     if (StaffOrderEditPermission.limitMinutes <= 0) return;
-    _staffPermissionRefreshTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) {
-        if (mounted) setState(() {});
-      },
-    );
+    _staffPermissionRefreshTimer = Timer.periodic(const Duration(seconds: 30), (
+      _,
+    ) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _loadTableFilter() async {
@@ -304,6 +307,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
     required Map<String, String> updatedZomatoStatuses,
     required Map<String, int> updatedOrderCompletionNotifiedAtMs,
     required Map<String, String> updatedOrderCompletionNotifiedBy,
+    required Map<String, bool> updatedIsFutureOrder,
+    required Map<String, DateTime?> updatedScheduledAt,
   }) {
     return _sameTablesData(tables, updatedTables) &&
         _sameIntListMap(_firestoreGroupIndices, updatedFirestoreGroupIndices) &&
@@ -322,7 +327,20 @@ class _TableDashboardViewState extends State<TableDashboardView>
         _sameStringMap(
           tableOrderCompletionNotifiedBy,
           updatedOrderCompletionNotifiedBy,
-        );
+        ) &&
+        _sameBoolMap(tableIsFutureOrder, updatedIsFutureOrder) &&
+        _sameScheduledAtMap(tableScheduledAt, updatedScheduledAt);
+  }
+
+  bool _sameScheduledAtMap(Map<String, DateTime?> a, Map<String, DateTime?> b) {
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      final other = b[entry.key];
+      final aMs = entry.value?.millisecondsSinceEpoch;
+      final bMs = other?.millisecondsSinceEpoch;
+      if (aMs != bMs) return false;
+    }
+    return true;
   }
 
   bool _sameIntMap(Map<String, int> a, Map<String, int> b) {
@@ -564,6 +582,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
     final Map<String, String> updatedZomatoStatuses = {};
     final Map<String, int> updatedOrderCompletionNotifiedAtMs = {};
     final Map<String, String> updatedOrderCompletionNotifiedBy = {};
+    final Map<String, bool> updatedIsFutureOrder = {};
+    final Map<String, DateTime?> updatedScheduledAt = {};
 
     for (var doc in querySnapshot.docs) {
       final tableName = doc['name'] as String;
@@ -571,7 +591,9 @@ class _TableDashboardViewState extends State<TableDashboardView>
       updatedCreatedAt[tableName] = data['createdAt'] as Timestamp?;
       updatedIsPaid[tableName] = data['isPaid'] == true;
       updatedDocIds[tableName] = doc.id;
-      final notifiedAtMs = _timestampToMillis(data['orderCompletionNotifiedAt']);
+      final notifiedAtMs = _timestampToMillis(
+        data['orderCompletionNotifiedAt'],
+      );
       if (notifiedAtMs != null) {
         updatedOrderCompletionNotifiedAtMs[tableName] = notifiedAtMs;
         final by = data['orderCompletionNotifiedBy']?.toString().trim() ?? '';
@@ -599,6 +621,12 @@ class _TableDashboardViewState extends State<TableDashboardView>
       final txId = data['lastTransactionId']?.toString();
       if (txId != null && txId.isNotEmpty) {
         updatedTransactionIds[tableName] = txId;
+      }
+      if (FutureOrderUtils.isFutureOrderFlag(data['isFutureOrder'])) {
+        updatedIsFutureOrder[tableName] = true;
+        updatedScheduledAt[tableName] = FutureOrderUtils.parseScheduledAt(
+          data['scheduledAt'],
+        );
       }
       final List<dynamic>? itemsFromDb = doc.data().containsKey('items')
           ? doc['items']
@@ -709,6 +737,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
       updatedZomatoStatuses: updatedZomatoStatuses,
       updatedOrderCompletionNotifiedAtMs: updatedOrderCompletionNotifiedAtMs,
       updatedOrderCompletionNotifiedBy: updatedOrderCompletionNotifiedBy,
+      updatedIsFutureOrder: updatedIsFutureOrder,
+      updatedScheduledAt: updatedScheduledAt,
     );
 
     if (unchanged) {
@@ -768,6 +798,12 @@ class _TableDashboardViewState extends State<TableDashboardView>
       tableOrderCompletionNotifiedBy
         ..clear()
         ..addAll(updatedOrderCompletionNotifiedBy);
+      tableIsFutureOrder
+        ..clear()
+        ..addAll(updatedIsFutureOrder);
+      tableScheduledAt
+        ..clear()
+        ..addAll(updatedScheduledAt);
       if (_tableFilterSelection.isNotEmpty) {
         final before = _tableFilterSelection.length;
         _tableFilterSelection.removeWhere(
@@ -788,8 +824,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
     if (!mounted) return;
 
     try {
-      final loadedMenu =
-          await Get.find<MenuCacheService>().loadFromCacheOnly();
+      final loadedMenu = await Get.find<MenuCacheService>().loadFromCacheOnly();
       if (!mounted) return;
       if (loadedMenu.isEmpty) {
         final ensured = await Get.find<MenuCacheService>().ensureLoaded();
@@ -1055,17 +1090,17 @@ class _TableDashboardViewState extends State<TableDashboardView>
         notifiedByUserId: staffId,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Admin notified for $tableName')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Admin notified for $tableName')));
     } catch (e) {
       if (docId.isNotEmpty) {
         _locallySuppressedCompletionDocIds.remove(docId);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not notify admin: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not notify admin: $e')));
     }
   }
 
@@ -1159,8 +1194,9 @@ class _TableDashboardViewState extends State<TableDashboardView>
     String tableName, {
     String docId = '',
   }) async {
-    final resolvedDocId =
-        docId.isNotEmpty ? docId : (tableDocIds[tableName] ?? '');
+    final resolvedDocId = docId.isNotEmpty
+        ? docId
+        : (tableDocIds[tableName] ?? '');
     final groups = tables[tableName] ?? const <List<Map<String, dynamic>>>[];
     final items = groups
         .expand((group) => group)
@@ -1175,10 +1211,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
     );
 
     if (_isTakeAway(tableName)) {
-      await _deleteTakeAwayAfterFinalBilling(
-        tableName,
-        resolvedDocId,
-      );
+      await _deleteTakeAwayAfterFinalBilling(tableName, resolvedDocId);
       return;
     }
     await _clearTableAfterFinalBilling(tableName);
@@ -1420,8 +1453,9 @@ class _TableDashboardViewState extends State<TableDashboardView>
         return;
       }
 
-      final editedIndex =
-          capturedGroups.isEmpty ? 0 : capturedGroups.length - 1;
+      final editedIndex = capturedGroups.isEmpty
+          ? 0
+          : capturedGroups.length - 1;
       if (activeGroups.isEmpty || editedIndex >= activeGroups.length) {
         setState(() {
           activeGroups.add(_stampGroupAddedAt(items));
@@ -1430,8 +1464,9 @@ class _TableDashboardViewState extends State<TableDashboardView>
         });
       } else {
         final editedGroup = activeGroups[editedIndex];
-        final existingAddedAt =
-            editedGroup.isNotEmpty ? editedGroup.first['addedAt'] : null;
+        final existingAddedAt = editedGroup.isNotEmpty
+            ? editedGroup.first['addedAt']
+            : null;
         setState(() {
           activeGroups[editedIndex] = _stampGroupAddedAt(
             items,
@@ -1539,6 +1574,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
     List<Map<String, dynamic>> selectedItems,
     bool isBillPaid, [
     String overallRemarks = '',
+    bool isFutureOrder = false,
+    DateTime? scheduledAt,
   ]) async {
     try {
       print("=== ADDING NEW TABLE ===");
@@ -1580,6 +1617,10 @@ class _TableDashboardViewState extends State<TableDashboardView>
 
       if (overallRemarks.isNotEmpty) {
         tableData['remarks'] = overallRemarks;
+      }
+      if (isFutureOrder && scheduledAt != null) {
+        tableData['isFutureOrder'] = true;
+        tableData['scheduledAt'] = Timestamp.fromDate(scheduledAt);
       }
       final addedBy = _currentAddedByUser();
       if (addedBy != null) {
@@ -2351,6 +2392,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
                     bool fromBilling = false,
                     bool fromFinalBilling = false,
                     String? transactionId,
+                    bool? isFutureOrder,
+                    DateTime? scheduledAt,
                   }) async {
                     if (fromBilling || fromFinalBilling) {
                       await _billTakeAwayOrder(
@@ -2366,6 +2409,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
                       selectedItems,
                       isBillPaid,
                       overallRemarks,
+                      isFutureOrder == true,
+                      scheduledAt,
                     );
                     setState(() {});
                   },
@@ -2621,6 +2666,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
     final screenshotUrl = tableScreenshotUrls[tableName] ?? '';
     final zomatoStatus = tableZomatoStatuses[tableName] ?? 'Pending';
     final isTakeAway = _isTakeAway(tableName);
+    final isFutureOrder = tableIsFutureOrder[tableName] == true;
+    final scheduledAt = tableScheduledAt[tableName];
     final displayName = _shortDisplayName(tableName);
     final isMobileLayout = MediaQuery.sizeOf(context).width <= 600;
     // Header colour: green=has items, orange=empty dine-in, blue=empty takeaway
@@ -2676,6 +2723,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
                             bool fromBilling = false,
                             bool fromFinalBilling = false,
                             String? transactionId,
+                            bool? isFutureOrder,
+                            DateTime? scheduledAt,
                           }) => _handleMenuPageConfirm(
                             originalName: tableName,
                             groups: groups,
@@ -2748,10 +2797,17 @@ class _TableDashboardViewState extends State<TableDashboardView>
                         completedBy: completedBy,
                       );
                       if (isTakeAway) {
-                        await FirestorePaths.scopedDoc('tables', docId).delete();
+                        await FirestorePaths.scopedDoc(
+                          'tables',
+                          docId,
+                        ).delete();
                         setState(() {});
                       } else {
-                        await _updateTableItemsInFirestore(tableName, [], false);
+                        await _updateTableItemsInFirestore(
+                          tableName,
+                          [],
+                          false,
+                        );
                       }
                     }
                   });
@@ -2790,6 +2846,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
                             bool fromBilling = false,
                             bool fromFinalBilling = false,
                             String? transactionId,
+                            bool? isFutureOrder,
+                            DateTime? scheduledAt,
                           }) => _handleMenuPageConfirm(
                             originalName: tableName,
                             groups: groups,
@@ -2886,64 +2944,69 @@ class _TableDashboardViewState extends State<TableDashboardView>
                           ),
                         ),
                       ),
+
                     // Action icons
-                    if (hasItems && !paid && _staffCanModifyLatestGroup(groups))
-                      _cardIconBtn(Icons.edit_outlined, () async {
-                        final lastGroup = groups.last;
-                        final pastForEdit = groups.length > 1
-                            ? _mergeItemsByNameAndCategory(
-                                groups
-                                    .sublist(0, groups.length - 1)
-                                    .expand((g) => g)
-                                    .toList(),
-                              )
-                            : <Map<String, dynamic>>[];
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => MenuPage(
-                              menuList: menu,
-                              tableName: tableName,
-                              tableNameEditable: false,
-                              existingOrderNames: tables.keys.toSet(),
-                              initialItems: List<Map<String, dynamic>>.from(
-                                lastGroup,
-                              ),
-                              pastItems: pastForEdit,
-                              editDeletePermissionAnchorAt:
-                                  _latestGroupAddedAt(groups),
-                              showBilling: groups.length == 1,
-                              isFromFinalBilling: false,
-                              onMenuCacheUpdated: _reloadMenuFromCache,
-                              onDeleteTable: (tName) =>
-                                  _deleteTableFromMenu(tName, docId: docId),
-                              onConfirm:
-                                  (
-                                    items,
-                                    isBillPaid,
-                                    tName,
-                                    overallRemarks, {
-                                    bool fromBilling = false,
-                                    bool fromFinalBilling = false,
-                                    String? transactionId,
-                                  }) => _handleMenuPageConfirm(
-                                    originalName: tableName,
-                                    groups: groups,
-                                    docId: docId,
-                                    items: items,
-                                    isBillPaid: isBillPaid,
-                                    tName: tName,
-                                    overallRemarks: overallRemarks,
-                                    fromBilling: fromBilling,
-                                    fromFinalBilling: fromFinalBilling,
-                                    editingLastGroup: true,
-                                    transactionId: transactionId,
-                                  ),
-                            ),
-                          ),
-                        );
-                        await _reloadMenuFromCache();
-                      }),
+                    // if (hasItems && !paid && _staffCanModifyLatestGroup(groups))
+                    //   _cardIconBtn(Icons.edit_outlined, () async {
+                    //     final lastGroup = groups.last;
+                    //     final pastForEdit = groups.length > 1
+                    //         ? _mergeItemsByNameAndCategory(
+                    //             groups
+                    //                 .sublist(0, groups.length - 1)
+                    //                 .expand((g) => g)
+                    //                 .toList(),
+                    //           )
+                    //         : <Map<String, dynamic>>[];
+                    //     await Navigator.push(
+                    //       context,
+                    //       MaterialPageRoute(
+                    //         builder: (_) => MenuPage(
+                    //           menuList: menu,
+                    //           tableName: tableName,
+                    //           tableNameEditable: false,
+                    //           existingOrderNames: tables.keys.toSet(),
+                    //           initialItems: List<Map<String, dynamic>>.from(
+                    //             lastGroup,
+                    //           ),
+                    //           pastItems: pastForEdit,
+                    //           editDeletePermissionAnchorAt: _latestGroupAddedAt(
+                    //             groups,
+                    //           ),
+                    //           showBilling: groups.length == 1,
+                    //           isFromFinalBilling: false,
+                    //           onMenuCacheUpdated: _reloadMenuFromCache,
+                    //           onDeleteTable: (tName) =>
+                    //               _deleteTableFromMenu(tName, docId: docId),
+                    //           onConfirm:
+                    //               (
+                    //                 items,
+                    //                 isBillPaid,
+                    //                 tName,
+                    //                 overallRemarks, {
+                    //                 bool fromBilling = false,
+                    //                 bool fromFinalBilling = false,
+                    //                 String? transactionId,
+                    //                 bool? isFutureOrder,
+                    //                 DateTime? scheduledAt,
+                    //               }) => _handleMenuPageConfirm(
+                    //                 originalName: tableName,
+                    //                 groups: groups,
+                    //                 docId: docId,
+                    //                 items: items,
+                    //                 isBillPaid: isBillPaid,
+                    //                 tName: tName,
+                    //                 overallRemarks: overallRemarks,
+                    //                 fromBilling: fromBilling,
+                    //                 fromFinalBilling: fromFinalBilling,
+                    //                 editingLastGroup: true,
+                    //                 transactionId: transactionId,
+                    //               ),
+                    //         ),
+                    //       ),
+                    //     );
+                    //     await _reloadMenuFromCache();
+                    //   }),
+
                     // Notify Admin — when Order Completion Notification is enabled
                     if (hasItems && !paid)
                       ValueListenableBuilder<bool>(
@@ -2973,6 +3036,27 @@ class _TableDashboardViewState extends State<TableDashboardView>
                           isTakeAway: isTakeAway,
                         );
                       }),
+                    if (isFutureOrder)
+                      Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFB74D),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'FUTURE',
+                          style: TextStyle(
+                            color: Color(0xFF5D4037),
+                            fontSize: 10,
+                            fontFamily: fontMulishBold,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
                     // PAID pill — admin double-tap to reverse billing
                     if (paid)
                       GestureDetector(
@@ -3061,6 +3145,18 @@ class _TableDashboardViewState extends State<TableDashboardView>
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (isFutureOrder && scheduledAt != null)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
+                            child: Text(
+                              FutureOrderUtils.scheduledLabel(scheduledAt),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: const Color(0xFFE65100),
+                                fontFamily: fontMulishSemiBold,
+                              ),
+                            ),
+                          ),
                         ...List.generate(groups.length, (gi) {
                           final group = groups[gi];
                           return Column(

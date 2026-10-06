@@ -242,6 +242,8 @@ class _FinalBillingViewState extends State<FinalBillingView> {
                           bool fromBilling = false,
                           bool fromFinalBilling = false,
                           String? transactionId,
+                          bool? isFutureOrder,
+                          DateTime? scheduledAt,
                         }) async {
                           setState(() {
                             cartItems = selectedItems
