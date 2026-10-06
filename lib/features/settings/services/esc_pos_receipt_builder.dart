@@ -228,6 +228,19 @@ class EscPosReceiptBuilder {
         styles: const PosStyles(align: PosAlign.center, bold: true),
       ),
     );
+    final showQr = await PrintSettings.getBillPrintShowQrCode();
+    if (showQr) {
+      final thermalQr = await _thermalQrImage(printerType: printerType);
+      if (thermalQr != null) {
+        bytes.addAll(generator.feed(1));
+        bytes.addAll(
+          generator.imageRaster(
+            thermalQr,
+            align: PosAlign.center,
+          ),
+        );
+      }
+    }
     bytes.addAll(generator.feed(2));
     bytes.addAll(generator.cut());
 
@@ -322,6 +335,45 @@ class EscPosReceiptBuilder {
         prepared,
         width: target.width,
         height: target.height,
+        interpolation: img.Interpolation.linear,
+      );
+      prepared = img.grayscale(prepared);
+      return prepared;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Uploaded restaurant QR only. There is no asset fallback.
+  static Future<img.Image?> _thermalQrImage({
+    required PosPrinterType printerType,
+  }) async {
+    if (!Get.isRegistered<RestaurantPrintProfileService>()) return null;
+    final profile = Get.find<RestaurantPrintProfileService>();
+    await profile.ensureQrCodeReady();
+    final bytes = profile.qrCodeBytes;
+    if (bytes == null || bytes.isEmpty) return null;
+
+    try {
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null || decoded.width <= 0 || decoded.height <= 0) {
+        return null;
+      }
+
+      final paperDots = printerType == PosPrinterType.narrow58 ? 384 : 576;
+      final side = _alignToRasterWidth((paperDots * 0.48).round());
+      final aspect = decoded.width / decoded.height;
+      final width = aspect >= 1 ? side : _alignToRasterWidth((side * aspect).round());
+      final height = aspect >= 1 ? (side / aspect).round() : side;
+
+      final targetWidth = width.clamp(8, side).toInt();
+      final targetHeight = height.clamp(8, side).toInt();
+
+      var prepared = _flattenOnWhite(decoded);
+      prepared = img.copyResize(
+        prepared,
+        width: targetWidth,
+        height: targetHeight,
         interpolation: img.Interpolation.linear,
       );
       prepared = img.grayscale(prepared);

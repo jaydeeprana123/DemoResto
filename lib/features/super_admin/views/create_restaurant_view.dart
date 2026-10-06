@@ -22,6 +22,7 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
   final _mobile3Ctrl = TextEditingController();
   int _subscriptionYears = 1;
   Uint8List? _logoBytes;
+  Uint8List? _qrCodeBytes;
 
   @override
   void dispose() {
@@ -44,6 +45,7 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
       mobile2: _mobile2Ctrl.text,
       mobile3: _mobile3Ctrl.text,
       logoBytes: _logoBytes,
+      qrCodeBytes: _qrCodeBytes,
       subscriptionYears: _subscriptionYears,
     );
     if (!mounted) return;
@@ -79,6 +81,16 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
                 existingLogoUrl: null,
                 onPicked: (bytes) => setState(() => _logoBytes = bytes),
                 onClear: () => setState(() => _logoBytes = null),
+              ),
+              const SizedBox(height: 16),
+              RestaurantLogoPicker(
+                title: 'Restaurant QR Code',
+                pickLabel: 'Pick QR Code',
+                changeLabel: 'Change QR Code',
+                logoBytes: _qrCodeBytes,
+                existingLogoUrl: null,
+                onPicked: (bytes) => setState(() => _qrCodeBytes = bytes),
+                onClear: () => setState(() => _qrCodeBytes = null),
               ),
               const SizedBox(height: 16),
               TextFormField(

@@ -23,6 +23,7 @@ class SuperAdminRepository {
     String? mobile2,
     String? mobile3,
     String? logoUrl,
+    String? qrCodeUrl,
     required int subscriptionYears,
   }) async {
     final now = DateTime.now();
@@ -42,6 +43,8 @@ class SuperAdminRepository {
       if (mobile2 != null && mobile2.trim().isNotEmpty) 'mobile2': mobile2.trim(),
       if (mobile3 != null && mobile3.trim().isNotEmpty) 'mobile3': mobile3.trim(),
       if (logoUrl != null && logoUrl.trim().isNotEmpty) 'logoUrl': logoUrl.trim(),
+      if (qrCodeUrl != null && qrCodeUrl.trim().isNotEmpty)
+        'qrCodeUrl': qrCodeUrl.trim(),
       'status': RestaurantStatus.active.name,
       'subscriptionStart': Timestamp.fromDate(now),
       'subscriptionEnd': Timestamp.fromDate(end),
@@ -59,6 +62,7 @@ class SuperAdminRepository {
     String? mobile2,
     String? mobile3,
     String? logoUrl,
+    String? qrCodeUrl,
   }) {
     final updates = <String, dynamic>{
       'name': name.trim(),
@@ -92,6 +96,13 @@ class SuperAdminRepository {
       updates['logoUrl'] = trimmedLogo;
     } else {
       updates['logoUrl'] = FieldValue.delete();
+    }
+
+    final trimmedQr = qrCodeUrl?.trim();
+    if (trimmedQr != null && trimmedQr.isNotEmpty) {
+      updates['qrCodeUrl'] = trimmedQr;
+    } else {
+      updates['qrCodeUrl'] = FieldValue.delete();
     }
 
     return FirestorePaths.restaurant(restaurantId).update(updates);

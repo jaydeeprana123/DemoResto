@@ -870,6 +870,17 @@ class _SettingsBillingSectionPageState
                   },
                 ),
                 SettingsSwitchRow(
+                  icon: Icons.qr_code_2_outlined,
+                  title: 'Show QR Code on Printed Bill',
+                  subtitle:
+                      'Print the restaurant QR code at the bottom of Bluetooth, USB, and other physical bills. WhatsApp receipts stay without it.',
+                  value: _settings.billPrintShowQrCode.value,
+                  onChanged: (value) async {
+                    if (value == null) return;
+                    await _settings.setBillPrintShowQrCode(value);
+                  },
+                ),
+                SettingsSwitchRow(
                   icon: Icons.print_outlined,
                   title: 'Auto-print after billing',
                   subtitle:

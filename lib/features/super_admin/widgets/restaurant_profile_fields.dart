@@ -19,12 +19,18 @@ class RestaurantLogoPicker extends StatelessWidget {
     required this.existingLogoUrl,
     required this.onPicked,
     required this.onClear,
+    this.title = 'Restaurant Logo',
+    this.pickLabel = 'Pick Logo',
+    this.changeLabel = 'Change Logo',
   });
 
   final Uint8List? logoBytes;
   final String? existingLogoUrl;
   final ValueChanged<Uint8List> onPicked;
   final VoidCallback onClear;
+  final String title;
+  final String pickLabel;
+  final String changeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +40,7 @@ class RestaurantLogoPicker extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Restaurant Logo', style: MyFont.semiBold(14, color: superAdminNavy)),
+        Text(title, style: MyFont.semiBold(14, color: superAdminNavy)),
         const SizedBox(height: 8),
         if (hasPreview) ...[
           ClipRRect(
@@ -60,7 +66,7 @@ class RestaurantLogoPicker extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: () => _pickLogo(context),
               icon: const Icon(Icons.image_outlined, size: 18),
-              label: Text(hasPreview ? 'Change Logo' : 'Pick Logo'),
+              label: Text(hasPreview ? changeLabel : pickLabel),
             ),
             if (hasPreview) ...[
               const SizedBox(width: 8),
@@ -167,6 +173,19 @@ Future<String?> uploadRestaurantLogo({
     bytes: bytes,
     fileName: fileName,
     folder: '/restaurant-logos/$restaurantId',
+  );
+  return upload.url;
+}
+
+Future<String?> uploadRestaurantQrCode({
+  required String restaurantId,
+  required Uint8List bytes,
+  String fileName = 'qr.png',
+}) async {
+  final upload = await ImageKitUploadService.uploadFile(
+    bytes: bytes,
+    fileName: fileName,
+    folder: '/restaurant-qr-codes/$restaurantId',
   );
   return upload.url;
 }

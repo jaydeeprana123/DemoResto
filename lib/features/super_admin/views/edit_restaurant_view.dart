@@ -27,6 +27,8 @@ class _EditRestaurantViewState extends State<EditRestaurantView> {
 
   Uint8List? _logoBytes;
   bool _removeLogo = false;
+  Uint8List? _qrCodeBytes;
+  bool _removeQrCode = false;
   late DateTime _subscriptionEnd;
 
   @override
@@ -90,6 +92,8 @@ class _EditRestaurantViewState extends State<EditRestaurantView> {
       mobile3: _mobile3Ctrl.text,
       logoBytes: _logoBytes,
       removeLogo: _removeLogo,
+      qrCodeBytes: _qrCodeBytes,
+      removeQrCode: _removeQrCode,
       subscriptionEnd: _subscriptionEnd,
     );
     if (!mounted) return;
@@ -132,6 +136,23 @@ class _EditRestaurantViewState extends State<EditRestaurantView> {
                 onClear: () => setState(() {
                   _logoBytes = null;
                   _removeLogo = true;
+                }),
+              ),
+              const SizedBox(height: 16),
+              RestaurantLogoPicker(
+                title: 'Restaurant QR Code',
+                pickLabel: 'Pick QR Code',
+                changeLabel: 'Change QR Code',
+                logoBytes: _qrCodeBytes,
+                existingLogoUrl:
+                    _removeQrCode ? null : widget.restaurant.qrCodeUrl,
+                onPicked: (bytes) => setState(() {
+                  _qrCodeBytes = bytes;
+                  _removeQrCode = false;
+                }),
+                onClear: () => setState(() {
+                  _qrCodeBytes = null;
+                  _removeQrCode = true;
                 }),
               ),
               const SizedBox(height: 16),

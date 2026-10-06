@@ -66,6 +66,7 @@ class SuperAdminController extends GetxController {
     String? mobile2,
     String? mobile3,
     Uint8List? logoBytes,
+    Uint8List? qrCodeBytes,
     required int subscriptionYears,
   }) async {
     final validationError = validateRestaurantForm(
@@ -91,11 +92,21 @@ class SuperAdminController extends GetxController {
         subscriptionYears: subscriptionYears,
       );
 
+      String? logoUrl;
       if (logoBytes != null) {
-        final logoUrl = await uploadRestaurantLogo(
+        logoUrl = await uploadRestaurantLogo(
           restaurantId: restaurantId,
           bytes: logoBytes,
         );
+      }
+      String? qrCodeUrl;
+      if (qrCodeBytes != null) {
+        qrCodeUrl = await uploadRestaurantQrCode(
+          restaurantId: restaurantId,
+          bytes: qrCodeBytes,
+        );
+      }
+      if (logoUrl != null || qrCodeUrl != null) {
         await _repository.updateRestaurantProfile(
           restaurantId: restaurantId,
           name: name.trim(),
@@ -108,6 +119,7 @@ class SuperAdminController extends GetxController {
               ? normalizeRestaurantMobile(mobile3)
               : null,
           logoUrl: logoUrl,
+          qrCodeUrl: qrCodeUrl,
         );
       }
       return null;
@@ -127,6 +139,8 @@ class SuperAdminController extends GetxController {
     String? mobile3,
     Uint8List? logoBytes,
     bool removeLogo = false,
+    Uint8List? qrCodeBytes,
+    bool removeQrCode = false,
     DateTime? subscriptionEnd,
   }) async {
     final validationError = validateRestaurantForm(
@@ -146,6 +160,13 @@ class SuperAdminController extends GetxController {
           bytes: logoBytes,
         );
       }
+      String? qrCodeUrl = removeQrCode ? null : restaurant.qrCodeUrl;
+      if (qrCodeBytes != null) {
+        qrCodeUrl = await uploadRestaurantQrCode(
+          restaurantId: restaurant.id,
+          bytes: qrCodeBytes,
+        );
+      }
 
       await _repository.updateRestaurantProfile(
         restaurantId: restaurant.id,
@@ -159,6 +180,7 @@ class SuperAdminController extends GetxController {
             ? normalizeRestaurantMobile(mobile3)
             : null,
         logoUrl: logoUrl,
+        qrCodeUrl: qrCodeUrl,
       );
 
       if (subscriptionEnd != null) {

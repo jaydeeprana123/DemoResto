@@ -85,6 +85,7 @@ class FoodBillPdfService {
   static pw.Font? _cachedFont;
   static pw.MemoryImage? _cachedRestaurantLogo;
   static pw.MemoryImage? _cachedPoweredByLogo;
+  static pw.MemoryImage? _cachedBillQrCode;
 
   /// Preloads PDF assets once so later bills build faster.
   static Future<void> warmUpAssets({bool includeLogos = false}) async {
@@ -192,6 +193,7 @@ class FoodBillPdfService {
 
     final printerType = await PrintSettings.getPrinterType();
     final includeLogos = await PrintSettings.getBillPdfIncludeLogos();
+    final includeQrCode = await _printedBillIncludesQr();
     await warmUpAssets(includeLogos: includeLogos);
     final pageFormat = PrintSettings.receiptPageFormat(
       printerType,
@@ -201,6 +203,7 @@ class FoodBillPdfService {
       hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
       hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
       includeLogos: includeLogos,
+      includeQrCode: includeQrCode,
     );
 
     if (showProgressDialog) {
@@ -212,6 +215,7 @@ class FoodBillPdfService {
         printerType: printerType,
         pageFormat: pageFormat,
         includeLogos: includeLogos,
+        includeQrCode: includeQrCode,
         toPrinter: true,
       );
     } catch (e) {
@@ -256,6 +260,7 @@ class FoodBillPdfService {
     try {
       final printerType = await PrintSettings.getPrinterType();
       final includeLogos = await PrintSettings.getBillPdfIncludeLogos();
+      final includeQrCode = await _printedBillIncludesQr();
       await warmUpAssets(includeLogos: includeLogos);
       final pageFormat = PrintSettings.receiptPageFormat(
         printerType,
@@ -265,12 +270,14 @@ class FoodBillPdfService {
         hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
         hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
         includeLogos: includeLogos,
+        includeQrCode: includeQrCode,
       );
       await _deliverReceipt(
         data: data,
         printerType: printerType,
         pageFormat: pageFormat,
         includeLogos: includeLogos,
+        includeQrCode: includeQrCode,
         toPrinter: true,
       );
     } catch (e) {
@@ -323,6 +330,7 @@ class FoodBillPdfService {
         printerType,
         pageFormat,
         includeLogos: includeLogos,
+        includeQrCode: false,
       );
       final fileName = buildReceiptPdfFileName(data);
       final upload = await ImageKitUploadService.uploadBillPdf(
@@ -384,6 +392,7 @@ class FoodBillPdfService {
     try {
       final printerType = await PrintSettings.getPrinterType();
       final includeLogos = await PrintSettings.getBillPdfIncludeLogos();
+      final includeQrCode = await _printedBillIncludesQr();
       await warmUpAssets(includeLogos: includeLogos);
       final pageFormat = PrintSettings.receiptPageFormat(
         printerType,
@@ -393,12 +402,14 @@ class FoodBillPdfService {
         hasPaymentLines: data.cashAmount > 0 || data.onlineAmount > 0,
         hasTaxLines: data.cgstAmount > 0 || data.sgstAmount > 0,
         includeLogos: includeLogos,
+        includeQrCode: includeQrCode,
       );
       await _deliverReceipt(
         data: data,
         printerType: printerType,
         pageFormat: pageFormat,
         includeLogos: includeLogos,
+        includeQrCode: includeQrCode,
         toPrinter: true,
       );
     } catch (e) {
@@ -411,6 +422,7 @@ class FoodBillPdfService {
     required PosPrinterType printerType,
     required PdfPageFormat pageFormat,
     required bool includeLogos,
+    bool includeQrCode = false,
     bool toPrinter = false,
   }) async {
     if (toPrinter) {
@@ -437,6 +449,7 @@ class FoodBillPdfService {
       printerType,
       pageFormat,
       includeLogos: includeLogos,
+      includeQrCode: includeQrCode,
     );
     final fileName = buildReceiptPdfFileName(data);
 
@@ -611,6 +624,23 @@ class FoodBillPdfService {
           ? Get.find<RestaurantPrintProfileService>()
           : null;
 
+  /// Physical printouts only. WhatsApp PDFs pass [includeQrCode] false and
+  /// never call this.
+  static Future<bool> _printedBillIncludesQr() async {
+    if (!await PrintSettings.getBillPrintShowQrCode()) {
+      _cachedBillQrCode = null;
+      return false;
+    }
+    final profile = _printProfile;
+    if (profile == null) {
+      _cachedBillQrCode = null;
+      return false;
+    }
+    await profile.ensureQrCodeReady();
+    _cachedBillQrCode = profile.qrCodeImage;
+    return _cachedBillQrCode != null;
+  }
+
   static String get _headerRestaurantName {
     final name = _printProfile?.name.trim();
     if (name != null && name.isNotEmpty) return name;
@@ -634,6 +664,7 @@ class FoodBillPdfService {
     PosPrinterType printerType,
     PdfPageFormat pageFormat, {
     required bool includeLogos,
+    bool includeQrCode = false,
   }) async {
     final pdf = pw.Document();
     final regular = await _loadFont();
@@ -823,6 +854,17 @@ class FoodBillPdfService {
                   ],
                 ),
               ),
+              if (includeQrCode && _cachedBillQrCode != null) ...[
+                pw.SizedBox(height: 8),
+                pw.Center(
+                  child: pw.Image(
+                    _cachedBillQrCode!,
+                    width: isNarrow ? 28 * PdfPageFormat.mm : 32 * PdfPageFormat.mm,
+                    height: isNarrow ? 28 * PdfPageFormat.mm : 32 * PdfPageFormat.mm,
+                    fit: pw.BoxFit.contain,
+                  ),
+                ),
+              ],
             ],
           );
         },

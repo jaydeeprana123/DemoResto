@@ -20,6 +20,7 @@ class Restaurant {
     this.adminEmail,
     this.address,
     this.logoUrl,
+    this.qrCodeUrl,
     this.mobile1,
     this.mobile2,
     this.mobile3,
@@ -37,6 +38,7 @@ class Restaurant {
   final String? adminEmail;
   final String? address;
   final String? logoUrl;
+  final String? qrCodeUrl;
   final String? mobile1;
   final String? mobile2;
   final String? mobile3;
@@ -76,6 +78,7 @@ class Restaurant {
       adminEmail: data['adminEmail']?.toString(),
       address: data['address']?.toString(),
       logoUrl: data['logoUrl']?.toString(),
+      qrCodeUrl: data['qrCodeUrl']?.toString(),
       mobile1: data['mobile1']?.toString(),
       mobile2: data['mobile2']?.toString(),
       mobile3: data['mobile3']?.toString(),
@@ -97,6 +100,7 @@ class Restaurant {
     String? adminEmail,
     String? address,
     String? logoUrl,
+    String? qrCodeUrl,
     String? mobile1,
     String? mobile2,
     String? mobile3,
@@ -114,6 +118,7 @@ class Restaurant {
       adminEmail: adminEmail ?? this.adminEmail,
       address: address ?? this.address,
       logoUrl: logoUrl ?? this.logoUrl,
+      qrCodeUrl: qrCodeUrl ?? this.qrCodeUrl,
       mobile1: mobile1 ?? this.mobile1,
       mobile2: mobile2 ?? this.mobile2,
       mobile3: mobile3 ?? this.mobile3,
@@ -134,6 +139,7 @@ class Restaurant {
       if (adminEmail != null) 'adminEmail': adminEmail,
       if (address != null) 'address': address,
       if (logoUrl != null) 'logoUrl': logoUrl,
+      if (qrCodeUrl != null) 'qrCodeUrl': qrCodeUrl,
       if (mobile1 != null) 'mobile1': mobile1,
       if (mobile2 != null) 'mobile2': mobile2,
       if (mobile3 != null) 'mobile3': mobile3,

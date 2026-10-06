@@ -52,6 +52,7 @@ class PrintSettings {
   static const _keyPrintPdfEnabled = 'print_pdf_enabled';
   static const _keyPrinterType = 'pos_printer_type';
   static const _keyBillPdfIncludeLogos = 'bill_pdf_include_logos';
+  static const _keyBillPrintShowQrCode = 'bill_print_show_qr_code';
   static const _keyPreferredPrinterName = 'pos_preferred_printer_name';
   static const _keyConnectionMode = 'receipt_connection_mode';
   static const _keyBluetoothMac = 'bluetooth_printer_mac';
@@ -61,6 +62,7 @@ class PrintSettings {
   static final ValueNotifier<PosPrinterType> printerType =
       ValueNotifier(PosPrinterType.rugtek80);
   static final ValueNotifier<bool> billPdfIncludeLogos = ValueNotifier(false);
+  static final ValueNotifier<bool> billPrintShowQrCode = ValueNotifier(false);
   static final ValueNotifier<ReceiptConnectionMode> connectionMode =
       ValueNotifier(ReceiptConnectionMode.systemPrinter);
   static final ValueNotifier<String?> bluetoothPrinterName =
@@ -76,6 +78,8 @@ class PrintSettings {
     );
     billPdfIncludeLogos.value =
         prefs.getBool(_keyBillPdfIncludeLogos) ?? false;
+    billPrintShowQrCode.value =
+        prefs.getBool(_keyBillPrintShowQrCode) ?? false;
     preferredPrinterName = prefs.getString(_keyPreferredPrinterName);
     connectionMode.value = _parseConnectionMode(
       prefs.getString(_keyConnectionMode),
@@ -166,6 +170,17 @@ class PrintSettings {
     billPdfIncludeLogos.value = value;
   }
 
+  static Future<bool> getBillPrintShowQrCode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyBillPrintShowQrCode) ?? false;
+  }
+
+  static Future<void> setBillPrintShowQrCode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyBillPrintShowQrCode, value);
+    billPrintShowQrCode.value = value;
+  }
+
   static PosPrinterType _parsePrinterType(String? raw) {
     return PosPrinterType.values.firstWhere(
       (e) => e.name == raw,
@@ -183,6 +198,7 @@ class PrintSettings {
     bool hasPaymentLines = false,
     bool hasTaxLines = false,
     bool includeLogos = false,
+    bool includeQrCode = false,
   }) {
     final widthMm = type == PosPrinterType.narrow58 ? 57.0 : 80.0;
     final margins = _marginsFor(type);
@@ -197,6 +213,7 @@ class PrintSettings {
     if (hasPaymentLines) heightMm += 12.0;
     heightMm += 24.0;
     if (!includeLogos) heightMm -= 10.0;
+    if (includeQrCode) heightMm += 38.0;
 
     return PdfPageFormat(
       widthMm * PdfPageFormat.mm,

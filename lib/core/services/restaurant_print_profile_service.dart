@@ -17,6 +17,10 @@ class RestaurantPrintProfileService extends GetxService {
   String? _loadedLogoUrl;
   Uint8List? _logoBytes;
   pw.MemoryImage? _cachedLogo;
+  String? _qrCodeUrl;
+  String? _loadedQrCodeUrl;
+  Uint8List? _qrCodeBytes;
+  pw.MemoryImage? _cachedQrCode;
 
   String get name => _name;
   String? get address => _address;
@@ -26,6 +30,9 @@ class RestaurantPrintProfileService extends GetxService {
   String? get logoUrl => _logoUrl;
   Uint8List? get logoBytes => _logoBytes;
   pw.MemoryImage? get logoImage => _cachedLogo;
+  String? get qrCodeUrl => _qrCodeUrl;
+  Uint8List? get qrCodeBytes => _qrCodeBytes;
+  pw.MemoryImage? get qrCodeImage => _cachedQrCode;
 
   String? get displayMobile1 {
     final value = _mobile1?.trim();
@@ -62,14 +69,21 @@ class RestaurantPrintProfileService extends GetxService {
     _mobile2 = restaurant.mobile2;
     _mobile3 = restaurant.mobile3;
     _logoUrl = restaurant.logoUrl;
+    _qrCodeUrl = restaurant.qrCodeUrl;
 
     if (_logoUrl != _loadedLogoUrl) {
       _cachedLogo = null;
       _logoBytes = null;
       _loadedLogoUrl = null;
     }
+    if (_qrCodeUrl != _loadedQrCodeUrl) {
+      _cachedQrCode = null;
+      _qrCodeBytes = null;
+      _loadedQrCodeUrl = null;
+    }
 
     await ensureLogoReady();
+    await ensureQrCodeReady();
   }
 
   Future<void> ensureLogoReady() async {
@@ -90,6 +104,24 @@ class RestaurantPrintProfileService extends GetxService {
     }
   }
 
+  Future<void> ensureQrCodeReady() async {
+    final url = _qrCodeUrl?.trim();
+    if (url == null || url.isEmpty) return;
+    if (_cachedQrCode != null && _loadedQrCodeUrl == url) return;
+
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) return;
+      final bytes = response.bodyBytes;
+      if (bytes.isEmpty) return;
+      _qrCodeBytes = Uint8List.fromList(bytes);
+      _cachedQrCode = pw.MemoryImage(_qrCodeBytes!);
+      _loadedQrCodeUrl = url;
+    } catch (_) {
+      // Physical bills print without a QR when the image cannot be loaded.
+    }
+  }
+
   void clear() {
     _name = '';
     _address = null;
@@ -100,5 +132,9 @@ class RestaurantPrintProfileService extends GetxService {
     _loadedLogoUrl = null;
     _logoBytes = null;
     _cachedLogo = null;
+    _qrCodeUrl = null;
+    _loadedQrCodeUrl = null;
+    _qrCodeBytes = null;
+    _cachedQrCode = null;
   }
 }
