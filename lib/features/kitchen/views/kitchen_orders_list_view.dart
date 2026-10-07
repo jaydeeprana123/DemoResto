@@ -127,6 +127,8 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   final Map<String, int> _orderCompletionNotifiedAtMs = {};
   final Map<String, String> _orderCompletionNotifiedBy = {};
   final Set<String> _revealedFutureOrderKeys = {};
+  Set<String> _previouslyKitchenVisibleKeys = {};
+  bool _kitchenVisibleKeysInitialized = false;
 
   bool _isKitchenVisibleForGroup(TableGroup group) {
     return FutureOrderUtils.isKitchenVisible(
@@ -1047,25 +1049,38 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     final previouslyVisible = _displayFilteredGroups.map((g) => g.key).toSet();
     _rebuildDisplayFromCache();
     final nowVisible = _displayFilteredGroups.map((g) => g.key).toSet();
-    final newlyVisible = nowVisible.difference(previouslyVisible);
 
     _minuteTick.value++;
     _triggerDelayedBlinkIfNeeded();
-
-    for (final key in newlyVisible) {
-      final group = _displayFilteredGroups.firstWhere((g) => g.key == key);
-      if (group.isFutureOrder) {
-        _notifyFutureOrderRevealed(group);
-      }
-    }
 
     if (!setEquals(previouslyVisible, nowVisible) && mounted) {
       setState(() {});
     }
   }
 
+  void _checkFutureOrderReveals(List<TableGroup> currentlyVisible) {
+    final currentKeys = currentlyVisible.map((g) => g.key).toSet();
+
+    if (!_kitchenVisibleKeysInitialized) {
+      _previouslyKitchenVisibleKeys = currentKeys;
+      _kitchenVisibleKeysInitialized = true;
+      return;
+    }
+
+    final newlyVisible = currentKeys.difference(_previouslyKitchenVisibleKeys);
+    _previouslyKitchenVisibleKeys = currentKeys;
+
+    for (final key in newlyVisible) {
+      final group = currentlyVisible.firstWhere((g) => g.key == key);
+      if (group.isFutureOrder) {
+        _notifyFutureOrderRevealed(group);
+      }
+    }
+  }
+
   void _notifyFutureOrderRevealed(TableGroup group) {
-    if (!_revealedFutureOrderKeys.add(group.key)) return;
+    if (_revealedFutureOrderKeys.contains(group.key)) return;
+    if (_showPreparationView && _orderTypeFilterIndex != 3) return;
 
     final keyToGroup = {for (final g in _lastUpdatedGroups) g.key: g};
     final currentKeys = keyToGroup.keys.toSet();
@@ -1082,6 +1097,19 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
       currentDocIds: currentDocIds,
       isUpdate: false,
     );
+    _revealedFutureOrderKeys.add(group.key);
+  }
+
+  void _syncKitchenSnapshotTracking({
+    required Set<String> currentKeys,
+    required Map<String, String> currentSignatures,
+    required Set<String> currentDocIds,
+    required Map<String, TableGroup> keyToGroup,
+  }) {
+    previousKeys = currentKeys;
+    _previousSignatures = currentSignatures;
+    _previousDocIds = currentDocIds;
+    _previousKeyToGroup = keyToGroup;
   }
 
   List<TableGroup> _filterBySchedule(List<TableGroup> groups) {
@@ -1090,6 +1118,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   void _rebuildDisplayFromCache() {
     final filtered = _applyKitchenDisplayFilters(_lastUpdatedGroups);
+    _checkFutureOrderReveals(filtered);
     _displayFilteredGroups = filtered;
     _displayTableCards = _mergeGroupsByTable(filtered);
     _rebuildCrossTablePendingIndex();
@@ -1470,20 +1499,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
           if (filteredItems.isEmpty) return null;
 
-          return TableGroup(
-            group.tableName,
-            filteredItems,
-            group.groupTime,
-            key: group.key,
-            docId: group.docId,
-            isPaid: group.isPaid,
-            isPriority: group.isPriority,
-            groupIndex: group.groupIndex,
-            lastTransactionId: group.lastTransactionId,
-            source: group.source,
-            screenshotUrl: group.screenshotUrl,
-            zomatoStatus: group.zomatoStatus,
-          );
+          return group.copyWithItems(filteredItems);
         })
         .whereType<TableGroup>()
         .toList();
@@ -1537,20 +1553,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
           if (filteredItems.isEmpty) return null;
 
-          return TableGroup(
-            group.tableName,
-            filteredItems,
-            group.groupTime,
-            key: group.key,
-            docId: group.docId,
-            isPaid: group.isPaid,
-            isPriority: group.isPriority,
-            groupIndex: group.groupIndex,
-            lastTransactionId: group.lastTransactionId,
-            source: group.source,
-            screenshotUrl: group.screenshotUrl,
-            zomatoStatus: group.zomatoStatus,
-          );
+          return group.copyWithItems(filteredItems);
         })
         .whereType<TableGroup>()
         .toList();
@@ -1787,6 +1790,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             currentDocIds: currentDocIds,
             isUpdate: false,
           );
+        } else {
+          _syncKitchenSnapshotTracking(
+            currentKeys: currentKeys,
+            currentSignatures: currentSignatures,
+            currentDocIds: currentDocIds,
+            keyToGroup: keyToGroup,
+          );
         }
         _wasKitchenEmpty = false;
       } else {
@@ -1829,6 +1839,13 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
             currentSignatures: currentSignatures,
             currentDocIds: currentDocIds,
             isUpdate: false,
+          );
+        } else {
+          _syncKitchenSnapshotTracking(
+            currentKeys: currentKeys,
+            currentSignatures: currentSignatures,
+            currentDocIds: currentDocIds,
+            keyToGroup: keyToGroup,
           );
         }
       } else if (updateKeys.isNotEmpty) {
@@ -1904,10 +1921,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         : !_sameGroupList(_displayFilteredGroups, filteredGroups);
 
     if (displayChanged || !_kitchenStreamReady) {
-      final previouslyVisible =
-          _displayFilteredGroups.map((g) => g.key).toSet();
-      final nowVisible = filteredGroups.map((g) => g.key).toSet();
-      final newlyVisible = nowVisible.difference(previouslyVisible);
+      _checkFutureOrderReveals(filteredGroups);
 
       _setStatePreservingScroll(() {
         _displayFilteredGroups = filteredGroups;
@@ -1916,13 +1930,6 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
         _kitchenStreamReady = true;
       });
       _triggerDelayedBlinkIfNeeded();
-
-      for (final key in newlyVisible) {
-        final group = filteredGroups.firstWhere((g) => g.key == key);
-        if (group.isFutureOrder) {
-          _notifyFutureOrderRevealed(group);
-        }
-      }
     }
 
     if (filteredGroups.isNotEmpty) {
@@ -2597,21 +2604,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
           // If no items match, return null (will be filtered out)
           if (filteredItems.isEmpty) return null;
 
-          // Return new group with filtered items
-          return TableGroup(
-            group.tableName,
-            filteredItems,
-            group.groupTime,
-            key: group.key,
-            docId: group.docId,
-            isPaid: group.isPaid,
-            isPriority: group.isPriority,
-            groupIndex: group.groupIndex,
-            lastTransactionId: group.lastTransactionId,
-            source: group.source,
-            screenshotUrl: group.screenshotUrl,
-            zomatoStatus: group.zomatoStatus,
-          );
+          return group.copyWithItems(filteredItems);
         })
         .whereType<TableGroup>()
         .toList(); // Remove nulls
@@ -3932,6 +3925,25 @@ class TableGroup {
     this.isFutureOrder = false,
     this.scheduledAt,
   });
+
+  TableGroup copyWithItems(List<Map<String, dynamic>> items) {
+    return TableGroup(
+      tableName,
+      items,
+      groupTime,
+      key: key,
+      docId: docId,
+      isPaid: isPaid,
+      isPriority: isPriority,
+      groupIndex: groupIndex,
+      lastTransactionId: lastTransactionId,
+      source: source,
+      screenshotUrl: screenshotUrl,
+      zomatoStatus: zomatoStatus,
+      isFutureOrder: isFutureOrder,
+      scheduledAt: scheduledAt,
+    );
+  }
 }
 
 class KitchenTableCard {
