@@ -57,6 +57,7 @@ class _TakeAwayOrderNameDialog extends StatefulWidget {
 
 class _TakeAwayOrderNameDialogState extends State<_TakeAwayOrderNameDialog> {
   late final TextEditingController _controller;
+  late final TextEditingController _timeController;
   final _formKey = GlobalKey<FormState>();
   bool _isFutureOrder = false;
   late DateTime _scheduledAt;
@@ -68,10 +69,15 @@ class _TakeAwayOrderNameDialogState extends State<_TakeAwayOrderNameDialog> {
     _controller = TextEditingController(text: widget.suggestedName);
     final now = DateTime.now();
     _scheduledAt = DateTime(now.year, now.month, now.day, now.hour, now.minute);
+    _timeController = TextEditingController(text: _formatScheduledTime());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _selectAllText();
     });
+  }
+
+  String _formatScheduledTime() {
+    return DateFormat('hh:mm a').format(_scheduledAt);
   }
 
   void _selectAllText() {
@@ -84,32 +90,32 @@ class _TakeAwayOrderNameDialogState extends State<_TakeAwayOrderNameDialog> {
   @override
   void dispose() {
     _controller.dispose();
+    _timeController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickDateTime() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: _scheduledAt,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-    if (date == null || !mounted) return;
-
+  Future<void> _pickTime() async {
     final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_scheduledAt),
     );
     if (time == null || !mounted) return;
 
+    final now = DateTime.now();
+    var scheduled = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      time.hour,
+      time.minute,
+    );
+    if (!scheduled.isAfter(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+
     setState(() {
-      _scheduledAt = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      );
+      _scheduledAt = scheduled;
+      _timeController.text = _formatScheduledTime();
       _scheduleError = null;
     });
   }
@@ -137,10 +143,6 @@ class _TakeAwayOrderNameDialogState extends State<_TakeAwayOrderNameDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final scheduleLabel = DateFormat(
-      'EEE, d MMM • hh:mm a',
-    ).format(_scheduledAt);
-
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: const Text(
@@ -224,22 +226,33 @@ class _TakeAwayOrderNameDialogState extends State<_TakeAwayOrderNameDialog> {
                   _isFutureOrder = value;
                   _scheduleError = null;
                 });
+                if (value) {
+                  _pickTime();
+                }
               },
             ),
             if (_isFutureOrder) ...[
               const SizedBox(height: 4),
-              OutlinedButton.icon(
-                onPressed: _pickDateTime,
-                icon: const Icon(Icons.event, size: 18),
-                label: Text(
-                  scheduleLabel,
-                  style: const TextStyle(fontFamily: fontMulishSemiBold),
+              TextFormField(
+                controller: _timeController,
+                readOnly: true,
+                onTap: _pickTime,
+                style: const TextStyle(
+                  fontFamily: fontMulishSemiBold,
+                  fontSize: 15,
                 ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF1A3A5C),
-                  side: BorderSide(color: Colors.grey.shade300),
-                  shape: RoundedRectangleBorder(
+                decoration: InputDecoration(
+                  hintText: 'Select time',
+                  prefixIcon: const Icon(Icons.access_time, size: 20),
+                  filled: true,
+                  fillColor: const Color(0xFFF5F6FA),
+                  border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
                   ),
                 ),
               ),
