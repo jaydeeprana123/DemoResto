@@ -25,8 +25,14 @@ class ImageKitSettings {
 
   static RestaurantSession get _session => Get.find<RestaurantSession>();
 
-  static String get _restaurantScope =>
-      _session.profile.value?.restaurantId ?? FirestorePaths.legacyRestaurantId;
+  static String get _restaurantScope => _session.scopedRestaurantId;
+
+  /// Unscoped preference keys belong to the primary restaurant only.
+  static bool get _allowUnscopedPrefsFallback {
+    final primary = _session.profile.value?.restaurantId;
+    if (primary == null || primary.isEmpty) return true;
+    return _restaurantScope == primary;
+  }
 
   static Future<ImageKitConfig> load() async {
     if (_memoryCache != null && _memoryCache!.isValid) {
@@ -107,8 +113,8 @@ class ImageKitSettings {
   static void clearCache() => _memoryCache = null;
 
   static Future<ImageKitConfig> _loadFromRestaurantDoc() async {
-    final restaurantId = _session.profile.value?.restaurantId;
-    if (restaurantId == null || restaurantId.isEmpty) {
+    final restaurantId = _session.scopedRestaurantId;
+    if (restaurantId.isEmpty) {
       return const ImageKitConfig.empty();
     }
 
@@ -132,7 +138,10 @@ class ImageKitSettings {
   }
 
   static Future<void> _saveToCloud(ImageKitConfig config) async {
-    final restaurantId = _session.profile.value?.restaurantId;
+    final restaurantId = _session.profile.value?.restaurantId == null &&
+            _session.selectedRestaurantId == null
+        ? null
+        : _session.scopedRestaurantId;
     if (restaurantId != null && restaurantId.isNotEmpty) {
       await FirestorePaths.restaurant(restaurantId).set({
         'imagekitPublicKey': config.publicKey,
@@ -155,18 +164,23 @@ class ImageKitSettings {
     final prefs = await SharedPreferences.getInstance();
     final scope = _restaurantScope;
 
-    final publicKey =
-        _readNonEmpty(prefs, _scopedKey(_prefsPublicKey, scope)) ??
-        _readNonEmpty(prefs, _prefsPublicKey) ??
-        _readLegacyCredential(prefs, _legacyPrefsPublicKey);
+    final publicKey = _readNonEmpty(prefs, _scopedKey(_prefsPublicKey, scope)) ??
+        (_allowUnscopedPrefsFallback
+            ? _readNonEmpty(prefs, _prefsPublicKey) ??
+                _readLegacyCredential(prefs, _legacyPrefsPublicKey)
+            : null);
     final privateKey =
         _readNonEmpty(prefs, _scopedKey(_prefsPrivateKey, scope)) ??
-        _readNonEmpty(prefs, _prefsPrivateKey) ??
-        _readLegacyCredential(prefs, _legacyPrefsPrivateKey);
+            (_allowUnscopedPrefsFallback
+                ? _readNonEmpty(prefs, _prefsPrivateKey) ??
+                    _readLegacyCredential(prefs, _legacyPrefsPrivateKey)
+                : null);
     final urlEndpoint =
         _readNonEmpty(prefs, _scopedKey(_prefsUrlEndpoint, scope)) ??
-        _readNonEmpty(prefs, _prefsUrlEndpoint) ??
-        _readLegacyCredential(prefs, _legacyPrefsUrlEndpoint);
+            (_allowUnscopedPrefsFallback
+                ? _readNonEmpty(prefs, _prefsUrlEndpoint) ??
+                    _readLegacyCredential(prefs, _legacyPrefsUrlEndpoint)
+                : null);
 
     return ImageKitConfig(
       publicKey: publicKey ?? '',
@@ -189,10 +203,12 @@ class ImageKitSettings {
       config.urlEndpoint,
     );
 
-    // Keep unscoped keys too so older builds / other platforms still find them.
-    await prefs.setString(_prefsPublicKey, config.publicKey);
-    await prefs.setString(_prefsPrivateKey, config.privateKey);
-    await prefs.setString(_prefsUrlEndpoint, config.urlEndpoint);
+    // Keep unscoped keys for the primary restaurant so older builds still find them.
+    if (_allowUnscopedPrefsFallback) {
+      await prefs.setString(_prefsPublicKey, config.publicKey);
+      await prefs.setString(_prefsPrivateKey, config.privateKey);
+      await prefs.setString(_prefsUrlEndpoint, config.urlEndpoint);
+    }
   }
 
   static String _scopedKey(String base, String scope) => '${base}_$scope';

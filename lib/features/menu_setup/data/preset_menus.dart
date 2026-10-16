@@ -18,7 +18,7 @@ class PresetMenu {
 
   int get itemCount => categories.fold<int>(
     0,
-        (sum, category) => sum + ((category['items'] as List?)?.length ?? 0),
+    (sum, category) => sum + ((category['items'] as List?)?.length ?? 0),
   );
 }
 
@@ -41,6 +41,13 @@ const List<PresetMenu> kPresetMenus = [
     title: 'Tawaazo Restaurant Menu',
     subtitle: 'Tawaazo Restaurant full menu',
     categories: _tawaazoMenu,
+  ),
+
+  PresetMenu(
+    id: 'alhaadiAkota',
+    title: 'Alhaadi Restaurant Menu',
+    subtitle: 'Alhaadi Restaurant full menu',
+    categories: _alHaadiAkotaMenu,
   ),
 ];
 
@@ -756,19 +763,19 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
         'name': 'Thaal for 2 Person',
         'price': 699.0,
         'includes':
-        'Chicken Al Faham H + Shawarma Platter + Chicken Tikka + Chicken Lemon Rice + Salad',
+            'Chicken Al Faham H + Shawarma Platter + Chicken Tikka + Chicken Lemon Rice + Salad',
       },
       {
         'name': 'Thaal for 4 Person',
         'price': 1399.0,
         'includes':
-        'Afghani Chicken H + Chicken Chilly H + Chicken Tikka + Crispy Platter + Chicken Fried Rice + Crackle Fish H + Butter Chicken H + Chapatti Roti 4 + Cold Drink 1L',
+            'Afghani Chicken H + Chicken Chilly H + Chicken Tikka + Crispy Platter + Chicken Fried Rice + Crackle Fish H + Butter Chicken H + Chapatti Roti 4 + Cold Drink 1L',
       },
       {
         'name': 'Thaal for 6 Person',
         'price': 2299.0,
         'includes':
-        'Grilled Chicken H + Sizzling Tandoori H + Reshmi Malai Tikka + Chicken Chilly H + Chicken 65 H + Chicken Singapore Rice + Chicken Lemon Rice + Crackle Fish 6 Pcs + Tandoor Jhinga 12 Pcs + Butter Chicken H + Chicken Haandi H + Chapatti Roti 6 + Cold Drink 1',
+            'Grilled Chicken H + Sizzling Tandoori H + Reshmi Malai Tikka + Chicken Chilly H + Chicken 65 H + Chicken Singapore Rice + Chicken Lemon Rice + Crackle Fish 6 Pcs + Tandoor Jhinga 12 Pcs + Butter Chicken H + Chicken Haandi H + Chapatti Roti 6 + Cold Drink 1',
       },
     ],
   },
@@ -790,31 +797,31 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
         'name': 'Crispy Snacks',
         'price': 320.0,
         'includes':
-        'Crispy Chicken (1pc) + Al-Faham (1pc) + Soft Drink (250ml)',
+            'Crispy Chicken (1pc) + Al-Faham (1pc) + Soft Drink (250ml)',
       },
       {
         'name': 'Dinner Delite',
         'price': 630.0,
         'includes':
-        'Crispy Chicken (3pc) + Al-Faham (Half) + Fries + Soft Drink (250ml)',
+            'Crispy Chicken (3pc) + Al-Faham (Half) + Fries + Soft Drink (250ml)',
       },
       {
         'name': 'Mixed Pack',
         'price': 890.0,
         'includes':
-        'Crispy Chicken (4pc) + Grill Chicken (Half) + Shawarma Khaboos (2) + Fries + Soft Drink (500ml)',
+            'Crispy Chicken (4pc) + Grill Chicken (Half) + Shawarma Khaboos (2) + Fries + Soft Drink (500ml)',
       },
       {
         'name': 'Family Special',
         'price': 1700.0,
         'includes':
-        'Crispy Chicken (8pc) + Grill Chicken (Half) + Al Faham Chicken (Half) + Shawarma Khaboos (4) + Fries + Soft Drink (500ml)',
+            'Crispy Chicken (8pc) + Grill Chicken (Half) + Al Faham Chicken (Half) + Shawarma Khaboos (4) + Fries + Soft Drink (500ml)',
       },
       {
         'name': 'All In One Combo',
         'price': 1950.0,
         'includes':
-        'Shawarma Khaboos (4p) + Chicken Grill (H) + Chicken Al Faham (H) + Fish Tikka + Chicken Strips (6pc) + Chicken Popcorn (10p) + Crispy Chicken (4pc) + Soft Drink (1 Ltr)',
+            'Shawarma Khaboos (4p) + Chicken Grill (H) + Chicken Al Faham (H) + Fish Tikka + Chicken Strips (6pc) + Chicken Popcorn (10p) + Crispy Chicken (4pc) + Soft Drink (1 Ltr)',
       },
     ],
   },
@@ -825,25 +832,25 @@ const List<Map<String, dynamic>> _arabianGrillMenu = [
         'name': 'Combo 1',
         'price': 230.0,
         'includes':
-        'Fish Popcorn (6pc) + Samoli Shawarma (2) + Soft Drink (250ml)',
+            'Fish Popcorn (6pc) + Samoli Shawarma (2) + Soft Drink (250ml)',
       },
       {
         'name': 'Combo 2',
         'price': 320.0,
         'includes':
-        'Grilled Strips (6pcs) + Samoli Shawarma (2) + Soft Drink (250ml)',
+            'Grilled Strips (6pcs) + Samoli Shawarma (2) + Soft Drink (250ml)',
       },
       {
         'name': 'Combo 3',
         'price': 430.0,
         'includes':
-        'Fish Tikka Grilled (6pcs) + Samoli Shawarma (2) + Soft Drink (250ml)',
+            'Fish Tikka Grilled (6pcs) + Samoli Shawarma (2) + Soft Drink (250ml)',
       },
       {
         'name': 'Combo 4',
         'price': 520.0,
         'includes':
-        'Chicken Tikka (6pcs) + Samoli/Khaboos Shawarma + 1pc Al Faham + Soft Drink (500ml)',
+            'Chicken Tikka (6pcs) + Samoli/Khaboos Shawarma + 1pc Al Faham + Soft Drink (500ml)',
       },
     ],
   },
@@ -1338,6 +1345,203 @@ const List<Map<String, dynamic>> _tawaazoMenu = [
       },
 
       {'name': 'Butter Milk', 'price': 30.0},
+    ],
+  },
+];
+
+const List<Map<String, dynamic>> _alHaadiAkotaMenu = [
+  {
+    'category': 'ROYAL MUTTON SHORBA',
+    'items': [
+      {'name': 'MUTTON SHORBA', 'price': 150.0},
+      {'name': 'MUTTON MARAG', 'price': 160.0},
+      {'name': 'MUTTON KALIMIRI SOUP', 'price': 170.0},
+    ],
+  },
+  {
+    'category': 'MAJLIS AL LAHAM',
+    'items': [
+      {'name': 'LAHAM JUICY TENDER', 'price': 380.0},
+      {'name': 'LAHAM CHAAP BADAMI', 'price': 390.0},
+      {'name': 'LAHAM ROSEMARY', 'price': 380.0},
+      {'name': 'LAHAM E SHAHAD WITH GHEE', 'price': 1100.0},
+      {'name': 'CHAAP LEBANESE', 'price': 450.0},
+      {'name': 'MUTTON TURKISH SIZZLER', 'price': 400.0},
+      {'name': 'MUTTON SIKANDARI', 'price': 380.0},
+      {'name': 'MUTTON ZAFRANI', 'price': 400.0},
+      {'name': 'MUTTON TERIYAKI SMOKY', 'price': 390.0},
+      {'name': 'MUTTON PISTA SMOKY', 'price': 450.0},
+      {'name': 'MUTTON REHMANI', 'price': 380.0},
+      {'name': 'MUTTON STEAK', 'price': 1350.0},
+    ],
+  },
+  {
+    'category': 'ROYAL RAAN COLLECTION',
+    'items': [
+      {'name': 'SIKANDRI RAAN', 'price': 1900.0},
+      {'name': 'LEBANESE RAAN', 'price': 1900.0},
+      {'name': 'BONE CHILI RAAN', 'price': 1850.0},
+      {'name': 'CREAMY RAAN', 'price': 2100.0},
+      {'name': 'RED CHILI RAAN', 'price': 1750.0},
+      {'name': 'CHARSI RAAN', 'price': 1750.0},
+      {'name': 'CHEF\'S SP RAAN', 'price': 2200.0},
+      {'name': 'TURKISH RAAN', 'price': 1900.0},
+      {'name': 'TANDOORI RAAN', 'price': 1700.0},
+      {'name': 'BBQ RAAN', 'price': 1750.0},
+    ],
+  },
+  {
+    'category': 'FAHAM CHICKEN STARTER',
+    'items': [
+      {'name': 'CHICKEN ALFAHAM', 'halfPrice': 270.0, 'fullPrice': 500.0},
+      {'name': 'GRILLED CHICKEN', 'halfPrice': 270.0, 'fullPrice': 500.0},
+      {'name': 'CLASSIC ALFAHAM', 'halfPrice': 320.0, 'fullPrice': 570.0},
+      {'name': 'ZAFRANI GRILLED', 'halfPrice': 320.0, 'fullPrice': 570.0},
+      {'name': 'BUTTER GRILL JUICY', 'halfPrice': 320.0, 'fullPrice': 570.0},
+      {'name': 'SMOKEY GRILL', 'halfPrice': 320.0, 'fullPrice': 570.0},
+    ],
+  },
+  {
+    'category': 'TIKKA E KHAS',
+    'items': [
+      {'name': 'TANDOORI TIKKA', 'halfPrice': 160.0, 'fullPrice': 240.0},
+      {'name': 'PAHADI TIKKA', 'halfPrice': 160.0, 'fullPrice': 240.0},
+      {'name': 'MALAI TIKKA', 'halfPrice': 200.0, 'fullPrice': 360.0},
+      {'name': 'ZAFRANI TIKKA', 'halfPrice': 200.0, 'fullPrice': 360.0},
+      {'name': 'LEMON GARLIC TIKKA', 'halfPrice': 200.0, 'fullPrice': 360.0},
+      {'name': 'PYAZI TIKKA', 'halfPrice': 200.0, 'fullPrice': 360.0},
+      {'name': 'CLASSIC TIKKA', 'halfPrice': 200.0, 'fullPrice': 360.0},
+      {'name': 'SURTI TIKKA', 'halfPrice': 200.0, 'fullPrice': 360.0},
+      {'name': 'CHICKEN BARRA', 'price': 360.0},
+    ],
+  },
+  {
+    'category': 'SPECIAL LEGS',
+    'items': [
+      {'name': 'WINTER LEG', 'price': 220.0},
+      {'name': 'TANDOORI LEG', 'price': 190.0},
+      {'name': 'TABASSUM LEG', 'price': 210.0},
+      {'name': 'PERI PERI LEG', 'price': 200.0},
+      {'name': 'SIKANDRI LEG', 'price': 210.0},
+      {'name': 'PHOENIX LEG', 'price': 220.0},
+    ],
+  },
+  {
+    'category': 'FISH SPECIALITIES',
+    'items': [
+      {'name': 'FISH ALBAIK', 'price': 350.0},
+      {'name': 'CRACKLE FISH', 'price': 350.0},
+      {'name': 'FISH ALFAHAM', 'price': 500.0},
+      {'name': 'BUTTER GARLIC FISH', 'price': 400.0},
+      {'name': 'FISH TIKKA', 'price': 320.0},
+      {'name': 'TANDOORI PRAWNS', 'price': 399.0},
+      {'name': 'BUTTER GARLIC PRAWNS', 'price': 450.0},
+    ],
+  },
+  {
+    'category': 'LEGACY OF MANDI/KABSA',
+    'items': [
+      {'name': 'RAAN KABSA', 'price': 2199.0},
+      {'name': 'MUTTON SHAHI KABSA', 'price': 2199.0},
+      {'name': 'MUTTON AREBIAN KABSA', 'price': 2099.0},
+      {'name': 'MUTTON MUGHLAI KABSA', 'price': 2199.0},
+      {'name': 'MUTTON TURKISH KABSA', 'price': 2199.0},
+      {'name': 'MUTTON AFGHANI KABSA', 'price': 2099.0},
+      {'name': 'MUTTON LAHORI KABSA', 'price': 2199.0},
+      {'name': 'MUTTON CREAMY KABSA', 'price': 2299.0},
+      {'name': 'MUTTON HOT SPICY KABSA', 'price': 2100.0},
+      {'name': 'MUTTON ADNA KABSA', 'price': 2200.0},
+      {'name': 'COOKER KABSA MUTTON', 'price': 1900.0},
+      {'name': 'COOKER KABSA CHICKEN'}, // Price missing in Excel
+    ],
+  },
+  {
+    'category': 'MARAG AL LAHAM (GRAVY)',
+    'items': [
+      {'name': 'MUTTON MATKA ROSH', 'price': 950.0},
+      {'name': 'MUTTON TURKISH', 'price': 960.0},
+      {'name': 'MUTTON HOT PAPER', 'price': 940.0},
+      {'name': 'MUTTON SAFFRON JOSH', 'price': 1150.0},
+      {'name': 'MUTTON SUFIYANI JOSH', 'price': 950.0},
+      {'name': 'MUTTON AFGHANI', 'price': 950.0},
+      {'name': 'MUTTON KADHAI', 'price': 850.0},
+      {'name': 'MUTTON SHENWARI KADHAI', 'price': 990.0},
+      {'name': 'CHARSI KADHAI', 'price': 1050.0},
+      {'name': 'CREAMY KADHAI', 'price': 1100.0},
+      {'name': 'ROGAN JOSH', 'price': 450.0},
+      {'name': 'CHAMPARAN MEAT', 'price': 970.0},
+      {'name': 'CHARSI CHAAP', 'price': 900.0},
+    ],
+  },
+  {
+    'category': 'ROYAL CURRIES CHICKEN',
+    'items': [
+      {'name': 'CHICKEN CHATPATA', 'price': 320.0},
+      {'name': 'JAIPURI CHICKEN', 'price': 330.0},
+      {'name': 'LAHORI CHICKEN', 'price': 350.0},
+      {'name': 'MUGHLAI CHICKEN', 'price': 340.0},
+      {'name': 'METHI CHICKEN', 'price': 340.0},
+      {'name': 'BHUNA CHICKEN', 'price': 320.0},
+      {'name': 'BUTTER CHICKEN BONLESS', 'price': 300.0},
+    ],
+  },
+  {
+    'category': 'ROTI & NAAN',
+    'items': [
+      {'name': 'TAWA RUMALI', 'price': 20.0},
+      {'name': 'BUTTER TAWA RUMALI', 'price': 30.0},
+      {'name': 'TANDOORI ROTI', 'price': 20.0},
+      {'name': 'BUTTER TANDOORI', 'price': 30.0},
+      {'name': 'GARLIC NAAN', 'price': 80.0},
+      {'name': 'CHEESE GARLIC NAAN', 'price': 120.0},
+      {'name': 'LACCHA PARATHA', 'price': 50.0},
+    ],
+  },
+  {
+    'category': 'RICE',
+    'items': [
+      {'name': 'JEERA RICE', 'price': 120.0},
+      {'name': 'MASALA RICE', 'price': 150.0},
+      {'name': 'MUTTON MATKA BIRYANI', 'price': 550.0},
+      {'name': 'MUTTON DUM BIRYANI', 'price': 430.0},
+      {'name': 'CHICKEN DUM BIRYANI', 'price': 250.0},
+    ],
+  },
+  {
+    'category': 'BEVEREGES',
+    'items': [
+      {
+        'name': 'MINERAL WATER',
+        'variants': [
+          {'label': 'SMALL', 'price': 10.0},
+          {'label': 'BIG', 'price': 20.0},
+        ],
+      },
+
+      {
+        'name': 'COLD DRINKS',
+        'variants': [
+          {'label': 'SMALL', 'price': 10.0},
+          {'label': 'BIG', 'price': 20.0},
+        ],
+      },
+    ],
+  },
+  {
+    'category': 'PAPAD & RAITA',
+    'items': [
+      {'name': 'ROSTED PAPAD', 'price': 20.0},
+      {'name': 'FRY PAPAD', 'price': 30.0},
+      {'name': 'RAITA', 'price': 40.0},
+      {'name': 'LASANIYA CHANA', 'price': 120.0},
+    ],
+  },
+  {
+    'category': 'DESSERTS',
+    'items': [
+      {'name': 'GULAB JAMUN', 'price': 79.0},
+      {'name': 'RABDI WITH GULAB JAMUN', 'price': 149.0},
+      {'name': 'CARAMEL PUDDING', 'price': 79.0},
     ],
   },
 ];

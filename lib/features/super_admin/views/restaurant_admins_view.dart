@@ -28,14 +28,30 @@ class RestaurantAdminsView extends StatelessWidget {
           style: MyFont.bold(16, color: Colors.white),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: _orange,
-        foregroundColor: Colors.white,
-        onPressed: () => Get.to(
-          () => CreateRestaurantAdminView(restaurant: restaurant),
-        ),
-        icon: const Icon(Icons.person_add),
-        label: const Text('Create Admin'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'assign-existing-admin',
+            backgroundColor: Colors.white,
+            foregroundColor: _navy,
+            onPressed: () => _showAssignExistingDialog(context, controller),
+            icon: const Icon(Icons.group_add_outlined),
+            label: const Text('Assign existing'),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'create-restaurant-admin',
+            backgroundColor: _orange,
+            foregroundColor: Colors.white,
+            onPressed: () => Get.to(
+              () => CreateRestaurantAdminView(restaurant: restaurant),
+            ),
+            icon: const Icon(Icons.person_add),
+            label: const Text('Create Admin'),
+          ),
+        ],
       ),
       body: Obx(() {
         final admins = controller.adminsForRestaurant(restaurant.id);
@@ -50,12 +66,13 @@ class RestaurantAdminsView extends StatelessWidget {
         }
 
         return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
           itemCount: admins.length,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             return _AdminDetailCard(
               admin: admins[index],
+              restaurantsLabel: controller.restaurantNamesFor(admins[index]),
               onDelete: admins[index].active
                   ? () => _showDeleteAdminDialog(
                         context,
@@ -71,6 +88,80 @@ class RestaurantAdminsView extends StatelessWidget {
     );
   }
 
+  Future<void> _showAssignExistingDialog(
+    BuildContext context,
+    SuperAdminController controller,
+  ) async {
+    final candidates = controller.adminsAvailableToAssign(restaurant.id);
+    if (candidates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No other active admins are available to assign.'),
+        ),
+      );
+      return;
+    }
+
+    final selected = await showDialog<UserProfile>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Assign existing admin',
+          style: MyFont.bold(16, color: _navy),
+        ),
+        content: SizedBox(
+          width: 420,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: candidates.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final admin = candidates[index];
+              final name = (admin.name?.trim().isNotEmpty ?? false)
+                  ? admin.name!.trim()
+                  : admin.email;
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(name, style: MyFont.semiBold(15, color: _navy)),
+                subtitle: Text(
+                  admin.email,
+                  style: MyFont.regular(13, color: Colors.grey.shade700),
+                ),
+                onTap: () => Navigator.pop(ctx, admin),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (selected == null || !context.mounted) return;
+
+    final error = await controller.assignExistingAdmin(
+      admin: selected,
+      restaurantId: restaurant.id,
+    );
+    if (!context.mounted) return;
+
+    final displayName = (selected.name?.trim().isNotEmpty ?? false)
+        ? selected.name!.trim()
+        : selected.email;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          error ?? '$displayName can now manage ${restaurant.name}.',
+        ),
+        backgroundColor: error == null ? null : Colors.red.shade700,
+      ),
+    );
+  }
+
   Future<void> _showDeleteAdminDialog(
     BuildContext context,
     SuperAdminController controller,
@@ -81,15 +172,22 @@ class RestaurantAdminsView extends StatelessWidget {
         ? admin.name!.trim()
         : admin.email;
 
+    final keepsOtherRestaurants = admin.assignedRestaurantIds.length > 1;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Delete admin?', style: MyFont.bold(16, color: _navy)),
+        title: Text(
+          keepsOtherRestaurants ? 'Remove from restaurant?' : 'Delete admin?',
+          style: MyFont.bold(16, color: _navy),
+        ),
         content: Text(
-          'Remove $displayName from ${restaurant.name}?\n\n'
-          'They will lose access to the app immediately. '
-          'Their login email is not deleted from Firebase Auth, '
-          'but they cannot sign in while deactivated.',
+          keepsOtherRestaurants
+              ? 'Remove $displayName from ${restaurant.name}?\n\n'
+                  'They will keep the same login and still manage their other restaurants.'
+              : 'Remove $displayName from ${restaurant.name}?\n\n'
+                  'They will lose access to the app immediately. '
+                  'Their login email is not deleted from Firebase Auth, '
+                  'but they cannot sign in while deactivated.',
           style: MyFont.regular(14, color: Colors.grey.shade800),
         ),
         actions: [
@@ -130,10 +228,12 @@ class RestaurantAdminsView extends StatelessWidget {
 class _AdminDetailCard extends StatelessWidget {
   const _AdminDetailCard({
     required this.admin,
+    required this.restaurantsLabel,
     this.onDelete,
   });
 
   final UserProfile admin;
+  final String restaurantsLabel;
   final VoidCallback? onDelete;
 
   String get _displayName {
@@ -212,6 +312,14 @@ class _AdminDetailCard extends StatelessWidget {
               label: 'Role',
               value: admin.role,
             ),
+            if (restaurantsLabel.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              _DetailRow(
+                icon: Icons.storefront_outlined,
+                label: 'Restaurants',
+                value: restaurantsLabel,
+              ),
+            ],
             if (admin.createdAt != null) ...[
               const SizedBox(height: 6),
               _DetailRow(

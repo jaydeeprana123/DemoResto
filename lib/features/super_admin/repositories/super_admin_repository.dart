@@ -177,22 +177,73 @@ class SuperAdminRepository {
     return aName.compareTo(bName);
   }
 
-  Future<void> createRestaurantAdmin({
+  /// Returns the user with this email, if one already exists.
+  Future<UserProfile?> findUserByEmail(String email) async {
+    final trimmed = email.trim();
+    final normalized = trimmed.toLowerCase();
+    if (normalized.isEmpty) return null;
+
+    final candidates = <String>{trimmed, normalized};
+    for (final value in candidates) {
+      final snap = await FirestorePaths.users()
+          .where('email', isEqualTo: value)
+          .limit(5)
+          .get();
+      for (final doc in snap.docs) {
+        final profile = UserProfile.fromFirestore(doc.id, doc.data());
+        if (profile.email.trim().toLowerCase() == normalized) {
+          return profile;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Creates a new admin, or assigns [restaurantId] when the email already exists.
+  /// Returns true when an existing login was reused.
+  Future<bool> createRestaurantAdmin({
     required String email,
     required String password,
     required String name,
     required String restaurantId,
   }) async {
-    final uid = await SecondaryAuthService.createUser(
-      email: email,
-      password: password,
-    );
+    final existing = await findUserByEmail(email);
+    if (existing != null) {
+      if (!existing.isAdmin) {
+        throw Exception(
+          'This email is already used by a ${existing.role} account.',
+        );
+      }
+      await assignAdminToRestaurant(
+        admin: existing,
+        restaurantId: restaurantId,
+      );
+      return true;
+    }
+
+    final String uid;
+    try {
+      uid = await SecondaryAuthService.createUser(
+        email: email,
+        password: password,
+      );
+    } on Exception catch (e) {
+      final message = e.toString().toLowerCase();
+      if (message.contains('already in use') ||
+          message.contains('email-already-in-use')) {
+        throw Exception(
+          'This email is already registered. Assign that admin from the restaurant admins list so they keep the same login.',
+        );
+      }
+      rethrow;
+    }
 
     await FirestorePaths.user(uid).set({
       'name': name.trim(),
       'email': email.trim(),
       'role': 'Admin',
       'restaurantId': restaurantId,
+      'restaurantRoles': {restaurantId: 'Admin'},
       'active': true,
       'allowMarkAsDelivered': false,
       'createdAt': FieldValue.serverTimestamp(),
@@ -202,9 +253,58 @@ class SuperAdminRepository {
       'adminEmail': email.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    return false;
   }
 
-  /// Soft-deactivates a restaurant Admin so they cannot use the app.
+  /// Adds [restaurantId] to an existing admin without changing their login.
+  /// [restaurantId] and [role] stay as the primary assignment.
+  Future<void> assignAdminToRestaurant({
+    required UserProfile admin,
+    required String restaurantId,
+  }) async {
+    if (admin.uid.isEmpty) {
+      throw Exception('Admin account id is missing.');
+    }
+    if (restaurantId.trim().isEmpty) {
+      throw Exception('Restaurant is missing.');
+    }
+
+    final adminDoc = await FirestorePaths.user(admin.uid).get();
+    if (!adminDoc.exists) throw Exception('Admin account not found.');
+
+    final data = adminDoc.data()!;
+    if (data['role']?.toString() != 'Admin') {
+      throw Exception('Only restaurant Admin accounts can be assigned.');
+    }
+    if (data['active'] == false) {
+      throw Exception('This admin account is deactivated.');
+    }
+
+    final profile = UserProfile.fromFirestore(admin.uid, data);
+    if (profile.managesRestaurant(restaurantId)) {
+      throw Exception('This admin is already assigned to this restaurant.');
+    }
+
+    final roles = Map<String, String>.from(profile.restaurantRoles);
+    final primary = profile.restaurantId?.trim() ?? '';
+    if (primary.isNotEmpty) {
+      roles.putIfAbsent(primary, () => 'Admin');
+    }
+    roles[restaurantId] = 'Admin';
+
+    final updates = <String, dynamic>{
+      'restaurantRoles': roles,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (primary.isEmpty) {
+      updates['restaurantId'] = restaurantId;
+    }
+
+    await FirestorePaths.user(admin.uid).update(updates);
+  }
+
+  /// Removes access to one restaurant.
+  /// The account is deactivated only when this was their last restaurant.
   /// Firebase Auth login is not deleted (same pattern as Staff delete).
   Future<void> deleteRestaurantAdmin({
     required UserProfile admin,
@@ -221,19 +321,39 @@ class SuperAdminRepository {
     if (data['role']?.toString() != 'Admin') {
       throw Exception('Only restaurant Admin accounts can be deleted here.');
     }
-    if (data['restaurantId']?.toString() != restaurantId) {
+    final profile = UserProfile.fromFirestore(admin.uid, data);
+    if (!profile.managesRestaurant(restaurantId)) {
       throw Exception('This admin does not belong to the selected restaurant.');
     }
     if (data['active'] == false) {
       throw Exception('This admin account is already deactivated.');
     }
 
-    await FirestorePaths.user(admin.uid).update({
-      'active': false,
-      'deactivatedAt': FieldValue.serverTimestamp(),
-      'deactivatedByRole': 'SuperAdmin',
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    final remaining = Map<String, String>.from(profile.restaurantRoles);
+    final primary = profile.restaurantId?.trim() ?? '';
+    if (primary.isNotEmpty) {
+      remaining.putIfAbsent(primary, () => 'Admin');
+    }
+    remaining.remove(restaurantId);
+
+    if (remaining.isEmpty) {
+      await FirestorePaths.user(admin.uid).update({
+        'restaurantRoles': <String, String>{},
+        'active': false,
+        'deactivatedAt': FieldValue.serverTimestamp(),
+        'deactivatedByRole': 'SuperAdmin',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      final updates = <String, dynamic>{
+        'restaurantRoles': remaining,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (primary == restaurantId) {
+        updates['restaurantId'] = remaining.keys.first;
+      }
+      await FirestorePaths.user(admin.uid).update(updates);
+    }
 
     final restaurantDoc = await FirestorePaths.restaurant(restaurantId).get();
     final restaurantEmail = restaurantDoc.data()?['adminEmail']?.toString().trim();

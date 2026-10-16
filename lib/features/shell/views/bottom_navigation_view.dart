@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:smartKitchen/Styles/my_font.dart';
+import 'package:smartKitchen/core/services/restaurant_session.dart';
 import 'package:smartKitchen/features/kitchen/kitchen.dart';
 import 'package:smartKitchen/features/menu_setup/services/menu_sync_coordinator.dart';
 import 'package:smartKitchen/features/settings/settings.dart';
@@ -74,14 +75,30 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F6FA),
         body: Obx(() {
-          return IndexedStack(
-            index: _shell.stackIndex,
+          final session = Get.find<RestaurantSession>();
+          final scope = session.scopeVersion.value;
+          final switching = session.isSwitchingRestaurant.value;
+          return Stack(
             children: [
-              TableDashboardView(
-                isTabActive: _shell.currentTab == ShellTab.dashboard,
+              IndexedStack(
+                index: _shell.stackIndex,
+                children: [
+                  TableDashboardView(
+                    key: ValueKey('dashboard-$scope'),
+                    isTabActive: _shell.currentTab == ShellTab.dashboard,
+                  ),
+                  KitchenOrdersListView(
+                    key: ValueKey('kitchen-$scope'),
+                    isTabActive: _shell.isKitchenTabActive,
+                  ),
+                  SettingsPage(key: ValueKey('settings-$scope')),
+                ],
               ),
-              KitchenOrdersListView(isTabActive: _shell.isKitchenTabActive),
-              const SettingsPage(),
+              if (switching)
+                const ColoredBox(
+                  color: Color(0x88F5F6FA),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
             ],
           );
         }),

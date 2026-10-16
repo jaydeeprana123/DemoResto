@@ -33,19 +33,28 @@ class _CreateRestaurantAdminViewState extends State<CreateRestaurantAdminView> {
 
   Future<void> _submit() async {
     final controller = Get.find<SuperAdminController>();
-    final error = await controller.createRestaurantAdmin(
+    final result = await controller.createRestaurantAdmin(
       restaurantId: widget.restaurant.id,
       name: _nameCtrl.text,
       email: _emailCtrl.text,
       password: _passwordCtrl.text,
     );
     if (!mounted) return;
-    if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    if (result.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.error!)),
+      );
       return;
     }
+    final restaurantName = widget.restaurant.name;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Restaurant admin created successfully.')),
+      SnackBar(
+        content: Text(
+          result.assignedExisting
+              ? 'This email already has a login. They can now manage $restaurantName with the same account.'
+              : 'Restaurant admin created successfully.',
+        ),
+      ),
     );
     Get.back();
   }
@@ -89,7 +98,10 @@ class _CreateRestaurantAdminViewState extends State<CreateRestaurantAdminView> {
               controller: _passwordCtrl,
               obscureText: _obscure,
               decoration: InputDecoration(
-                labelText: 'Password *',
+                labelText: 'Password',
+                helperText:
+                    'Required for a new login. Leave blank if this email already manages a restaurant — they keep their current password.',
+                helperMaxLines: 3,
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),

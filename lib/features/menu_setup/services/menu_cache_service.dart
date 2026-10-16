@@ -49,9 +49,24 @@ class MenuCacheService {
       return;
     }
 
+    final loaded = await _readFromDisk(restaurantKey);
+    final revision = await _readRevisionFromDisk(restaurantKey);
+    if (_restaurantCacheKey() != restaurantKey) return;
     _loadedRestaurantKey = restaurantKey;
-    _menu = await _readFromDisk(restaurantKey);
-    _lastSyncedRevision = await _readRevisionFromDisk(restaurantKey);
+    _menu = loaded;
+    _lastSyncedRevision = revision;
+  }
+
+  /// Stops the previous restaurant listener and loads the selected restaurant.
+  Future<void> rebindToCurrentRestaurant() async {
+    pauseAutoSync();
+    _menu = [];
+    _loadedRestaurantKey = null;
+    _lastSyncedRevision = null;
+    _autoSyncActive = true;
+    await loadFromCacheOnly();
+    await syncIfChanged(force: true);
+    _startMetaListener();
   }
 
   Future<List<Map<String, dynamic>>> loadFromCacheOnly() async {
@@ -143,11 +158,13 @@ class MenuCacheService {
     int remoteRevision,
   ) async {
     final loadedMenu = await _fetchFromFirestore();
+    if (_restaurantCacheKey() != restaurantKey) return;
     _menu = loadedMenu;
     _loadedRestaurantKey = restaurantKey;
     _lastSyncedRevision = remoteRevision;
     await _writeToDisk(restaurantKey, loadedMenu);
     await _writeRevisionToDisk(restaurantKey, remoteRevision);
+    if (_restaurantCacheKey() != restaurantKey) return;
     revisionListenable.value++;
   }
 

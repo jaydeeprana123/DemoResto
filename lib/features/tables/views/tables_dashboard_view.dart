@@ -27,6 +27,7 @@ import 'package:smartKitchen/features/tables/services/shared_tables_snapshot_ser
 import 'package:smartKitchen/features/tables/utils/table_serve_change_utils.dart';
 import 'package:smartKitchen/features/tables/services/dashboard_table_filter_settings.dart';
 import 'package:smartKitchen/features/tables/views/AddTablePage.dart';
+import 'package:smartKitchen/features/tables/widgets/restaurant_switcher.dart';
 import 'package:smartKitchen/features/tables/widgets/order_completion_notification_dialog.dart';
 import 'package:smartKitchen/features/tables/widgets/order_item_row.dart';
 import 'package:smartKitchen/features/zomato/widgets/add_zomato_order_sheet.dart';
@@ -1872,14 +1873,16 @@ class _TableDashboardViewState extends State<TableDashboardView>
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const Text(
-                  'Restaurant Dashboard',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: fontMulishRegular,
-                    color: Colors.white60,
-                  ),
-                ),
+                Get.find<RestaurantSession>().showRestaurantSwitcher
+                    ? const RestaurantSwitcher()
+                    : const Text(
+                        'Restaurant Dashboard',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: fontMulishRegular,
+                          color: Colors.white60,
+                        ),
+                      ),
               ],
             ),
           ),

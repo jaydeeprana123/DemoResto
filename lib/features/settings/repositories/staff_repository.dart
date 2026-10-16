@@ -8,8 +8,12 @@ import 'package:get/get.dart';
 
 /// Staff management without Cloud Functions (works on Firebase Spark / no card).
 class StaffRepository {
-  String? get _restaurantId =>
-      Get.find<RestaurantSession>().profile.value?.restaurantId;
+  String? get _restaurantId {
+    final session = Get.find<RestaurantSession>();
+    final selected = session.selectedRestaurantId;
+    if (selected != null && selected.isNotEmpty) return selected;
+    return session.profile.value?.restaurantId;
+  }
 
   String? get _adminUid => Get.find<RestaurantSession>().profile.value?.uid;
 

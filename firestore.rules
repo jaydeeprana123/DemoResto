@@ -39,9 +39,32 @@ service cloud.firestore {
       return isAdmin() || isStaff();
     }
 
+    function restaurantRoles() {
+      return userDoc().get('restaurantRoles', {});
+    }
+
+    function assignedRole(restaurantId) {
+      return restaurantRoles().get(restaurantId, '');
+    }
+
+    function hasRestaurantRole(restaurantId, role) {
+      return assignedRole(restaurantId) == role
+        || (
+          userDoc().get('restaurantId', '') == restaurantId
+          && userDoc().get('role', '') == role
+        );
+    }
+
     function belongsToRestaurant(restaurantId) {
-      return isRestaurantMember()
-        && userDoc().get('restaurantId', '') == restaurantId;
+      return isActiveUser()
+        && (
+          hasRestaurantRole(restaurantId, 'Admin')
+          || hasRestaurantRole(restaurantId, 'Staff')
+        );
+    }
+
+    function adminCanManageRestaurant(restaurantId) {
+      return isAdmin() && hasRestaurantRole(restaurantId, 'Admin');
     }
 
     function isSelf(userId) {
@@ -70,7 +93,9 @@ service cloud.firestore {
         && request.resource.data.get('allowMarkAsDelivered', false)
              == resource.data.get('allowMarkAsDelivered', false)
         && request.resource.data.get('email', '')
-             == resource.data.get('email', '');
+             == resource.data.get('email', '')
+        && request.resource.data.get('restaurantRoles', {})
+             == resource.data.get('restaurantRoles', {});
     }
 
     function isSelfSessionUpdate() {
@@ -91,10 +116,9 @@ service cloud.firestore {
     }
 
     function isAdminCreatingStaff() {
-      return isAdmin()
-        && request.resource.data.role == 'Staff'
-        && request.resource.data.restaurantId == userDoc().restaurantId
-        && request.resource.data.active == true;
+      return request.resource.data.role == 'Staff'
+        && request.resource.data.active == true
+        && adminCanManageRestaurant(request.resource.data.restaurantId);
     }
 
     function isSuperAdminCreatingAdmin() {
@@ -122,12 +146,23 @@ service cloud.firestore {
         .hasOnly(['allowMarkAsDelivered', 'updatedAt']);
     }
 
+    function superAdminAssignmentKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly([
+          'restaurantRoles',
+          'restaurantId',
+          'active',
+          'deactivatedAt',
+          'deactivatedBy',
+          'deactivatedByRole',
+          'updatedAt'
+        ]);
+    }
+
     match /users/{userId} {
       allow read: if isSelf(userId)
         || isSuperAdmin()
-        || (isAdmin()
-            && resource.data.get('restaurantId', '')
-                 == userDoc().get('restaurantId', ''));
+        || adminCanManageRestaurant(resource.data.get('restaurantId', ''));
 
       allow create: if isBootstrapSuperAdminCreate()
         || isAdminCreatingStaff()
@@ -142,10 +177,8 @@ service cloud.firestore {
           && selfWritableUserKeys()
         )
         || (
-          isAdmin()
+          adminCanManageRestaurant(resource.data.get('restaurantId', ''))
           && resource.data.get('role', '') == 'Staff'
-          && resource.data.get('restaurantId', '')
-               == userDoc().get('restaurantId', '')
           && request.resource.data.get('role', '') == 'Staff'
           && request.resource.data.get('restaurantId', '')
                == resource.data.get('restaurantId', '')
@@ -154,10 +187,8 @@ service cloud.firestore {
           && adminStaffUpdateKeys()
         )
         || (
-          isAdmin()
+          adminCanManageRestaurant(resource.data.get('restaurantId', ''))
           && resource.data.get('role', '') == 'Admin'
-          && resource.data.get('restaurantId', '')
-               == userDoc().get('restaurantId', '')
           && request.resource.data.get('role', '') == 'Admin'
           && request.resource.data.get('restaurantId', '')
                == resource.data.get('restaurantId', '')
@@ -174,6 +205,14 @@ service cloud.firestore {
           && request.resource.data.get('email', '')
                == resource.data.get('email', '')
           && adminStaffUpdateKeys()
+        )
+        || (
+          isSuperAdmin()
+          && resource.data.get('role', '') == 'Admin'
+          && request.resource.data.get('role', '') == 'Admin'
+          && request.resource.data.get('email', '')
+               == resource.data.get('email', '')
+          && superAdminAssignmentKeys()
         );
 
       allow delete: if false;
@@ -251,9 +290,9 @@ service cloud.firestore {
     }
 
     match /{path=**}/items/{itemId} {
-      allow read, update: if isRestaurantMember()
-        && resource.data.get('restaurantId', '')
-             == userDoc().get('restaurantId', '');
+      allow read, update: if belongsToRestaurant(
+        resource.data.get('restaurantId', '')
+      );
     }
 
     match /tables/{docId} {

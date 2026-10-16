@@ -28,6 +28,12 @@ class MenuSyncCoordinator extends GetxService with WidgetsBindingObserver {
     await Get.find<MenuCacheService>().startAutoSync();
   }
 
+  /// Restocks the restaurant that is now selected. Menu listeners are rebound
+  /// by [MenuCacheService.rebindToCurrentRestaurant].
+  Future<void> onRestaurantChanged() async {
+    await _processAutoRestocks();
+  }
+
   Future<void> _processAutoRestocks() async {
     if (!Get.isRegistered<AutoStockRestockService>()) return;
     await Get.find<AutoStockRestockService>().processDueAutoRestocks();

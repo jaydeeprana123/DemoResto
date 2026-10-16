@@ -40,8 +40,31 @@ class SuperAdminController extends GetxController {
 
   List<UserProfile> adminsForRestaurant(String restaurantId) {
     return admins
-        .where((admin) => admin.restaurantId == restaurantId)
+        .where((admin) => admin.managesRestaurant(restaurantId))
         .toList();
+  }
+
+  List<UserProfile> adminsAvailableToAssign(String restaurantId) {
+    return admins
+        .where(
+          (admin) =>
+              admin.active && !admin.managesRestaurant(restaurantId),
+        )
+        .toList();
+  }
+
+  String restaurantNamesFor(UserProfile admin) {
+    if (restaurants.isEmpty) {
+      return admin.assignedRestaurantIds.join(', ');
+    }
+    return admin.assignedRestaurantIds
+        .map((id) {
+          for (final restaurant in restaurants) {
+            if (restaurant.id == id) return restaurant.name;
+          }
+          return id;
+        })
+        .join(', ');
   }
 
   String adminSummaryForRestaurant(String restaurantId) {
@@ -197,26 +220,85 @@ class SuperAdminController extends GetxController {
     }
   }
 
-  Future<String?> createRestaurantAdmin({
+  /// Null error means success. [assignedExisting] is true when the email
+  /// already had a login and was given this restaurant.
+  Future<({String? error, bool assignedExisting})> createRestaurantAdmin({
     required String restaurantId,
     required String name,
     required String email,
     required String password,
   }) async {
-    if (name.trim().isEmpty) return 'Admin name is required.';
-    if (email.trim().isEmpty) return 'Email is required.';
-    if (password.length < 6) return 'Password must be at least 6 characters.';
+    if (email.trim().isEmpty) {
+      return (error: 'Email is required.', assignedExisting: false);
+    }
+
     isLoading.value = true;
     try {
-      await _repository.createRestaurantAdmin(
+      final existing = await _repository.findUserByEmail(email) ??
+          _loadedUserByEmail(email);
+      if (existing != null) {
+        if (!existing.isAdmin) {
+          return (
+            error: 'This email is already used by a ${existing.role} account.',
+            assignedExisting: false,
+          );
+        }
+        await _repository.assignAdminToRestaurant(
+          admin: existing,
+          restaurantId: restaurantId,
+        );
+        return (error: null, assignedExisting: true);
+      }
+
+      if (name.trim().isEmpty) {
+        return (error: 'Admin name is required.', assignedExisting: false);
+      }
+      if (password.length < 6) {
+        return (
+          error: 'Password must be at least 6 characters.',
+          assignedExisting: false,
+        );
+      }
+
+      final assignedExisting = await _repository.createRestaurantAdmin(
         email: email,
         password: password,
         name: name,
         restaurantId: restaurantId,
       );
+      return (error: null, assignedExisting: assignedExisting);
+    } catch (e) {
+      return (
+        error: e.toString().replaceFirst('Exception: ', ''),
+        assignedExisting: false,
+      );
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  UserProfile? _loadedUserByEmail(String email) {
+    final normalized = email.trim().toLowerCase();
+    if (normalized.isEmpty) return null;
+    for (final admin in admins) {
+      if (admin.email.trim().toLowerCase() == normalized) return admin;
+    }
+    return null;
+  }
+
+  Future<String?> assignExistingAdmin({
+    required UserProfile admin,
+    required String restaurantId,
+  }) async {
+    isLoading.value = true;
+    try {
+      await _repository.assignAdminToRestaurant(
+        admin: admin,
+        restaurantId: restaurantId,
+      );
       return null;
     } catch (e) {
-      return e.toString();
+      return e.toString().replaceFirst('Exception: ', '');
     } finally {
       isLoading.value = false;
     }
