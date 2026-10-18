@@ -29,6 +29,30 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
     }
   }
 
+  Future<void> _openEditItemSheet({
+    required String categoryId,
+    required String categoryName,
+    required String itemId,
+    required Map<String, dynamic> itemData,
+  }) async {
+    final updated = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _AddMenuItemSheet(
+        categoryId: categoryId,
+        categoryName: categoryName,
+        itemId: itemId,
+        initialData: itemData,
+      ),
+    );
+    if (updated == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Menu item updated')),
+      );
+    }
+  }
+
   Widget _buildPriceLabel(Map<String, dynamic> data) {
     final variants = data['variants'];
     if (variants is List && variants.isNotEmpty) {
@@ -253,6 +277,25 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
                                   children: [
                                     Flexible(child: _buildPriceLabel(itemData)),
                                     IconButton(
+                                      tooltip: 'Edit',
+                                      visualDensity: VisualDensity.compact,
+                                      icon: const Icon(
+                                        Icons.edit_outlined,
+                                        color: SetupPageColors.navy,
+                                        size: 20,
+                                      ),
+                                      onPressed: () => _openEditItemSheet(
+                                        categoryId: category.id,
+                                        categoryName: categoryName,
+                                        itemId: item.id,
+                                        itemData: Map<String, dynamic>.from(
+                                          itemData,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Delete',
+                                      visualDensity: VisualDensity.compact,
                                       icon: const Icon(
                                         Icons.delete_outline_rounded,
                                         color: Colors.red,
@@ -283,8 +326,22 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
   }
 }
 
+enum _PricingMode { single, halfFull, variants }
+
 class _AddMenuItemSheet extends StatefulWidget {
-  const _AddMenuItemSheet();
+  const _AddMenuItemSheet({
+    this.categoryId,
+    this.categoryName,
+    this.itemId,
+    this.initialData,
+  });
+
+  final String? categoryId;
+  final String? categoryName;
+  final String? itemId;
+  final Map<String, dynamic>? initialData;
+
+  bool get isEditing => itemId != null && categoryId != null;
 
   @override
   State<_AddMenuItemSheet> createState() => _AddMenuItemSheetState();
@@ -298,8 +355,45 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
   final _priceController = TextEditingController();
   final _halfPriceController = TextEditingController();
   final _fullPriceController = TextEditingController();
-  bool _halfFullPricing = false;
-  bool _isAdding = false;
+  final List<TextEditingController> _variantLabelControllers = [];
+  final List<TextEditingController> _variantPriceControllers = [];
+  _PricingMode _pricingMode = _PricingMode.single;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final data = widget.initialData;
+    if (data == null) return;
+
+    _selectedCategoryId = widget.categoryId;
+    _selectedCategoryName = widget.categoryName;
+    _nameController.text = data['name']?.toString() ?? '';
+
+    final rawVariants = data['variants'];
+    if (rawVariants is List && rawVariants.isNotEmpty) {
+      for (final entry in rawVariants.whereType<Map>()) {
+        _variantLabelControllers.add(
+          TextEditingController(text: entry['label']?.toString() ?? ''),
+        );
+        _variantPriceControllers.add(
+          TextEditingController(text: _formatPrice(entry['price'])),
+        );
+      }
+      _pricingMode = _PricingMode.variants;
+      return;
+    }
+
+    final isHalfFull = data['priceType'] == 'half_full' ||
+        (data.containsKey('halfPrice') && data.containsKey('fullPrice'));
+    if (isHalfFull) {
+      _pricingMode = _PricingMode.halfFull;
+      _halfPriceController.text = _formatPrice(data['halfPrice']);
+      _fullPriceController.text = _formatPrice(data['fullPrice']);
+    } else {
+      _priceController.text = _formatPrice(data['price']);
+    }
+  }
 
   @override
   void dispose() {
@@ -307,10 +401,88 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
     _priceController.dispose();
     _halfPriceController.dispose();
     _fullPriceController.dispose();
+    for (final controller in _variantLabelControllers) {
+      controller.dispose();
+    }
+    for (final controller in _variantPriceControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
-  Future<void> _addMenuItem() async {
+  String _formatPrice(dynamic value) {
+    final price = (value as num?)?.toDouble();
+    if (price == null) return '';
+    if (price == price.roundToDouble()) return price.toInt().toString();
+    return price.toString();
+  }
+
+  Map<String, dynamic> _pricingPayload(String name) {
+    switch (_pricingMode) {
+      case _PricingMode.halfFull:
+        final halfPrice =
+            double.tryParse(_halfPriceController.text.trim()) ?? 0.0;
+        final fullPrice =
+            double.tryParse(_fullPriceController.text.trim()) ?? 0.0;
+        return {
+          'priceType': 'half_full',
+          'halfPrice': halfPrice,
+          'fullPrice': fullPrice,
+          'price': fullPrice,
+        };
+      case _PricingMode.variants:
+        final variants = <Map<String, dynamic>>[];
+        for (var i = 0; i < _variantLabelControllers.length; i++) {
+          final label = _variantLabelControllers[i].text.trim();
+          final price =
+              double.tryParse(_variantPriceControllers[i].text.trim()) ?? 0.0;
+          variants.add({
+            'label': label,
+            'price': price,
+            'name': '$name ($label)',
+          });
+        }
+        return {
+          'priceType': 'variants',
+          'variants': variants,
+          'price': variants.isEmpty ? 0.0 : variants.first['price'],
+        };
+      case _PricingMode.single:
+        return {
+          'priceType': 'single',
+          'price': double.tryParse(_priceController.text.trim()) ?? 0.0,
+        };
+    }
+  }
+
+  Map<String, dynamic> _fieldsForWrite(String name) {
+    final fields = <String, dynamic>{
+      'name': name,
+      ..._pricingPayload(name),
+    };
+    if (_pricingMode != _PricingMode.halfFull) {
+      fields.remove('halfPrice');
+      fields.remove('fullPrice');
+    }
+    if (_pricingMode != _PricingMode.variants) {
+      fields.remove('variants');
+    }
+    return fields;
+  }
+
+  Map<String, dynamic> _fieldsForUpdate(String name) {
+    final fields = _fieldsForWrite(name);
+    if (_pricingMode != _PricingMode.halfFull) {
+      fields['halfPrice'] = FieldValue.delete();
+      fields['fullPrice'] = FieldValue.delete();
+    }
+    if (_pricingMode != _PricingMode.variants) {
+      fields['variants'] = FieldValue.delete();
+    }
+    return fields;
+  }
+
+  Future<void> _saveMenuItem() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCategoryId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -319,49 +491,78 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
       return;
     }
 
-    setState(() => _isAdding = true);
+    setState(() => _isSaving = true);
     try {
-      final itemsRef = FirestorePaths.scopedSubCollection(
-        'menus',
-        _selectedCategoryId!,
-        'items',
-      );
-      final sortOrder = await nextSortOrder(itemsRef);
-
-      final data = <String, dynamic>{
-        'name': _nameController.text.trim(),
-        'sortOrder': sortOrder,
-        'inStock': true,
-        'createdAt': FieldValue.serverTimestamp(),
-      };
-
-      if (_halfFullPricing) {
-        final halfPrice =
-            double.tryParse(_halfPriceController.text.trim()) ?? 0.0;
-        final fullPrice =
-            double.tryParse(_fullPriceController.text.trim()) ?? 0.0;
-        data['priceType'] = 'half_full';
-        data['halfPrice'] = halfPrice;
-        data['fullPrice'] = fullPrice;
-        data['price'] = fullPrice;
+      final name = _nameController.text.trim();
+      if (widget.isEditing) {
+        await _updateMenuItem(name);
       } else {
-        data['priceType'] = 'single';
-        data['price'] = double.tryParse(_priceController.text.trim()) ?? 0.0;
+        await _createMenuItem(name);
       }
-
-      await itemsRef.add(data);
       await MenuRevision.bumpRevision();
-
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not add item: $e')),
+          SnackBar(
+            content: Text(
+              widget.isEditing
+                  ? 'Could not update item: $e'
+                  : 'Could not add item: $e',
+            ),
+          ),
         );
       }
     } finally {
-      if (mounted) setState(() => _isAdding = false);
+      if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Future<void> _createMenuItem(String name) async {
+    final itemsRef = FirestorePaths.scopedSubCollection(
+      'menus',
+      _selectedCategoryId!,
+      'items',
+    );
+    final sortOrder = await nextSortOrder(itemsRef);
+    await itemsRef.add({
+      'name': name,
+      'sortOrder': sortOrder,
+      'inStock': true,
+      'createdAt': FieldValue.serverTimestamp(),
+      ..._pricingPayload(name),
+    });
+  }
+
+  Future<void> _updateMenuItem(String name) async {
+    final oldRef = FirestorePaths
+        .scopedSubCollection('menus', widget.categoryId!, 'items')
+        .doc(widget.itemId);
+
+    if (_selectedCategoryId == widget.categoryId) {
+      await oldRef.update(_fieldsForUpdate(name));
+      return;
+    }
+
+    final snapshot = await oldRef.get();
+    final existing = Map<String, dynamic>.from(snapshot.data() ?? {});
+    existing
+      ..remove('halfPrice')
+      ..remove('fullPrice')
+      ..remove('variants')
+      ..addAll(_fieldsForWrite(name));
+
+    final newItems = FirestorePaths.scopedSubCollection(
+      'menus',
+      _selectedCategoryId!,
+      'items',
+    );
+    existing['sortOrder'] = await nextSortOrder(newItems);
+
+    final batch = FirebaseFirestore.instance.batch();
+    batch.set(newItems.doc(), existing);
+    batch.delete(oldRef);
+    await batch.commit();
   }
 
   String? _priceValidator(String? value, {required String label}) {
@@ -376,6 +577,12 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
   }
 
   Widget _buildPricingModeToggle() {
+    final modes = <_PricingMode>[
+      _PricingMode.single,
+      _PricingMode.halfFull,
+      if (_variantLabelControllers.isNotEmpty) _PricingMode.variants,
+    ];
+
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -385,21 +592,35 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
       ),
       child: Row(
         children: [
-          _pricingModeOption(label: 'Normal Price', halfFull: false),
-          _pricingModeOption(label: 'Half + Full', halfFull: true),
+          for (final mode in modes)
+            _pricingModeOption(label: _pricingModeLabel(mode), mode: mode),
         ],
       ),
     );
   }
 
-  Widget _pricingModeOption({required String label, required bool halfFull}) {
-    final selected = _halfFullPricing == halfFull;
+  String _pricingModeLabel(_PricingMode mode) {
+    switch (mode) {
+      case _PricingMode.single:
+        return 'Normal Price';
+      case _PricingMode.halfFull:
+        return 'Half + Full';
+      case _PricingMode.variants:
+        return 'Variants';
+    }
+  }
+
+  Widget _pricingModeOption({
+    required String label,
+    required _PricingMode mode,
+  }) {
+    final selected = _pricingMode == mode;
     return Expanded(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
-          if (_halfFullPricing == halfFull) return;
-          setState(() => _halfFullPricing = halfFull);
+          if (_pricingMode == mode) return;
+          setState(() => _pricingMode = mode);
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -442,6 +663,72 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
             icon: Icons.currency_rupee_rounded,
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildVariantFields() {
+    return Column(
+      children: [
+        for (var i = 0; i < _variantLabelControllers.length; i++) ...[
+          if (i > 0) const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SetupPageStyle.label('Variant'),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _variantLabelControllers[i],
+                      validator: (value) => value == null || value.trim().isEmpty
+                          ? 'Enter label'
+                          : null,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontFamily: fontMulishRegular,
+                        color: SetupPageColors.navy,
+                      ),
+                      decoration: SetupPageStyle.inputDecoration(
+                        hint: 'e.g. Half',
+                        icon: Icons.label_outline_rounded,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SetupPageStyle.label('Price (₹)'),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _variantPriceControllers[i],
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      validator: (value) =>
+                          _priceValidator(value, label: 'price'),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontFamily: fontMulishRegular,
+                        color: SetupPageColors.navy,
+                      ),
+                      decoration: SetupPageStyle.inputDecoration(
+                        hint: 'e.g. 150',
+                        icon: Icons.currency_rupee_rounded,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -612,10 +899,10 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
                 padding: const EdgeInsets.fromLTRB(20, 14, 8, 8),
                 child: Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Add Menu Item',
-                        style: TextStyle(
+                        widget.isEditing ? 'Edit Menu Item' : 'Add Menu Item',
+                        style: const TextStyle(
                           fontFamily: fontMulishBold,
                           fontSize: 18,
                           color: SetupPageColors.navy,
@@ -644,7 +931,9 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
                         if (_selectedCategoryName != null) ...[
                           const SizedBox(height: 6),
                           Text(
-                            'Adding to $_selectedCategoryName',
+                            widget.isEditing
+                                ? 'Updating in $_selectedCategoryName'
+                                : 'Adding to $_selectedCategoryName',
                             style: TextStyle(
                               fontFamily: fontMulishRegular,
                               fontSize: 12,
@@ -676,21 +965,27 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
                         const SizedBox(height: 8),
                         _buildPricingModeToggle(),
                         const SizedBox(height: 16),
-                        if (_halfFullPricing)
+                        if (_pricingMode == _PricingMode.halfFull)
                           _buildHalfFullPriceFields()
+                        else if (_pricingMode == _PricingMode.variants)
+                          _buildVariantFields()
                         else
                           _buildSinglePriceField(),
                         const SizedBox(height: 20),
-                        _isAdding
+                        _isSaving
                             ? const Center(
                                 child: CircularProgressIndicator(
                                   color: SetupPageColors.orange,
                                 ),
                               )
                             : SetupPageStyle.primaryButton(
-                                label: 'Add Menu Item',
-                                icon: Icons.add_rounded,
-                                onTap: _addMenuItem,
+                                label: widget.isEditing
+                                    ? 'Save Changes'
+                                    : 'Add Menu Item',
+                                icon: widget.isEditing
+                                    ? Icons.check_rounded
+                                    : Icons.add_rounded,
+                                onTap: _saveMenuItem,
                               ),
                       ],
                     ),
