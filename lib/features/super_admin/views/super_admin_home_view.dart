@@ -164,7 +164,7 @@ class _RestaurantCard extends StatelessWidget {
                     () => CreateRestaurantAdminView(restaurant: restaurant),
                   ),
                   icon: const Icon(Icons.person_add, size: 18),
-                  label: const Text('Create Admin'),
+                  label: const Text('Assign Admin'),
                 ),
                 if (restaurant.status != RestaurantStatus.active)
                   ElevatedButton(

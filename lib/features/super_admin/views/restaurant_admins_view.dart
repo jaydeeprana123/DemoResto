@@ -120,11 +120,12 @@ class RestaurantAdminsView extends StatelessWidget {
               final name = (admin.name?.trim().isNotEmpty ?? false)
                   ? admin.name!.trim()
                   : admin.email;
+              final restaurants = controller.restaurantNamesFor(admin);
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(name, style: MyFont.semiBold(15, color: _navy)),
                 subtitle: Text(
-                  admin.email,
+                  restaurants.isEmpty ? admin.email : '${admin.email}\n$restaurants',
                   style: MyFont.regular(13, color: Colors.grey.shade700),
                 ),
                 onTap: () => Navigator.pop(ctx, admin),

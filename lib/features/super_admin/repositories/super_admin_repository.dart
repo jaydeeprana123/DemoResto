@@ -199,9 +199,9 @@ class SuperAdminRepository {
     return null;
   }
 
-  /// Creates a new admin, or assigns [restaurantId] when the email already exists.
-  /// Returns true when an existing login was reused.
-  Future<bool> createRestaurantAdmin({
+  /// Creates a new Firebase Auth login and admin profile for [restaurantId].
+  /// An email that already exists must be assigned with [assignAdminToRestaurant].
+  Future<void> createRestaurantAdmin({
     required String email,
     required String password,
     required String name,
@@ -214,11 +214,9 @@ class SuperAdminRepository {
           'This email is already used by a ${existing.role} account.',
         );
       }
-      await assignAdminToRestaurant(
-        admin: existing,
-        restaurantId: restaurantId,
+      throw Exception(
+        'This email already has an admin login. Choose Assign Existing Admin so they keep the same password.',
       );
-      return true;
     }
 
     final String uid;
@@ -249,11 +247,10 @@ class SuperAdminRepository {
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    await FirestorePaths.restaurant(restaurantId).update({
-      'adminEmail': email.trim(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    return false;
+    await _rememberAdminEmailIfEmpty(
+      restaurantId: restaurantId,
+      email: email.trim(),
+    );
   }
 
   /// Adds [restaurantId] to an existing admin without changing their login.
@@ -301,6 +298,26 @@ class SuperAdminRepository {
     }
 
     await FirestorePaths.user(admin.uid).update(updates);
+    await _rememberAdminEmailIfEmpty(
+      restaurantId: restaurantId,
+      email: (data['email']?.toString() ?? admin.email).trim(),
+    );
+  }
+
+  /// Records the first admin email on the restaurant. Later admins are not
+  /// written over it, and the admin's own login is left unchanged.
+  Future<void> _rememberAdminEmailIfEmpty({
+    required String restaurantId,
+    required String email,
+  }) async {
+    if (email.isEmpty) return;
+    final restaurantDoc = await FirestorePaths.restaurant(restaurantId).get();
+    final current = restaurantDoc.data()?['adminEmail']?.toString().trim() ?? '';
+    if (current.isNotEmpty) return;
+    await FirestorePaths.restaurant(restaurantId).update({
+      'adminEmail': email,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   /// Removes access to one restaurant.

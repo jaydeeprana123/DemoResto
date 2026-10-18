@@ -75,23 +75,20 @@ class _BottomNavigationViewState extends State<BottomNavigationView> {
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F6FA),
         body: Obx(() {
-          final session = Get.find<RestaurantSession>();
-          final scope = session.scopeVersion.value;
-          final switching = session.isSwitchingRestaurant.value;
+          final switching =
+              Get.find<RestaurantSession>().isSwitchingRestaurant.value;
           return Stack(
             children: [
               IndexedStack(
                 index: _shell.stackIndex,
                 children: [
                   TableDashboardView(
-                    key: ValueKey('dashboard-$scope'),
                     isTabActive: _shell.currentTab == ShellTab.dashboard,
                   ),
                   KitchenOrdersListView(
-                    key: ValueKey('kitchen-$scope'),
                     isTabActive: _shell.isKitchenTabActive,
                   ),
-                  SettingsPage(key: ValueKey('settings-$scope')),
+                  const SettingsPage(),
                 ],
               ),
               if (switching)

@@ -121,6 +121,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   bool _delayedBlinkHighlight = false;
   Timer? _delayedBlinkTimer;
   AppLifecycleState _appLifecycleState = AppLifecycleState.resumed;
+  Worker? _restaurantScopeWorker;
 
   /// Tables seen on a prior snapshot — used to skip first-hydrate completion alerts.
   final Set<String> _orderCompletionKnownTables = {};
@@ -884,6 +885,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _restaurantScopeWorker = ever<int>(
+      Get.find<RestaurantSession>().scopeVersion,
+      (_) => _onRestaurantScopeChanged(),
+    );
     unawaited(_initAudioPlayers());
     unawaited(KitchenOrderTtsService.instance.ensureInitialized());
     if (kIsWeb) {
@@ -946,6 +951,31 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     if (!mounted) return;
     _menuFilter.invalidate();
     _setStatePreservingScroll(_rebuildDisplayFromCache);
+  }
+
+  void _onRestaurantScopeChanged() {
+    if (!mounted) return;
+    _menuFilter.invalidate();
+    _itemSelection.cancel();
+    _setStatePreservingScroll(() {
+      _lastUpdatedGroups = [];
+      _displayFilteredGroups = [];
+      _displayTableCards = [];
+      _crossTablePendingIndex = KitchenCrossTablePendingIndex.empty();
+      _preparationItemGroups = [];
+      _blinkingPrepItemKeys = {};
+      _kitchenStreamReady = false;
+      previousKeys = {};
+      _previousSignatures = {};
+      _previousDocIds = {};
+      _previousKeyToGroup = {};
+      _previousPrepItemLineTokens = {};
+      _wasKitchenEmpty = false;
+      _orderCompletionKnownTables.clear();
+      _orderCompletionNotifiedAtMs.clear();
+      _orderCompletionNotifiedBy.clear();
+    });
+    _listenToKitchenTables();
   }
 
   void _listenToKitchenTables() {
@@ -3765,6 +3795,7 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
   @override
   void dispose() {
+    _restaurantScopeWorker?.dispose();
     if (_menuCacheListener != null) {
       Get.find<MenuCacheService>().revisionListenable.removeListener(
         _menuCacheListener!,

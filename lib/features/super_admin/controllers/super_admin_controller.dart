@@ -4,6 +4,7 @@ import 'package:smartKitchen/core/models/restaurant.dart';
 import 'package:smartKitchen/core/models/user_profile.dart';
 import 'package:smartKitchen/core/repositories/user_repository.dart';
 import 'package:smartKitchen/core/widgets/logout_confirmation_dialog.dart';
+import 'package:smartKitchen/features/super_admin/models/admin_assignment.dart';
 import 'package:smartKitchen/features/super_admin/repositories/super_admin_repository.dart';
 import 'package:smartKitchen/features/super_admin/widgets/restaurant_profile_fields.dart';
 import 'package:get/get.dart';
@@ -82,7 +83,7 @@ class SuperAdminController extends GetxController {
         .join(', ');
   }
 
-  Future<String?> createRestaurant({
+  Future<({String? error, bool restaurantCreated})> createRestaurant({
     required String name,
     String? address,
     required String mobile1,
@@ -91,6 +92,7 @@ class SuperAdminController extends GetxController {
     Uint8List? logoBytes,
     Uint8List? qrCodeBytes,
     required int subscriptionYears,
+    AdminAssignmentInput? admin,
   }) async {
     final validationError = validateRestaurantForm(
       name: name,
@@ -98,9 +100,16 @@ class SuperAdminController extends GetxController {
       mobile2: mobile2,
       mobile3: mobile3,
     );
-    if (validationError != null) return validationError;
+    if (validationError != null) {
+      return (error: validationError, restaurantCreated: false);
+    }
+    final adminError = admin?.validate();
+    if (adminError != null) {
+      return (error: adminError, restaurantCreated: false);
+    }
 
     isLoading.value = true;
+    var restaurantCreated = false;
     try {
       final restaurantId = await _repository.createRestaurant(
         name: name,
@@ -114,6 +123,7 @@ class SuperAdminController extends GetxController {
             : null,
         subscriptionYears: subscriptionYears,
       );
+      restaurantCreated = true;
 
       String? logoUrl;
       if (logoBytes != null) {
@@ -145,9 +155,29 @@ class SuperAdminController extends GetxController {
           qrCodeUrl: qrCodeUrl,
         );
       }
-      return null;
+
+      if (admin != null && admin.shouldApply) {
+        final assignError = await _applyAdminAssignment(
+          restaurantId: restaurantId,
+          admin: admin,
+        );
+        if (assignError != null) {
+          return (
+            error:
+                'Restaurant was created, but the admin was not assigned: $assignError',
+            restaurantCreated: true,
+          );
+        }
+      }
+      return (error: null, restaurantCreated: true);
     } catch (e) {
-      return e.toString();
+      final message = e.toString().replaceFirst('Exception: ', '');
+      return (
+        error: restaurantCreated
+            ? 'Restaurant was created, but setup did not finish: $message'
+            : message,
+        restaurantCreated: restaurantCreated,
+      );
     } finally {
       isLoading.value = false;
     }
@@ -165,6 +195,7 @@ class SuperAdminController extends GetxController {
     Uint8List? qrCodeBytes,
     bool removeQrCode = false,
     DateTime? subscriptionEnd,
+    AdminAssignmentInput? admin,
   }) async {
     final validationError = validateRestaurantForm(
       name: name,
@@ -173,6 +204,8 @@ class SuperAdminController extends GetxController {
       mobile3: mobile3,
     );
     if (validationError != null) return validationError;
+    final adminError = admin?.validate();
+    if (adminError != null) return adminError;
 
     isLoading.value = true;
     try {
@@ -212,78 +245,77 @@ class SuperAdminController extends GetxController {
           subscriptionEnd: subscriptionEnd,
         );
       }
+
+      if (admin != null && admin.shouldApply) {
+        final assignError = await _applyAdminAssignment(
+          restaurantId: restaurant.id,
+          admin: admin,
+        );
+        if (assignError != null) {
+          return 'Restaurant details were saved, but the admin was not assigned: $assignError';
+        }
+      }
       return null;
     } catch (e) {
-      return e.toString();
+      return e.toString().replaceFirst('Exception: ', '');
     } finally {
       isLoading.value = false;
     }
   }
 
-  /// Null error means success. [assignedExisting] is true when the email
-  /// already had a login and was given this restaurant.
-  Future<({String? error, bool assignedExisting})> createRestaurantAdmin({
+  /// Creates a new admin login. Existing emails must use [assignExistingAdmin].
+  Future<String?> createRestaurantAdmin({
     required String restaurantId,
     required String name,
     required String email,
     required String password,
   }) async {
-    if (email.trim().isEmpty) {
-      return (error: 'Email is required.', assignedExisting: false);
-    }
+    final admin = AdminAssignmentInput(
+      mode: AdminAssignmentMode.createNew,
+      name: name,
+      email: email,
+      password: password,
+      requiredAssignment: true,
+    );
+    final validationError = admin.validate();
+    if (validationError != null) return validationError;
 
     isLoading.value = true;
     try {
-      final existing = await _repository.findUserByEmail(email) ??
-          _loadedUserByEmail(email);
-      if (existing != null) {
-        if (!existing.isAdmin) {
-          return (
-            error: 'This email is already used by a ${existing.role} account.',
-            assignedExisting: false,
-          );
-        }
-        await _repository.assignAdminToRestaurant(
-          admin: existing,
-          restaurantId: restaurantId,
-        );
-        return (error: null, assignedExisting: true);
-      }
-
-      if (name.trim().isEmpty) {
-        return (error: 'Admin name is required.', assignedExisting: false);
-      }
-      if (password.length < 6) {
-        return (
-          error: 'Password must be at least 6 characters.',
-          assignedExisting: false,
-        );
-      }
-
-      final assignedExisting = await _repository.createRestaurantAdmin(
-        email: email,
-        password: password,
-        name: name,
+      return await _applyAdminAssignment(
         restaurantId: restaurantId,
-      );
-      return (error: null, assignedExisting: assignedExisting);
-    } catch (e) {
-      return (
-        error: e.toString().replaceFirst('Exception: ', ''),
-        assignedExisting: false,
+        admin: admin,
       );
     } finally {
       isLoading.value = false;
     }
   }
 
-  UserProfile? _loadedUserByEmail(String email) {
-    final normalized = email.trim().toLowerCase();
-    if (normalized.isEmpty) return null;
-    for (final admin in admins) {
-      if (admin.email.trim().toLowerCase() == normalized) return admin;
+  Future<String?> _applyAdminAssignment({
+    required String restaurantId,
+    required AdminAssignmentInput admin,
+  }) async {
+    try {
+      if (admin.mode == AdminAssignmentMode.assignExisting) {
+        final selected = admin.existingAdmin;
+        if (selected == null) return 'Select an existing admin.';
+        await _repository.assignAdminToRestaurant(
+          admin: selected,
+          restaurantId: restaurantId,
+        );
+        return null;
+      }
+
+      await _repository.createRestaurantAdmin(
+        email: admin.email,
+        password: admin.password,
+        name: admin.name,
+        restaurantId: restaurantId,
+      );
+      return null;
+    } catch (e) {
+      return e.toString().replaceFirst('Exception: ', '');
     }
-    return null;
   }
 
   Future<String?> assignExistingAdmin({

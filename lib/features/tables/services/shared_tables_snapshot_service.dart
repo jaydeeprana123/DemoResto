@@ -41,11 +41,21 @@ class SharedTablesSnapshotService extends GetxService {
   }
 
   /// Drops the live tables listener and any snapshot from the previous restaurant.
-  /// The next [subscribe] opens a listener for the current restaurant scope.
+  /// Subscribers stay registered. [resumeForCurrentRestaurant] opens a listener
+  /// for the restaurant that is selected after the switch.
   void pauseForRestaurantSwitch() {
     _listener?.stop();
     _listener = null;
     _lastSnapshot = null;
+  }
+
+  void resumeForCurrentRestaurant() {
+    _listener?.stop();
+    _listener = null;
+    _lastSnapshot = null;
+    if (_subscribers.isNotEmpty) {
+      _ensureListener();
+    }
   }
 
   void _ensureListener() {

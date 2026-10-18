@@ -103,11 +103,16 @@ class _TableDashboardViewState extends State<TableDashboardView>
   );
   Timer? _dashboardServeBlinkTimer;
   Timer? _staffPermissionRefreshTimer;
+  Worker? _restaurantScopeWorker;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _restaurantScopeWorker = ever<int>(
+      Get.find<RestaurantSession>().scopeVersion,
+      (_) => _onRestaurantScopeChanged(),
+    );
 
     _loadTableFilter();
 
@@ -166,8 +171,38 @@ class _TableDashboardViewState extends State<TableDashboardView>
     await Get.find<UserRepository>().signOut();
   }
 
+  void _onRestaurantScopeChanged() {
+    if (!mounted) return;
+    _itemSelection.cancel();
+    setState(() {
+      _tablesLoading = user != null;
+      tables = {};
+      tableCreatedAt.clear();
+      tableIsPaid.clear();
+      tableDocIds.clear();
+      tableTransactionIds.clear();
+      tableAddedByUserIds.clear();
+      tableAddedByUserNames.clear();
+      _firestoreGroupIndices.clear();
+      tableSources.clear();
+      tableScreenshotUrls.clear();
+      tableZomatoStatuses.clear();
+      tableOrderCompletionNotifiedAtMs.clear();
+      tableOrderCompletionNotifiedBy.clear();
+      tableIsFutureOrder.clear();
+      tableScheduledAt.clear();
+      _locallySuppressedCompletionDocIds.clear();
+      _blinkingTableNames.clear();
+      menu.clear();
+    });
+    if (user != null) {
+      _listenToTables();
+    }
+  }
+
   @override
   void dispose() {
+    _restaurantScopeWorker?.dispose();
     if (_menuCacheListener != null) {
       Get.find<MenuCacheService>().revisionListenable.removeListener(
         _menuCacheListener!,
@@ -1839,7 +1874,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
     final restaurantName =
         Get.find<RestaurantSession>().activeRestaurant.value?.name;
     final titleText = restaurantName != null && restaurantName.isNotEmpty
-        ? 'Smart Kitchen ($restaurantName)'
+        ? restaurantName
         : 'Smart Kitchen';
 
     return AppBar(

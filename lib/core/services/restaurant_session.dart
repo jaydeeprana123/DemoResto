@@ -89,6 +89,27 @@ class RestaurantSession extends GetxService {
         await _loadRestaurant(profile.value!.restaurantId!);
       }
       await _refreshAssignedRestaurants();
+      _preferAccessibleRestaurant();
+    }
+  }
+
+  /// Single-restaurant admins stay on [UserProfile.restaurantId].
+  /// An admin with several restaurants lands on the first one they can open,
+  /// so a blocked primary restaurant does not hide the others.
+  void _preferAccessibleRestaurant() {
+    final current = profile.value;
+    if (current == null || !current.hasMultipleRestaurants) return;
+
+    final active = activeRestaurant.value;
+    if (active != null && _unavailableMessage(active) == null) return;
+
+    for (final restaurant in assignedRestaurants) {
+      if (_unavailableMessage(restaurant) != null) continue;
+      _selectedRestaurantId = restaurant.id;
+      useLegacyCollections =
+          restaurant.id == current.restaurantId && _primaryUsesLegacy;
+      activeRestaurant.value = restaurant;
+      return;
     }
   }
 
@@ -131,6 +152,9 @@ class RestaurantSession extends GetxService {
       // can use the new restaurant scope.
       scopeVersion.value++;
       applied = true;
+      if (Get.isRegistered<SharedTablesSnapshotService>()) {
+        Get.find<SharedTablesSnapshotService>().resumeForCurrentRestaurant();
+      }
 
       await _loadPrintProfile(candidate);
       await _rebindMenuCache();

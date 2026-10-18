@@ -1,7 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:smartKitchen/core/models/restaurant.dart';
+import 'package:smartKitchen/core/models/user_profile.dart';
 import 'package:smartKitchen/features/super_admin/controllers/super_admin_controller.dart';
+import 'package:smartKitchen/features/super_admin/models/admin_assignment.dart';
+import 'package:smartKitchen/features/super_admin/widgets/restaurant_admin_assign_section.dart';
 import 'package:smartKitchen/features/super_admin/widgets/restaurant_profile_fields.dart';
 import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +33,12 @@ class _EditRestaurantViewState extends State<EditRestaurantView> {
   Uint8List? _qrCodeBytes;
   bool _removeQrCode = false;
   late DateTime _subscriptionEnd;
+  final _adminNameCtrl = TextEditingController();
+  final _adminEmailCtrl = TextEditingController();
+  final _adminPasswordCtrl = TextEditingController();
+  AdminAssignmentMode _adminMode = AdminAssignmentMode.createNew;
+  UserProfile? _selectedAdmin;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
@@ -50,6 +59,9 @@ class _EditRestaurantViewState extends State<EditRestaurantView> {
     _mobile1Ctrl.dispose();
     _mobile2Ctrl.dispose();
     _mobile3Ctrl.dispose();
+    _adminNameCtrl.dispose();
+    _adminEmailCtrl.dispose();
+    _adminPasswordCtrl.dispose();
     super.dispose();
   }
 
@@ -83,6 +95,16 @@ class _EditRestaurantViewState extends State<EditRestaurantView> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final controller = Get.find<SuperAdminController>();
+    final existingAdmins =
+        controller.adminsAvailableToAssign(widget.restaurant.id);
+    final admin = AdminAssignmentInput(
+      mode: _adminMode,
+      name: _adminNameCtrl.text,
+      email: _adminEmailCtrl.text,
+      password: _adminPasswordCtrl.text,
+      existingAdmin: _selectedAdmin,
+      existingAdminCount: existingAdmins.length,
+    );
     final error = await controller.updateRestaurant(
       restaurant: widget.restaurant,
       name: _nameCtrl.text,
@@ -95,14 +117,25 @@ class _EditRestaurantViewState extends State<EditRestaurantView> {
       qrCodeBytes: _qrCodeBytes,
       removeQrCode: _removeQrCode,
       subscriptionEnd: _subscriptionEnd,
+      admin: admin,
     );
     if (!mounted) return;
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
       return;
     }
+    final assignedName = _selectedAdmin == null
+        ? _adminNameCtrl.text.trim()
+        : ((_selectedAdmin!.name?.trim().isNotEmpty ?? false)
+            ? _selectedAdmin!.name!.trim()
+            : _selectedAdmin!.email);
+    final message = !admin.shouldApply
+        ? 'Restaurant updated successfully.'
+        : admin.mode == AdminAssignmentMode.assignExisting
+            ? 'Restaurant updated. $assignedName can manage it with their current login.'
+            : 'Restaurant updated and a new admin login was added.';
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Restaurant updated successfully.')),
+      SnackBar(content: Text(message)),
     );
     Get.back();
   }
@@ -203,6 +236,36 @@ class _EditRestaurantViewState extends State<EditRestaurantView> {
                   ],
                 ),
               ),
+              const SizedBox(height: 24),
+              Obx(() {
+                final existingAdmins =
+                    controller.adminsAvailableToAssign(widget.restaurant.id);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Current admins: ${controller.adminSummaryForRestaurant(widget.restaurant.id)}',
+                      style: MyFont.regular(13, color: Colors.grey.shade700),
+                    ),
+                    const SizedBox(height: 12),
+                    RestaurantAdminAssignSection(
+                      mode: _adminMode,
+                      onModeChanged: (mode) => setState(() => _adminMode = mode),
+                      nameController: _adminNameCtrl,
+                      emailController: _adminEmailCtrl,
+                      passwordController: _adminPasswordCtrl,
+                      obscurePassword: _obscurePassword,
+                      onTogglePassword: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
+                      existingAdmins: existingAdmins,
+                      selectedAdmin: _selectedAdmin,
+                      onAdminSelected: (admin) =>
+                          setState(() => _selectedAdmin = admin),
+                      restaurantNamesFor: controller.restaurantNamesFor,
+                    ),
+                  ],
+                );
+              }),
               const SizedBox(height: 24),
               superAdminSubmitButton(
                 controller: controller,

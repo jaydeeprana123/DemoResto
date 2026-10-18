@@ -1,6 +1,9 @@
 import 'dart:typed_data';
 
+import 'package:smartKitchen/core/models/user_profile.dart';
 import 'package:smartKitchen/features/super_admin/controllers/super_admin_controller.dart';
+import 'package:smartKitchen/features/super_admin/models/admin_assignment.dart';
+import 'package:smartKitchen/features/super_admin/widgets/restaurant_admin_assign_section.dart';
 import 'package:smartKitchen/features/super_admin/widgets/restaurant_profile_fields.dart';
 import 'package:smartKitchen/Styles/my_font.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +26,12 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
   int _subscriptionYears = 1;
   Uint8List? _logoBytes;
   Uint8List? _qrCodeBytes;
+  final _adminNameCtrl = TextEditingController();
+  final _adminEmailCtrl = TextEditingController();
+  final _adminPasswordCtrl = TextEditingController();
+  AdminAssignmentMode _adminMode = AdminAssignmentMode.createNew;
+  UserProfile? _selectedAdmin;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -31,6 +40,9 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
     _mobile1Ctrl.dispose();
     _mobile2Ctrl.dispose();
     _mobile3Ctrl.dispose();
+    _adminNameCtrl.dispose();
+    _adminEmailCtrl.dispose();
+    _adminPasswordCtrl.dispose();
     super.dispose();
   }
 
@@ -38,7 +50,18 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final controller = Get.find<SuperAdminController>();
-    final error = await controller.createRestaurant(
+    final existingAdmins =
+        controller.admins.where((admin) => admin.active).toList();
+    final admin = AdminAssignmentInput(
+      mode: _adminMode,
+      name: _adminNameCtrl.text,
+      email: _adminEmailCtrl.text,
+      password: _adminPasswordCtrl.text,
+      existingAdmin: _selectedAdmin,
+      requiredAssignment: true,
+      existingAdminCount: existingAdmins.length,
+    );
+    final result = await controller.createRestaurant(
       name: _nameCtrl.text,
       address: _addressCtrl.text,
       mobile1: _mobile1Ctrl.text,
@@ -47,14 +70,29 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
       logoBytes: _logoBytes,
       qrCodeBytes: _qrCodeBytes,
       subscriptionYears: _subscriptionYears,
+      admin: admin,
     );
     if (!mounted) return;
-    if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    if (result.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.error!)),
+      );
+      if (result.restaurantCreated) Get.back();
       return;
     }
+    final assignedName = _selectedAdmin == null
+        ? _adminNameCtrl.text.trim()
+        : ((_selectedAdmin!.name?.trim().isNotEmpty ?? false)
+            ? _selectedAdmin!.name!.trim()
+            : _selectedAdmin!.email);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Restaurant created successfully.')),
+      SnackBar(
+        content: Text(
+          admin.mode == AdminAssignmentMode.assignExisting
+              ? 'Restaurant created. $assignedName can manage it with their current login.'
+              : 'Restaurant created and a new admin login was added.',
+        ),
+      ),
     );
     Get.back();
   }
@@ -133,6 +171,28 @@ class _CreateRestaurantViewState extends State<CreateRestaurantView> {
                 ],
                 onChanged: (v) => setState(() => _subscriptionYears = v ?? 1),
               ),
+              const SizedBox(height: 24),
+              Obx(() {
+                final existingAdmins = controller.admins
+                    .where((admin) => admin.active)
+                    .toList();
+                return RestaurantAdminAssignSection(
+                  mode: _adminMode,
+                  onModeChanged: (mode) => setState(() => _adminMode = mode),
+                  nameController: _adminNameCtrl,
+                  emailController: _adminEmailCtrl,
+                  passwordController: _adminPasswordCtrl,
+                  obscurePassword: _obscurePassword,
+                  onTogglePassword: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                  existingAdmins: existingAdmins,
+                  selectedAdmin: _selectedAdmin,
+                  onAdminSelected: (admin) =>
+                      setState(() => _selectedAdmin = admin),
+                  restaurantNamesFor: controller.restaurantNamesFor,
+                  requiredAssignment: true,
+                );
+              }),
               const SizedBox(height: 24),
               superAdminSubmitButton(
                 controller: controller,
