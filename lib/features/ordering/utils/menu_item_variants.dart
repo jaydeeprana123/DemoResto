@@ -104,7 +104,7 @@ class MenuItemVariants {
     final mergedBases = <String>{};
 
     for (final item in items) {
-      if (item['variants'] is List && (item['variants'] as List).length >= 2) {
+      if (item['variants'] is List && (item['variants'] as List).isNotEmpty) {
         result.add(_fromExplicitVariants(item, category));
         continue;
       }

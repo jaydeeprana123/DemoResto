@@ -56,11 +56,12 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
   Widget _buildPriceLabel(Map<String, dynamic> data) {
     final variants = data['variants'];
     if (variants is List && variants.isNotEmpty) {
-      final prices = variants
-          .whereType<Map>()
-          .map((v) => (v['price'] as num?)?.toDouble() ?? 0.0)
-          .map((p) => '₹${p.toStringAsFixed(0)}')
-          .join(' / ');
+      final prices = variants.whereType<Map>().map((v) {
+        final label = v['label']?.toString().trim() ?? '';
+        final price =
+            '₹${((v['price'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)}';
+        return label.isEmpty ? price : '$label $price';
+      }).join(' / ');
       return Text(
         prices,
         textAlign: TextAlign.end,
@@ -328,6 +329,24 @@ class _AddMenuItemPageState extends State<AddMenuItemPage> {
 
 enum _PricingMode { single, halfFull, variants }
 
+class _VariantColumnHeader extends StatelessWidget {
+  const _VariantColumnHeader(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 12,
+        fontFamily: fontMulishSemiBold,
+        color: Colors.grey.shade600,
+      ),
+    );
+  }
+}
+
 class _AddMenuItemSheet extends StatefulWidget {
   const _AddMenuItemSheet({
     this.categoryId,
@@ -431,15 +450,28 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
           'price': fullPrice,
         };
       case _PricingMode.variants:
+        final labels = [
+          for (final controller in _variantLabelControllers)
+            controller.text.trim(),
+        ];
         final variants = <Map<String, dynamic>>[];
-        for (var i = 0; i < _variantLabelControllers.length; i++) {
-          final label = _variantLabelControllers[i].text.trim();
+        final usedNames = <String>{};
+        for (var i = 0; i < labels.length; i++) {
+          final label = labels[i];
           final price =
               double.tryParse(_variantPriceControllers[i].text.trim()) ?? 0.0;
+          var lineName = _variantLineName(name, label, price, labels);
+          if (!usedNames.add(lineName)) {
+            var suffix = 2;
+            while (!usedNames.add('$lineName #$suffix')) {
+              suffix++;
+            }
+            lineName = '$lineName #$suffix';
+          }
           variants.add({
             'label': label,
             'price': price,
-            'name': '$name ($label)',
+            'name': lineName,
           });
         }
         return {
@@ -482,7 +514,54 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
     return fields;
   }
 
+  /// Order-line name. Duplicate titles stay distinct by price so each row
+  /// can be selected and billed on its own.
+  String _variantLineName(
+    String itemName,
+    String label,
+    double price,
+    List<String> labels,
+  ) {
+    final duplicates = labels
+        .where((entry) => entry.toLowerCase() == label.toLowerCase())
+        .length;
+    if (duplicates <= 1) return '$itemName ($label)';
+    final priceText = price == price.roundToDouble()
+        ? price.toInt().toString()
+        : price.toString();
+    return '$itemName ($label — ₹$priceText)';
+  }
+
+  void _selectPricingMode(_PricingMode mode) {
+    if (_pricingMode == mode) return;
+    setState(() {
+      _pricingMode = mode;
+      if (mode == _PricingMode.variants && _variantLabelControllers.isEmpty) {
+        _addVariantRow();
+      }
+    });
+  }
+
+  void _addVariantRow() {
+    _variantLabelControllers.add(TextEditingController());
+    _variantPriceControllers.add(TextEditingController());
+  }
+
+  void _removeVariantRow(int index) {
+    setState(() {
+      _variantLabelControllers.removeAt(index).dispose();
+      _variantPriceControllers.removeAt(index).dispose();
+    });
+  }
+
   Future<void> _saveMenuItem() async {
+    if (_pricingMode == _PricingMode.variants &&
+        _variantLabelControllers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add at least one variant')),
+      );
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCategoryId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -580,7 +659,7 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
     final modes = <_PricingMode>[
       _PricingMode.single,
       _PricingMode.halfFull,
-      if (_variantLabelControllers.isNotEmpty) _PricingMode.variants,
+      _PricingMode.variants,
     ];
 
     return Container(
@@ -606,7 +685,7 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
       case _PricingMode.halfFull:
         return 'Half + Full';
       case _PricingMode.variants:
-        return 'Variants';
+        return 'Custom\nPrice/Variants';
     }
   }
 
@@ -618,13 +697,11 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
     return Expanded(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () {
-          if (_pricingMode == mode) return;
-          setState(() => _pricingMode = mode);
-        },
+        onTap: () => _selectPricingMode(mode),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
           decoration: BoxDecoration(
             color: selected ? SetupPageColors.orange : Colors.transparent,
             borderRadius: BorderRadius.circular(9),
@@ -632,8 +709,11 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
           alignment: Alignment.center,
           child: Text(
             label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 12,
+              height: 1.15,
               fontFamily: fontMulishSemiBold,
               color: selected ? Colors.white : SetupPageColors.navy,
             ),
@@ -667,68 +747,134 @@ class _AddMenuItemSheetState extends State<_AddMenuItemSheet> {
     );
   }
 
+  InputDecoration _variantFieldDecoration({required String hint, String? prefix}) {
+    return InputDecoration(
+      hintText: hint,
+      prefixText: prefix,
+      hintStyle: TextStyle(
+        color: Colors.grey.shade400,
+        fontSize: 13,
+        fontFamily: fontMulishRegular,
+      ),
+      prefixStyle: const TextStyle(
+        fontSize: 14,
+        fontFamily: fontMulishSemiBold,
+        color: SetupPageColors.navy,
+      ),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade200),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade200),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: SetupPageColors.orange, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.red.shade300),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.red.shade300),
+      ),
+    );
+  }
+
   Widget _buildVariantFields() {
+    const fieldStyle = TextStyle(
+      fontSize: 14,
+      fontFamily: fontMulishRegular,
+      color: SetupPageColors.navy,
+    );
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const Row(
+          children: [
+            Expanded(flex: 3, child: _VariantColumnHeader('Variant Title')),
+            SizedBox(width: 12),
+            Expanded(flex: 2, child: _VariantColumnHeader('Price')),
+            SizedBox(width: 40),
+          ],
+        ),
+        const SizedBox(height: 8),
         for (var i = 0; i < _variantLabelControllers.length; i++) ...[
-          if (i > 0) const SizedBox(height: 12),
+          if (i > 0) const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SetupPageStyle.label('Variant'),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _variantLabelControllers[i],
-                      validator: (value) => value == null || value.trim().isEmpty
-                          ? 'Enter label'
+                flex: 3,
+                child: TextFormField(
+                  controller: _variantLabelControllers[i],
+                  validator: (value) =>
+                      value == null || value.trim().isEmpty
+                          ? 'Enter title'
                           : null,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontFamily: fontMulishRegular,
-                        color: SetupPageColors.navy,
-                      ),
-                      decoration: SetupPageStyle.inputDecoration(
-                        hint: 'e.g. Half',
-                        icon: Icons.label_outline_rounded,
-                      ),
-                    ),
-                  ],
+                  style: fieldStyle,
+                  decoration: _variantFieldDecoration(hint: 'e.g. 250 gm'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SetupPageStyle.label('Price (₹)'),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _variantPriceControllers[i],
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      validator: (value) =>
-                          _priceValidator(value, label: 'price'),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontFamily: fontMulishRegular,
-                        color: SetupPageColors.navy,
-                      ),
-                      decoration: SetupPageStyle.inputDecoration(
-                        hint: 'e.g. 150',
-                        icon: Icons.currency_rupee_rounded,
-                      ),
-                    ),
-                  ],
+                flex: 2,
+                child: TextFormField(
+                  controller: _variantPriceControllers[i],
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  validator: (value) => _priceValidator(value, label: 'price'),
+                  style: fieldStyle,
+                  decoration: _variantFieldDecoration(
+                    hint: '100',
+                    prefix: '₹ ',
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 40,
+                height: 48,
+                child: IconButton(
+                  tooltip: 'Remove',
+                  padding: EdgeInsets.zero,
+                  onPressed: () => _removeVariantRow(i),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.red,
+                    size: 20,
+                  ),
                 ),
               ),
             ],
           ),
         ],
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => setState(_addVariantRow),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text(
+              'Add More',
+              style: TextStyle(
+                fontSize: 14,
+                fontFamily: fontMulishSemiBold,
+              ),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: SetupPageColors.orange,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+            ),
+          ),
+        ),
       ],
     );
   }

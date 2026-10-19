@@ -471,8 +471,8 @@ class _MenuPageState extends State<MenuPage>
         actionsAlignment: MainAxisAlignment.center,
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
-          for (final variant in variants)
-            if (!forDecrement || (variant['qty'] as int? ?? 0) > 0)
+          for (var i = 0; i < variants.length; i++)
+            if (!forDecrement || (variants[i]['qty'] as int? ?? 0) > 0)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: SizedBox(
@@ -487,14 +487,13 @@ class _MenuPageState extends State<MenuPage>
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    onPressed: () =>
-                        Navigator.pop(ctx, variant['label']?.toString()),
+                    onPressed: () => Navigator.pop(ctx, '$i'),
                     child: Text(
                       forDecrement
-                          ? '${variant['label']} '
-                                '(${variant['qty']}) — Remove 1'
-                          : '${variant['label']} — '
-                                '₹${(variant['price'] as num).toStringAsFixed(0)}',
+                          ? '${variants[i]['label']} '
+                                '(${variants[i]['qty']}) — Remove 1'
+                          : '${variants[i]['label']} — '
+                                '₹${(variants[i]['price'] as num).toStringAsFixed(0)}',
                       style: const TextStyle(
                         fontFamily: fontMulishBold,
                         fontSize: 14,
@@ -511,19 +510,21 @@ class _MenuPageState extends State<MenuPage>
       ),
     );
 
-    if (choice == null || !mounted) return;
+    final choiceIndex = int.tryParse(choice ?? '');
+    if (choiceIndex == null || !mounted) return;
+
+    final stored = item['variants'];
+    if (stored is! List || choiceIndex < 0 || choiceIndex >= stored.length) {
+      return;
+    }
 
     setState(() {
-      for (final raw in item['variants'] as List) {
-        final variant = raw as Map<String, dynamic>;
-        if (variant['label']?.toString() != choice) continue;
-        final current = variant['qty'] as int? ?? 0;
-        if (forDecrement) {
-          if (current > 0) variant['qty'] = current - 1;
-        } else {
-          variant['qty'] = current + 1;
-        }
-        break;
+      final variant = stored[choiceIndex] as Map<String, dynamic>;
+      final current = variant['qty'] as int? ?? 0;
+      if (forDecrement) {
+        if (current > 0) variant['qty'] = current - 1;
+      } else {
+        variant['qty'] = current + 1;
       }
     });
   }
