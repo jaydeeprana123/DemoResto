@@ -134,7 +134,15 @@ class KitchenOrderTtsService {
     } catch (_) {}
   }
 
+  /// Releases nothing on Windows.
+  ///
+  /// The Windows flutter_tts plugin calls `ISpVoice::Speak` from `stop()`.
+  /// That call access-violates inside `flutter_tts_plugin.dll` when it runs
+  /// while routes are being removed (logout disposes the kitchen screen,
+  /// which lives in the shell [IndexedStack]). The engine is a process-wide
+  /// singleton, so leaving it alive is safe.
   Future<void> dispose() async {
+    if (defaultTargetPlatform == TargetPlatform.windows) return;
     await stop();
   }
 

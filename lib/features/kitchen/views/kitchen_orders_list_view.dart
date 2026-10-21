@@ -3832,7 +3832,9 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     audioPlayer.dispose();
     updateAudioPlayer.dispose();
     deleteAudioPlayer.dispose();
-    unawaited(KitchenOrderTtsService.instance.dispose());
+    // KitchenOrderTtsService is a process-wide singleton. Disposing it here
+    // calls flutter_tts stop() while this route is unmounting and crashes
+    // the Windows process (flutter_tts_plugin.dll access violation).
     super.dispose();
   }
 

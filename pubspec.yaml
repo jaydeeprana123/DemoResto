@@ -1,7 +1,7 @@
 name: smartKitchen
 description: Every table. Every order. One kitchen screen.
 publish_to: none
-version: 1.0.11+12
+version: 1.0.12+13
 
 environment:
   sdk: ^3.8.1
