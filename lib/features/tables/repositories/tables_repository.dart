@@ -172,22 +172,79 @@ class TablesRepository {
 
     for (final item in parsed) {
       final copy = Map<String, dynamic>.from(item);
+      final addedAt = coerceTimestamp(copy['addedAt']);
       copy.remove('groupIndex');
-      copy.remove('addedAt');
       copy.remove('isServed');
       copy.remove('__itemIndex');
+      if (addedAt != null) {
+        copy['addedAt'] = addedAt;
+      } else {
+        copy.remove('addedAt');
+      }
 
       final key = '${copy['name']}_${copy['categoryId'] ?? ''}';
       if (merged.containsKey(key)) {
         final existingQty = (merged[key]!['qty'] as num?)?.toInt() ?? 0;
         final addQty = (copy['qty'] as num?)?.toInt() ?? 0;
         merged[key]!['qty'] = existingQty + addQty;
+        final existingAt = coerceTimestamp(merged[key]!['addedAt']);
+        if (addedAt != null &&
+            (existingAt == null || addedAt.compareTo(existingAt) < 0)) {
+          merged[key]!['addedAt'] = addedAt;
+        }
       } else {
         merged[key] = copy;
       }
     }
 
     return merged.values.toList();
+  }
+
+  static Timestamp? coerceTimestamp(dynamic value) {
+    if (value is Timestamp) return value;
+    if (value is DateTime) return Timestamp.fromDate(value);
+    return null;
+  }
+
+  static int orderRevisionFromData(Map<String, dynamic>? data) {
+    return (data?['orderRevision'] as num?)?.toInt() ?? 0;
+  }
+
+  static Future<int?> commitTableUpdate({
+    required DocumentReference<Map<String, dynamic>> docRef,
+    required Map<String, dynamic>? Function(
+      Map<String, dynamic> data,
+      int nextRevision,
+    )
+    build,
+  }) {
+    return TableItemServed.commitTableUpdate(docRef: docRef, build: build);
+  }
+
+  static List<Map<String, dynamic>> flattenGroupsPreservingAddedAt(
+    List<List<Map<String, dynamic>>> groups,
+  ) {
+    final flattenedItems = <Map<String, dynamic>>[];
+
+    for (var groupIndex = 0; groupIndex < groups.length; groupIndex++) {
+      final group = groups[groupIndex];
+      Timestamp? groupFallback;
+      for (final item in group) {
+        groupFallback = coerceTimestamp(item['addedAt']);
+        if (groupFallback != null) break;
+      }
+      groupFallback ??= Timestamp.now();
+
+      for (final item in group) {
+        final itemWithMeta = Map<String, dynamic>.from(item);
+        itemWithMeta['groupIndex'] = groupIndex;
+        itemWithMeta['addedAt'] =
+            coerceTimestamp(item['addedAt']) ?? groupFallback;
+        flattenedItems.add(itemWithMeta);
+      }
+    }
+
+    return flattenedItems;
   }
 
   static double orderItemsSubtotal(List<Map<String, dynamic>> items) {
@@ -200,7 +257,13 @@ class TablesRepository {
     );
   }
 
-  Future<void> updateTableItems({
+  /// Returns the new order revision, or null when the write was rejected.
+  ///
+  /// A non-empty save is rejected when [expectedOrderRevision] does not match
+  /// the table. That stops an older kitchen or dashboard save from putting
+  /// items back after the bill has cleared the table. Clearing (empty
+  /// [groups]) always applies. Each item keeps its own `addedAt`.
+  Future<int?> updateTableItems({
     required String tableName,
     required List<List<Map<String, dynamic>>> groups,
     required bool isBillPaid,
@@ -211,6 +274,7 @@ class TablesRepository {
     List<String>? addedByUserIds,
     List<String>? addedByUserNames,
     bool clearAddedBy = false,
+    int? expectedOrderRevision,
   }) async {
     var resolvedDocId = docId?.trim();
     if (resolvedDocId == null || resolvedDocId.isEmpty) {
@@ -220,83 +284,79 @@ class TablesRepository {
           .limit(1)
           .get();
 
-      if (tableQuery.docs.isEmpty) return;
+      if (tableQuery.docs.isEmpty) return null;
       resolvedDocId = tableQuery.docs.first.id;
     }
 
-    final flattenedItems = <Map<String, dynamic>>[];
+    final flattenedItems = flattenGroupsPreservingAddedAt(groups);
+    final clearing = flattenedItems.isEmpty;
 
-    for (var groupIndex = 0; groupIndex < groups.length; groupIndex++) {
-      final group = groups[groupIndex];
-      Timestamp groupTimestamp;
-      if (group.isNotEmpty && group.first.containsKey('addedAt')) {
-        groupTimestamp = group.first['addedAt'];
-      } else {
-        groupTimestamp = Timestamp.now();
-      }
+    return commitTableUpdate(
+      docRef: FirestorePaths.scopedDoc('tables', resolvedDocId),
+      build: (data, nextRevision) {
+        final current = orderRevisionFromData(data);
+        if (!clearing &&
+            expectedOrderRevision != null &&
+            expectedOrderRevision != current) {
+          return null;
+        }
 
-      for (final item in group) {
-        final itemWithMeta = Map<String, dynamic>.from(item);
-        itemWithMeta['groupIndex'] = groupIndex;
-        itemWithMeta['addedAt'] = groupTimestamp;
-        flattenedItems.add(itemWithMeta);
-      }
-    }
+        final updateData = <String, dynamic>{
+          'items': flattenedItems,
+          'isPaid': isBillPaid,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'orderRevision': nextRevision,
+        };
+        if (overallRemarks.isNotEmpty) {
+          updateData['remarks'] = overallRemarks;
+        }
+        if (lastTransactionId != null && lastTransactionId.isNotEmpty) {
+          updateData['lastTransactionId'] = lastTransactionId;
+        } else if (clearLastTransactionId) {
+          updateData['lastTransactionId'] = FieldValue.delete();
+        }
 
-    final updateData = <String, dynamic>{
-      'items': flattenedItems,
-      'isPaid': isBillPaid,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-    if (overallRemarks.isNotEmpty) {
-      updateData['remarks'] = overallRemarks;
-    }
-    if (lastTransactionId != null && lastTransactionId.isNotEmpty) {
-      updateData['lastTransactionId'] = lastTransactionId;
-    } else if (clearLastTransactionId) {
-      updateData['lastTransactionId'] = FieldValue.delete();
-    }
+        final rawIds = addedByUserIds ?? const <String>[];
+        final rawNames = addedByUserNames ?? const <String>[];
+        if (rawIds.isNotEmpty && rawNames.isNotEmpty) {
+          var syncedIds = <String>[];
+          var syncedNames = <String>[];
+          final limit = rawIds.length < rawNames.length
+              ? rawIds.length
+              : rawNames.length;
+          for (var i = 0; i < limit; i++) {
+            final next = appendAddedByUser(
+              existingIds: syncedIds,
+              existingNames: syncedNames,
+              userId: rawIds[i],
+              userName: rawNames[i],
+            );
+            syncedIds = next.ids;
+            syncedNames = next.names;
+          }
 
-    final rawIds = addedByUserIds ?? const <String>[];
-    final rawNames = addedByUserNames ?? const <String>[];
-    if (rawIds.isNotEmpty && rawNames.isNotEmpty) {
-      var syncedIds = <String>[];
-      var syncedNames = <String>[];
-      final limit =
-          rawIds.length < rawNames.length ? rawIds.length : rawNames.length;
-      for (var i = 0; i < limit; i++) {
-        final next = appendAddedByUser(
-          existingIds: syncedIds,
-          existingNames: syncedNames,
-          userId: rawIds[i],
-          userName: rawNames[i],
-        );
-        syncedIds = next.ids;
-        syncedNames = next.names;
-      }
+          if (syncedIds.isNotEmpty && syncedNames.isNotEmpty) {
+            updateData['addedByUserIds'] = syncedIds;
+            updateData['addedByUserNames'] = syncedNames;
+            updateData['addedByUserId'] = FieldValue.delete();
+            updateData['addedByUserName'] = FieldValue.delete();
+          }
+        } else if (clearAddedBy || flattenedItems.isEmpty) {
+          updateData['addedByUserIds'] = FieldValue.delete();
+          updateData['addedByUserNames'] = FieldValue.delete();
+          updateData['addedByUserId'] = FieldValue.delete();
+          updateData['addedByUserName'] = FieldValue.delete();
+        }
 
-      if (syncedIds.isNotEmpty && syncedNames.isNotEmpty) {
-        updateData['addedByUserIds'] = syncedIds;
-        updateData['addedByUserNames'] = syncedNames;
-        // Drop legacy single-value fields after migrating to lists.
-        updateData['addedByUserId'] = FieldValue.delete();
-        updateData['addedByUserName'] = FieldValue.delete();
-      }
-    } else if (clearAddedBy || flattenedItems.isEmpty) {
-      updateData['addedByUserIds'] = FieldValue.delete();
-      updateData['addedByUserNames'] = FieldValue.delete();
-      updateData['addedByUserId'] = FieldValue.delete();
-      updateData['addedByUserName'] = FieldValue.delete();
-    }
+        if (isBillPaid || flattenedItems.isEmpty) {
+          updateData['orderCompletionNotifiedAt'] = FieldValue.delete();
+          updateData['orderCompletionNotifiedBy'] = FieldValue.delete();
+          updateData['orderCompletionNotifiedByUserId'] = FieldValue.delete();
+        }
 
-    // Billing / clear resets any pending staff→admin completion ping.
-    if (isBillPaid || flattenedItems.isEmpty) {
-      updateData['orderCompletionNotifiedAt'] = FieldValue.delete();
-      updateData['orderCompletionNotifiedBy'] = FieldValue.delete();
-      updateData['orderCompletionNotifiedByUserId'] = FieldValue.delete();
-    }
-
-    await FirestorePaths.scopedDoc('tables', resolvedDocId).update(updateData);
+        return updateData;
+      },
+    );
   }
 
   /// Single write: staff signals admin that this order is ready for billing.

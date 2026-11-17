@@ -71,6 +71,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
   final Map<String, bool> tableIsPaid = {};
   final Map<String, String> tableDocIds = {};
   final Map<String, String> tableTransactionIds = {};
+  final Map<String, int> tableOrderRevisions = {};
   final Map<String, List<String>> tableAddedByUserIds = {};
   final Map<String, List<String>> tableAddedByUserNames = {};
   final Map<String, List<int>> _firestoreGroupIndices = {};
@@ -181,6 +182,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
       tableIsPaid.clear();
       tableDocIds.clear();
       tableTransactionIds.clear();
+      tableOrderRevisions.clear();
       tableAddedByUserIds.clear();
       tableAddedByUserNames.clear();
       _firestoreGroupIndices.clear();
@@ -241,7 +243,11 @@ class _TableDashboardViewState extends State<TableDashboardView>
     }
     if (diff.inHours < 24) {
       final hours = diff.inHours;
-      return hours == 1 ? '1 hour ago' : '$hours hours ago';
+      final mins = diff.inMinutes.remainder(60);
+      final hourLabel = hours == 1 ? '1 hr' : '$hours hrs';
+      if (mins == 0) return '$hourLabel ago';
+      final minLabel = mins == 1 ? '1 min' : '$mins mins';
+      return '$hourLabel $minLabel ago';
     }
     if (diff.inDays < 7) {
       final days = diff.inDays;
@@ -250,9 +256,18 @@ class _TableDashboardViewState extends State<TableDashboardView>
     return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
   }
 
+  DateTime? _earliestAddedAt(List<Map<String, dynamic>> group) {
+    DateTime? earliest;
+    for (final item in group) {
+      final addedAt = _parseAddedAt(item['addedAt']);
+      if (addedAt == null) continue;
+      if (earliest == null || addedAt.isBefore(earliest)) earliest = addedAt;
+    }
+    return earliest;
+  }
+
   String? _groupTimeLabel(List<Map<String, dynamic>> group) {
-    if (group.isEmpty) return null;
-    final addedAt = _parseAddedAt(group.first['addedAt']);
+    final addedAt = _earliestAddedAt(group);
     if (addedAt == null) return null;
     return _formatTimeAgo(addedAt);
   }
@@ -271,7 +286,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
             left['qty'] != right['qty'] ||
             left['price'] != right['price'] ||
             TableItemServed.isServed(left) != TableItemServed.isServed(right) ||
-            left['remarks'] != right['remarks']) {
+            left['remarks'] != right['remarks'] ||
+            _parseAddedAt(left['addedAt']) != _parseAddedAt(right['addedAt'])) {
           return false;
         }
       }
@@ -345,8 +361,10 @@ class _TableDashboardViewState extends State<TableDashboardView>
     required Map<String, String> updatedOrderCompletionNotifiedBy,
     required Map<String, bool> updatedIsFutureOrder,
     required Map<String, DateTime?> updatedScheduledAt,
+    required Map<String, int> updatedOrderRevisions,
   }) {
     return _sameTablesData(tables, updatedTables) &&
+        _sameIntMap(tableOrderRevisions, updatedOrderRevisions) &&
         _sameIntListMap(_firestoreGroupIndices, updatedFirestoreGroupIndices) &&
         _sameBoolMap(tableIsPaid, updatedIsPaid) &&
         _sameStringMap(tableDocIds, updatedDocIds) &&
@@ -427,10 +445,15 @@ class _TableDashboardViewState extends State<TableDashboardView>
     List<Map<String, dynamic>> items, {
     dynamic preserveAddedAt,
   }) {
-    final ts = preserveAddedAt ?? Timestamp.now();
+    final fallback = preserveAddedAt ?? Timestamp.now();
     return items.map((item) {
       final copy = Map<String, dynamic>.from(item);
-      copy['addedAt'] = ts;
+      final existing = copy['addedAt'];
+      if (preserveAddedAt != null) {
+        copy['addedAt'] = preserveAddedAt;
+      } else if (existing is! Timestamp && existing is! DateTime) {
+        copy['addedAt'] = fallback;
+      }
       return copy;
     }).toList();
   }
@@ -620,6 +643,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
     final Map<String, String> updatedOrderCompletionNotifiedBy = {};
     final Map<String, bool> updatedIsFutureOrder = {};
     final Map<String, DateTime?> updatedScheduledAt = {};
+    final Map<String, int> updatedOrderRevisions = {};
 
     for (var doc in querySnapshot.docs) {
       final tableName = doc['name'] as String;
@@ -627,6 +651,8 @@ class _TableDashboardViewState extends State<TableDashboardView>
       updatedCreatedAt[tableName] = data['createdAt'] as Timestamp?;
       updatedIsPaid[tableName] = data['isPaid'] == true;
       updatedDocIds[tableName] = doc.id;
+      updatedOrderRevisions[tableName] =
+          TablesRepository.orderRevisionFromData(data);
       final notifiedAtMs = _timestampToMillis(
         data['orderCompletionNotifiedAt'],
       );
@@ -775,6 +801,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
       updatedOrderCompletionNotifiedBy: updatedOrderCompletionNotifiedBy,
       updatedIsFutureOrder: updatedIsFutureOrder,
       updatedScheduledAt: updatedScheduledAt,
+      updatedOrderRevisions: updatedOrderRevisions,
     );
 
     if (unchanged) {
@@ -840,6 +867,9 @@ class _TableDashboardViewState extends State<TableDashboardView>
       tableScheduledAt
         ..clear()
         ..addAll(updatedScheduledAt);
+      tableOrderRevisions
+        ..clear()
+        ..addAll(updatedOrderRevisions);
       if (_tableFilterSelection.isNotEmpty) {
         final before = _tableFilterSelection.length;
         _tableFilterSelection.removeWhere(
@@ -942,7 +972,7 @@ class _TableDashboardViewState extends State<TableDashboardView>
         }
       }
 
-      await Get.find<TablesRepository>().updateTableItems(
+      final newRevision = await Get.find<TablesRepository>().updateTableItems(
         tableName: tableName,
         groups: groups,
         isBillPaid: isBillPaid,
@@ -953,7 +983,26 @@ class _TableDashboardViewState extends State<TableDashboardView>
         addedByUserIds: nextIds,
         addedByUserNames: nextNames,
         clearAddedBy: groups.isEmpty,
+        // Empty saves are the bill-clear / serve-clear. They must apply even
+        // when another phone still has the old order. Item saves must match
+        // the revision currently on screen, or they are rejected.
+        expectedOrderRevision: groups.isEmpty
+            ? null
+            : (tableOrderRevisions[tableName] ?? 0),
       );
+      if (newRevision == null) {
+        if (mounted && groups.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'This table changed on another screen, so the old items were not saved again.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+      tableOrderRevisions[tableName] = newRevision;
       if (clearLastTransactionId) {
         tableTransactionIds.remove(tableName);
       } else if (lastTransactionId != null && lastTransactionId.isNotEmpty) {
@@ -1320,23 +1369,9 @@ class _TableDashboardViewState extends State<TableDashboardView>
       return existing.docs.first.id;
     }
 
-    final flattenedItems = <Map<String, dynamic>>[];
-    for (var groupIndex = 0; groupIndex < groups.length; groupIndex++) {
-      final group = groups[groupIndex];
-      final Timestamp groupTimestamp =
-          group.isNotEmpty &&
-              group.first.containsKey('addedAt') &&
-              group.first['addedAt'] is Timestamp
-          ? group.first['addedAt'] as Timestamp
-          : Timestamp.now();
-
-      for (final item in group) {
-        final itemWithMeta = Map<String, dynamic>.from(item);
-        itemWithMeta['groupIndex'] = groupIndex;
-        itemWithMeta['addedAt'] = groupTimestamp;
-        flattenedItems.add(itemWithMeta);
-      }
-    }
+    final flattenedItems = TablesRepository.flattenGroupsPreservingAddedAt(
+      groups,
+    );
 
     final tableData = <String, dynamic>{
       'name': orderName,
@@ -1549,6 +1584,12 @@ class _TableDashboardViewState extends State<TableDashboardView>
       final key = "${item['name']}_${item['categoryId']}";
       if (itemMap.containsKey(key)) {
         itemMap[key]!['qty'] = (itemMap[key]!['qty'] ?? 1) + (item['qty'] ?? 1);
+        final existingAt = _parseAddedAt(itemMap[key]!['addedAt']);
+        final nextAt = _parseAddedAt(item['addedAt']);
+        if (nextAt != null &&
+            (existingAt == null || nextAt.isBefore(existingAt))) {
+          itemMap[key]!['addedAt'] = item['addedAt'];
+        }
       } else {
         itemMap[key] = Map<String, dynamic>.from(item);
       }
@@ -1627,21 +1668,9 @@ class _TableDashboardViewState extends State<TableDashboardView>
         return;
       }
 
-      // Step 1: Build grouped structure similar to update method
-      // For a new table, you can assume all items belong to one group (index = 0)
-      List<Map<String, dynamic>> flattenedItems = [];
-
-      final Timestamp groupTimestamp = Timestamp.now(); // one timestamp for all
-
-      for (int i = 0; i < selectedItems.length; i++) {
-        final item = Map<String, dynamic>.from(selectedItems[i]);
-
-        // Add same meta fields as update method
-        item['groupIndex'] = 0; // single group for new table
-        item['addedAt'] = groupTimestamp;
-
-        flattenedItems.add(item);
-      }
+      final flattenedItems = TablesRepository.flattenGroupsPreservingAddedAt([
+        selectedItems,
+      ]);
 
       final tableData = {
         'name': tableName,
@@ -3465,7 +3494,11 @@ class _GroupTimeAgoLabelState extends State<_GroupTimeAgoLabel> {
     }
     if (diff.inHours < 24) {
       final hours = diff.inHours;
-      return hours == 1 ? '1 hour ago' : '$hours hours ago';
+      final mins = diff.inMinutes.remainder(60);
+      final hourLabel = hours == 1 ? '1 hr' : '$hours hrs';
+      if (mins == 0) return '$hourLabel ago';
+      final minLabel = mins == 1 ? '1 min' : '$mins mins';
+      return '$hourLabel $minLabel ago';
     }
     if (diff.inDays < 7) {
       final days = diff.inDays;
@@ -3477,7 +3510,12 @@ class _GroupTimeAgoLabelState extends State<_GroupTimeAgoLabel> {
   @override
   Widget build(BuildContext context) {
     if (widget.group.isEmpty) return const SizedBox.shrink();
-    final addedAt = _parseAddedAt(widget.group.first['addedAt']);
+    DateTime? addedAt;
+    for (final item in widget.group) {
+      final parsed = _parseAddedAt(item['addedAt']);
+      if (parsed == null) continue;
+      if (addedAt == null || parsed.isBefore(addedAt)) addedAt = parsed;
+    }
     if (addedAt == null) return const SizedBox.shrink();
 
     return Align(

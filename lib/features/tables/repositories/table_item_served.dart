@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:smartKitchen/core/firestore/firestore_paths.dart';
+import 'package:smartKitchen/core/utils/platform_utils.dart';
 import 'package:smartKitchen/features/activity_log/services/activity_log_service.dart';
 import 'package:flutter/material.dart';
 
@@ -99,166 +100,187 @@ class TableItemServed {
     return parsed;
   }
 
-  static Future<bool> markItemsServed(List<TableItemKey> keys) async {
-    if (keys.isEmpty) return false;
-
+  static Map<String, List<TableItemKey>> _keysByDoc(List<TableItemKey> keys) {
     final byDoc = <String, List<TableItemKey>>{};
     for (final key in keys) {
       byDoc.putIfAbsent(key.docId, () => []).add(key);
     }
+    return byDoc;
+  }
 
-    var anyUpdated = false;
-
-    for (final entry in byDoc.entries) {
-      final docRef = FirestorePaths.scopedDoc('tables', entry.key);
-      final snap = await docRef.get();
-      if (!snap.exists) continue;
-
-      final items = parseItemList(snap.data()?['items']);
-      if (items.isEmpty) continue;
-
-      final groupCounters = <int, int>{};
-      var changed = false;
-
-      for (var i = 0; i < items.length; i++) {
-        final item = items[i];
-        final groupIndex = parseGroupIndex(item['groupIndex']);
-        final indexInGroup = groupCounters[groupIndex] ?? 0;
-        groupCounters[groupIndex] = indexInGroup + 1;
-
-        final shouldServe = entry.value.any(
-          (key) =>
-              key.groupIndex == groupIndex &&
-              key.itemIndexInGroup == indexInGroup,
-        );
-
-        if (!shouldServe || isServed(item)) continue;
-
-        items[i]['isServed'] = true;
-        items[i]['servedAt'] = Timestamp.now();
-        changed = true;
-      }
-
-      if (changed) {
-        await docRef.update({
-          'items': items,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        anyUpdated = true;
-      }
+  /// Applies [build] to the latest table document.
+  ///
+  /// Returning null leaves the table unchanged. Mobile and web use a
+  /// transaction so a bill-clear cannot be overwritten by an older save.
+  /// Desktop avoids transactions because they crash the Firestore plugin
+  /// while a tables listener is active.
+  static Future<int?> commitTableUpdate({
+    required DocumentReference<Map<String, dynamic>> docRef,
+    required Map<String, dynamic>? Function(
+      Map<String, dynamic> data,
+      int nextRevision,
+    )
+    build,
+  }) async {
+    ({int revision, Map<String, dynamic> update})? apply(
+      DocumentSnapshot<Map<String, dynamic>> snap,
+    ) {
+      if (!snap.exists) return null;
+      final data = snap.data() ?? <String, dynamic>{};
+      final current = (data['orderRevision'] as num?)?.toInt() ?? 0;
+      final update = build(data, current + 1);
+      if (update == null) return null;
+      return (revision: current + 1, update: update);
     }
 
+    if (isDesktopPlatform) {
+      DocumentSnapshot<Map<String, dynamic>> snap;
+      try {
+        snap = await docRef.get(const GetOptions(source: Source.server));
+      } catch (_) {
+        snap = await docRef.get();
+      }
+      final result = apply(snap);
+      if (result == null) return null;
+      await docRef.update(result.update);
+      return result.revision;
+    }
+
+    return FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(docRef);
+      final result = apply(snap);
+      if (result == null) return null;
+      tx.update(docRef, result.update);
+      return result.revision;
+    });
+  }
+
+  /// Edits only the items currently stored on the table.
+  /// An empty table (just billed) is left empty.
+  static Future<bool> _editStoredItems(
+    String docId,
+    bool Function(List<Map<String, dynamic>> items, Map<String, dynamic> data)
+    edit,
+  ) async {
+    final revision = await commitTableUpdate(
+      docRef: FirestorePaths.scopedDoc('tables', docId),
+      build: (data, nextRevision) {
+        final items = [
+          for (final raw in parseItemList(data['items']))
+            Map<String, dynamic>.from(raw),
+        ];
+        if (items.isEmpty) return null;
+        if (!edit(items, data)) return null;
+        return {
+          'items': items,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'orderRevision': nextRevision,
+        };
+      },
+    );
+    return revision != null;
+  }
+
+  static Future<bool> markItemsServed(List<TableItemKey> keys) async {
+    if (keys.isEmpty) return false;
+
+    var anyUpdated = false;
+    for (final entry in _keysByDoc(keys).entries) {
+      final updated = await _editStoredItems(entry.key, (items, _) {
+        final groupCounters = <int, int>{};
+        var changed = false;
+        for (var i = 0; i < items.length; i++) {
+          final item = items[i];
+          final groupIndex = parseGroupIndex(item['groupIndex']);
+          final indexInGroup = groupCounters[groupIndex] ?? 0;
+          groupCounters[groupIndex] = indexInGroup + 1;
+          final shouldServe = entry.value.any(
+            (key) =>
+                key.groupIndex == groupIndex &&
+                key.itemIndexInGroup == indexInGroup,
+          );
+          if (!shouldServe || isServed(item)) continue;
+          items[i]['isServed'] = true;
+          items[i]['servedAt'] = Timestamp.now();
+          changed = true;
+        }
+        return changed;
+      });
+      if (updated) anyUpdated = true;
+    }
     return anyUpdated;
   }
 
   static Future<bool> markItemsUnserved(List<TableItemKey> keys) async {
     if (keys.isEmpty) return false;
 
-    final byDoc = <String, List<TableItemKey>>{};
-    for (final key in keys) {
-      byDoc.putIfAbsent(key.docId, () => []).add(key);
-    }
-
     var anyUpdated = false;
-
-    for (final entry in byDoc.entries) {
-      final docRef = FirestorePaths.scopedDoc('tables', entry.key);
-      final snap = await docRef.get();
-      if (!snap.exists) continue;
-
-      final items = parseItemList(snap.data()?['items']);
-      if (items.isEmpty) continue;
-
-      final groupCounters = <int, int>{};
-      var changed = false;
-
-      for (var i = 0; i < items.length; i++) {
-        final item = items[i];
-        final groupIndex = parseGroupIndex(item['groupIndex']);
-        final indexInGroup = groupCounters[groupIndex] ?? 0;
-        groupCounters[groupIndex] = indexInGroup + 1;
-
-        final shouldUnserve = entry.value.any(
-          (key) =>
-              key.groupIndex == groupIndex &&
-              key.itemIndexInGroup == indexInGroup,
-        );
-
-        if (!shouldUnserve || !isServed(item)) continue;
-
-        items[i]['isServed'] = false;
-        items[i].remove('servedAt');
-        changed = true;
-      }
-
-      if (changed) {
-        await docRef.update({
-          'items': items,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        anyUpdated = true;
-      }
+    for (final entry in _keysByDoc(keys).entries) {
+      final updated = await _editStoredItems(entry.key, (items, _) {
+        final groupCounters = <int, int>{};
+        var changed = false;
+        for (var i = 0; i < items.length; i++) {
+          final item = items[i];
+          final groupIndex = parseGroupIndex(item['groupIndex']);
+          final indexInGroup = groupCounters[groupIndex] ?? 0;
+          groupCounters[groupIndex] = indexInGroup + 1;
+          final shouldUnserve = entry.value.any(
+            (key) =>
+                key.groupIndex == groupIndex &&
+                key.itemIndexInGroup == indexInGroup,
+          );
+          if (!shouldUnserve || !isServed(item)) continue;
+          items[i]['isServed'] = false;
+          items[i].remove('servedAt');
+          changed = true;
+        }
+        return changed;
+      });
+      if (updated) anyUpdated = true;
     }
-
     return anyUpdated;
   }
 
   static Future<bool> removeItems(List<TableItemKey> keys) async {
     if (keys.isEmpty) return false;
 
-    final byDoc = <String, List<TableItemKey>>{};
-    for (final key in keys) {
-      byDoc.putIfAbsent(key.docId, () => []).add(key);
-    }
-
     var anyUpdated = false;
-
-    for (final entry in byDoc.entries) {
-      final docRef = FirestorePaths.scopedDoc('tables', entry.key);
-      final snap = await docRef.get();
-      if (!snap.exists) continue;
-
-      final items = parseItemList(snap.data()?['items']);
-      if (items.isEmpty) continue;
-
-      final groupCounters = <int, int>{};
-      final indicesToRemove = <int>{};
-
-      for (var i = 0; i < items.length; i++) {
-        final item = items[i];
-        final groupIndex = parseGroupIndex(item['groupIndex']);
-        final indexInGroup = groupCounters[groupIndex] ?? 0;
-        groupCounters[groupIndex] = indexInGroup + 1;
-
-        final shouldRemove = entry.value.any(
-          (key) =>
-              key.groupIndex == groupIndex &&
-              key.itemIndexInGroup == indexInGroup,
-        );
-
-        if (shouldRemove) {
-          indicesToRemove.add(i);
+    for (final entry in _keysByDoc(keys).entries) {
+      final removedItems = <Map<String, dynamic>>[];
+      String? tableName;
+      final updated = await _editStoredItems(entry.key, (items, data) {
+        tableName = data['name']?.toString();
+        final groupCounters = <int, int>{};
+        final indicesToRemove = <int>{};
+        for (var i = 0; i < items.length; i++) {
+          final item = items[i];
+          final groupIndex = parseGroupIndex(item['groupIndex']);
+          final indexInGroup = groupCounters[groupIndex] ?? 0;
+          groupCounters[groupIndex] = indexInGroup + 1;
+          final shouldRemove = entry.value.any(
+            (key) =>
+                key.groupIndex == groupIndex &&
+                key.itemIndexInGroup == indexInGroup,
+          );
+          if (shouldRemove) indicesToRemove.add(i);
         }
-      }
-
-      if (indicesToRemove.isEmpty) continue;
-
-      final removedItems = [
-        for (final i in indicesToRemove) Map<String, dynamic>.from(items[i]),
-      ];
-      final tableName = snap.data()?['name']?.toString();
-
-      final remaining = [
-        for (var i = 0; i < items.length; i++)
-          if (!indicesToRemove.contains(i)) items[i],
-      ];
-
-      await docRef.update({
-        'items': remaining,
-        'updatedAt': FieldValue.serverTimestamp(),
+        if (indicesToRemove.isEmpty) return false;
+        removedItems
+          ..clear()
+          ..addAll([
+            for (final i in indicesToRemove) Map<String, dynamic>.from(items[i]),
+          ]);
+        final remaining = [
+          for (var i = 0; i < items.length; i++)
+            if (!indicesToRemove.contains(i)) items[i],
+        ];
+        items
+          ..clear()
+          ..addAll(remaining);
+        return true;
       });
+      if (!updated) continue;
       anyUpdated = true;
-
       ActivityLogService.instance.logDeleteItems(
         tableName: tableName,
         tableDocId: entry.key,

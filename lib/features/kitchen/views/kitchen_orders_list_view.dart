@@ -804,7 +804,10 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
 
       groupMap.putIfAbsent(groupIndex, () => []);
       groupMap[groupIndex]!.add(normalized);
-      groupTimeMap[groupIndex] = addedAt;
+      final existingTime = groupTimeMap[groupIndex];
+      if (existingTime == null || addedAt.compareTo(existingTime) < 0) {
+        groupTimeMap[groupIndex] = addedAt;
+      }
     }
 
     groupMap.forEach((index, items) {
@@ -3783,7 +3786,11 @@ class _KitchenOrdersListViewState extends State<KitchenOrdersListView>
     } else if (difference.inMinutes < 60) {
       return "${difference.inMinutes} min${difference.inMinutes > 1 ? "s" : ""} ago";
     } else if (difference.inHours < 24) {
-      return "${difference.inHours} hr${difference.inHours > 1 ? "s" : ""} ago";
+      final hours = difference.inHours;
+      final mins = difference.inMinutes.remainder(60);
+      final hourText = "$hours hr${hours > 1 ? "s" : ""}";
+      if (mins == 0) return "$hourText ago";
+      return "$hourText $mins min${mins > 1 ? "s" : ""} ago";
     } else if (difference.inDays == 1) {
       return "yesterday";
     } else if (difference.inDays < 7) {
